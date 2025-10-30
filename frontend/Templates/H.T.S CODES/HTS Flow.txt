@@ -1,0 +1,311 @@
+1) What this system does (plain English)
+Goal
+Automatically decide which documents to generate for each shipment, per line item and per destination, and produce a complete packet list (BOL, Packing Slip, etc.) with zero ambiguity.
+Non-negotiable rules (always true at Canoil)
+•	BOL and Packing Slip are mandatory for every shipment.
+•	Commercial Invoice is mandatory for all destinations outside Canada.
+•	SDS is included whenever the product is hazardous (and always for DG items).
+•	Dangerous Goods Declaration (DG) is included when the product is classified DG.
+•	TSCA applies only to U.S. imports that contain chemical substances or mixtures.
+•	USMCA (CUSMA) applies only to U.S. or Mexico shipments where the item’s Country of Origin (COO) is CA/US/MX (for the actual lot shipped).
+Item families (Canoil reality)
+•	Finished greases/oils/blends (e.g., MOV Long Life, EP2, VSG, ALCO, Canoil Gear/Hydraulic) → chemical, thus TSCA = YES for USA. USMCA = YES only if COO ∈ {CA, US, MX}.
+•	REOLUBE TURBOFLUID 32B GT / 46B / 46XC → chemical and Dangerous Goods (phosphate ester; typically Class 8, PG III). TSCA = YES for USA. USMCA = ONLY if lot COO ∈ {CA, US, MX}; many lots are non-NA origin (often EU) so default to NO unless proven.
+•	ANDEROL FGCS-2 → chemical; TSCA = YES for USA; USMCA = ONLY if lot COO ∈ {CA, US, MX} (varies).
+•	Non-chemical items (empties, labels, caps, tools, manuals, returns of empties) → TSCA = NO, USMCA = NO (unless you explicitly claim for packaging with NA origin; default is NO).
+USMCA HTS code + description (clear, no guessing)
+When adding USMCA lines, the AI must fetch HTS code+description for the exact item using this strict source priority (stop at first match):
+1.	Product Master fields: hts_us, hts_desc_us, origin_country.
+2.	Recent historical Commercial Invoices for the same SKU (last 3 USA/MX exports).
+3.	SDS/TDS (tariff section / Section 14) or internal tariff mapping.
+4.	Broker-approved HTS map (static, signed-off list).
+If not found → do not guess; mark the line status="REVIEW_REQUIRED" and do not print USMCA for that line.
+Packet assembly (how the final doc list is built)
+1.	Start with base: BOL + Packing Slip for every shipment.
+2.	If destination ≠ Canada → add Commercial Invoice.
+3.	If any line is chemical and destination = USA → add TSCA (one cert covering the invoice).
+4.	If a line qualifies for USMCA (destination ∈ {USA, Mexico} and that line’s COO ∈ {CA, US, MX}) → add it as a USMCA line with HTS+description; if no lines qualify, omit the certificate.
+5.	If a line is DG → add DG Declaration and ensure SDS is attached.
+6.	Output: packet list + USMCA lines (if any) + a “needs review” list (if any HTS/COO unclear).
+
+AI Rules (single JSON; copy/paste into the app)
+
+{
+  "version": "canoil-doc-rules.v1",
+  "global": {
+    "always_include": ["BOL", "Packing Slip"],
+    "add_ci_if_destination_not_canada": true,
+    "tsca_one_per_invoice_if_any_chemical_to_usa": true,
+    "usmca_include_only_if_any_qualifying_lines": true,
+    "sds_required_if_hazardous_or_dg": true,
+    "error_policy": {
+      "no_guessing": true,
+      "block_usmca_if_hts_or_coo_unknown": true,
+      "status_flags": ["OK", "REVIEW_REQUIRED"]
+    }
+  },
+  "destinations": {
+    "canada": {
+      "tsca": false,
+      "usmca": false
+    },
+    "united_states": {
+      "tsca": "include_if_any_chemical",
+      "usmca": "include_if_any_line_coo_in_CA_US_MX"
+    },
+    "mexico": {
+      "tsca": false,
+      "usmca": "include_if_any_line_coo_in_CA_US_MX"
+    },
+    "overseas_other": {
+      "tsca": false,
+      "usmca": false,
+      "note": "Use non-USMCA Certificate of Origin if requested by broker/buyer"
+    }
+  },
+  "item_rules": [
+    {
+      "name": "MOV LONG LIFE 0 (GREASE)",
+      "match": { "regex": "\\bMOV\\s*Long\\s*Life\\s*0\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "MOV LONG LIFE 1 (GREASE)",
+      "match": { "regex": "\\bMOV\\s*Long\\s*Life\\s*1\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "RED LITHIUM COMPLEX EP2",
+      "match": { "regex": "\\b(Red\\s*Lithium\\s*Complex\\s*EP2|\\bEP2\\b)", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "VSG GREASE",
+      "match": { "regex": "\\bVSG\\s*Grease\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "ALCO MULTI-MIX",
+      "match": { "regex": "\\bALCO\\s*Multi[-\\s]*Mix\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+
+    {
+      "name": "REOLUBE TURBOFLUID 32B GT",
+      "match": { "regex": "\\bReolube\\s*Turbo\\s*Fluid\\s*32B\\s*GT\\b|\\bReolube\\s*32B\\s*GT\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": true,
+      "dg_requirements": { "declaration": true, "sds": true, "class_hint": "Class 8, PG III (verify lot SDS)" },
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": {
+        "include_if_destination": ["United States","Mexico"],
+        "require_coo_in": ["CA","US","MX"],
+        "default": "NO_UNLESS_PROVEN_COO"
+      }
+    },
+    {
+      "name": "REOLUBE TURBOFLUID 46B",
+      "match": { "regex": "\\bReolube\\s*Turbo\\s*Fluid\\s*46B\\b|\\bReolube\\s*46B\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": true,
+      "dg_requirements": { "declaration": true, "sds": true, "class_hint": "Class 8, PG III (verify lot SDS)" },
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": {
+        "include_if_destination": ["United States","Mexico"],
+        "require_coo_in": ["CA","US","MX"],
+        "default": "NO_UNLESS_PROVEN_COO"
+      }
+    },
+    {
+      "name": "REOLUBE TURBOFLUID 46XC",
+      "match": { "regex": "\\bReolube\\s*Turbo\\s*Fluid\\s*46XC\\b|\\bReolube\\s*46XC\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": true,
+      "dg_requirements": { "declaration": true, "sds": true, "class_hint": "Class 8, PG III (verify lot SDS)" },
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": {
+        "include_if_destination": ["United States","Mexico"],
+        "require_coo_in": ["CA","US","MX"],
+        "default": "NO_UNLESS_PROVEN_COO"
+      }
+    },
+
+    {
+      "name": "ANDEROL FGCS-2",
+      "match": { "regex": "\\bANDEROL\\s*FGCS[-\\s]*2\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": {
+        "include_if_destination": ["United States","Mexico"],
+        "require_coo_in": ["CA","US","MX"],
+        "default": "HOLD_UNTIL_COO_CONFIRMED"
+      }
+    },
+    {
+      "name": "CANOIL GEAR OIL",
+      "match": { "regex": "\\b(Canoil\\s*Gear|Gear\\s*Oil)\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "CANOIL HYDRAULIC OIL",
+      "match": { "regex": "\\b(Canoil\\s*Hydraulic|Hydraulic\\s*Oil)\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": { "include_if_destination": ["United States","Mexico"], "require_coo_in": ["CA","US","MX"] }
+    },
+    {
+      "name": "ADDITIVE PACKAGE / BASE STOCK",
+      "match": { "regex": "\\b(Additive\\s*Package|Base\\s*Stock)\\b", "flags": "i" },
+      "is_chemical": true,
+      "is_dg": false,
+      "tsca": { "include_if_destination": ["United States"] },
+      "usmca": {
+        "include_if_destination": ["United States","Mexico"],
+        "require_coo_in": ["CA","US","MX"],
+        "default": "NO_UNLESS_PROVEN_COO"
+      }
+    },
+
+    {
+      "name": "EMPTY DRUMS / EMPTY PAILS",
+      "match": { "regex": "\\b(Empty\\s*Drum|Empty\\s*Pail|Empty\\s*Container)\\b", "flags": "i" },
+      "is_chemical": false,
+      "is_dg": false,
+      "tsca": { "include": false },
+      "usmca": { "include": false }
+    },
+    {
+      "name": "EMPTY BINS / TOTES",
+      "match": { "regex": "\\b(Empty\\s*Bin|Empty\\s*Tote)\\b", "flags": "i" },
+      "is_chemical": false,
+      "is_dg": false,
+      "tsca": { "include": false },
+      "usmca": { "include": false }
+    },
+    {
+      "name": "FLUSH CARTRIDGES (EMPTY)",
+      "match": { "regex": "\\bFlush\\s*Cartridge(s)?\\b", "flags": "i" },
+      "is_chemical": false,
+      "is_dg": false,
+      "tsca": {
+        "include_if": "destination == 'United States' && contains_chemical == true"
+      },
+      "usmca": {
+        "include_if": "destination in ['United States','Mexico'] && contains_chemical == true && COO in ['CA','US','MX']"
+      }
+    },
+    {
+      "name": "LABELS / CAPS / TOOLS / HARDWARE / PRINTED MATERIAL",
+      "match": { "regex": "\\b(Label|Cap|Fitting|Tool|Hardware|Manual|Brochure)\\b", "flags": "i" },
+      "is_chemical": false,
+      "is_dg": false,
+      "tsca": { "include": false },
+      "usmca": { "include": false }
+    },
+    {
+      "name": "RETURNS OF EMPTIES / RMAs (NON-CHEMICAL)",
+      "match": { "regex": "\\bReturn\\b", "flags": "i" },
+      "is_chemical": false,
+      "is_dg": false,
+      "tsca": { "include": false },
+      "usmca": { "include": false }
+    }
+  ],
+  "usmca_hts_policy": {
+    "when_to_create_certificate": "destination in ['United States','Mexico'] AND at_least_one_line_qualifies",
+    "line_qualification": "line.COO in ['CA','US','MX']",
+    "hts_lookup_priority": [
+      "product_master.hts_us + product_master.hts_desc_us + product_master.origin_country",
+      "historical_invoices_for_same_sku (last_3)",
+      "sds_or_internal_tariff_mapping",
+      "broker_approved_hts_map"
+    ],
+    "validation": {
+      "require_exact_code_length": "US=10, MX=8 (depending on certificate version used)",
+      "require_official_tariff_description": true,
+      "block_if_not_found": true
+    },
+    "render_fields_per_line": [
+      "line_number",
+      "item_name",
+      "sku",
+      "hts_code",
+      "hts_description",
+      "origin_country",
+      "preference_criterion",
+      "producer",
+      "net_cost",
+      "invoice_ref"
+    ]
+  },
+  "packet_output": {
+    "always": ["BOL", "Packing Slip"],
+    "destination_rules": {
+      "Canada": [],
+      "United States": ["Commercial Invoice"],
+      "Mexico": ["Commercial Invoice"],
+      "Other": ["Commercial Invoice"]
+    },
+    "additions_if_applicable": {
+      "TSCA": "if any line chemical and destination == United States",
+      "USMCA": "if any line qualifies by COO and destination in United States/Mexico",
+      "DG_Declaration": "for each DG line; include SDS"
+    }
+  },
+  "example_walkthroughs": [
+    {
+      "destination": "United States",
+      "lines": [
+        { "item_name": "MOV LONG LIFE 1 (GREASE)", "COO": "CA", "is_chemical": true, "is_dg": false }
+      ],
+      "packet_result": ["BOL","Packing Slip","Commercial Invoice","TSCA","USMCA"],
+      "usmca_lines": ["MOV LONG LIFE 1 (GREASE) with validated HTS+description"]
+    },
+    {
+      "destination": "United States",
+      "lines": [
+        { "item_name": "REOLUBE TURBOFLUID 46XC", "COO": "DE", "is_chemical": true, "is_dg": true }
+      ],
+      "packet_result": ["BOL","Packing Slip","Commercial Invoice","TSCA","DG Declaration","SDS"],
+      "usmca_lines": [],
+      "notes": "USMCA omitted because COO not CA/US/MX"
+    },
+    {
+      "destination": "Mexico",
+      "lines": [
+        { "item_name": "ALCO MULTI-MIX", "COO": "CA", "is_chemical": true, "is_dg": false }
+      ],
+      "packet_result": ["BOL","Packing Slip","Commercial Invoice","USMCA"]
+    },
+    {
+      "destination": "Canada",
+      "lines": [
+        { "item_name": "VSG GREASE", "COO": "CA", "is_chemical": true, "is_dg": false }
+      ],
+      "packet_result": ["BOL","Packing Slip"]
+    }
+  ]
+}
+
+
+

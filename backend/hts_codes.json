@@ -1,0 +1,286 @@
+{
+  "A": [
+    {
+      "hts_code": "3811.90.0000",
+      "description": "AEC Group Diesel Fuel System Cleaning Solution",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["AEC-DIESEL CLEANER CASE"]
+    },
+    {
+      "hts_code": "3811.90.0000",
+      "description": "AEC Group Petrol Fuel Systems Cleaning Solution",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["AEC-GAS SYS CLEANER CASE"]
+    },
+    {
+      "hts_code": "3403.19.0000",
+      "description": "AEC Group Engine Flush Solution",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["AECENGINEFLUSHP18.4", "ENGINEFLUSHCANS"]
+    },
+    {
+      "hts_code": "2710.19.3080",
+      "description": "Anderol 555 Synthetic Compressor/Vacuum Oil",
+      "country_of_origin": "USA",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["ANDEROL555SYN"]
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "Anderol 86 EP-2 Lubricating Grease",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["ANDEP2C30", "ANDEROL86EP2DRM"]
+    }
+  ],
+  "B": [],
+  "C": [
+    {
+      "hts_code": "2710.19.9190",
+      "description": "CC 2T Semi-Synthetic Blue 48×100mL Case",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "2710.19.9190",
+      "description": "CC SAE30 4T 8×1.4L Case",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "2710.19.4590",
+      "description": "Cansol 2 Base Oil",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["CC CANSOL-2 DRUM"]
+    },
+    {
+      "hts_code": "2710.19.4590",
+      "description": "Cansol 35 Base Oil",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["CANSOL35BULK", "CANSOL35TOTE", "BVACANSOL35TOTE"]
+    },
+    {
+      "hts_code": "2710.19.4590",
+      "description": "Cansol 70 Base Oil",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["CANSOL 70 TOTE"]
+    },
+    {
+      "hts_code": "2710.19.4590",
+      "description": "Canox 02 Base Oil",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["CANOX02FRMULA-1GALLON"]
+    },
+    {
+      "hts_code": "7310.10.0000",
+      "description": "Closed head steel drums",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    }
+  ],
+  "D": [
+    {
+      "hts_code": "2916.15.1000",
+      "description": "Dehylub 4008 Ester",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["DEHY4008DRM"]
+    },
+    {
+      "hts_code": "2916.15.1000",
+      "description": "Dehylub 4030 Ester",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["DEHY4030DRM"]
+    },
+    {
+      "hts_code": "2916.15.1000",
+      "description": "Dehylub 4012 Ester",
+      "country_of_origin": "Canada",
+      "source_document": "ERP",
+      "item_codes": ["DEHYL4012P20", "DEHYLUB4012DRM", "DEHYLUB4012TOTE"]
+    },
+    {
+      "hts_code": "3811.21.0000",
+      "description": "Duratherm Heat Transfer Fluids",
+      "country_of_origin": "USA",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["B-DURA 450-275GAL", "B-DURA 450-55GAL", "B-DURA 450-55GAL ST", "B-DURA 450-5GAL", "B-DURA 600-275GAL"]
+    }
+  ],
+  "E": [
+    {
+      "hts_code": "7310.10.0015",
+      "description": "Empty Metal Drum",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS"
+    }
+  ],
+  "F": [],
+  "G": [],
+  "H": [],
+  "I": [],
+  "J": [],
+  "K": [],
+  "L": [],
+  "M": [
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV Extra 0",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["G20320", "MOVEXT0DRM", "MOVEXT0P17", "MOVEXT0P20"]
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV Extra 1",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["G20321", "MOVEXT1DRM", "MOVEXT1P17", "CCLT1MBCASE", "CCLT1UB"]
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV Extra 2",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["G20322", "MOVEXT2DRM", "MOVEXT2P17"]
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV LL (Lubricating Grease)",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV Long Life 1",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["MOVLL1DRM", "MOVLL1KEG", "MOVLL1P17"]
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "MOV Long Life 2",
+      "country_of_origin": "Canada",
+      "source_document": "ERP",
+      "item_codes": ["MOVLL2DRM", "MOVLL2KEG", "MOVLL2P17"]
+    }
+  ],
+  "N": [
+    {
+      "hts_code": "2710.19.3080",
+      "description": "Naugalube 750",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["NAUGALUBE750"]
+    }
+  ],
+  "O": [],
+  "P": [
+    {
+      "hts_code": "2710.19.3080",
+      "description": "Petro Canada Purity 2204",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS (Generic Petro Canada Oils)"
+    },
+    {
+      "hts_code": "2710.19.3080",
+      "description": "Petro Canada Spray Oil",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS (Generic Petro Canada Oils)"
+    }
+  ],
+  "Q": [],
+  "R": [
+    {
+      "hts_code": "3819.00.0000",
+      "description": "Reolube Turbofluid 32B GT",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["REOL32BGTDRM"]
+    },
+    {
+      "hts_code": "3819.00.0000",
+      "description": "Reolube Turbofluid 46B",
+      "country_of_origin": "Great Britain",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["REOL46BDRM", "REOL46BGWCONSIGN"]
+    },
+    {
+      "hts_code": "3819.00.0090",
+      "description": "Reolube Turbofluid 46XC",
+      "country_of_origin": "China",
+      "source_document": "HS Master + ERP",
+      "item_codes": ["REOL46XCDRM"]
+    }
+  ],
+  "S": [
+    {
+      "hts_code": "2710.19.9190",
+      "description": "SAE30 4T 12×600mL Case",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "2710.19.9190",
+      "description": "SL Bar & Chain Oil 4×4L Case",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "7310.10.0000",
+      "description": "Steel Drum",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    },
+    {
+      "hts_code": "7310.10.0000",
+      "description": "Steel Keg",
+      "country_of_origin": "Canada",
+      "source_document": "HS Master"
+    }
+  ],
+  "T": [],
+  "U": [],
+  "V": [
+    {
+      "hts_code": "2710.19.3080",
+      "description": "VanFlex DIDP Lube Oil",
+      "country_of_origin": "USA",
+      "source_document": "Master HTS (Generic - not found in ERP)"
+    },
+    {
+      "hts_code": "2710.19.3500",
+      "description": "VSG Grease (Fully synthetic grease)",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["VSGDRM", "VSGKEG", "G21261", "G-21261KEG", "VSGGREASETUBES CASE"]
+    },
+    {
+      "hts_code": "3403.19.5000",
+      "description": "VSG Biodegradable Canola-Oil Based Grease",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["G21261"]
+    }
+  ],
+  "W": [],
+  "X": [
+    {
+      "hts_code": "2710.19.3080",
+      "description": "Xiameter PMX 200 Silicone Fluid",
+      "country_of_origin": "Canada",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["XIAPMX200", "PMX 200-20CSOILP17", "PMX 200SILICONEOILP17", "XIAMETER PMX 200 20 CS"]
+    }
+  ],
+  "Y": [],
+  "Z": []
+}

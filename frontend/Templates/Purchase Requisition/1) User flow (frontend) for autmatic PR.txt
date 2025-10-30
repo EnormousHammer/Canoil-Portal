@@ -1,0 +1,218 @@
+1) User flow (frontend)
+
+BOM Planning screen
+
+Show assembled items with stock status (red = low/zero).
+
+Multi-select items → Create PR.
+
+Mini-wizard (3 prompts)
+
+“What is this for?” (Justification)
+
+“Your name?” (Requested By)
+
+“Department?” (default Sales)
+
+Confirm suppliers
+
+Show detected suppliers for all needed purchased components (grouped).
+
+User can deselect a supplier if needed.
+
+Generate
+
+Backend returns one PR file per supplier.
+
+UI shows links to open/save each PR.
+
+2) Backend pipeline (steps)
+
+Input
+
+selectedItems[]: { itemNo, qtyRequested }
+
+requestedBy, department, justification
+
+Explode BOMs
+
+For each assembled item → explode purchased components only.
+
+Aggregate required component qty across all selected parents.
+
+Fetch data from MISys
+
+Item master: description, purchase UOM, pack multiple.
+
+Supplier links: preferred supplier, lead time, last/contract price.
+
+Inventory: on-hand, reserved, on-order (by location, e.g., 62TODD).
+
+Usage (for turnover): issues over last 90 days.
+
+Compute order quantities
+
+demand = sum(qtyPerParent * parentQty)
+
+net = max(0, demand - (onHand - reserved) - onOrder)
+
+orderQty = roundUpToMultiple(net + safetyBuffer, packMultiple)
+
+Turnover (days)
+
+avgDaily = issues90 / 90
+
+turnoverDays = (avgDaily > 0) ? (onHand / avgDaily) : ""
+
+Group by supplier
+
+Bucket lines by preferred supplier.
+
+For each bucket, compute headerLeadDays = max(line.leadDays).
+
+dateRequested = today, dateNeeded = today + headerLeadDays (or earlier customer need if you have it).
+
+Fill Excel template (per supplier)
+
+Use exceljs (Node/TS) and write only the cells listed below.
+
+Save to: …\Purchase Requisition\Generated\<YYYY-MM-DD>\PR-<YYYY-MM-DD>-<Supplier>.xlsx
+
+3) Cell mapping (do NOT touch formulas)
+
+Template:
+C:\APPLICATIONS MADE BY ME\WINDOWS\Canoil Helper\canoil-portal\frontend\Templates\Purchase Requisition\Purchase Requisition (TEMPLATE ONLY).xlsx
+Sheet: Purchase Requisition
+
+Header
+
+B5 (merged B5:C7): Justification (user text + optional auto context)
+
+I7: Requested By
+
+I9: Department (default “Sales”)
+
+I11: Date Requested (Date)
+
+I13: Date Needed (Date)
+
+B9: VendorName — Contact, Phone, Email
+
+C9: Vendor Address (use \n for line breaks)
+
+C12: Lead Time (days) = max line lead times
+
+Lines (rows 16–29)
+
+B: Item № (component code)
+
+C: Description
+
+D: Inventory Turnover (days) (calc above)
+
+E: Current Stock (location-aware)
+
+F: Purchasing Unit (e.g., case, drum)
+
+G: QTY (orderQty)
+
+H: Unit Price (contract → last PO → std cost)
+
+I: Total (leave formulas; if a blank row lacks it, set once =G{r}*H{r})
+
+Auto fields — leave untouched
+
+I5 (Request ID formula)
+
+I16:I29 (line totals)
+
+I30 (grand total)
+
+4) Data contracts (suggested)
+// Request
+type CreatePRRequest = {
+  requestedBy: string;
+  department?: string; // default "Sales"
+  justification: string;
+  selectedItems: { itemNo: string; qty: number }[];
+  location?: string;   // default "62TODD"
+};
+
+// Response
+type CreatePRResponse = {
+  files: { supplier: string; path: string; displayName: string }[]; // one per supplier
+  warnings?: string[];
+};
+
+5) Pseudocode (backend)
+async function createPR(req: CreatePRRequest): Promise<CreatePRResponse> {
+  const bomLines = await explodePurchasedComponents(req.selectedItems); // [{component, qtyNeeded}]
+  const enriched = await enrichWithMisysData(bomLines, req.location);
+
+  const bySupplier = groupBy(enriched, x => x.supplier.name);
+
+  const outputs = [];
+  for (const [supplier, lines] of Object.entries(bySupplier)) {
+    const headerLeadDays = Math.max(...lines.map(l => l.leadDays || 0));
+    const dateRequested = today();
+    const dateNeeded    = addDays(dateRequested, headerLeadDays || 7);
+
+    const ws = await openTemplate("Purchase Requisition (TEMPLATE ONLY).xlsx");
+
+    // Header
+    set(ws, "B5", req.justification);
+    set(ws, "I7", req.requestedBy);
+    set(ws, "I9", req.department ?? "Sales");
+    set(ws, "I11", dateRequested);
+    set(ws, "I13", dateNeeded);
+    set(ws, "B9", `${supplier} — ${lines[0].supplierContact}`);
+    set(ws, "C9", formatAddress(lines[0].supplierAddress));
+    set(ws, "C12", headerLeadDays);
+
+    // Lines
+    let r = 16;
+    for (const line of lines.slice(0, 14)) {
+      set(ws, `B${r}`, line.itemNo);
+      set(ws, `C${r}`, line.description);
+      set(ws, `D${r}`, line.turnoverDays ?? null);
+      set(ws, `E${r}`, line.onHand ?? null);
+      set(ws, `F${r}`, line.purchaseUom ?? null);
+      set(ws, `G${r}`, line.orderQty ?? null);
+      set(ws, `H${r}`, line.unitPrice ?? null);
+      if (!get(ws, `I${r}`)) set(ws, `I${r}`, { formula: `G${r}*H${r}` });
+      r++;
+    }
+
+    const outPath = makePathFor(supplier, dateRequested);
+    await saveWorkbook(ws, outPath);
+    outputs.push({ supplier, path: outPath, displayName: path.basename(outPath) });
+  }
+
+  return { files: outputs, warnings: collectWarnings(enriched) };
+}
+
+6) Edge cases & safeguards
+
+No preferred supplier → skip line, add warning; or route to “Purchasing Review”.
+
+Missing price → leave H blank; add “Price required” note in justification.
+
+Lead time missing → default 7 days and add “Confirm lead time”.
+
+More than 14 lines per supplier → create additional PR files (-p2, etc.).
+
+Negative available stock → clamp (onHand - reserved) to 0 and warn.
+
+Dates → never write I5; it derives from I11 via formula already in the sheet.
+
+7) Where to put it
+
+Frontend: …/frontend/pages/BOMPlanning.tsx (wizard + supplier confirm modal)
+
+Backend route: POST /api/pr/create-from-bom
+
+Template: keep read-only in
+…\Templates\Purchase Requisition\Purchase Requisition (TEMPLATE ONLY).xlsx
+
+Generated:
+…\Templates\Purchase Requisition\Generated\<YYYY-MM-DD>\PR-<date>-<supplier>.xlsx

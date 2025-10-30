@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Packing Slip</title>
+<style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .company-info h1 {
+            font-size: 10pt;
+            margin-bottom: 8px;
+        }
+        
+        .company-info p {
+            font-size: 10pt;
+            margin: 2px 0;
+        }
+        
+        .packing-info {
+            text-align: right;
+        }
+        
+        .packing-info h2 {
+            font-size: 10pt;
+            margin-bottom: 10px;
+        }
+        
+        .packing-info div {
+            font-size: 10pt;
+            margin: 5px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        td {
+            border: 1px solid #000;
+            padding: 10px;
+            vertical-align: top;
+        }
+        
+        .label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 10pt;
+        }
+        
+        input[type="text"],
+        textarea {
+            width: 100%;
+            border: none;
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            background: transparent;
+            padding: 4px;
+        }
+        
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: 1px solid #4CAF50;
+            background: #f9f9f9;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .header-cell {
+            background: #e8e8e8;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            font-size: 10pt;
+        }
+        
+        .add-row-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 10pt;
+            cursor: pointer;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .add-row-btn:hover {
+            background: #45a049;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .add-row-btn {
+                display: none;
+            }
+            
+            /* Enhanced print clarity for photocopying */
+            body, p, div, span, td, th, strong, label, input, textarea, .label {
+                color: #000 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            /* Solid black borders for clear photocopies */
+            table, td, th, input, textarea {
+                border-color: #000 !important;
+            }
+            
+            /* Ensure filled text is visible and black */
+            input[type="text"], textarea {
+                color: #000 !important;
+                opacity: 1 !important;
+            }
+            
+            /* Slightly larger fonts for better clarity */
+            .company-info h1, .company-info p, .packing-info h2, .packing-info div, 
+            td, .label, input, textarea {
+                font-size: 10.5pt !important;
+            }
+            
+            .label {
+                font-weight: bold !important;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+<!-- Header Section -->
+<div class="header">
+<div class="company-info">
+<h1><strong>Canoil Canada Ltd.</strong></h1>
+<p><strong>62 Todd Road</strong></p>
+<p><strong>Georgetown, ON L7G 4R7</strong></p>
+<p><strong>Canada</strong></p>
+</div>
+<div class="packing-info">
+<h2><strong>Packing Slip</strong></h2>
+<div>Packing Slip №: <input id="packing_slip_number" style="width: 100px; display: inline-block;" type="text" value="PS-2941"/></div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+<span>Date:</span>
+<input id="packing_date" readonly="" style="width: 120px; text-align: right; background: transparent; border: none;" type="text" value="July 21, 2025"/>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+<span>Page:</span>
+<input id="page_number" style="width: 80px; text-align: right; background: transparent; border: none;" type="text" value="1 of 1"/>
+</div>
+</div>
+</div>
+<script>
+            // Set current date automatically
+            const today = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('packing_date').value = today.toLocaleDateString('en-US', options);
+        </script>
+<!-- Main Table -->
+<table>
+<!-- Sold to / Ship to -->
+<tr>
+<td style="width: 50%; padding: 0;">
+<div style="padding: 10px; border-bottom: 1px solid #000;">
+<span class="label">Sold to:</span>
+</div>
+<div style="padding: 10px;">
+<textarea id="sold_to" style="border: none;">TransCanada PipeLines Limited
+Attn: Deryk Ross
+PO Box 1000, Station M
+Calgary, ON, T2P 4K5
+Canada</textarea>
+</div>
+</td>
+<td style="width: 50%; padding: 0;">
+<div style="padding: 10px; border-bottom: 1px solid #000;">
+<span class="label">Ship to:</span>
+</div>
+<div style="padding: 10px;">
+<textarea id="ship_to" style="border: none;">TransCanada PipeLines Limited
+Attn: Deryk Ross
+TCPL Winnipeg Stores
+1048 Arnould Road
+Ile Des Chenes, MB, R0A 0T0
+Canada</textarea>
+</div>
+</td>
+</tr>
+<!-- Empty spacing row -->
+<tr>
+<td colspan="2" style="height: 20px; border: none;"></td>
+</tr>
+<!-- Sales Order / Sold By -->
+<tr>
+<td>
+<span class="label">Sales Order №:</span>
+<input id="sales_order_number" style="display: inline-block; width: calc(100% - 120px); margin-left: 10px;" type="text" value="2941"/>
+</td>
+<td>
+<span class="label">Sold By:</span>
+<input id="sold_by" style="display: inline-block; width: calc(100% - 80px); margin-left: 10px;" type="text"/>
+</td>
+</tr>
+<!-- Shipped By / Scheduled Ship Date -->
+<tr>
+<td>
+<span class="label">Shipped By:</span>
+<input id="shipped_by" style="display: inline-block; width: calc(100% - 110px); margin-left: 10px;" type="text" value="Canoil Canada Ltd"/>
+</td>
+<td>
+<span class="label">Scheduled Ship Date:</span>
+<input id="scheduled_ship_date" style="display: inline-block; width: calc(100% - 180px); margin-left: 10px;" type="text" value="July 25, 2025"/>
+</td>
+</tr>
+<!-- Tracking Number -->
+<tr>
+<td colspan="2">
+<span class="label">Tracking №:</span>
+<input id="tracking_number" style="display: inline-block; width: calc(100% - 110px); margin-left: 10px;" type="text" value=""/>
+</td>
+</tr>
+</table>
+<!-- Items Table -->
+<table id="itemsTable" style="margin-top: 0;">
+<tr>
+<td class="header-cell" colspan="2" style="width: 50%;">Item</td>
+<td class="header-cell" style="width: 15%;">Unit</td>
+<td class="header-cell" style="width: 17.5%;">Ordered<br/>quantity</td>
+<td class="header-cell" style="width: 17.5%;">Shipped<br/>quantity</td>
+</tr>
+<tr class="item-row" id="item_row_1">
+<td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(1)</td>
+<td style="width: 45%;"><input id="item_description_1" type="text" value="REOLUBE 32B GT DRUM"/></td>
+<td><input id="unit_1" type="text" value="DRUM"/></td>
+<td><input id="ordered_qty_1" style="text-align: center;" type="text" value="4"/></td>
+<td><input id="shipped_qty_1" style="text-align: center;" type="text" value="4"/></td>
+</tr>
+<tr class="item-row" id="item_row_2" style="display: none;">
+<td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(2)</td>
+<td style="width: 45%;"><input id="item_description_2" type="text"/></td>
+<td><input id="unit_2" type="text"/></td>
+<td><input id="ordered_qty_2" style="text-align: center;" type="text"/></td>
+<td><input id="shipped_qty_2" style="text-align: center;" type="text"/></td>
+</tr>
+<tr class="item-row" id="item_row_3" style="display: none;">
+<td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(3)</td>
+<td style="width: 45%;"><input id="item_description_3" type="text"/></td>
+<td><input id="unit_3" type="text"/></td>
+<td><input id="ordered_qty_3" style="text-align: center;" type="text"/></td>
+<td><input id="shipped_qty_3" style="text-align: center;" type="text"/></td>
+</tr>
+<tr class="item-row" id="item_row_4" style="display: none;">
+<td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(4)</td>
+<td style="width: 45%;"><input id="item_description_4" type="text"/></td>
+<td><input id="unit_4" type="text"/></td>
+<td><input id="ordered_qty_4" style="text-align: center;" type="text"/></td>
+<td><input id="shipped_qty_4" style="text-align: center;" type="text"/></td>
+</tr>
+<tr class="item-row" id="item_row_5" style="display: none;">
+<td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(5)</td>
+<td style="width: 45%;"><input id="item_description_5" type="text"/></td>
+<td><input id="unit_5" type="text"/></td>
+<td><input id="ordered_qty_5" style="text-align: center;" type="text"/></td>
+<td><input id="shipped_qty_5" style="text-align: center;" type="text"/></td>
+</tr>
+</table>
+<button class="add-row-btn" onclick="addRow()">Add Row</button>
+<!-- Comments Table -->
+<table style="margin-top: 10px;">
+<tr>
+<td>
+<span class="label">Comments:</span>
+<input id="comments" style="display: inline-block; width: calc(100% - 120px); margin-left: 10px;" type="text" value="PO#4500674357"/>
+</td>
+</tr>
+</table>
+</div>
+<script>
+        let rowCount = 5;
+        
+        function addRow() {
+            rowCount++;
+            const table = document.getElementById('itemsTable');
+            const newRow = table.insertRow(-1);
+            newRow.className = 'item-row';
+            newRow.id = 'item_row_' + rowCount;
+            
+            newRow.innerHTML = `
+                <td style="width: 5%; text-align: left; vertical-align: top; padding: 8px;">(${rowCount})</td>
+                <td style="width: 45%;"><input type="text" id="item_description_${rowCount}"></td>
+                <td><input type="text" id="unit_${rowCount}"></td>
+                <td><input type="text" id="ordered_qty_${rowCount}" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_${rowCount}" style="text-align: center;"></td>
+            `;
+        }
+    </script>
+</body>
+</html>

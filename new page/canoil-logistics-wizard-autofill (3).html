@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Canoil — Logistics Wizard (Autofill, Premium)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --glass: rgba(255,255,255,0.8); --glass-border: rgba(255,255,255,0.6); }
+    html, body { font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+    @media print { .no-print { display:none !important } .print-area { display:block !important } body { background: #fff !important } }
+    .step { display:none } .step.active { display:block }
+    .req:after { content:" *"; color:#dc2626 }
+    .glass { background: var(--glass); backdrop-filter: saturate(120%) blur(10px); border: 1px solid var(--glass-border); }
+    .gradient-bg {
+      background: radial-gradient(1200px 800px at 10% -10%, #93c5fd33, transparent),
+                  radial-gradient(1000px 600px at 90% 10%, #c4b5fd33, transparent),
+                  linear-gradient(180deg, #f8fafc, #eef2ff);
+    }
+  </style>
+</head>
+<body class="gradient-bg min-h-screen">
+  <header class="no-print sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-4 py-3 glass rounded-b-2xl shadow">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white grid place-items-center shadow">
+          <i data-lucide="scan-line" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold leading-tight">Canoil — Logistics Wizard</h1>
+          <p class="text-xs text-slate-600 -mt-0.5">Autofill from SO PDF & Carolina’s email · Premium UI</p>
+        </div>
+        <span class="ml-auto text-xs text-gray-500">Autosaves your progress</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <ol id="stepper" class="no-print grid grid-cols-7 gap-2 mb-5">
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 shadow">
+        <span class="w-6 h-6 rounded-full bg-blue-600 text-white grid place-items-center text-xs">1</span><span class="text-xs font-medium">Workflow</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">2</span><span class="text-xs font-medium">Autofill</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">3</span><span class="text-xs font-medium">Shipment</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">4</span><span class="text-xs font-medium">Documents</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">5</span><span class="text-xs font-medium">Photos</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">6</span><span class="text-xs font-medium">Checklist</span>
+      </li>
+      <li class="glass rounded-xl px-3 py-2 flex items-center gap-2 opacity-80">
+        <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-700 grid place-items-center text-xs">7</span><span class="text-xs font-medium">Finish</span>
+      </li>
+    </ol>
+
+    <section class="glass rounded-2xl shadow-xl p-5">
+      <!-- Step 1 -->
+      <div class="step active" data-step="1">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-sky-600/10 text-sky-700 grid place-items-center"><i data-lucide="map"></i></div>
+          <h2 class="text-lg font-semibold">Step 1 — Choose a Workflow</h2>
+        </div>
+        <p class="text-sm text-gray-600 mt-1">Pick the process that matches this shipment.</p>
+        <div id="workflowGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4"></div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step" data-step="2">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-fuchsia-600/10 text-fuchsia-700 grid place-items-center"><i data-lucide="sparkles"></i></div>
+          <h2 class="text-lg font-semibold">Step 2 — Autofill from SO PDF & Email</h2>
+        </div>
+        <p class="text-sm text-gray-600 mt-1">Drop in the Sales Order PDF and/or paste Carolina’s email. We’ll extract what we can; you can review next.</p>
+
+        <div class="mt-4 grid md:grid-cols-2 gap-4">
+          <div class="glass rounded-xl p-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="file-down" class="w-4 h-4 text-blue-700"></i>
+              <div class="font-medium">Sales Order PDF</div>
+              <span class="ml-auto inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border">local only</span>
+            </div>
+            <input id="so_pdf" type="file" accept="application/pdf" class="mt-3 block w-full text-sm text-gray-700">
+            <div id="pdfStatus" class="text-xs text-gray-500 mt-2">No file loaded.</div>
+          </div>
+
+          <div class="glass rounded-xl p-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="mail" class="w-4 h-4 text-amber-700"></i>
+              <div class="font-medium">Carolina’s Email (paste)</div>
+            </div>
+            <textarea id="carolina_email" rows="8" class="mt-3 w-full border rounded-lg px-3 py-2 text-sm" placeholder="Paste the email text here..."></textarea>
+            <div class="mt-2 flex gap-2">
+              <button id="parseEmailBtn" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 text-sm shadow">
+                <i data-lucide="wand-2" class="w-4 h-4"></i> Parse Email
+              </button>
+              <span id="emailStatus" class="text-xs text-gray-500"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 glass rounded-xl p-4">
+          <div class="text-sm font-semibold">What gets filled</div>
+          <ul class="text-sm text-gray-600 list-disc pl-5 mt-1">
+            <li>SO #, PO #, Batch #</li>
+            <li>Destination (Ship To), Shipment Type (Domestic vs US)</li>
+            <li>Gross Weight, Skids/Pieces, Dimensions</li>
+            <li>Any tracking/waybill if present</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step" data-step="3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-sky-600/10 text-sky-700 grid place-items-center"><i data-lucide="boxes"></i></div>
+          <h2 class="text-lg font-semibold">Step 3 — Review Shipment Details</h2>
+        </div>
+        <p class="text-xs text-indigo-700 mt-1">Note: <strong>Smart Border is for US Transborder only</strong> (never domestic).</p>
+        <div id="shipmentInputs" class="grid md:grid-cols-2 gap-4 mt-3">
+          <div><label class="text-sm font-medium req">Shipment Type</label>
+            <select id="ship_type" class="mt-1 w-full border rounded-lg px-3 py-2">
+              <option value="">Select…</option>
+              <option>Domestic (Canada)</option>
+              <option>US Transborder</option>
+              <option>Dangerous Goods</option>
+              <option>Customer Pickup</option>
+            </select>
+          </div>
+          <div><label class="text-sm font-medium req">Carrier</label>
+            <select id="carrier" class="mt-1 w-full border rounded-lg px-3 py-2">
+              <option value="">Select…</option>
+              <option>Manitoulin</option><option>Gateway</option><option>Fuse</option><option>DB Schenker</option><option>Traffic Tech</option>
+              <option>UPS (Customer Account)</option><option>Customer Pickup</option><option>Other</option>
+            </select>
+          </div>
+          <div><label class="text-sm font-medium">Service Level</label>
+            <select id="service" class="mt-1 w-full border rounded-lg px-3 py-2">
+              <option>Standard</option><option>Expedited</option><option>Guaranteed</option>
+            </select>
+          </div>
+          <div><label class="text-sm font-medium req">Destination</label>
+            <input id="dest" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="City/State or full address">
+          </div>
+          <div><label class="text-sm font-medium req">Gross Weight</label>
+            <input id="gw" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Total gross (kg)">
+          </div>
+          <div><label class="text-sm font-medium">Skids / Pieces</label>
+            <input id="skids" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="e.g., 4 skids / 22 boxes">
+          </div>
+          <div><label class="text-sm font-medium">Dimensions</label>
+            <input id="dims" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="L×W×H per skid (in/cm)">
+          </div>
+          <div><label class="text-sm font-medium">Ready Time → Close</label>
+            <input id="window" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="e.g., 2:00 PM → 5:00 PM">
+          </div>
+          <div><label class="text-sm font-medium">Pickup Date</label>
+            <input id="pickup_date" type="date" class="mt-1 w-full border rounded-lg px-3 py-2">
+          </div>
+          <div><label class="text-sm font-medium">Pickup #</label>
+            <input id="pickup_no" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="From carrier confirmation">
+          </div>
+          <div><label class="text-sm font-medium">Waybill #</label>
+            <input id="waybill" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Carrier waybill / UPS tracking">
+          </div>
+          <div><label class="text-sm font-medium">Tracking URL</label>
+            <input id="track_url" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Paste tracking link here">
+          </div>
+        </div>
+
+        <!-- CI prerequisites (for Commercial Invoice workflow, US only) -->
+        <div id="ciPrereq" class="hidden mt-4 glass rounded-xl p-4 border-2 border-amber-200">
+          <div class="flex items-start gap-3">
+            <i data-lucide="file-warning" class="w-5 h-5 text-amber-700"></i>
+            <div>
+              <div class="font-semibold text-amber-900">Commercial Invoice prerequisites (US Transborder)</div>
+              <p class="text-sm text-amber-800 mt-1">
+                Before you prepare the <strong>hand-made Commercial Invoice</strong>, you must get a freight quote and obtain a <strong>waybill</strong> from the chosen carrier.
+              </p>
+              <div class="grid md:grid-cols-3 gap-3 mt-3">
+                <div>
+                  <label class="text-xs font-medium text-gray-700">Carrier (quoted)</label>
+                  <input id="ci_carrier" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Gateway / Fuse / DB Schenker / Traffic Tech">
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-gray-700">Freight Quote (currency + amount)</label>
+                  <input id="ci_quote" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="e.g., USD 1,200">
+                </div>
+                <div>
+                  <label class="text-xs font-medium text-gray-700">Waybill # (from carrier)</label>
+                  <input id="ci_waybill" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Required before CI">
+                </div>
+              </div>
+              <p class="text-xs text-amber-700 mt-2">Tip: request quotes from Gateway, Fuse, DB Schenker, Traffic Tech. Keep the most expensive unless it’s unreasonable; apply 20% markup when billing.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step" data-step="4">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-purple-600/10 text-purple-700 grid place-items-center"><i data-lucide="file-check"></i></div>
+          <h2 class="text-lg font-semibold">Step 4 — Build Document Pack</h2>
+        </div>
+
+        <!-- Smart Border (US only) guidance -->
+        <div id="sbBanner" class="hidden mt-3 rounded-xl p-4 border-2 border-sky-200 bg-sky-50/60">
+          <div class="flex items-start gap-3">
+            <i data-lucide="globe" class="w-5 h-5 text-sky-700"></i>
+            <div>
+              <div class="font-semibold text-sky-900">Smart Border — US Shipments</div>
+              <p class="text-sm text-sky-800 mt-1">
+                You may use <strong>Smart Border</strong> for <u>US Transborder</u> shipments (never domestic). Use Proforma as the customs launchpad if needed.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tariff (US) -->
+        <div id="tariffBanner" class="hidden mt-3 rounded-xl p-4 border-2 border-indigo-300 bg-indigo-50/60">
+          <div class="flex items-start gap-3">
+            <i data-lucide="shield" class="w-5 h-5 text-indigo-700 shrink-0"></i>
+            <div>
+              <div class="font-semibold text-indigo-900">Tariff Handling — US Transborder</div>
+              <p class="text-sm text-indigo-800 mt-1">
+                We’re being charged tariffs on transborder shipments. Use a
+                <strong>Commercial Invoice that declares the <u>metal value</u></strong>.
+              </p>
+              <div class="grid md:grid-cols-2 gap-3 mt-3">
+                <label class="flex items-center gap-2 p-3 rounded-lg border bg-white/70">
+                  <input type="checkbox" id="ci_attached" class="w-4 h-4">
+                  <span class="text-sm text-gray-800">Attached Commercial Invoice (declares metal value)</span>
+                </label>
+                <div class="p-3 rounded-lg border bg-white/70">
+                  <label class="text-xs font-medium text-gray-700">Declared Metal Value (USD)</label>
+                  <input id="metal_value" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="e.g., 12,345.67">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="docPack" class="mt-3 grid md:grid-cols-2 gap-3"></div>
+        <div class="text-xs text-gray-500 mt-3">ALCO orders: use colored labels per skid (PO, address, skid #).</div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step" data-step="5">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-600/10 text-amber-700 grid place-items-center"><i data-lucide="camera"></i></div>
+          <h2 class="text-lg font-semibold">Step 5 — Photos & Dock Audit</h2>
+        </div>
+        <div id="photoChecklist" class="mt-3 grid md:grid-cols-2 gap-3"></div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step" data-step="6">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-600/10 text-emerald-700 grid place-items-center"><i data-lucide="clipboard-check"></i></div>
+          <h2 id="scenarioTitle" class="text-lg font-semibold">Step 6 — Follow the Workflow</h2>
+        </div>
+        <div id="stepsWrap" class="mt-3 space-y-3"><div class="text-gray-500">Pick a workflow first.</div></div>
+      </div>
+
+      <!-- Step 7 -->
+      <div class="step" data-step="7">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600/10 text-indigo-700 grid place-items-center"><i data-lucide="flag"></i></div>
+          <h2 class="text-lg font-semibold">Step 7 — Finish & Record</h2>
+        </div>
+        <ul class="mt-3 text-sm space-y-2">
+          <li class="flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Verify all steps are checked.</li>
+          <li class="flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> Generate and print the <strong>Run Sheet</strong>.</li>
+          <li class="flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-amber-600"></i> <strong>After shipment leaves:</strong> record in <strong>Canoil Central</strong> (freight, customs duty, order dates, tracking).</li>
+        </ul>
+
+        <div class="glass rounded-xl p-4 mt-4">
+          <label class="text-sm font-medium">Notes</label>
+          <textarea id="notes" rows="3" class="mt-1 w-full border rounded-lg px-3 py-2" placeholder="Special handling, exceptions, or approvals…"></textarea>
+          <div class="mt-3 flex gap-2 no-print">
+            <button id="exportRunSheet" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-sm shadow">
+              <i data-lucide="file-text" class="w-4 h-4"></i> Generate Run Sheet
+            </button>
+            <button id="printBtn" class="inline-flex items-center gap-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 text-sm">
+              <i data-lucide="printer" class="w-4 h-4"></i> Print
+            </button>
+            <button id="resetAll" class="inline-flex items-center gap-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 text-sm">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset All
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-print flex items-center justify-between mt-6">
+        <button id="prevBtn" class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm bg-white/70">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
+        </button>
+        <div class="text-sm text-gray-600" id="validationMsg"></div>
+        <button id="nextBtn" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-sm shadow">
+          Next <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </section>
+
+    <section id="runSheet" class="print-area hidden mt-8 glass rounded-2xl p-6 shadow">
+      <h2 class="text-xl font-bold mb-4">Canoil — Shipment Run Sheet</h2>
+      <div id="runSheetContent" class="prose max-w-none"></div>
+    </section>
+  </main>
+
+  <script>
+    const SCENARIOS=[
+      { id:"company", icon:"file-spreadsheet", label:"Proforma / Company Logistics" },
+      { id:"ups", icon:"package", label:"UPS Customer Account" },
+      { id:"commercial", icon:"file-text", label:"Commercial Invoice" },
+      { id:"pickup", icon:"users", label:"Customer Pickup" },
+      { id:"dangerous", icon:"alert-triangle", label:"Dangerous Goods (Reolube)" }
+    ];
+    const DATA={
+      company:{ title:"Proforma / Company Logistics", preface:"US only: Smart Border (not for domestic). Est. freight $1200; DECLARED VALUE; check both boxes.",
+        steps:[
+          { t:"(US only) Smart Border login (CDF CANLTD / dundr25).", k:"sb_login" },
+          { t:"Fill Proforma (Consignee=Buyer, Shipper Ref=PO if available).", k:"sb_pf_fields" },
+          { t:"Use GROSS WEIGHT; Anticipated Date=next business day; USD.", k:"sb_weight_date" },
+          { t:"Create doc pack: Proforma, BOL, Packing Slips ×4, TSCA, USMCA, COA.", k:"sb_docpack" },
+        ]},
+      ups:{ title:"UPS Customer Account", preface:"UPS Create Shipment. Driver Ref=PO (if available). Label per box.",
+        steps:[
+          { t:"UPS → Create Shipment → fill required fields; schedule pickup.", k:"ups_create" },
+          { t:"Print UPS labels (per box/pail).", k:"ups_labels" },
+          { t:"Proforma in Smart Border for customs (US only, if required).", k:"ups_pf_sb" },
+          { t:"TSCA (product PDF or template): update date/waybill/batch/code.", k:"ups_tsca" },
+        ]},
+      commercial:{ title:"Commercial Invoice", preface:"Hand-made CI. Before CI: get freight quote + waybill from carrier.",
+        steps:[
+          { t:"Request quotes (Gateway, Fuse, DB Schenker, Traffic Tech).", k:"ci_quotes" },
+          { t:"Pick carrier, get WAYBILL, then prepare the CI by hand.", k:"ci_waybill_before_ci" },
+          { t:"Create USMCA + Packing Slips.", k:"ci_usmca_ps" },
+          { t:"Prepare BOL and attach doc pack.", k:"ci_bol" },
+        ]},
+      pickup:{ title:"Customer Pickup", preface:"Customer’s driver picks up.",
+        steps:[
+          { t:"Prepare BOL; print packing slips (driver + company copy).", k:"pk_bol_ps" },
+          { t:"Driver signs copy; retain counter-signed copy.", k:"pk_sign" },
+        ]},
+      dangerous:{ title:"Dangerous Goods (Reolube)", preface:"UN 3082, Class 9. Domestic: no proforma/CI; include gross weight.",
+        steps:[
+          { t:"Confirm product & origin (46XC: China; others: GB).", k:"dg_origin" },
+          { t:"DG declaration + BOL + COA + SDS + Packing Slips.", k:"dg_docs" },
+          { t:"Emergency contact on paperwork: CHEMTREC 800-424-9300.", k:"dg_chemtrec" },
+        ]},
+    };
+    const POST_STEP={ t:"After shipment leaves: fill Canoil Central (freight, customs duty, order dates, tracking).", k:"post_canoil_central" };
+    Object.keys(DATA).forEach(k=>DATA[k].steps.push(POST_STEP));
+
+    const DOC_PACKS={
+      "Domestic (Canada)":[ "BOL", "Packing Slips (4 copies)", "COA (if applicable)" ],
+      "US Transborder":[ "Commercial Invoice (declares metal value)", "Proforma (Smart Border if used)", "USMCA", "TSCA", "BOL", "Packing Slips (4 copies)", "COA" ],
+      "Dangerous Goods":[ "DG Declaration", "BOL", "COA", "SDS", "Packing Slips" ],
+      "Customer Pickup":[ "BOL", "Packing Slips (Driver + Company copies)" ],
+      "default":[ "BOL", "Packing Slips" ]
+    };
+    const PHOTO_LIST=[
+      "Skid labels (PO, address, skid #) visible",
+      "All sides of each skid/box (damage check)",
+      "COLORED LABELS for ALCO (if applicable)",
+      "Loaded truck with CCL label visible",
+      "Paperwork set (BOL + doc pack)"
+    ];
+
+    let state={ step:1, scenario:null, checks:{}, fields:{} };
+    const storageKey="ccl_wizard_autofill_premium_v2";
+
+    const stepEls=[...document.querySelectorAll(".step")];
+    const stepper=document.getElementById("stepper");
+    const workflowGrid=document.getElementById("workflowGrid");
+    const validationMsg=document.getElementById("validationMsg");
+    const prevBtn=document.getElementById("prevBtn");
+    const nextBtn=document.getElementById("nextBtn");
+    const scenarioTitle=document.getElementById("scenarioTitle");
+    const stepsWrap=document.getElementById("stepsWrap");
+    const docPackEl=document.getElementById("docPack");
+    const photoEl=document.getElementById("photoChecklist");
+    const runSheet=document.getElementById("runSheet");
+    const runSheetContent=document.getElementById("runSheetContent");
+    const sbBanner=document.getElementById("sbBanner");
+    const tariffBanner=document.getElementById("tariffBanner");
+    const ciPrereq=document.getElementById("ciPrereq");
+    const ciCarrier=document.getElementById("ci_carrier");
+    const ciQuote=document.getElementById("ci_quote");
+    const ciWaybill=document.getElementById("ci_waybill");
+
+    const fieldIds=["ship_type","carrier","service","dest","gw","skids","dims","window","pickup_date","pickup_no","waybill","track_url","so","po","batch","notes","metal_value"];
+    const fields=Object.fromEntries(fieldIds.map(id=>[id,document.getElementById(id)]));
+    const soInput=document.getElementById("so_pdf");
+    const pdfStatus=document.getElementById("pdfStatus");
+    const emailArea=document.getElementById("carolina_email");
+    const parseEmailBtn=document.getElementById("parseEmailBtn");
+    const emailStatus=document.getElementById("emailStatus");
+
+    function buildWorkflows(){
+      workflowGrid.innerHTML=SCENARIOS.map(s=>`
+        <button data-sid="${s.id}" class="group text-left glass rounded-2xl border hover:border-blue-400 hover:shadow-lg p-4 transition">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600/90 to-indigo-500/90 text-white grid place-items-center shadow">
+              <i data-lucide="${s.icon}" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <div class="font-semibold">${s.label}</div>
+              <div class="text-xs text-gray-600">${DATA[s.id].preface}</div>
+            </div>
+          </div>
+        </button>
+      `).join("");
+      workflowGrid.querySelectorAll("[data-sid]").forEach(btn=>btn.addEventListener("click",()=>{
+        state.scenario=btn.dataset.sid; save(); selectScenario(); gotoStep(2);
+      }));
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function selectScenario(){
+      if(!state.scenario) return;
+      const data=DATA[state.scenario];
+      scenarioTitle.textContent="Step 6 — "+data.title;
+      stepsWrap.innerHTML="";
+      const overview=document.createElement("div");
+      overview.className="glass border text-blue-900 rounded-xl p-3";
+      overview.innerHTML=`<div class="font-semibold mb-1">Overview</div><div class="text-sm">${data.preface}</div>`;
+      stepsWrap.appendChild(overview);
+      const list=document.createElement("div"); list.className="mt-3 space-y-3";
+      data.steps.forEach((s,i)=>list.appendChild(checkRow(s.k,i,s.t)));
+      stepsWrap.appendChild(list);
+      // toggle CI prerequisites visibility based on scenario + ship type later in updateDocPack()
+    }
+
+    function checkRow(key, idx, text){
+      const row=document.createElement("label");
+      row.className="flex items-start gap-3 p-3 rounded-lg border bg-white/70";
+      const input=document.createElement("input");
+      input.type="checkbox"; input.className="mt-1 w-4 h-4";
+      const checked=state.checks?.[state.scenario]?.[key]||false;
+      input.checked=checked;
+      input.addEventListener("change",()=>{
+        state.checks[state.scenario]=state.checks[state.scenario]||{};
+        state.checks[state.scenario][key]=input.checked; save();
+      });
+      const textDiv=document.createElement("div");
+      textDiv.innerHTML=`<div class="font-medium">Step ${idx+1}</div><div class="text-sm text-gray-700">${text}</div>`;
+      row.appendChild(input); row.appendChild(textDiv);
+      return row;
+    }
+
+    function updateDocPack(){
+      const type=fields.ship_type.value||"default";
+      sbBanner.classList.toggle("hidden", type!=="US Transborder");
+      tariffBanner.classList.toggle("hidden", type!=="US Transborder");
+      const showCIPrereq = (state.scenario==="commercial" && type==="US Transborder");
+      ciPrereq.classList.toggle("hidden", !showCIPrereq);
+
+      const pack=DOC_PACKS[type]||DOC_PACKS.default;
+      docPackEl.innerHTML=pack.map((p,i)=>{
+        const key=`doc_${type}_${i}`.replace(/\s+/g,"_");
+        const checked=state.checks?.doc?.[key]?"checked":"";
+        return `<label class="flex items-start gap-3 p-3 rounded-lg border bg-white/70">
+          <input type="checkbox" class="mt-1 w-4 h-4 doc-item" data-key="${key}" ${checked}>
+          <div class="text-sm text-gray-800">${p}</div>
+        </label>`;
+      }).join("");
+      docPackEl.querySelectorAll(".doc-item").forEach(cb=>cb.addEventListener("change",()=>{
+        state.checks.doc=state.checks.doc||{}; state.checks.doc[cb.dataset.key]=cb.checked; save();
+      }));
+    }
+
+    function buildPhotoList(){
+      photoEl.innerHTML=PHOTO_LIST.map((p,i)=>{
+        const key=`photo_${i}`; const checked=state.checks?.photo?.[key]?"checked":"";
+        return `<label class="flex items-start gap-3 p-3 rounded-lg border bg-white/70">
+          <input type="checkbox" class="mt-1 w-4 h-4 photo-item" data-key="${key}" ${checked}>
+          <div class="text-sm text-gray-800">${p}</div>
+        </label>`;
+      }).join("");
+      photoEl.querySelectorAll(".photo-item").forEach(cb=>{
+        cb.addEventListener("change",()=>{
+          state.checks.photo=state.checks.photo||{}; state.checks.photo[cb.dataset.key]=cb.checked; save();
+        });
+      });
+    }
+
+    function validate(step){
+      validationMsg.textContent="";
+      if(step===1){ if(!state.scenario){ validationMsg.textContent="Select a workflow to continue."; return false; } }
+      if(step===3){
+        const need=[["ship_type","Shipment Type"],["carrier","Carrier"],["dest","Destination"],["gw","Gross Weight"]];
+        const missing=need.filter(([id])=>!fields[id].value.trim()).map(([,n])=>n);
+        if(missing.length){ validationMsg.textContent="Required: "+missing.join(", ")+". "; return false; }
+      }
+      if(step===4){
+        if(fields.ship_type.value==="US Transborder"){
+          if(!document.getElementById("ci_attached").checked || !document.getElementById("metal_value").value.trim()){
+            validationMsg.textContent="US Transborder: attach a Commercial Invoice and enter the Declared Metal Value (USD).";
+          }
+          if(state.scenario==="commercial"){
+            if(!(ciCarrier.value && ciQuote.value && ciWaybill.value)){
+              validationMsg.textContent="Commercial Invoice (US): enter Carrier, Freight Quote, and Waybill before preparing the CI.";
+              return false;
+            }
+          }
+        }
+      }
+      if(step===6){
+        const data=DATA[state.scenario]; const checks=state.checks?.[state.scenario]||{};
+        const total=data.steps.length; const done=Object.values(checks).filter(Boolean).length;
+        if(done<total){ validationMsg.textContent=`You’ve checked ${done}/${total} workflow steps. You can still continue.`; }
+      }
+      return true;
+    }
+
+    function gotoStep(n){
+      state.step=n; save();
+      stepEls.forEach(el=>el.classList.toggle("active", parseInt(el.dataset.step)==n));
+      const chips=[...stepper.querySelectorAll("li")];
+      chips.forEach((li,idx)=>{
+        const i=idx+1;
+        li.classList.toggle("opacity-80", i>n);
+        const dot=li.querySelector("span.w-6");
+        if(dot){ dot.className = "w-6 h-6 rounded-full grid place-items-center text-xs " + (i<=n? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"); }
+      });
+      if (window.lucide) window.lucide.createIcons();
+      updateDocPack();
+    }
+    prevBtn.addEventListener("click",()=>{ if(state.step>1){ gotoStep(state.step-1) } });
+    nextBtn.addEventListener("click",()=>{ if(!validate(state.step)) return; if(state.step<7) gotoStep(state.step+1) });
+
+    function save(){ 
+      state.fields=Object.fromEntries(fieldIds.map(id=>[id, fields[id]?fields[id].value:""]));
+      state.fields.ci_carrier=ciCarrier?.value||""; state.fields.ci_quote=ciQuote?.value||""; state.fields.ci_waybill=ciWaybill?.value||"";
+      localStorage.setItem(storageKey, JSON.stringify(state)); 
+    }
+    function load(){
+      const raw=localStorage.getItem(storageKey); if(!raw) return;
+      try{
+        state=JSON.parse(raw);
+        Object.entries(state.fields||{}).forEach(([k,v])=>{
+          if(k in fields && fields[k]) fields[k].value=v;
+          if(k==="ci_carrier") ciCarrier.value=v;
+          if(k==="ci_quote") ciQuote.value=v;
+          if(k==="ci_waybill") ciWaybill.value=v;
+        });
+      }catch(e){}
+    }
+    Object.values(fields).forEach(el=> el && el.addEventListener("input", ()=>{ updateDocPack(); save(); }));
+    [ciCarrier, ciQuote, ciWaybill].forEach(el=> el && el.addEventListener("input", save));
+    document.getElementById("ci_attached")?.addEventListener("change", save);
+
+    // PDF.js + email parsers
+    if (window['pdfjsLib']) { pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }
+    soInput?.addEventListener("change", async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      pdfStatus.textContent = "Reading PDF…";
+      const arrayBuffer = await file.arrayBuffer();
+      try {
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = "";
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent();
+          const strings = content.items.map(it => it.str);
+          text += strings.join(" ") + "\n";
+        }
+        pdfStatus.textContent = "PDF loaded. Extracting fields…";
+        const found = parseSOText(text); applyFound(found);
+        pdfStatus.textContent = "Autofill complete. Review on Step 3.";
+      } catch (err) {
+        console.error(err); pdfStatus.textContent = "Could not read PDF (try another file or copy/paste text).";
+      }
+    });
+    parseEmailBtn?.addEventListener("click", () => {
+      const t = emailArea.value || "";
+      if (!t.trim()) { emailStatus.textContent = "Paste the email first."; return; }
+      const found = parseEmailText(t); applyFound(found);
+      emailStatus.textContent = "Email parsed. Review on Step 3.";
+    });
+
+    function parseSOText(t) {
+      const found = {};
+      const rx = {
+        so: /\b(?:Sales\s*Order|SO)\s*(?:No\.|#|Number)?\s*[:\-]?\s*([A-Z0-9\-]+)/i,
+        po: /\b(?:Purchase\s*Order|PO)\s*(?:No\.|#|Number)?\s*[:\-]?\s*([A-Z0-9\-]+)/i,
+        batch: /\bBatch\s*(?:No\.|#)?\s*[:\-]?\s*([A-Z0-9\-]+)/i,
+        gross: /\b(?:gross|total)\s*weight[^\d]*([\d,.]+)\s*(kg|kilograms|lbs?|pounds)\b/i,
+        skids: /\b(?:skids?|pallets?)\s*[:\-]?\s*(\d{1,3})\b/i,
+        pieces: /\b(?:pieces|boxes|cartons)\s*[:\-]?\s*(\d{1,4})\b/i,
+        dims: /(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)(?:\s*(?:in|cm|"))?/i,
+        shipto: /ship\s*to[:\s]*([\s\S]{0,200})/i
+      };
+      const m = {}; for (const k in rx) m[k] = t.match(rx[k]);
+      if (m.so) found.so = m.so[1];
+      if (m.po) found.po = m.po[1];
+      if (m.batch) found.batch = m.batch[1];
+      if (m.gross) {
+        let val = m.gross[1].replace(/,/g,""); let unit = (m.gross[2]||"").toLowerCase();
+        let kg = parseFloat(val); if (/lb/.test(unit) || /pound/.test(unit)) kg = kg * 0.453592;
+        if (!isNaN(kg)) found.gw = Math.round(kg*100)/100 + " kg";
+      }
+      if (m.skids && m.pieces)       found.skids = `${m.skids[1]} skids / ${m.pieces[1]} pcs`;
+      else if (m.skids)              found.skids = `${m.skids[1]} skids`;
+      else if (m.pieces)             found.skids = `${m.pieces[1]} pcs`;
+
+      if (m.dims) { const [_, a,b,c] = m.dims; found.dims = `${a}×${b}×${c}`; }
+
+      if (m.shipto) {
+        const lines = m.shipto[1].replace(/\s{2,}/g," ").split(/[\r\n]/).map(s=>s.trim()).filter(Boolean).slice(0,3);
+        found.dest = lines.join(", ");
+        if (/[A-Z]{2}\s*\d{5}|\bUSA\b|United\s*States/i.test(m.shipto[1])) found.ship_type = "US Transborder";
+        else if (/\bCanada\b|ON|QC|BC|AB|MB|NB|NS|PE|NL|SK/i.test(m.shipto[1])) found.ship_type = "Domestic (Canada)";
+      }
+      return found;
+    }
+
+    function parseEmailText(t) {
+      const found = {};
+      function grab(label, rx){ const m = t.match(rx); if(m){ found[label] = m[1].trim(); } }
+      grab("gw", /\b(?:GROSS|Gross)\s*Weight[^\d]*([\d,.]+\s*(?:kg|lbs?))/i);
+      grab("skids", /\b(?:Skid\s*Sizes?|Skids?)\s*[:\-]?\s*([^\n\r]+)/i);
+      grab("batch", /\bBatch\s*(?:No\.|#)?\s*[:\-]?\s*([A-Z0-9\-]+)/i);
+      grab("dest", /\b(?:DESTINATION|Destination)\s*[:\-]?\s*([^\n\r]+)/i);
+      grab("so", /\bSO\s*(?:No\.|#)?\s*[:\-]?\s*([A-Z0-9\-]+)/i);
+      grab("po", /\bPO\s*(?:No\.|#)?\s*[:\-]?\s*([A-Z0-9\-]+)/i);
+      if (found.dest) {
+        if (/[A-Z]{2}\s*\d{5}|\bUSA\b|United\s*States/i.test(found.dest)) found.ship_type = "US Transborder";
+        else if (/\bCanada\b|ON|QC|BC|AB|MB|NB|NS|PE|NL|SK/i.test(found.dest)) found.ship_type = "Domestic (Canada)";
+      }
+      return found;
+    }
+
+    function applyFound(obj) {
+      if (!obj) return;
+      const map = { ship_type:"ship_type", gw:"gw", dest:"dest", skids:"skids", dims:"dims", so:"so", po:"po", batch:"batch" };
+      Object.entries(map).forEach(([k,id])=>{
+        if (obj[k] && fields[id]) {
+          if (fields[id].tagName === "SELECT") {
+            [...fields[id].options].forEach(opt => { if (opt.text.toLowerCase() === obj[k].toLowerCase()) fields[id].value = opt.text; });
+          } else { fields[id].value = obj[k]; }
+        }
+      });
+      updateDocPack(); save();
+    }
+
+    document.getElementById("exportRunSheet").addEventListener("click", ()=>{
+      const wf=state.scenario ? DATA[state.scenario] : null;
+      const wfChecks=(state.scenario && state.checks[state.scenario]) ? state.checks[state.scenario] : {};
+      const docChecks=state.checks.doc||{}; const photoChecks=state.checks.photo||{};
+      function row(lbl,v){ return `<tr><td class="border px-2 py-1 font-medium w-56">${lbl}</td><td class="border px-2 py-1">${(v||"").toString().replace(/</g,"&lt;")}</td></tr>` }
+      const info=`
+        <table class="w-full border-collapse text-sm">
+          ${row("Workflow", wf? wf.title : "(not selected)")}
+          ${row("Shipment Type", fields.ship_type.value)}
+          ${row("Carrier", fields.carrier.value)}
+          ${row("Service", fields.service.value)}
+          ${row("Destination", fields.dest.value)}
+          ${row("Gross Weight", fields.gw.value)}
+          ${row("Skids/Pieces", fields.skids.value)}
+          ${row("Dimensions", fields.dims.value)}
+          ${row("Ready → Close", fields.window.value)}
+          ${row("Pickup Date", fields.pickup_date.value)}
+          ${row("Pickup #", fields.pickup_no.value)}
+          ${row("Waybill #", fields.waybill.value)}
+          ${row("Tracking URL", fields.track_url.value)}
+          ${row("SO # (opt)", fields.so.value)}
+          ${row("PO # (opt)", fields.po.value)}
+          ${row("Batch # (opt)", fields.batch.value)}
+          ${row("Declared Metal Value (USD)", document.getElementById("metal_value")?.value || "")}
+          ${row("CI Attached (US Transborder)", document.getElementById("ci_attached")?.checked ? "Yes" : "No")}
+          ${row("CI Carrier (US)", ciCarrier?.value || "")}
+          ${row("CI Freight Quote", ciQuote?.value || "")}
+          ${row("CI Waybill (US)", ciWaybill?.value || "")}
+        </table>`;
+      const docsHtml=Object.keys(docChecks).map(k=> docChecks[k] ? "✅ "+k : "⬜ "+k).join("<br>");
+      const photosHtml=Object.keys(photoChecks).map(k=> photoChecks[k] ? "✅ "+k : "⬜ "+k).join("<br>");
+      const wfHtml = wf ? wf.steps.map((s,i)=> (wfChecks[s.k] ? "✅ " : "⬜ ")+`Step ${i+1}: ${s.t}`).join("<br>") : "<em>No workflow selected</em>";
+      const notesHtml=(fields.notes.value||"").replace(/</g,"&lt;").replace(/\n/g,"<br/>");
+
+      runSheetContent.innerHTML = `
+        <div class="text-sm text-gray-600 mb-2">Generated ${new Date().toLocaleString()}</div>
+        <h3 class="text-lg font-semibold mb-2">Shipment Info</h3>${info}
+        <h3 class="text-lg font-semibold mt-4 mb-2">Document Pack</h3><div class="text-sm">${docsHtml || "—"}</div>
+        <h3 class="text-lg font-semibold mt-4 mb-2">Photos & Audit</h3><div class="text-sm">${photosHtml || "—"}</div>
+        <h3 class="text-lg font-semibold mt-4 mb-2">${wf ? wf.title : "Workflow"}</h3><div class="text-sm">${wfHtml}</div>
+        <h3 class="text-lg font-semibold mt-4 mb-2">Notes</h3><div class="text-sm">${notesHtml || "<em>None</em>"}</div>
+      `;
+      runSheet.classList.remove("hidden");
+      window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
+    });
+    document.getElementById("printBtn").addEventListener("click",()=>window.print());
+    document.getElementById("resetAll").addEventListener("click",()=>{
+      if(!confirm("Reset everything? This will clear saved progress.")) return;
+      localStorage.removeItem(storageKey); state={ step:1, scenario:null, checks:{}, fields:{} };
+      Object.values(fields).forEach(el=> el && (el.value=""));
+      if(ciCarrier) ciCarrier.value=""; if(ciQuote) ciQuote.value=""; if(ciWaybill) ciWaybill.value="";
+      buildWorkflows(); selectScenario(); updateDocPack(); buildPhotoList(); gotoStep(1);
+    });
+
+    function init(){
+      if (window.lucide) window.lucide.createIcons();
+      const pd=document.getElementById("pickup_date");
+      if(pd && !pd.value){
+        const d=new Date(), yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+        pd.value=`${'${yyyy}'}-${'${mm}'}-${'${dd}'}`;
+      }
+      buildWorkflows(); buildPhotoList(); load(); updateDocPack(); selectScenario(); gotoStep(state.step||1);
+    }
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>

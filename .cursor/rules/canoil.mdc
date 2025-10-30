@@ -1,0 +1,112 @@
+# CANOIL PROJECT RULES
+
+## CARDINAL RULES - NEVER BREAK THESE
+
+### 1. DATA SOURCE AUTHORITY
+- **ALL DATA MUST COME FROM BACKEND** - No mock data, no fake data, no hardcoded data
+- **BACKEND DATA SOURCE**: Google Drive integration only
+- **ALWAYS USE LATEST FOLDER** - Data must be pulled from the most recent folder structure
+- **NO FRONTEND DATA GENERATION** - Frontend is display only, never creates or generates business data
+
+### 2. DATA INTEGRITY PRINCIPLES
+- **STUDY THE DATA FIRST** - Always examine the actual Google Drive data structure before implementing
+- **RESPECT DATA FORMATS** - Use data exactly as it comes from G Drive, don't modify structure
+- **PRESERVE DATA RELATIONSHIPS** - Maintain all connections between customers, orders, products as they exist in source
+- **NO DATA ASSUMPTIONS** - If data field doesn't exist in G Drive, don't create it
+
+### 3. IMPLEMENTATION RESTRICTIONS
+- **NEVER DELETE WITHOUT PERMISSION** - Always ask before removing any code, components, or functionality
+- **NEVER ADD FEATURES NOT REQUESTED** - Only implement what is explicitly asked for
+- **NEVER MODIFY WORKING SYSTEMS** - If something works, don't "improve" it without explicit request
+- **NO ARCHITECTURAL CHANGES** - Don't change frameworks, libraries, or overall structure without permission
+
+### 4. G DRIVE DATA HANDLING
+- **LATEST FOLDER PRIORITY** - Always prioritize the most recent data from G Drive
+- **RESPECT FOLDER STRUCTURE** - Mirror the actual G Drive organization in UI (Years/Months/Special folders)
+- **DYNAMIC FOLDER HANDLING** - Code must adapt to any folder structure from G Drive
+- **NO HARDCODED PATHS** - All folder references must be dynamic based on actual G Drive structure
+
+### 5. USER COMMUNICATION PROTOCOL
+- **ASK BEFORE CHANGING** - Always confirm understanding before making modifications
+- **EXPLAIN WHAT YOU'RE DOING** - State exactly what will be changed and why
+- **PROVIDE OPTIONS** - Present alternatives instead of making assumptions
+- **CONFIRM DATA SOURCES** - Verify which G Drive data should be used for new features
+
+### 6. ERROR HANDLING FOR DATA
+- **GRACEFUL DEGRADATION** - If G Drive data is missing, show appropriate message
+- **NO FAKE FALLBACKS** - Never substitute missing real data with mock data
+- **PRESERVE EXISTING FUNCTIONALITY** - New features must not break existing data display
+- **LOG DATA ISSUES** - Report when expected G Drive data is not available
+
+## PROJECT ENVIRONMENT - NEVER CHANGE THESE
+
+### 7. DEVELOPMENT ENVIRONMENT STABILITY
+- **LOCALHOST CONFIGURATION** - Current localhost setup must remain unchanged
+- **PORT CONFIGURATION** - Do not modify existing port settings
+- **DEV SERVER SETUP** - Keep existing development server configuration exactly as is
+- **ENVIRONMENT VARIABLES** - Never change existing .env configurations without explicit permission
+
+### 8. PROJECT STRUCTURE PRESERVATION
+- **FOLDER STRUCTURE** - Maintain exact current folder organization
+- **FILE LOCATIONS** - Do not move files between directories without permission
+- **COMPONENT HIERARCHY** - Keep existing component structure intact
+- **ROUTING SETUP** - Preserve current routing configuration
+
+### 9. DEPENDENCIES & LIBRARIES
+- **PACKAGE.JSON STABILITY** - Never add, remove, or update dependencies without explicit request
+- **EXISTING LIBRARIES** - Use only currently installed libraries and frameworks
+- **VERSION CONTROL** - Maintain exact current versions of all packages
+- **BUILD CONFIGURATION** - Do not modify build scripts or configurations
+
+### 10. LOCALHOST & NETWORKING
+- **CURRENT LOCALHOST SETUP** - Must continue to work exactly as it does now
+- **API ENDPOINTS** - Keep all existing backend connection points unchanged
+- **CORS SETTINGS** - Maintain current cross-origin configuration
+- **PROXY CONFIGURATION** - Do not modify any proxy or networking setup
+
+### 11. DEVELOPMENT WORKFLOW
+- **START COMMANDS** - Keep existing npm/yarn start commands working
+- **BUILD PROCESS** - Maintain current build and deployment process
+- **HOT RELOAD** - Preserve current hot reload functionality
+- **DEBUGGING SETUP** - Keep existing debugging configuration
+
+### 12. CONFIGURATION FILES
+- **NEVER MODIFY**: tsconfig.json, package.json, webpack configs, etc. without permission
+- **PRESERVE**: All configuration files that make the current environment work
+- **ASK FIRST**: Before changing any .json, .config, or setup files
+
+## ENVIRONMENT REQUIREMENTS
+
+### 13. LOCALHOST OPERATION
+- **MUST WORK ON LOCALHOST** - All development must function on current local environment
+- **NO CLOUD DEPENDENCIES** - Cannot require external services for local development
+- **OFFLINE CAPABILITY** - Should work when internet is limited (except for G Drive data fetching)
+- **CONSISTENT STARTUP** - Same commands and process to start development server
+
+### 14. BACKWARDS COMPATIBILITY
+- **EXISTING FEATURES** - Everything that works now must continue working
+- **USER WORKFLOWS** - Current user interaction patterns must be preserved
+- **DATA DISPLAY** - Current data visualization must remain functional
+- **PERFORMANCE** - Cannot degrade current application performance
+
+## SUCCESS CRITERIA
+- Frontend displays only real business data from G Drive
+- All folder structures match actual G Drive organization  
+- No mock or placeholder data anywhere in the application
+- Existing functionality continues to work exactly as before
+- User explicitly approves all changes before implementation
+- Localhost development environment remains stable and unchanged
+- All current npm/yarn commands continue to work as expected
+
+## FAILURE INDICATORS
+- Any mock, fake, or hardcoded business data in frontend
+- Data that doesn't match current G Drive structure
+- Functionality removed without explicit user request
+- Changes made without user confirmation
+- Breaking existing working features
+- Localhost environment stops working or requires different setup
+- Need to install new dependencies to run the project
+- Configuration files modified without permission
+
+**REMEMBER: We work with real business data only. Keep the development environment exactly as it is. When in doubt, ask the user.**
+

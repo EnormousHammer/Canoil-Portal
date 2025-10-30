@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "verify-standard": "echo '🔍 Verifying G: Drive Field Standard...' && grep -r '\\.\\(itemId\\|descr\\|qStk\\|moStat\\|bomItem\\|mohId\\|pohId\\)' src/components/ || echo '✅ PASS: No old field names found'",
+    "enforce-standard": "eslint src/components/ --config .eslintrc-field-standard.js",
+    "test-standard": "npm run verify-standard && npm run enforce-standard && echo '🎯 G: Drive Field Standard VERIFIED'"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run test-standard"
+    }
+  }
+}

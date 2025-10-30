@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bill of Lading - Canoil Canada Ltd</title>
+<style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 8.5in;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+        }
+        
+        .print-btn {
+            background: #2563eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        
+        .print-btn:hover {
+            background: #1d4ed8;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .border-4 {
+            border: 4px solid black;
+        }
+        
+        .border-2 {
+            border: 2px solid black;
+        }
+        
+        .border-t-0 {
+            border-top: 0;
+        }
+        
+        .header-table {
+            width: 100%;
+            border: 4px solid black;
+            border-collapse: collapse;
+        }
+        
+        .header-table td {
+            padding: 10px;
+        }
+        
+        .logo-cell {
+            width: 140px;
+            border-right: 4px solid black;
+            text-align: center;
+            vertical-align: middle;
+            height: 60px;
+        }
+        
+        .title-cell {
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        h1 {
+            font-size: 26px;
+            font-weight: bold;
+        }
+        
+        .carrier-row {
+            border: 4px solid black;
+            border-top: 0;
+            padding: 4px;
+        }
+        
+        .shipper-table {
+            border: 4px solid black;
+            border-top: 0;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .shipper-table td, .shipper-table th {
+            padding: 6px;
+            font-size: 9px;
+        }
+        
+        .shipper-table input[type="text"] {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid black;
+            outline: none;
+            font-size: 11px !important;
+            font-weight: normal;
+        }
+        
+        .pro-box {
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .pro-input {
+            width: 140px;
+            height: 100px;
+            border: 2px dashed black;
+            text-align: center;
+            font-size: 18px;
+            outline: none;
+        }
+        
+        .freight-box {
+            text-align: center;
+            padding: 15px;
+        }
+        
+        .freight-box label {
+            margin: 0 10px;
+        }
+        
+        .terms-box {
+            border: 4px solid black;
+            border-top: 0;
+            padding: 10px;
+            font-size: 8px;
+            line-height: 1.4;
+        }
+        
+        .items-container {
+            border: 4px solid black;
+            border-top: 0;
+            border-bottom: 4px solid black;
+            display: flex;
+        }
+        
+        .left-table {
+            flex: 1;
+        }
+        
+        .left-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .left-table th {
+            border-right: 1px solid black;
+            border-bottom: 2px solid black;
+            padding: 5px;
+            text-align: left;
+            font-size: 9px;
+            font-weight: bold;
+            vertical-align: top;
+            background: white;
+        }
+        
+        .left-table td {
+            border-right: 1px solid black;
+            border-bottom: 1px solid black;
+            padding: 2px;
+            font-size: 9px;
+            height: 28px;
+            background: white;
+        }
+        
+        .left-table tr:last-child td {
+            border-bottom: 0;
+        }
+        
+        .left-table input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            font-size: 11px !important;
+            font-weight: normal;
+        }
+        
+        .left-table input::placeholder {
+            color: #9ca3af;
+            font-size: 9px;
+        }
+        
+        .right-column {
+            width: 140px;
+            border-left: 1px solid black;
+        }
+        
+        .declared-header {
+            border-bottom: 2px solid black;
+            padding: 10px;
+            height: 100px;
+            font-size: 11px;
+            font-weight: bold;
+            background: white;
+        }
+        
+        .declared-header .title {
+            margin-bottom: 10px;
+        }
+        
+        .declared-header .liability {
+            font-weight: normal;
+            font-size: 7px;
+            line-height: 1.3;
+        }
+        
+        .declared-body {
+            font-size: 8px;
+        }
+        
+        .declared-row {
+            border-bottom: 1px solid black;
+            padding: 3px;
+            text-align: center;
+            background: white;
+        }
+        
+        .declared-row:last-child {
+            border-bottom: 0;
+        }
+        
+        .declared-row.empty {
+            height: 28px;
+            min-height: 28px;
+        }
+        
+        .declared-row.cod {
+            height: 40px;
+            min-height: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .declared-row input {
+            width: 100%;
+            border: none;
+            outline: none;
+            text-align: center;
+            font-size: 8px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            font-size: 7px;
+            margin-top: 5px;
+        }
+        
+        .total-row {
+            background: #f3f4f6;
+            height: 22px;
+        }
+        
+        .total-row td {
+            border-bottom: 0 !important;
+        }
+        
+        .notice-box {
+            border: 4px solid black;
+            border-top: 0;
+            padding: 10px;
+            font-size: 7px;
+            line-height: 1.3;
+        }
+        
+        .signatures-table {
+            border: 4px solid black;
+            border-top: 0;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .signatures-table td {
+            padding: 10px;
+            vertical-align: top;
+            font-size: 10px;
+        }
+        
+        .signatures-table input[type="text"], 
+        .signatures-table textarea {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid black;
+            outline: none;
+            font-size: 11px !important;
+            font-weight: normal;
+        }
+        
+        .signatures-table textarea {
+            border: 1px solid black;
+            resize: none;
+        }
+        
+        
+@media print {
+    /* Remove browser default margins & scaling */
+    @page {
+        size: Letter;
+        margin: 0;
+    }
+    html, body {
+        width: 8.5in;
+        height: 11in;
+        padding: 0;
+        margin: 0;
+        background: white !important;
+    }
+    /* Fit the whole form exactly inside printable area */
+    .container {
+        width: 8.5in;   /* match Letter width */
+        height: 11in;   /* match Letter height */
+        margin: 0;      /* no outer margin so page doesn't shrink */
+        padding: 0.35in;/* visual white border; tweak if needed */
+        box-shadow: none !important;
+        page-break-after: avoid;
+        page-break-before: avoid;
+        page-break-inside: avoid;
+        overflow: hidden;
+    }
+
+    /* Prevent any tables/rows from pushing to page 2 */
+    table, tr, td, thead, tbody {
+        page-break-inside: avoid !important;
+    }
+
+    /* Hide any print UI elements if present */
+    .print-btn { display: none !important; }
+    
+    /* Hide all placeholder text when printing */
+    input::placeholder,
+    textarea::placeholder {
+        color: transparent !important;
+        opacity: 0 !important;
+    }
+    
+    /* Ensure all text is solid black for clear photocopying */
+    body, p, div, span, td, th, strong, label, input, textarea {
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Ensure all borders are solid black for photocopying */
+    table, td, th, div, input {
+        border-color: #000 !important;
+    }
+    
+    /* Make sure input text is visible and black */
+    input[type="text"], textarea {
+        color: #000 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Increase font size slightly for better photocopy quality */
+    .terms-box, .notice-box {
+        font-size: 8.5px !important;
+    }
+    
+    .shipper-table td, .shipper-table th {
+        font-size: 10px !important;
+    }
+}
+
+/* Tiny checkboxes for table headers */
+.cb-mini {
+    width: 10px;
+    height: 10px;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+@media print {
+    input[type="checkbox"] {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+
+/* Snug, centered layout for the Weight column header */
+.weight-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    line-height: 1;
+    text-align: center;
+}
+.weight-header .weight-title {
+    font-weight: bold;
+    font-size: 9px;
+}
+.weight-option {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    font-weight: normal;
+    font-size: 9px;
+}
+.cb-mini {
+    width: 10px;
+    height: 10px;
+    margin: 0;
+    vertical-align: middle;
+}
+
+
+/* Inline (left-right) layout for Weight check options */
+.weight-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    line-height: 1.1;
+    text-align: center;
+}
+.weight-inline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px; /* space between lb and kg */
+}
+.weight-inline .weight-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    font-weight: normal;
+    font-size: 9px;
+}
+.cb-mini {
+    width: 11px;
+    height: 11px;
+    margin: 0;
+    vertical-align: middle;
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+<!-- Header -->
+<table class="header-table">
+<tr>
+<td class="logo-cell">
+<div style="font-size: 10px; color: #999;">[LOGO]</div>
+<div style="font-size: 9px; margin-top: 5px;">Canoil Canada Ltd.</div>
+</td>
+<td class="title-cell">
+<h1>BILL OF LADING</h1>
+</td>
+</tr>
+</table>
+<!-- Carrier -->
+<div class="carrier-row">
+<strong style="font-size: 10px;">Carrier:</strong>
+<input style="width: 90%; border: none; border-bottom: 1px solid black; outline: none; margin-left: 10px; font-size: 11px !important; font-weight: normal;" type="text"/>
+</div>
+<!-- Shipper and Consignee -->
+<table class="shipper-table">
+<tr>
+<td style="width: 35%; border-right: 2px solid black;">
+<strong>Shipper's Name:</strong><br/>
+<input type="text" value="Canoil Canada Ltd"/>
+</td>
+<td style="width: 35%; border-right: 4px solid black;">
+<strong>Date:</strong><br/>
+<input type="text" value="2025-10-19"/>
+</td>
+<td class="pro-box" rowspan="3" style="width: 30%;">
+<div style="font-weight: bold; margin-bottom: 10px; font-size: 10px;">Place PRO Number Sticker Here</div>
+<input class="pro-input" type="text"/>
+</td>
+</tr>
+<tr>
+<td colspan="2" style="border-top: 1px solid black; border-right: 4px solid black;">
+<strong>Street Number:</strong><br/>
+<input type="text" value="62 Todd Road"/>
+</td>
+</tr>
+<tr>
+<td style="border-top: 1px solid black; border-right: 2px solid black;">
+<strong>City:</strong><br/>
+<input type="text" value="Georgetown"/>
+</td>
+<td style="border-top: 1px solid black; border-right: 4px solid black;">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+<div>
+<strong>Prov./State</strong><br/>
+<input type="text" value="Ontario"/>
+</div>
+<div>
+<strong>Postal/Zip Code:</strong><br/>
+<input type="text" value="L7G 4R7"/>
+</div>
+</div>
+</td>
+</tr>
+<tr>
+<td colspan="3" style="border-top: 2px solid black;">
+<strong>Consignee:</strong><br/>
+<input type="text" value="TransCanada PipeLines Limited"/>
+</td>
+</tr>
+<tr>
+<td colspan="3" style="border-top: 1px solid black;">
+<strong>Street:</strong><br/>
+<input type="text" value="TCPL Winnipeg Stores
+1048 Arnould Road"/>
+</td>
+</tr>
+<tr>
+<td style="border-top: 1px solid black; border-right: 2px solid black;">
+<strong>City: Prov./State</strong><br/>
+<input type="text" value="Ile Des Chenes, MB"/>
+</td>
+<td style="border-top: 1px solid black; border-right: 4px solid black;">
+<strong>Postal/Zip Code:</strong><br/>
+<input type="text" value="R0A 0T0"/>
+</td>
+<td class="freight-box" style="border-top: 1px solid black;">
+<div style="font-weight: bold; font-size: 12px; margin-bottom: 10px;">Freight Charges</div>
+<label><input checked="checked" type="checkbox"/> Collect</label>
+<label><input type="checkbox"/> Prepaid</label>
+</td>
+</tr>
+</table>
+<!-- Terms -->
+<div class="terms-box">
+<p style="margin-bottom: 5px;">Received at the point of origin, from the consignor mentioned herein. The property herein described in apparent good order except noted (contents and condition of contents or package unknown) marked consigned and described as indicated below, which the carrier agrees to carry and to deliver to the consignee at the said destination, if on its own authorized route, or otherwise to cause to be carried by another carrier on the route to said destination, subject to the rates and classifications in effect on the date of shipment.</p>
+<p>It is mutually agreed as to each carrier of all or any of the goods over all or any portion of the route to destination, and as to each party at any time interested in all or any of the goods, that every service to be performed hereunder shall be subject to all of the conditions not prohibited by law, whether printed or written, including conditions in back hereof, which are hereby agreed to by the consignor and accepted for himself and his assigns.</p>
+</div>
+<!-- Items Table -->
+<div class="items-container">
+<div class="left-table">
+<table>
+<thead>
+<tr>
+<th style="width: 60px;">Pieces</th>
+<th>Description of goods and packaging<br/><span style="font-weight: normal; font-size: 7px;">(If hazardous indicate P.I.N. or U.N. No. -- Class -- Packaging Group)</span></th>
+<th style="width: 80px; text-align: center;"><div class="weight-header"><div class="weight-title">Weight</div><div class="weight-inline"><label class="weight-option"><input checked="checked" class="cb-mini" id="w_lb" type="checkbox"/> <span>lb</span></label><label class="weight-option"><input class="cb-mini" id="w_kg" type="checkbox"/> <span>kg</span></label></div></div></th>
+</tr>
+</thead>
+<tbody>
+<tr><td><input type="text" value="4"/></td><td><input type="text" value="Drum of REOLUBE 32B GT DRUM | Batch: 2023087285"/></td><td><input style="text-align: center;" type="text" value="2028.3 lbs"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text" value="Dangerous Goods: UN 3082, Class 9, PG III"/></td><td><input type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text" value="Skid: 45×45×40 inches"/></td><td><input type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text" value="PO# 4500674357 | SO# 2941"/></td><td><input type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text" value="1 Total Skid"/></td><td><input style="text-align: center; font-weight: bold;" type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text"/></td><td><input type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text"/></td><td><input type="text"/></td></tr>
+<tr><td><input type="text"/></td><td><input type="text"/></td><td><input type="text"/></td></tr>
+<tr class="total-row">
+<td style="font-weight: bold; padding: 3px; height: 22px; vertical-align: top;"><input style="border: none; background: transparent; font-weight: normal; width: 100%; font-size: 11px !important;" type="text" value="4"/></td>
+<td style="vertical-align: top;"></td>
+<td style="text-align: center; padding: 3px; vertical-align: top;">
+<div style="font-weight: bold; font-size: 7px;">Total Weight</div>
+<input style="font-weight: normal; text-align: center; border: none; background: transparent; font-size: 11px !important;" type="text" value="2028.3 lbs"/>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="right-column">
+<div class="declared-header">
+<div class="title">Declared Valuation</div>
+<div class="liability">Maximum liability of ($2.00 per pound) $4.41 per kg unless declared valuation states otherwise</div>
+</div>
+<div class="declared-body">
+<div class="declared-row" style="height: 28px; padding: 5px; display: flex; align-items: center; justify-content: center;">
+<span style="font-size: 10px; margin-right: 3px;">$</span>
+<input style="border: none; border-bottom: 1px solid black; width: 100px; outline: none; font-size: 11px !important; font-weight: normal;" type="text"/>
+</div>
+<div class="declared-row" style="height: 28px; padding: 5px; font-weight: bold; text-align: center;">
+                        C.O.D.
+                    </div>
+<div class="declared-row" style="height: 28px; padding: 5px; display: flex; align-items: center; justify-content: center;">
+<span style="font-size: 10px; margin-right: 3px;">$</span>
+<input style="border: none; border-bottom: 1px solid black; width: 100px; outline: none; font-size: 11px !important; font-weight: normal;" type="text"/>
+</div>
+<div class="declared-row" style="height: 40px; padding: 5px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+<div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">Amount Funds Type</div>
+<div style="display: flex; gap: 8px; font-size: 7px;">
+<label><input checked="checked" type="checkbox"/> Cdn</label>
+<label><input type="checkbox"/> U.S</label>
+</div>
+</div>
+<div class="declared-row" style="height: 40px; padding: 5px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+<div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">C.O.D Collection Fee</div>
+<div style="display: flex; gap: 8px; font-size: 7px;">
+<label><input checked="checked" type="checkbox"/> Collect</label>
+<label><input type="checkbox"/> Prepaid</label>
+</div>
+</div>
+<div class="total-row" style="height: 22px; background: #f3f4f6;"></div>
+</div>
+</div>
+</div>
+<!-- Notice of Claim -->
+<div class="notice-box">
+<div style="font-weight: bold; margin-bottom: 5px;">Notice of Claim:</div>
+<p style="margin-bottom: 5px;">1) No carrier is liable for loss, damage, or delay of any goods under the Bill of Lading unless notice thereof setting out particulars of the origin, destination and date of shipment of the goods and estimated amount claimed in respect of such loss, damage or delay is given in writing to the originating carrier or the delivering carrier within 60 days of the delivery of goods or, in the case of failure to make delivery, within nine (9) months from the date of shipment.</p>
+<p>2) The final statement of the claim must be filed within nine (9) months from the date of shipment together with a copy of the paid freight bill.</p>
+</div>
+<!-- Signatures -->
+<table class="signatures-table">
+<tr>
+<td style="width: 33%; border-right: 2px solid black;">
+<div style="margin-bottom: 5px;">
+<strong>Shipper/Consignor's Signature:</strong><br/>
+<strong style="margin-top: 3px; display: block;">Canoil Canada ltd.</strong>
+</div>
+</td>
+<td style="width: 34%; border-right: 2px solid black;">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px; font-size: 8px;">
+<div><strong>Driver's Signature:</strong></div>
+<div><strong>Date:</strong><br/><input style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/></div>
+<div><strong>Trailer No.:</strong><br/><input style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/></div>
+<div><strong>Count:</strong><br/><input style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/></div>
+</div>
+<div style="margin-top: 3px; font-size: 8px;">
+<strong>Seal No.:</strong><br/>
+<input style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/>
+</div>
+</td>
+<td style="width: 33%;">
+<div>
+<strong>Consignee's Signature:</strong><br/>
+<input style="height: 20px; border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/>
+</div>
+<div style="margin-top: 5px;">
+<strong>Date:</strong><br/>
+<input style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;" type="text"/>
+</div>
+</td>
+</tr>
+<tr>
+<td colspan="3" style="border-top: 2px solid black; padding: 3px;">
+<strong style="font-size: 8px;">Notes:</strong>
+<textarea rows="1" style="width: 100%; border: 1px solid black; resize: none; font-size: 8px;"></textarea>
+</td>
+</tr>
+</table>
+</div>
+</body>
+</html>

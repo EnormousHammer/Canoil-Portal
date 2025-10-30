@@ -1,0 +1,47 @@
+name: 🔒 G Drive Field Standard Enforcement
+on: [push, pull_request]
+
+jobs:
+  verify-field-standard:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: 🔍 Check for banned old field names
+      run: |
+        echo "🔍 Scanning for old field names..."
+        
+        # Check for banned patterns
+        BANNED_PATTERNS="itemId|descr|qStk|moStat|bomItem|buildItem|mohId|poStatus|pohId|name|ordered|received|cumCost|totMatCost|priority|dueDate|startDate|endDate|closeDt|ordDt|wipQty|endQty|customer|vendor"
+        
+        if grep -r "\.\($BANNED_PATTERNS\)" frontend/src/components/; then
+          echo "❌ CRITICAL ERROR: Banned old field names detected!"
+          echo "❌ This violates the G: Drive Field Standard"
+          echo "❌ See G_DRIVE_FIELD_STANDARD.md for correct field names"
+          exit 1
+        else
+          echo "✅ PASS: No banned field names found"
+        fi
+    
+    - name: ✅ Verify G Drive field usage
+      run: |
+        echo "✅ Checking for proper G: Drive field usage..."
+        
+        # Check for bracket notation usage
+        if grep -r "\[\"[^\"]*\"\]" frontend/src/components/ | head -5; then
+          echo "✅ PASS: Found G: Drive bracket notation usage"
+        else
+          echo "❌ WARNING: No G: Drive bracket notation found"
+        fi
+        
+        # Check for proper file names
+        if grep -r "data\[.*\.json.*\]" frontend/src/components/ | head -5; then
+          echo "✅ PASS: Found proper .json file references"
+        else
+          echo "❌ WARNING: No .json file references found"
+        fi
+    
+    - name: 🎯 Standard verification complete
+      run: |
+        echo "🎯 G: Drive Field Standard verification completed successfully"
+        echo "✅ System is compliant with field naming requirements"

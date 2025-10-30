@@ -1,0 +1,228 @@
+════════════════════════════════════════════════════════════════════════════════
+                        CANOIL HTS CODES MASTER REFERENCE
+                    For Logistics Automation & Document Generation
+════════════════════════════════════════════════════════════════════════════════
+
+TABLE OF CONTENTS:
+1. Quick Reference - USMCA Trigger Codes
+2. Master Product to HTS Mapping
+3. How to Use This File in Logistics Flow
+4. Commercial Invoice Examples
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 1: QUICK REFERENCE - USMCA TRIGGER CODES
+════════════════════════════════════════════════════════════════════════════════
+
+⚠️ CRITICAL: If ANY of these HTS codes appear in an order, USMCA MUST be included:
+
+2710.19.3500 - Petroleum lubricating greases
+               └─ Products: MOV Extra 0, MOV Long Life 1, VSG Grease, Anderol 86EP-2
+               
+2710.19.3080 - Petroleum lubricating oils
+               └─ Products: Petro Canada Purity, Spray Oils, Xiameter, VanFlex, Naugalube, Anderol 555
+               
+2710.19.4590 - Petroleum base oils
+               └─ Products: Cansol 2/35/70, Canox 02
+               
+2710.19.9190 - Other petroleum oils (NOT USMCA)
+               └─ Products: CC 2T Semi-Synthetic Blue, CC SAE30 4T, VaporTek fluids
+               
+7310.10.0000 - Steel drums/kegs (NOT USMCA - unless empty)
+7310.10.0015 - Empty Metal Drums (USMCA REQUIRED)
+
+3811.21.0000 - Heat transfer fluids (USMCA REQUIRED)
+               └─ Products: Duratherm Heat Transfer Systems Fluids
+               
+3811.90      - Fuel system cleaners (USMCA REQUIRED)
+               └─ Products: Advantage Diesel/Petrol Cleaning Solutions
+               
+3403.19      - Engine flush solutions (USMCA REQUIRED)
+3403.19.5000 - Biodegradable canola-based grease (USMCA REQUIRED)
+               └─ Products: VSG Biodegradable Canola-Oil Based Grease
+               
+3909.50.5000 - Synthetic ester base oils (NOT USMCA)
+               └─ Products: Reolube Turbofluid 46B, 46XC
+               
+2916.15.1000 - Dehylub esters (NOT USMCA)
+               └─ Products: Dehylub 4008, 4030
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 2: MASTER PRODUCT TO HTS MAPPING
+════════════════════════════════════════════════════════════════════════════════
+
+PRODUCT NAME                                          | HTS CODE      | ORIGIN        | USMCA?
+──────────────────────────────────────────────────────────────────────────────────────────────
+CC 2T Semi-Synthetic Blue 48×100mL Case              | 2710.19.9190  | Canada        | NO
+CC SAE30 4T 8×1.4L Case                              | 2710.19.9190  | Canada        | NO
+Closed head steel drums                              | 7310.10.0000  | Canada        | NO
+Dehylub 4008 Ester                                   | 2916.15.1000  | Canada        | NO
+Dehylub 4030 Ester                                   | 2916.15.1000  | Canada        | NO
+MOV Extra 0 (Petroleum lubricating grease)           | 2710.19.3500  | Canada        | YES ✓
+MOV Long Life 1 (Petroleum lubricating grease)       | 2710.19.3500  | Canada        | YES ✓
+Reolube Turbofluid 46B (Synthetic Ester Base Oil)    | 3909.50.5000  | Great Britain | NO
+Reolube Turbofluid 46XC (Synthetic Ester Base Oil)   | 3909.50.5000  | China         | NO
+Steel Drum                                           | 7310.10.0000  | Various       | NO
+Steel Keg                                            | 7310.10.0000  | Various       | NO
+Steel Kegs                                           | 7310.10.0000  | Various       | NO
+VSG Grease (Fully synthetic grease)                  | 2710.19.3500  | Canada        | YES ✓
+VSG Biodegradable Grease                             | 2710.19.3500  | Canada        | YES ✓
+VSG Biodegradable Canola-Oil Based Grease            | 3403.19.5000  | Canada        | YES ✓
+VaporTek 130-LE 208 Fluid                            | 2710.19.9190  | Canada        | NO
+VaporTek Control Fluid                               | 2710.19.9190  | Canada        | NO
+Petro Canada Purity 2204                             | 2710.19.3080  | Canada        | YES ✓
+Petro Canada Spray Oil 10, 13, 15, 22                | 2710.19.3080  | Canada        | YES ✓
+Cansol 2, 35 & 70 base oil                           | 2710.19.4590  | Canada        | YES ✓
+Xiameter PMX 200                                     | 2710.19.3080  | Canada        | YES ✓
+Empty Metal Drum                                     | 7310.10.0015  | Canada        | YES ✓
+Duratherm Heat Transfer Systems Fluids               | 3811.21.0000  | USA           | YES ✓
+VanFlex DIDP Lube Oil                                | 2710.19.3080  | USA           | YES ✓
+Naugalube-750                                        | 2710.19.3080  | Canada        | YES ✓
+Canox 02                                             | 2710.19.4590  | Canada        | YES ✓
+Advantage Diesel Fuel System Cleaning Solution       | 3811.90      | Canada        | YES ✓
+Advantage Petrol Fuel Systems Cleaning Solution      | 3811.90      | Canada        | YES ✓
+Engine Flush Solution RDS Lubricating Oil            | 3403.19      | Canada        | YES ✓
+Anderol 555 Synthetic Compressor/Vacuum Oil          | 2710.19.3080  | USA           | YES ✓
+Anderol 86EP-2 Lubricating Grease                    | 2710.19.3500  | Canada        | YES ✓
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 3: HOW TO USE THIS FILE IN LOGISTICS FLOW
+════════════════════════════════════════════════════════════════════════════════
+
+STEP 1: PARSE SALES ORDER
+   ↓
+   Extract product descriptions from SO line items
+
+STEP 2: MATCH TO HTS CODES
+   ↓
+   Use Section 2 table to find HTS code for each product
+   Use fuzzy matching for product names (handle variations)
+
+STEP 3: CHECK USMCA REQUIREMENT
+   ↓
+   If ANY line item has "YES ✓" in USMCA column → USMCA form REQUIRED
+   Check against Section 1 trigger codes list
+
+STEP 4: GENERATE COMMERCIAL INVOICE
+   ↓
+   Format items as shown in Section 4 examples:
+   - Product description with details in parentheses
+   - 10-digit HTS code
+   - Unit quantity with unit type (kg, pieces, drums)
+   - Unit price in USD
+   - Country of origin
+
+STEP 5: PACKAGING ITEMS
+   ↓
+   Steel drums/kegs appear as SEPARATE line items
+   Use HTS 7310.10.0000 for filled drums/kegs
+   Use HTS 7310.10.0015 for empty drums (triggers USMCA)
+
+PARSING LOGIC:
+   • Look for keywords: "drum", "keg", "Steel", "Closed head"
+   • Grease products → check for 2710.19.3500 or 3403.19.5000
+   • Oil products → check 2710.19.xxxx series
+   • Cleaning solutions → check 3811.90 or 3403.19
+   • Reolube products → always 3909.50.5000 (no USMCA)
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 4: COMMERCIAL INVOICE FORMATTING EXAMPLES
+════════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE 1: MOV Extra 0 with Steel Drums (USMCA REQUIRED ✓)
+───────────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+MOV Extra 0 (Petroleum lubricating grease)        | 2710.19.3500  | 720 kg | 15.01  | Canada
+Closed head steel drums                           | 7310.10.0000  | 6      | 49.03  | Canada
+
+📌 NOTE: Product listed FIRST, packaging SECOND
+
+EXAMPLE 2: MOV Long Life 1 with Mixed Packaging (USMCA REQUIRED ✓)
+───────────────────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+Steel Keg                                         | 7310.10.0000  | 1      | 45.00  | Canada
+Steel Drum                                        | 7310.10.0000  | 1      | 49.04  | Canada
+MOV Long Life 1 (Petroleum lubricating grease)    | 2710.19.3500  | 210 kg | 15.01  | Canada
+
+📌 NOTE: Multiple packaging types listed separately, product last
+
+EXAMPLE 3: VSG Grease with Multiple Kegs (USMCA REQUIRED ✓)
+───────────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY     | PRICE  | ORIGIN
+Steel Kegs                                        | 7310.10.0000  | 27      | 33.13  | Canada
+VSG Grease (Fully synthetic grease)               | 2710.19.3500  | 1080 kg | 33.63  | Canada
+
+📌 NOTE: Plural "Kegs" when quantity > 1
+
+EXAMPLE 4: VSG Biodegradable with Kegs (USMCA REQUIRED ✓)
+──────────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+Steel Kegs                                        | 7310.10.0000  | 9      | 45.00  | Canada
+VSG Biodegradable Grease                          | 2710.19.3500  | 360 kg | 34.73  | Canada
+
+📌 NOTE: Short name "VSG Biodegradable Grease" acceptable
+
+EXAMPLE 5: Reolube Turbofluid 46B from UK (NO USMCA)
+─────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+Closed head steel drums                           | 7310.10.0000  | 2      | 48.49  | Great Britain
+Reolube Turbofluid 46B (Synthetic Ester Base Oil) | 3909.50.5000  | 360 kg | 17.97  | Great Britain
+
+📌 NOTE: Non-Canada origin, no USMCA required
+
+EXAMPLE 6: Reolube Turbofluid Single Drum (NO USMCA)
+─────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+Steel Drum                                        | 7310.10.0000  | 1      | 49.03  | Great Britain
+Reolube Turbofluid 46B                            | 3909.50.5000  | 180 kg | 17.97  | Great Britain
+
+📌 NOTE: Singular "Drum" when quantity = 1, short name acceptable
+
+EXAMPLE 7: Reolube Turbofluid 46XC from China (NO USMCA)
+─────────────────────────────────────────────────────────
+DESCRIPTION OF GOODS                              | HTS CODE      | QTY    | PRICE  | ORIGIN
+Steel Drum                                        | 7310.10.0000  | 1      | 66.98  | China
+Reolube Turbofluid 46XC (Synthetic Ester Base Oil)| 3909.50.5000  | 192 kg | 14.47  | China
+
+📌 NOTE: Same HTS code as 46B, different origin = different pricing
+
+════════════════════════════════════════════════════════════════════════════════
+FORMATTING RULES FOR COMMERCIAL INVOICE
+════════════════════════════════════════════════════════════════════════════════
+
+1. PRODUCT DESCRIPTION:
+   • Include technical details in parentheses
+   • Use full chemical/technical name when available
+   • Example: "MOV Extra 0 (Petroleum lubricating grease)"
+
+2. HTS CODES:
+   • Always use full 10-digit code
+   • Format: ####.##.####
+
+3. QUANTITIES:
+   • Products: Use "kg" for weight
+   • Packaging: Use count (1, 2, 27, etc.)
+   • No "drums" after number for packaging line
+
+4. UNIT PRICE:
+   • Always in USD
+   • Use 2 decimal places minimum
+   • Can extend to more decimals for accuracy
+
+5. COUNTRY OF ORIGIN:
+   • "Canada" not "CA"
+   • "Great Britain" not "UK" or "United Kingdom"
+   • "China" not "CN"
+   • "USA" not "United States"
+
+6. LINE ITEM ORDER:
+   • Option A: Packaging first, product last
+   • Option B: Product first, packaging last
+   • Be consistent within same invoice
+
+════════════════════════════════════════════════════════════════════════════════
+END OF MASTER REFERENCE
+════════════════════════════════════════════════════════════════════════════════
+
+Last Updated: October 13, 2025
+Maintained by: Canoil IT Automation Team
+Source: Consolidated from Canoil Master HTS Excel + USMCA Certificates
