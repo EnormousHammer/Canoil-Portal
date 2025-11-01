@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!.*\\.(ico|png|jpg|jpeg|gif|svg|css|js|json|woff|woff2|ttf|eot|pdf|mp4|webm|avif|webp)).*)",
       "destination": "/index.html"
     }
   ]
