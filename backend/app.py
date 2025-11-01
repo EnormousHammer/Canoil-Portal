@@ -481,6 +481,19 @@ SALES_ORDERS_BASE = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
 MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
+# Google Drive API - Use API instead of local mount if configured
+USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+google_drive_service = None
+
+if USE_GOOGLE_DRIVE_API:
+    try:
+        from google_drive_service import GoogleDriveService
+        google_drive_service = GoogleDriveService()
+        print("✅ Google Drive API service initialized")
+    except ImportError as e:
+        print(f"⚠️ Google Drive API not available: {e}")
+        USE_GOOGLE_DRIVE_API = False
+
 def get_latest_folder():
     """Get the latest folder from G: Drive - OPTIMIZED for speed"""
     try:
@@ -564,7 +577,27 @@ def get_all_data():
         
         print("RETRY: Cache expired or missing, loading fresh data...")
         
-        # Check if G: Drive is accessible
+        # Try Google Drive API first if enabled
+        if USE_GOOGLE_DRIVE_API and google_drive_service:
+            try:
+                print("📡 Loading data from Google Drive API...")
+                data, folder_info = google_drive_service.get_all_data()
+                if data:
+                    _data_cache = data
+                    _cache_timestamp = time.time()
+                    print("✅ Data loaded successfully from Google Drive API")
+                    return jsonify({
+                        "data": data,
+                        "folderInfo": folder_info,
+                        "LoadTimestamp": datetime.now().isoformat(),
+                        "source": "Google Drive API"
+                    })
+                else:
+                    print("⚠️ Google Drive API returned no data, falling back to local")
+            except Exception as e:
+                print(f"⚠️ Google Drive API error: {e}, falling back to local G: Drive")
+        
+        # Check if G: Drive is accessible (local fallback)
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive not accessible at: {GDRIVE_BASE}")
             # Return empty data structure using REAL G: Drive file names that frontend expects
