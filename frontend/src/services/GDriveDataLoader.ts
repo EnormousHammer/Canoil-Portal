@@ -1,5 +1,6 @@
 // Google Drive Data Loader for MISys Data
 // Updated to handle ONLY the exact .json file names from G: Drive
+import { getApiUrl, checkBackendHealth } from '../utils/apiConfig';
 
 export interface LoadedData {
   // PRIMARY: CustomAlert5.json contains ALL item data (stock, price, location)
@@ -110,11 +111,7 @@ export class GDriveDataLoader {
   public async checkGDriveAccessAsync(): Promise<boolean> {
     // Non-blocking G: Drive check
     try {
-      const response = await fetch('http://localhost:5002/api/data', {
-        method: 'HEAD', // Just check if server is responding
-        timeout: 1000 // 1 second timeout
-      });
-      return response.ok;
+      return await checkBackendHealth();
     } catch (error) {
       console.log('Backend not ready yet, continuing with loading...');
       return true; // Continue loading even if backend isn't ready
@@ -130,7 +127,7 @@ export class GDriveDataLoader {
       // No artificial delay - load immediately
       
       // Call Flask backend to get all data - NO FALLBACK
-      const response = await fetch('http://localhost:5002/api/data', {
+      const response = await fetch(getApiUrl('/api/data'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -179,6 +176,39 @@ export class GDriveDataLoader {
       };
     } catch (error) {
       console.error('❌ Error loading G: Drive data via Flask:', error);
+      
+      // If connection refused, return empty data structure instead of throwing
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('⚠️ Backend not accessible - returning empty data structure');
+        return {
+          data: {
+            // Return empty structure matching expected format
+            'CustomAlert5.json': [],
+            'Items.json': [],
+            'MIITEM.json': [],
+            'MIILOC.json': [],
+            'SalesOrderHeaders.json': [],
+            'SalesOrderDetails.json': [],
+            'ManufacturingOrderHeaders.json': [],
+            'ManufacturingOrderDetails.json': [],
+            'PurchaseOrders.json': [],
+            'PurchaseOrderDetails.json': [],
+            'BillsOfMaterial.json': [],
+            'BillOfMaterialDetails.json': []
+          },
+          folderInfo: {
+            folderName: 'Backend Not Accessible',
+            syncDate: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            folder: 'Not Connected',
+            created: new Date().toISOString(),
+            size: '0',
+            fileCount: 0
+          }
+        };
+      }
+      
+      // For other errors, still throw
       throw error;
     }
   }

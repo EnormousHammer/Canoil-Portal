@@ -318,20 +318,30 @@ function App() {
         result = await gdriveLoader.loadAllData();
         console.log('✅ Data loaded successfully from G: Drive');
       } catch (error) {
-        console.log('❌ Error loading data, retrying...', error);
+        // GDriveDataLoader now returns empty structure instead of throwing for connection errors
+        console.warn('⚠️ Error loading data, retrying...', error);
         // Retry once more
         try {
           result = await gdriveLoader.loadAllData();
           console.log('✅ Data loaded successfully on retry');
         } catch (retryError) {
-          console.log('❌ Failed to load data after retry, using empty data');
-          result = { data: {}, folderInfo: { folderName: 'No Data Available' } };
+          console.warn('⚠️ Failed to load data after retry, using empty data structure');
+          result = { 
+            data: {
+              'CustomAlert5.json': [],
+              'SalesOrderHeaders.json': [],
+              'ManufacturingOrderHeaders.json': [],
+              'PurchaseOrders.json': []
+            }, 
+            folderInfo: { folderName: 'Backend Not Connected', syncDate: new Date().toISOString() } 
+          };
         }
       }
       const gdriveData = result.data;
       
       // Load MPS data from backend API in parallel with G: Drive data
-      const mpsPromise = fetch('http://localhost:5002/api/mps')
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+      const mpsPromise = fetch(`${apiUrl}/api/mps`)
         .then(response => {
           if (response.ok) {
             return response.json();
