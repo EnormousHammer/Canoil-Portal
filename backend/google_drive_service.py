@@ -22,7 +22,7 @@ SCOPES = [
 # Shared Drive folder paths
 SHARED_DRIVE_NAME = "IT_Automation"  # The shared drive name
 BASE_FOLDER_PATH = "MiSys/Misys Extracted Data/API Extractions"  # Path within shared drive
-SALES_ORDERS_PATH = "Sales_CSR/Customer Orders/Sales Orders"
+SALES_ORDERS_PATH = "Sales_CSR/Customer Orders/Sales Orders"  # Sales orders path
 
 class GoogleDriveService:
     def __init__(self, credentials_file='backend/google_drive_credentials.json', token_file='backend/google_drive_token.pickle'):
@@ -187,6 +187,94 @@ class GoogleDriveService:
             print(f"❌ Error loading folder data: {error}")
             return {}
     
+    def download_file_content(self, file_id, mime_type=None):
+        """Download file content from Google Drive (for PDFs, DOCX, etc.)"""
+        try:
+            request = self.service.files().get_media(fileId=file_id)
+            file_content = request.execute()
+            return file_content
+        except HttpError as error:
+            print(f"❌ Error downloading file {file_id}: {error}")
+            return None
+    
+    def load_sales_orders_data(self, drive_id):
+        """Load sales orders data from Google Drive"""
+        try:
+            # Find sales orders folder
+            sales_orders_folder_id = self.find_folder_by_path(drive_id, SALES_ORDERS_PATH)
+            if not sales_orders_folder_id:
+                print("⚠️ Sales orders folder not found, skipping")
+                return {}
+            
+            print(f"📂 Loading sales orders from: {SALES_ORDERS_PATH}")
+            
+            sales_orders_data = {
+                'SalesOrders.json': [],
+                'SalesOrdersByStatus': {},
+                'TotalOrders': 0,
+                'StatusFolders': [],
+                'ScanMethod': 'Google Drive API'
+            }
+            
+            # Get all subfolders (status folders like "Completed", "In Production", etc.)
+            query = f"'{sales_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            results = self.service.files().list(
+                q=query,
+                corpora='drive',
+                driveId=drive_id,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)"
+            ).execute()
+            
+            status_folders = results.get('files', [])
+            sales_orders_data['StatusFolders'] = [f['name'] for f in status_folders]
+            
+            # Process each status folder
+            for status_folder in status_folders:
+                folder_id = status_folder['id']
+                folder_name = status_folder['name']
+                print(f"📁 Processing status folder: {folder_name}")
+                
+                # Get PDF and DOCX files from this folder (limit to recent files)
+                query = f"'{folder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+                file_results = self.service.files().list(
+                    q=query,
+                    corpora='drive',
+                    driveId=drive_id,
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    orderBy='modifiedTime desc',
+                    pageSize=50,  # Limit to most recent 50 files per folder
+                    fields="files(id, name, mimeType, modifiedTime)"
+                ).execute()
+                
+                files = file_results.get('files', [])
+                folder_orders = []
+                
+                # Download and parse files (this would need actual parsing logic)
+                # For now, we'll return metadata - actual parsing happens in backend
+                for file_info in files:
+                    folder_orders.append({
+                        'file_id': file_info['id'],
+                        'file_name': file_info['name'],
+                        'folder': folder_name,
+                        'modified_time': file_info.get('modifiedTime', ''),
+                        'mime_type': file_info.get('mimeType', '')
+                    })
+                
+                if folder_orders:
+                    sales_orders_data['SalesOrdersByStatus'][folder_name] = folder_orders
+                    sales_orders_data['TotalOrders'] += len(folder_orders)
+                    print(f"✅ Found {len(folder_orders)} files in {folder_name}")
+            
+            print(f"✅ Total sales orders found: {sales_orders_data['TotalOrders']}")
+            return sales_orders_data
+            
+        except Exception as e:
+            print(f"⚠️ Error loading sales orders: {e}")
+            return {}
+    
     def get_all_data(self):
         """Main method to get all data from Google Drive"""
         if not self.authenticated:
@@ -209,6 +297,11 @@ class GoogleDriveService:
         
         # Load all JSON files from latest folder
         data = self.load_folder_data(latest_folder_id)
+        
+        # Load sales orders data
+        sales_orders_data = self.load_sales_orders_data(drive_id)
+        if sales_orders_data:
+            data.update(sales_orders_data)
         
         folder_info = {
             "folderName": latest_folder_name,
