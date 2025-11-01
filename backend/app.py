@@ -3865,5 +3865,9 @@ if __name__ == '__main__':
     else:
         print("❌ Gmail Email Assistant service not available")
     
-    print("🚀 Flask server starting on localhost:5002...")
-    app.run(host='localhost', port=5002, debug=False)
+    # Get port from environment variable (for deployment) or use default
+    port = int(os.environ.get('PORT', 5002))
+    host = os.environ.get('HOST', '0.0.0.0')  # Use 0.0.0.0 for deployment
+    
+    print(f"🚀 Flask server starting on {host}:{port}...")
+    app.run(host=host, port=port, debug=False)

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getApiUrl } from '../utils/apiConfig';
 import { CompactLoading } from './LoadingComponents';
 import { InteractiveChatMessage } from './InteractiveChatMessage';
 import { 
@@ -616,10 +617,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       };
       
       console.log('🚀 SENDING REQUEST:');
-      console.log('URL:', 'http://localhost:5002/api/chat');
+      console.log('URL:', getApiUrl('/api/chat'));
       console.log('Body:', JSON.stringify(requestBody, null, 2));
       
-      const response = await fetch('http://localhost:5002/api/chat', {
+      const response = await fetch(getApiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -657,7 +658,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: `⚠️ **Cannot Connect to AI Backend**\n\nError: ${error}\n\n**Troubleshooting:**\n1. Check if backend is running on http://localhost:5002\n2. Check browser console (F12) for detailed error\n3. Verify OpenAI API key is configured`,
+        content: `⚠️ **Cannot Connect to AI Backend**\n\nError: ${error}\n\n**Troubleshooting:**\n1. Check if backend is running on getApiUrl\n2. Check browser console (F12) for detailed error\n3. Verify OpenAI API key is configured`,
         timestamp: new Date(),
         category: 'general'
       };
@@ -865,7 +866,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           setIsProcessing(true);
                           
                           try {
-                            const response = await fetch('http://localhost:5002/api/chat', {
+                            const response = await fetch(getApiUrl('/api/chat'), {
                               method: 'POST',
                               headers: {
                                 'Content-Type': 'application/json',

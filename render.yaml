@@ -1,0 +1,37 @@
+services:
+  # Backend Python Flask Service
+  - type: web
+    name: canoil-portal-backend
+    env: python
+    plan: starter
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python app.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: USE_GOOGLE_DRIVE_API
+        value: true
+      - key: GOOGLE_DRIVE_SHARED_DRIVE_NAME
+        value: IT_Automation
+      - key: GOOGLE_DRIVE_BASE_FOLDER_PATH
+        value: MiSys/Misys Extracted Data/API Extractions
+      - key: GOOGLE_DRIVE_SALES_ORDERS_PATH
+        value: Sales_CSR/Customer Orders/Sales Orders
+
+  # Frontend React Vite Service
+  - type: web
+    name: canoil-portal-frontend
+    env: static
+    plan: starter
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex
+    envVars:
+      - key: VITE_API_URL
+        value: https://canoil-portal-backend.onrender.com
+        # This will be automatically set to your backend URL after deployment

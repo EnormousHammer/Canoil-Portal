@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiUrl } from '../utils/apiConfig';
 import { Mail, RefreshCw, LogIn, Truck, FileText, Search, ChevronDown, ChevronRight, ChevronUp, Clock, Paperclip, Quote, Reply, Forward, MoreVertical, Bold, Italic, Link, List, Eye, Download, Brain, MessageSquareText, Sparkles, Copy, Send, BookOpen, Trash2, Loader, CheckCircle, AlertCircle, Loader2, X, Edit } from 'lucide-react';
 import { AIEmailAssistant } from './AIEmailAssistant';
 
@@ -1758,7 +1759,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
 
   // Download handler for logistics documents - use simple window.open to avoid CORS
   const handleDownload = (url: string, filename: string) => {
-      const fullUrl = `http://localhost:5002${url}`;
+      const fullUrl = getApiUrl(url);
     window.open(fullUrl, '_blank');
   };
 
@@ -1820,7 +1821,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     
     try {
       console.log('🔍 Checking Gmail connection status...');
-      const response = await fetch('http://localhost:5002/api/email/status');
+      const response = await fetch(getApiUrl('/api/email/status'));
       const data = await response.json();
       
       console.log('📡 Backend response:', data);
@@ -1850,7 +1851,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       setIsLoading(true);
       console.log('🔑 Starting Gmail OAuth flow...');
       
-      const response = await fetch('http://localhost:5002/api/email/auth/start');
+      const response = await fetch(getApiUrl('/api/email/auth/start'));
       const data = await response.json();
       
       if (data.already_connected) {
@@ -1885,7 +1886,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       setIsLoading(true);
       console.log('🔐 Submitting auth code...');
       
-      const response = await fetch('http://localhost:5002/api/email/auth/submit-code', {
+      const response = await fetch(getApiUrl('/api/email/auth/submit-code'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1967,7 +1968,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       setIsLoading(true);
       console.log('🧠 Learning from sent emails...');
       
-      const response = await fetch('http://localhost:5002/api/ai/learn-from-sent', {
+      const response = await fetch(getApiUrl('/api/ai/learn-from-sent'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2015,7 +2016,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       // Build the prompt from the email content
       const prompt = `Please draft a professional email reply to this message:\n\nFrom: ${email.from}\nSubject: ${email.subject}\n\n${email.body || email.snippet}`;
       
-      const response = await fetch('http://localhost:5002/api/ai/generate-email', {
+      const response = await fetch(getApiUrl('/api/ai/generate-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2129,7 +2130,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       console.log('🔄 Starting email fetch...', { forceRefresh, isLoading });
       setIsLoading(true);
       
-      const url = `http://localhost:5002/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`;
+      const url = getApiUrl(`/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`);
       console.log('🌐 Fetching from:', url);
       const response = await fetch(url);
       const data = await response.json();
@@ -2169,7 +2170,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     setIsLoadingMore(true);
     try {
       const nextPage = currentPage + 1;
-      const response = await fetch(`http://localhost:5002/api/email/inbox?page=${nextPage}&limit=${EMAILS_PER_PAGE}`);
+      const response = await fetch(getApiUrl(`/api/email/inbox?page=${nextPage}&limit=${EMAILS_PER_PAGE}`));
       const data = await response.json();
       
       if (data.success && data.emails) {
@@ -2240,7 +2241,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       const emailContent = `From: ${email.from}\nSubject: ${email.subject}\nDate: ${email.timestamp}\n\n${cleanedBody}`;
       
       // Call logistics API
-      const response = await fetch('http://localhost:5002/api/logistics/process-email', {
+      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2274,7 +2275,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     try {
       console.log('📄 Generating all shipping documents...');
       
-      const response = await fetch('http://localhost:5002/api/logistics/generate-all-documents', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-all-documents'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

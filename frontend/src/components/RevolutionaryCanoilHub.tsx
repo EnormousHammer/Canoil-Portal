@@ -7,6 +7,7 @@ import { ReportMaker } from './ReportMaker';
 import { EnterpriseProductionCalendar } from './EnterpriseProductionCalendar';
 import { CleanEnterpriseDashboard } from './CleanEnterpriseDashboard';
 import LogisticsAutomation from './LogisticsAutomation';
+import { getApiUrl } from '../utils/apiConfig';
 import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
@@ -1251,7 +1252,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       const folderPath = path.join('/');
       console.log('🔄 Loading SO folder data for:', folderPath);
       
-      const response = await fetch(`http://localhost:5002/api/sales-orders/folder/${folderPath}`);
+      const response = await fetch(getApiUrl(`/api/sales-orders/folder/${folderPath}`));
       if (response.ok) {
         const folderData = await response.json();
         setSoFolderData(folderData);
@@ -1309,7 +1310,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     try {
       // View PDF in browser via backend using full file path
       const encodedPath = encodeURIComponent(file.path);
-      const url = `http://localhost:5002/api/sales-order-pdf/${encodedPath}`;
+      const url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
       console.log('🌐 Opening PDF in browser:', url);
       
       // Give immediate feedback
@@ -7897,7 +7898,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             <div className="h-[calc(95vh-80px)] overflow-auto bg-gray-100 p-4">
               <div className="flex justify-center">
                 <iframe
-                  src={`http://localhost:5002/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}#zoom=${pdfZoom}`}
+                  src={`${getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`)}#zoom=${pdfZoom}`}
                   className="w-full h-full min-h-[800px] border-0 rounded-lg shadow-lg bg-white"
                   title={`Sales Order ${selectedSOFile.so_number}`}
                 />

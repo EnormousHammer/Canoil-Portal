@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getApiUrl } from '../utils/apiConfig';
 import { Truck, FileText, Mail, Download, AlertCircle, Send, Package, CheckCircle, ExternalLink, DollarSign } from 'lucide-react';
 
 interface EmailAnalysis {
@@ -102,7 +103,7 @@ const LogisticsAutomation: React.FC = () => {
     setAutoDetection(null);
 
     try {
-      const response = await fetch('http://localhost:5002/api/logistics/process-email', {
+      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +173,7 @@ const LogisticsAutomation: React.FC = () => {
     
     try {
       // Generate Packing Slip using GPT-4o
-      const response = await fetch('http://localhost:5002/api/logistics/generate-packing-slip', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-packing-slip'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +199,7 @@ const LogisticsAutomation: React.FC = () => {
         // Automatically download the file
         if (data.download_url) {
           const link = document.createElement('a');
-          link.href = `http://localhost:5002${data.download_url}`;
+          link.href = getApiUrl(data.download_url);
           link.download = data.packing_slip_file;
           document.body.appendChild(link);
           link.click();
@@ -222,7 +223,7 @@ const LogisticsAutomation: React.FC = () => {
     
     try {
       console.log('Generating Dangerous Goods Declaration...');
-      const response = await fetch('http://localhost:5002/api/logistics/generate-dangerous-goods', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-dangerous-goods'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,7 +276,7 @@ const LogisticsAutomation: React.FC = () => {
         // Download files
         newDocs.forEach((doc: any, index: number) => {
           setTimeout(async () => {
-            const fileResponse = await fetch(`http://localhost:5002${doc.download_url}`);
+            const fileResponse = await fetch(getApiUrl(doc.download_url));
             const blob = await fileResponse.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -311,7 +312,7 @@ const LogisticsAutomation: React.FC = () => {
     
     try {
       // Generate Commercial Invoice using GPT-4o
-      const response = await fetch('http://localhost:5002/api/logistics/generate-commercial-invoice', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-commercial-invoice'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -337,7 +338,7 @@ const LogisticsAutomation: React.FC = () => {
         // Automatically download the file
         if (data.download_url) {
           const link = document.createElement('a');
-          link.href = `http://localhost:5002${data.download_url}`;
+          link.href = getApiUrl(data.download_url);
           link.download = data.commercial_invoice_file;
           document.body.appendChild(link);
           link.click();
@@ -450,7 +451,7 @@ const LogisticsAutomation: React.FC = () => {
     
     try {
       console.log('Generating TSCA Certification...');
-      const response = await fetch('http://localhost:5002/api/logistics/generate-tsca', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-tsca'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -476,7 +477,7 @@ const LogisticsAutomation: React.FC = () => {
         console.log(`✅ Generated TSCA Certification: ${data.filename}`);
         
         // Download file
-        const fileResponse = await fetch(`http://localhost:5002${data.download_url}`);
+        const fileResponse = await fetch(getApiUrl(data.download_url));
         const blob = await fileResponse.blob();
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -512,7 +513,7 @@ const LogisticsAutomation: React.FC = () => {
       console.log('📜 Generating USMCA Certificate...');
       
       // USMCA is generated via the backend generate-all-documents endpoint
-      const response = await fetch('http://localhost:5002/api/logistics/generate-all-documents', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-all-documents'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -539,7 +540,7 @@ const LogisticsAutomation: React.FC = () => {
         console.log(`✅ Generated USMCA Certificate: ${data.results.usmca_certificate.filename}`);
         
         // Download file
-        const fileResponse = await fetch(`http://localhost:5002${data.results.usmca_certificate.download_url}`);
+        const fileResponse = await fetch(getApiUrl(data.results.usmca_certificate.download_url));
         const blob = await fileResponse.blob();
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -589,7 +590,7 @@ const LogisticsAutomation: React.FC = () => {
       console.log('📤 Request data being sent:', requestData);
       console.log('📤 Items count:', requestData.items.length);
       
-      const response = await fetch('http://localhost:5002/api/logistics/generate-all-documents', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-all-documents'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -644,7 +645,7 @@ const LogisticsAutomation: React.FC = () => {
             
             try {
               // Fetch the file as a blob
-              const fileResponse = await fetch(`http://localhost:5002${doc.download_url}`);
+              const fileResponse = await fetch(getApiUrl(doc.download_url));
               const blob = await fileResponse.blob();
               
               // Create a blob URL and trigger download
@@ -697,7 +698,7 @@ const LogisticsAutomation: React.FC = () => {
       formData.append('email_text', emailText);
       formData.append('so_pdf_file', soFile);
       
-      const response = await fetch('http://localhost:5002/api/logistics/process-email', {
+      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
         method: 'POST',
         body: formData
       });
@@ -732,7 +733,7 @@ const LogisticsAutomation: React.FC = () => {
       });
       
       // Generate BOL HTML using GPT-4o field population
-      const response = await fetch('http://localhost:5002/api/logistics/generate-bol-html', {
+      const response = await fetch(getApiUrl('/api/logistics/generate-bol-html'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -765,7 +766,7 @@ const LogisticsAutomation: React.FC = () => {
         // Automatically download the file (same method as Packing Slip)
         if (data.download_url) {
           console.log('📥 Triggering download...');
-          const downloadUrl = `http://localhost:5002${data.download_url}`;
+          const downloadUrl = getApiUrl(data.download_url);
           console.log('📥 Full download URL:', downloadUrl);
           
           const link = document.createElement('a');
@@ -914,7 +915,7 @@ const LogisticsAutomation: React.FC = () => {
                       const pdfPath = autoDetection.file_path;
                       if (pdfPath) {
                         const encodedPath = encodeURIComponent(pdfPath);
-                        const url = `http://localhost:5002/api/sales-order-pdf/${encodedPath}`;
+                        const url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
                         console.log('🌐 Opening auto-detected SO PDF:', url);
                         window.open(url, '_blank');
                       }
@@ -1153,7 +1154,7 @@ const LogisticsAutomation: React.FC = () => {
                             const pdfPath = result.so_pdf_file;
                             if (pdfPath) {
                               const encodedPath = encodeURIComponent(pdfPath);
-                              const url = `http://localhost:5002/api/sales-order-pdf/${encodedPath}`;
+                              const url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
                               console.log('🌐 Opening SO PDF in browser:', url);
                               window.open(url, '_blank');
                             }
@@ -1926,7 +1927,7 @@ const LogisticsAutomation: React.FC = () => {
                           // Ensure we have the full URL
                           const fullUrl = doc.download_url.startsWith('http') 
                             ? doc.download_url 
-                            : `http://localhost:5002${doc.download_url}`;
+                            : getApiUrl(doc.download_url);
                           
                           console.log(`🌐 Full URL: ${fullUrl}`);
                           

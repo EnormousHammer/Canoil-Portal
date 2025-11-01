@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getApiUrl } from '../utils/apiConfig';
 import {
   Mail, Search, Star, Archive, Trash2, MoreVertical,
   Send, X, Paperclip, ChevronLeft, RefreshCw, Plus,
@@ -87,7 +88,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
     
     try {
       console.log('Checking Gmail connection...');
-      const response = await fetch('http://localhost:5002/api/email/status');
+      const response = await fetch(getApiUrl('/api/email/status'));
       const data = await response.json();
       console.log('Gmail connection status:', data);
       
@@ -112,7 +113,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
     try {
       setIsLoading(true);
       console.log('Fetching emails...');
-      const response = await fetch(`http://localhost:5002/api/email/inbox?force=${force}`);
+      const response = await fetch(getApiUrl(`/api/email/inbox?force=${force}`));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -205,7 +206,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
   const handleGmailLogin = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5002/api/email/auth/start');
+      const response = await fetch(getApiUrl('/api/email/auth/start'));
       const data = await response.json();
       
       if (data.already_connected) {
@@ -226,7 +227,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
   const handleAuthCode = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5002/api/email/auth/submit-code', {
+      const response = await fetch(getApiUrl('/api/email/auth/submit-code'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: authCode })
@@ -250,7 +251,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
   const handleLearnStyle = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5002/api/email/learn-style?max_emails=50');
+      const response = await fetch(getApiUrl('/api/email/learn-style?max_emails=50'));
       const data = await response.json();
       
       if (data.success) {
@@ -270,7 +271,7 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
       setIsGeneratingReply(true);
       setShowAiReply(true);
       
-      const response = await fetch('http://localhost:5002/api/email/generate-response', {
+      const response = await fetch(getApiUrl('/api/email/generate-response'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -7,6 +7,7 @@ import os
 import json
 import pickle
 from datetime import datetime
+from pathlib import Path
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -26,7 +27,17 @@ SALES_ORDERS_PATH = "Sales_CSR/Customer Orders/Sales Orders"  # Sales orders pat
 
 class GoogleDriveService:
     def __init__(self, credentials_file='backend/google_drive_credentials.json', token_file='backend/google_drive_token.pickle'):
-        self.credentials_file = credentials_file
+        # Check if credentials file exists, if not check for Gmail credentials as fallback
+        if not os.path.exists(credentials_file):
+            # Try Gmail credentials location (might be same OAuth client)
+            gmail_creds = Path(__file__).parent / 'gmail_credentials' / 'credentials.json'
+            if os.path.exists(str(gmail_creds)):
+                print("⚠️ Using Gmail credentials.json for Google Drive (same OAuth client)")
+                self.credentials_file = str(gmail_creds)
+            else:
+                self.credentials_file = credentials_file
+        else:
+            self.credentials_file = credentials_file
         self.token_file = token_file
         self.service = None
         self.authenticated = False
@@ -45,14 +56,34 @@ class GoogleDriveService:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                if not os.path.exists(self.credentials_file):
+                # Check for credentials in environment variable (for Render/deployment)
+                google_creds_env = os.getenv('GOOGLE_DRIVE_CREDENTIALS')
+                if google_creds_env:
+                    # Use credentials from environment variable (deployment)
+                    try:
+                        import json
+                        creds_dict = json.loads(google_creds_env)
+                        flow = InstalledAppFlow.from_client_secrets_dict(creds_dict, SCOPES)
+                        # For deployment, we need to handle OAuth flow differently
+                        # This will require manual auth URL generation
+                        print("⚠️ Using credentials from environment variable")
+                        print("⚠️ First-time authentication required - check logs for auth URL")
+                        # For now, we'll still use local server if possible
+                        creds = flow.run_local_server(port=0)
+                    except Exception as e:
+                        print(f"❌ Error using environment credentials: {e}")
+                        raise
+                elif os.path.exists(self.credentials_file):
+                    # Use credentials file (local development)
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        self.credentials_file, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                else:
                     raise FileNotFoundError(
-                        f"Credentials file not found: {self.credentials_file}\n"
-                        "Please download OAuth 2.0 credentials from Google Cloud Console"
+                        f"Credentials not found: {self.credentials_file}\n"
+                        "Please download OAuth 2.0 credentials from Google Cloud Console\n"
+                        "Or set GOOGLE_DRIVE_CREDENTIALS environment variable"
                     )
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_file, SCOPES)
-                creds = flow.run_local_server(port=0)
             
             # Save credentials for next run
             with open(self.token_file, 'wb') as token:

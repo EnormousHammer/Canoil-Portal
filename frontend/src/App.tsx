@@ -239,7 +239,8 @@ function App() {
     
     try {
       const result = await gdriveLoader.loadAllData();
-      const mpsData = await fetch('http://localhost:5002/api/mps')
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+      const mpsData = await fetch(`${apiUrl}/api/mps`)
         .then(response => response.ok ? response.json() : { mps_orders: [], summary: { total_orders: 0 } })
         .catch(() => ({ mps_orders: [], summary: { total_orders: 0 } }));
       
