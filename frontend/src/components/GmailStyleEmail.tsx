@@ -1863,8 +1863,10 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     }
     
     try {
-      console.log('🔍 Checking Gmail connection status...');
-      const response = await fetch(getApiUrl('/api/email/status'));
+      const apiUrl = getApiUrl('/api/email/status');
+      console.log('🔍 Checking Gmail connection status...', { apiUrl });
+      
+      const response = await fetch(apiUrl);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1875,7 +1877,8 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       console.log('📡 Gmail connection status:', {
         connected: data.connected,
         email: data.email,
-        hasToken: !!data.has_token
+        hasToken: !!data.has_token,
+        apiUrl
       });
       
       if (data.connected) {
@@ -2213,11 +2216,18 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       setIsLoading(true);
       
       const url = getApiUrl(`/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`);
-      console.log('🌐 Fetching from:', url);
+      console.log('🌐 Fetching emails from:', url);
       
       const response = await fetch(url);
       
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'No error details');
+        console.error('❌ HTTP Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          error: errorText
+        });
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
@@ -2225,8 +2235,19 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
       console.log('📡 Backend response received:', {
         success: data.success,
         emailCount: data.emails?.length || 0,
-        hasError: !!data.error
+        hasError: !!data.error,
+        cached: data.cached,
+        cache_age: data.cache_age,
+        url
       });
+      
+      // VERCEL DEBUG: Log full response for debugging
+      if (data.emails?.length === 0) {
+        console.warn('⚠️ DEBUG: Empty emails array received', {
+          data: JSON.stringify(data, null, 2),
+          responseKeys: Object.keys(data)
+        });
+      }
       
       if (data.success) {
         const enrichedEmails = (data.emails || []).map((email: any) => ({
