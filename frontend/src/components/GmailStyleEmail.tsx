@@ -2157,29 +2157,66 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     }
   }, []);
 
+  // Clear stale cache on mount if we have no emails (fixes Vercel fresh load issue)
+  useEffect(() => {
+    if (emails.length === 0) {
+      const lastFetchTime = sessionStorage.getItem('emails-fetch-time');
+      if (lastFetchTime) {
+        console.log('🧹 Clearing stale cache on mount - no emails in state');
+        sessionStorage.removeItem('emails-fetch-time');
+      }
+    }
+  }, []); // Only run on mount
+
   const fetchEmails = useCallback(async (forceRefresh: boolean = false) => {
+    // Don't fetch if already loading
+    if (isLoading && !forceRefresh) {
+      console.log('⏭️ Already loading emails, skipping...');
+      return;
+    }
+
     try {
-      // Check if already fetched recently (unless forcing refresh OR we have no emails)
-      // Use timestamp to allow re-fetch after 10 minutes
+      // SIMPLIFIED CACHE LOGIC FOR VERCEL:
+      // - Always fetch if we have no emails (emails.length === 0)
+      // - Only check cache if we have emails AND not forcing refresh
+      const hasEmails = emails.length > 0;
       const lastFetchTime = sessionStorage.getItem('emails-fetch-time');
       const now = Date.now();
       const TEN_MINUTES = 10 * 60 * 1000;
       
-      // Always fetch if we have no emails, regardless of cache
-      // Only use cache when we already have emails and it's been less than 10 minutes
-      if (!forceRefresh && lastFetchTime && (now - parseInt(lastFetchTime)) < TEN_MINUTES && emails.length > 0) {
-        console.log('⏭️ Skipping email fetch - already fetched recently and have emails cached');
-        return;
+      // Skip cache check if forcing refresh or if we have no emails
+      if (!forceRefresh && hasEmails && lastFetchTime) {
+        const timeSinceLastFetch = now - parseInt(lastFetchTime);
+        if (timeSinceLastFetch < TEN_MINUTES) {
+          console.log(`⏭️ Skipping fetch - have ${emails.length} emails cached (${Math.round(timeSinceLastFetch / 1000)}s ago)`);
+          return;
+        }
       }
       
-      console.log('🔄 Starting email fetch...', { forceRefresh, isLoading, hasEmails: emails.length > 0 });
+      console.log('🔄 Starting email fetch...', { 
+        forceRefresh, 
+        hasEmails,
+        emailCount: emails.length,
+        willFetch: true 
+      });
+      
       setIsLoading(true);
       
       const url = getApiUrl(`/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`);
       console.log('🌐 Fetching from:', url);
+      
       const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      console.log('📡 Backend response:', JSON.stringify(data, null, 2));
+      console.log('📡 Backend response received:', {
+        success: data.success,
+        emailCount: data.emails?.length || 0,
+        hasError: !!data.error
+      });
       
       if (data.success) {
         const enrichedEmails = (data.emails || []).map((email: any) => ({
@@ -2187,30 +2224,34 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
           date: new Date(email.timestamp).toLocaleDateString(),
           body: email.body || email.snippet
         }));
+        
         setEmails(enrichedEmails);
         
         // Group emails into threads
         const threads = groupEmailsIntoThreads(enrichedEmails);
         setEmailThreads(threads);
         
-        console.log(`✅ Fetched ${enrichedEmails.length} emails from Gmail`);
-        // Mark fetch time to prevent re-fetching for 10 minutes
-        // Only cache if we actually got emails (don't cache empty results)
+        console.log(`✅ Loaded ${enrichedEmails.length} emails from Gmail`);
+        
+        // Cache strategy: Only cache if we got emails
         if (enrichedEmails.length > 0) {
           sessionStorage.setItem('emails-fetch-time', Date.now().toString());
         } else {
-          console.log('⚠️ No emails received - clearing cache to allow retry');
+          console.log('⚠️ No emails in response - clearing cache to allow retry');
           sessionStorage.removeItem('emails-fetch-time');
         }
       } else {
         console.error('❌ Backend error:', data.error);
-        // Clear cache on error so we can retry
+        // Clear cache on error
         sessionStorage.removeItem('emails-fetch-time');
-        alert(`❌ Error fetching emails:\n\n${data.error}`);
+        alert(`❌ Error fetching emails:\n\n${data.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error fetching emails:', error);
-      alert(`❌ Connection Error:\n\n${error}\n\nMake sure backend server is running.`);
+      console.error('❌ Fetch error:', error);
+      // Clear cache on network error
+      sessionStorage.removeItem('emails-fetch-time');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`❌ Connection Error:\n\n${errorMessage}\n\nMake sure backend server is running.`);
     } finally {
       setIsLoading(false);
     }
@@ -2412,10 +2453,14 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
   // Fetch emails when Gmail becomes connected and we don't have emails
   useEffect(() => {
     if (isGmailConnected && emails.length === 0 && !isLoading) {
-      console.log('✅ Gmail connected and no emails loaded, fetching emails...');
-      fetchEmails(false); // Will always fetch if emails.length === 0 (cache check allows it)
+      console.log('✅ Gmail connected, no emails in state - fetching emails...');
+      // Small delay to ensure state is ready
+      const timer = setTimeout(() => {
+        fetchEmails(false);
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [isGmailConnected, emails.length, isLoading, fetchEmails]); // Include all dependencies
+  }, [isGmailConnected, emails.length, isLoading, fetchEmails]);
 
   if (!isGmailConnected) {
     return (
