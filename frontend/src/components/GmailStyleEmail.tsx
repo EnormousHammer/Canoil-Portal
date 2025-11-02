@@ -1865,15 +1865,25 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     try {
       console.log('🔍 Checking Gmail connection status...');
       const response = await fetch(getApiUrl('/api/email/status'));
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
-      console.log('📡 Backend response:', data);
+      console.log('📡 Gmail connection status:', {
+        connected: data.connected,
+        email: data.email,
+        hasToken: !!data.has_token
+      });
       
       if (data.connected) {
         setIsGmailConnected(true);
         setGmailEmail(data.email || '');
         lastConnectionCheckRef.current = now;
         console.log('✅ Gmail connected:', data.email);
+        // Note: fetchEmails will be triggered by useEffect when isGmailConnected becomes true
       } else {
         setIsGmailConnected(false);
         setGmailEmail('');
@@ -1881,7 +1891,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
         console.log('❌ Gmail not connected - authentication required');
       }
     } catch (error) {
-      console.error('Error checking Gmail connection:', error);
+      console.error('❌ Error checking Gmail connection:', error);
       setIsGmailConnected(false);
       setGmailEmail('');
       lastConnectionCheckRef.current = now;
@@ -2225,13 +2235,29 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
           body: email.body || email.snippet
         }));
         
+        // VERCEL FIX: If backend says connected but returns 0 emails (likely stale cache)
+        // and we're not forcing refresh, try again with force=true
+        if (enrichedEmails.length === 0 && !forceRefresh && data.cached) {
+          console.log('⚠️ Backend returned empty cached result - retrying with force=true...');
+          sessionStorage.removeItem('emails-fetch-time');
+          // Retry with force after a short delay
+          setTimeout(() => {
+            fetchEmails(true);
+          }, 500);
+          return;
+        }
+        
         setEmails(enrichedEmails);
         
         // Group emails into threads
         const threads = groupEmailsIntoThreads(enrichedEmails);
         setEmailThreads(threads);
         
-        console.log(`✅ Loaded ${enrichedEmails.length} emails from Gmail`);
+        console.log(`✅ Loaded ${enrichedEmails.length} emails from Gmail`, {
+          cached: data.cached,
+          cache_age: data.cache_age,
+          new_emails: data.new_emails_count
+        });
         
         // Cache strategy: Only cache if we got emails
         if (enrichedEmails.length > 0) {
@@ -2239,6 +2265,8 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
         } else {
           console.log('⚠️ No emails in response - clearing cache to allow retry');
           sessionStorage.removeItem('emails-fetch-time');
+          // If we're connected but got no emails, maybe connection is stale
+          // Note: Connection check will be triggered by useEffect
         }
       } else {
         console.error('❌ Backend error:', data.error);
@@ -2255,7 +2283,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, emails.length]);
+  }, [isLoading, emails.length, isGmailConnected]);
 
   // Gmail-style pagination: Load more emails
   const loadMoreEmails = async () => {
