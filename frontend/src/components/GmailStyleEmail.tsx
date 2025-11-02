@@ -145,6 +145,47 @@ const formatEmailContent = (content: string): string => {
     .replace(/^Date: .+$/gm, '') // Remove "Date:" lines
     .trim();
   
+  // Remove quoted text lines (lines starting with > or multiple >)
+  // This cleans up reply chains that show as > > > >
+  const lines = cleaned.split('\n');
+  let inQuotedSection = false;
+  let quoteStartIndex = -1;
+  
+  // Find where quoted section starts (look for lines with > or "On ... wrote:")
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Check if this is the start of quoted text
+    if (line.startsWith('>') || 
+        /^On .+ wrote:/.test(line) ||
+        /^From:/.test(line) && /^Sent:/.test(lines[i + 1]?.trim() || '')) {
+      inQuotedSection = true;
+      if (quoteStartIndex === -1) {
+        quoteStartIndex = i;
+      }
+    }
+    
+    // If we're in quoted section, remove lines starting with >
+    if (inQuotedSection && line.startsWith('>')) {
+      lines[i] = ''; // Remove quoted lines
+    }
+  }
+  
+  // If we found a quoted section start, remove everything from there
+  if (quoteStartIndex !== -1 && quoteStartIndex < lines.length) {
+    // Keep a few lines before the quote as context, but remove the quoted section
+    const linesBeforeQuote = lines.slice(0, quoteStartIndex);
+    cleaned = linesBeforeQuote.join('\n').trim();
+  } else {
+    cleaned = lines.filter(line => line.trim().length > 0).join('\n');
+  }
+  
+  // Clean up any remaining > characters that might have slipped through
+  cleaned = cleaned
+    .replace(/^>\s*/gm, '') // Remove > at start of lines
+    .replace(/\n{3,}/g, '\n\n') // Normalize multiple blank lines
+    .trim();
+  
   return cleaned;
 };
 
@@ -1002,14 +1043,16 @@ const SparkMessageCard: React.FC<{
         <>
           <div className="px-4 pb-4">
             {/* Full timestamp when expanded */}
-            <div className="text-xs text-gray-500 mb-3" style={{ paddingLeft: '52px' }}>
+            <div className="text-xs text-gray-500 mb-3 ml-14">
               {absoluteTime}
             </div>
             
             {/* Email Content */}
-            <div style={{ paddingLeft: '52px' }}>
-              <div className="text-gray-700 leading-relaxed">
-                <div className="whitespace-pre-wrap">{primaryContent}</div>
+            <div className="px-4">
+              <div className="text-gray-700 leading-relaxed text-sm break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                <div className="whitespace-pre-wrap">
+                  {primaryContent}
+                </div>
                 
                 {/* AI Reply Display - Show directly below this specific email */}
                 {showAiReply && replyToEmail?.id === email.id && (
@@ -1096,8 +1139,8 @@ const SparkMessageCard: React.FC<{
                           <span className="text-xs">•••</span>
                           {isForwardedMessage ? 'Hide forwarded message' : 'Show forwarded message'}
                         </summary>
-                        <div className="pl-4 border-l-2 border-gray-300 text-gray-600 text-sm whitespace-pre-wrap">
-                          {quotedContent}
+                        <div className="pl-4 border-l-2 border-gray-300 text-gray-600 text-sm bg-gray-50 p-3 rounded-r break-words whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                          {quotedContent.replace(/^>\s*/gm, '').trim()}
                         </div>
                       </details>
                     </div>
@@ -1107,12 +1150,12 @@ const SparkMessageCard: React.FC<{
                 {/* Regular Quoted Text (for replies) */}
                 {!isForwardedMessage && hasQuotedText && (
                   <details className="mt-4">
-                    <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 flex items-center gap-1">
+                    <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 flex items-center gap-1 font-medium">
                       <span className="text-xs">•••</span>
                       Show quoted text
                     </summary>
-                    <div className="mt-2 pl-4 border-l-2 border-gray-300 text-gray-600 text-sm whitespace-pre-wrap">
-                      {quotedContent}
+                    <div className="mt-2 pl-4 border-l-2 border-gray-300 text-gray-600 text-sm bg-gray-50 p-3 rounded-r break-words whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                      {quotedContent.replace(/^>\s*/gm, '').replace(/^>\s*/gm, '').trim()}
                     </div>
                   </details>
                 )}
@@ -2116,18 +2159,20 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
 
   const fetchEmails = useCallback(async (forceRefresh: boolean = false) => {
     try {
-      // Check if already fetched recently (unless forcing refresh)
+      // Check if already fetched recently (unless forcing refresh OR we have no emails)
       // Use timestamp to allow re-fetch after 10 minutes
       const lastFetchTime = sessionStorage.getItem('emails-fetch-time');
       const now = Date.now();
       const TEN_MINUTES = 10 * 60 * 1000;
       
-      if (!forceRefresh && lastFetchTime && (now - parseInt(lastFetchTime)) < TEN_MINUTES) {
-        console.log('⏭️ Skipping email fetch - already fetched recently');
+      // Always fetch if we have no emails, regardless of cache
+      // Only use cache when we already have emails and it's been less than 10 minutes
+      if (!forceRefresh && lastFetchTime && (now - parseInt(lastFetchTime)) < TEN_MINUTES && emails.length > 0) {
+        console.log('⏭️ Skipping email fetch - already fetched recently and have emails cached');
         return;
       }
       
-      console.log('🔄 Starting email fetch...', { forceRefresh, isLoading });
+      console.log('🔄 Starting email fetch...', { forceRefresh, isLoading, hasEmails: emails.length > 0 });
       setIsLoading(true);
       
       const url = getApiUrl(`/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`);
@@ -2150,9 +2195,17 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
         
         console.log(`✅ Fetched ${enrichedEmails.length} emails from Gmail`);
         // Mark fetch time to prevent re-fetching for 10 minutes
-        sessionStorage.setItem('emails-fetch-time', Date.now().toString());
+        // Only cache if we actually got emails (don't cache empty results)
+        if (enrichedEmails.length > 0) {
+          sessionStorage.setItem('emails-fetch-time', Date.now().toString());
+        } else {
+          console.log('⚠️ No emails received - clearing cache to allow retry');
+          sessionStorage.removeItem('emails-fetch-time');
+        }
       } else {
         console.error('❌ Backend error:', data.error);
+        // Clear cache on error so we can retry
+        sessionStorage.removeItem('emails-fetch-time');
         alert(`❌ Error fetching emails:\n\n${data.error}`);
       }
     } catch (error) {
@@ -2161,7 +2214,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [isLoading, emails.length]);
 
   // Gmail-style pagination: Load more emails
   const loadMoreEmails = async () => {
@@ -2359,10 +2412,10 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
   // Fetch emails when Gmail becomes connected and we don't have emails
   useEffect(() => {
     if (isGmailConnected && emails.length === 0 && !isLoading) {
-      console.log('✅ Gmail connected and no emails loaded, fetching from cache...');
-      fetchEmails(false); // Use cache - won't refetch if already fetched in last 10 minutes
+      console.log('✅ Gmail connected and no emails loaded, fetching emails...');
+      fetchEmails(false); // Will always fetch if emails.length === 0 (cache check allows it)
     }
-  }, [isGmailConnected]); // Only depend on connection state
+  }, [isGmailConnected, emails.length, isLoading, fetchEmails]); // Include all dependencies
 
   if (!isGmailConnected) {
     return (
