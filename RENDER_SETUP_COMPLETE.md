@@ -15,9 +15,25 @@ Deploys your Flask backend to Render with Google Drive API configured.
 
 ## 📋 Step 2: Connect Repository
 
-1. **If not connected:** Click "Connect GitHub" → Select `EnormousHammer/Canoil-Portal` → Click "Connect"
-2. **Repository:** Should auto-select `EnormousHammer/Canoil-Portal`
-3. **Branch:** `main`
+**After clicking "New +" → "Web Service", you'll see a page asking you to connect a repository:**
+
+1. **If you see "Connect GitHub" button:**
+   - Click the **"Connect GitHub"** button (usually blue/green button)
+   - You'll be asked to authorize Render
+   - Click **"Authorize"** or **"Grant Access"**
+   - You'll see a list of your GitHub repositories
+   - Find and click **`EnormousHammer/Canoil-Portal`** in the list
+   - Click **"Connect"** or **"Select"**
+
+2. **If you already connected GitHub:**
+   - You'll see a dropdown or list of repositories
+   - Select **`EnormousHammer/Canoil-Portal`** from the list
+   - Or type `EnormousHammer/Canoil-Portal` in the search box
+
+3. **After selecting repository:**
+   - **Branch:** Should auto-select `main` (or select it from dropdown)
+   - You should see a green checkmark or "Connected" message
+   - Click **"Continue"** or **"Next"** button (if there is one)
 
 ---
 
