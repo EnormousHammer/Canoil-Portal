@@ -4,7 +4,27 @@
  */
 
 // Get API URL from environment variable or use default
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+const envApiUrl = import.meta.env.VITE_API_URL;
+export const API_BASE_URL = envApiUrl || 'http://localhost:5002';
+
+// Log API configuration on module load (only in browser, not SSR)
+if (typeof window !== 'undefined') {
+  console.log('🔧 API Configuration:', {
+    VITE_API_URL: envApiUrl || 'NOT SET (using default)',
+    API_BASE_URL: API_BASE_URL,
+    isProduction: import.meta.env.PROD,
+    isDevelopment: import.meta.env.DEV,
+    hostname: window.location.hostname
+  });
+  
+  // Warn if using localhost in production
+  if (import.meta.env.PROD && API_BASE_URL.includes('localhost')) {
+    console.error('⚠️ WARNING: Using localhost API URL in production!', {
+      API_BASE_URL,
+      message: 'VITE_API_URL environment variable is not set. Set it in Vercel/Render environment variables.'
+    });
+  }
+}
 
 /**
  * Get the full API URL for an endpoint
@@ -16,7 +36,14 @@ export function getApiUrl(endpoint: string): string {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
   // Remove trailing slash from base URL if present
   const cleanBase = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-  return `${cleanBase}/${cleanEndpoint}`;
+  const fullUrl = `${cleanBase}/${cleanEndpoint}`;
+  
+  // Log in development to help debug
+  if (import.meta.env.DEV) {
+    console.log(`🌐 API Call: ${fullUrl}`);
+  }
+  
+  return fullUrl;
 }
 
 /**

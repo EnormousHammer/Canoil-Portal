@@ -128,7 +128,11 @@ export class GDriveDataLoader {
       
       // Call Flask backend to get all data - NO FALLBACK
       const apiUrl = getApiUrl('/api/data');
-      console.log('📡 Loading data from backend:', apiUrl);
+      console.log('📡 Loading data from backend:', {
+        url: apiUrl,
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        isProduction: import.meta.env.PROD
+      });
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -144,7 +148,8 @@ export class GDriveDataLoader {
           status: response.status,
           statusText: response.statusText,
           url: apiUrl,
-          error: errorText
+          error: errorText,
+          hint: apiUrl.includes('localhost') ? '⚠️ Using localhost - check VITE_API_URL environment variable' : ''
         });
         throw new Error(`Flask API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
@@ -196,7 +201,14 @@ export class GDriveDataLoader {
       
       // If connection refused, return empty data structure instead of throwing
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Backend not accessible - returning empty data structure');
+        const apiUrl = getApiUrl('/api/data');
+        console.warn('⚠️ Backend not accessible - returning empty data structure', {
+          url: apiUrl,
+          error: error instanceof Error ? error.message : String(error),
+          hint: apiUrl.includes('localhost') && import.meta.env.PROD 
+            ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
+            : 'Check if backend server is running and accessible.'
+        });
         return {
           data: {
             // Return empty structure matching expected format

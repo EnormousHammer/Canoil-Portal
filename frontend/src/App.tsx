@@ -246,12 +246,24 @@ function App() {
           if (response.ok) {
             return response.json();
           } else {
-            console.error('⚠️ Failed to load MPS data on refresh:', response.status);
+            console.error('⚠️ Failed to load MPS data on refresh:', {
+              status: response.status,
+              url: mpsUrl,
+              hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+                ? '⚠️ Using localhost - check VITE_API_URL environment variable' 
+                : ''
+            });
             return { mps_orders: [], summary: { total_orders: 0 } };
           }
         })
         .catch(error => {
-          console.error('⚠️ Error loading MPS data on refresh:', error);
+          console.error('⚠️ Error loading MPS data on refresh:', {
+            error: error.message,
+            url: mpsUrl,
+            hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+              ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
+              : 'Check if backend server is running and accessible.'
+          });
           return { mps_orders: [], summary: { total_orders: 0 } };
         });
       
@@ -353,7 +365,11 @@ function App() {
       
       // Load MPS data from backend API in parallel with G: Drive data
       const mpsUrl = getApiUrl('/api/mps');
-      console.log('📊 Loading MPS data from:', mpsUrl);
+      console.log('📊 Loading MPS data from:', {
+        url: mpsUrl,
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        isProduction: import.meta.env.PROD
+      });
       const mpsPromise = fetch(mpsUrl)
         .then(response => {
           if (response.ok) {
@@ -362,7 +378,10 @@ function App() {
             console.error('⚠️ Failed to load MPS data:', {
               status: response.status,
               statusText: response.statusText,
-              url: mpsUrl
+              url: mpsUrl,
+              hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+                ? '⚠️ Using localhost - check VITE_API_URL environment variable' 
+                : ''
             });
             return { mps_orders: [], summary: { total_orders: 0 } };
           }
@@ -371,7 +390,10 @@ function App() {
           console.error('⚠️ Error loading MPS data:', {
             error: error.message,
             url: mpsUrl,
-            stack: error.stack
+            stack: error.stack,
+            hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+              ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
+              : 'Check if backend server is running and accessible.'
           });
           return { mps_orders: [], summary: { total_orders: 0 } };
         });

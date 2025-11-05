@@ -551,14 +551,21 @@ def get_all_data():
     global _data_cache, _cache_timestamp
     
     try:
-        print("/api/data endpoint called")
+        force_refresh = request.args.get('force', 'false').lower() == 'true'
+        print(f"/api/data endpoint called (force_refresh={force_refresh})")
         
-        # Check if we have valid cached data
-        if _data_cache and _cache_timestamp:
+        # Check if we have valid cached data (unless forcing refresh)
+        if not force_refresh and _data_cache and _cache_timestamp:
             import time
             cache_age = time.time() - _cache_timestamp
-            print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}")
-            if cache_age < _cache_duration:
+            
+            # Check if cache has actual data (not empty)
+            has_data = any(v and len(v) > 0 if isinstance(v, list) else v for v in _data_cache.values())
+            
+            print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}, has_data={has_data}")
+            
+            # Only use cache if it has data AND is fresh
+            if cache_age < _cache_duration and has_data:
                 print("SUCCESS: Returning cached data (no G: Drive access needed)")
                 return jsonify({
                     "data": _data_cache,
@@ -569,11 +576,13 @@ def get_all_data():
                         "folder": "Cached",
                         "created": "Cached",
                         "size": "Cached",
-                        "fileCount": len([k for k, v in _data_cache.items() if v])
+                        "fileCount": len([k for k, v in _data_cache.items() if v and len(v) > 0 if isinstance(v, list) else v])
                     },
                     "LoadTimestamp": "Cached",
                     "cached": True
                 })
+            elif not has_data:
+                print("⚠️ Cache exists but is empty - forcing refresh")
         
         print("RETRY: Cache expired or missing, loading fresh data...")
         
