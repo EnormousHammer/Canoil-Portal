@@ -5,7 +5,10 @@
   "installCommand": "cd frontend && npm install",
   "functions": {
     "api/**/*.py": {
-      "includeFiles": "backend/**/*.py",
+      "includeFiles": [
+        "backend/**/*.py",
+        "backend/hts_codes.json"
+      ],
       "excludeFiles": [
         "backend/venv/**",
         "backend/__pycache__/**",
@@ -14,6 +17,7 @@
         "backend/uploads/**",
         "backend/so_cache/**",
         "backend/canoil-portal/**",
+        "backend/gmail_credentials/**",
         "backend/**/*.docx",
         "backend/**/*.pdf",
         "backend/**/*.html",
