@@ -23,24 +23,26 @@ Deploys your Flask backend to Render with Google Drive API configured.
 
 ## 📋 Step 3: Configure Service
 
-Fill in these EXACT values:
+**On the Render page, you'll see several sections. Fill in these EXACT values:**
 
-**Basic Settings:**
-- **Name:** `canoil-portal-backend`
-- **Region:** `Oregon (US West)` (or closest to you)
-- **Branch:** `main`
-- **Root Directory:** (leave blank)
+### Section 1: Basic Settings (at the top)
+- **Name:** Type `canoil-portal-backend`
+- **Region:** Select `Oregon (US West)` (or closest to you from dropdown)
+- **Branch:** Type `main` (or select from dropdown if it shows)
+- **Root Directory:** (leave blank - don't type anything)
 
-**Environment:**
-- **Runtime:** `Python 3`
-- **Python Version:** `3.11.0` (or latest)
+### Section 2: Environment (middle section)
+- **Runtime:** Select `Python 3` from dropdown
+- **Python Version:** Select `3.11.0` from dropdown (or latest available)
 
-**Build & Deploy:**
-- **Build Command:** `pip install -r backend/requirements.txt`
-- **Start Command:** `cd backend && python app.py`
+### Section 3: Build & Deploy (scroll down)
+- **Build Command:** Type `pip install -r backend/requirements.txt`
+- **Start Command:** Type `cd backend && python app.py`
 
-**Plan:**
-- **Plan:** `Free` (or `Starter` if you want)
+### Section 4: Plan (bottom)
+- **Plan:** Select `Free` from dropdown (or `Starter` if you want)
+
+**Note:** Scroll down the page to see all sections. They're all on the same page, just scroll down!
 
 ---
 
