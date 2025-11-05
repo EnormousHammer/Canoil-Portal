@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { GDriveDataLoader } from './services/GDriveDataLoader';
+import { getApiUrl } from './utils/apiConfig';
 import './App.css';
 import { UltimateEnterpriseLoadingScreen } from './components/UltimateEnterpriseLoadingScreen';
 
@@ -239,10 +240,20 @@ function App() {
     
     try {
       const result = await gdriveLoader.loadAllData();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002';
-      const mpsData = await fetch(`${apiUrl}/api/mps`)
-        .then(response => response.ok ? response.json() : { mps_orders: [], summary: { total_orders: 0 } })
-        .catch(() => ({ mps_orders: [], summary: { total_orders: 0 } }));
+      const mpsUrl = getApiUrl('/api/mps');
+      const mpsData = await fetch(mpsUrl)
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          } else {
+            console.error('⚠️ Failed to load MPS data on refresh:', response.status);
+            return { mps_orders: [], summary: { total_orders: 0 } };
+          }
+        })
+        .catch(error => {
+          console.error('⚠️ Error loading MPS data on refresh:', error);
+          return { mps_orders: [], summary: { total_orders: 0 } };
+        });
       
       setData({
         ...result.data,
@@ -341,18 +352,27 @@ function App() {
       const gdriveData = result.data;
       
       // Load MPS data from backend API in parallel with G: Drive data
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002';
-      const mpsPromise = fetch(`${apiUrl}/api/mps`)
+      const mpsUrl = getApiUrl('/api/mps');
+      console.log('📊 Loading MPS data from:', mpsUrl);
+      const mpsPromise = fetch(mpsUrl)
         .then(response => {
           if (response.ok) {
             return response.json();
           } else {
-            console.log('⚠️ Failed to load MPS data:', response.status);
+            console.error('⚠️ Failed to load MPS data:', {
+              status: response.status,
+              statusText: response.statusText,
+              url: mpsUrl
+            });
             return { mps_orders: [], summary: { total_orders: 0 } };
           }
         })
         .catch(error => {
-          console.log('⚠️ Error loading MPS data:', error);
+          console.error('⚠️ Error loading MPS data:', {
+            error: error.message,
+            url: mpsUrl,
+            stack: error.stack
+          });
           return { mps_orders: [], summary: { total_orders: 0 } };
         });
 

@@ -127,7 +127,10 @@ export class GDriveDataLoader {
       // No artificial delay - load immediately
       
       // Call Flask backend to get all data - NO FALLBACK
-      const response = await fetch(getApiUrl('/api/data'), {
+      const apiUrl = getApiUrl('/api/data');
+      console.log('📡 Loading data from backend:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -137,18 +140,32 @@ export class GDriveDataLoader {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Flask API error response:', errorText);
+        console.error('❌ Flask API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: apiUrl,
+          error: errorText
+        });
         throw new Error(`Flask API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const responseText = await response.text();
-        console.error('❌ Non-JSON response received:', responseText.substring(0, 200));
+        console.error('❌ Non-JSON response received:', {
+          contentType,
+          url: apiUrl,
+          responsePreview: responseText.substring(0, 200)
+        });
         throw new Error(`Expected JSON, got ${contentType}. Response: ${responseText.substring(0, 100)}`);
       }
       
       const result = await response.json();
+      console.log('✅ Data loaded from backend:', {
+        url: apiUrl,
+        fileCount: Object.keys(result.data || {}).length,
+        hasData: !!result.data
+      });
       
       // Update loaded data with ALL files from backend
       if (result.data) {
