@@ -576,7 +576,7 @@ def get_all_data():
                         "folder": "Cached",
                         "created": "Cached",
                         "size": "Cached",
-                        "fileCount": len([k for k, v in _data_cache.items() if v and len(v) > 0 if isinstance(v, list) else v])
+                        "fileCount": len([k for k, v in _data_cache.items() if v and (len(v) > 0 if isinstance(v, list) else v)])
                     },
                     "LoadTimestamp": "Cached",
                     "cached": True
