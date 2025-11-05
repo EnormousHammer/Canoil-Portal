@@ -46,22 +46,44 @@ class GoogleDriveService:
         """Authenticate and build Google Drive API service"""
         creds = None
         
-        # Load existing token if available
-        if os.path.exists(self.token_file):
-            with open(self.token_file, 'rb') as token:
-                creds = pickle.load(token)
+        # Try loading token from environment variable first (for Vercel/serverless)
+        token_env = os.getenv('GOOGLE_DRIVE_TOKEN')
+        if token_env:
+            try:
+                token_dict = json.loads(token_env)
+                creds = Credentials.from_authorized_user_info(token_dict, SCOPES)
+                print("✅ Loaded Google Drive token from environment variable")
+            except Exception as e:
+                print(f"⚠️ Error loading token from environment: {e}")
+                creds = None
+        
+        # Fallback: Load token from file if available
+        if not creds and os.path.exists(self.token_file):
+            try:
+                with open(self.token_file, 'rb') as token:
+                    creds = pickle.load(token)
+                print("✅ Loaded Google Drive token from file")
+            except Exception as e:
+                print(f"⚠️ Error loading token from file: {e}")
+                creds = None
         
         # If no valid credentials, get new ones
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                # Check for credentials in environment variable (for Render/deployment)
+                try:
+                    creds.refresh(Request())
+                    print("✅ Refreshed expired Google Drive token")
+                except Exception as e:
+                    print(f"⚠️ Failed to refresh token: {e}")
+                    creds = None
+            
+            # If still no valid creds, need to authenticate
+            if not creds or not creds.valid:
+                # Check for credentials in environment variable (for Render/Vercel/deployment)
                 google_creds_env = os.getenv('GOOGLE_DRIVE_CREDENTIALS')
                 if google_creds_env:
                     # Use credentials from environment variable (deployment)
                     try:
-                        import json
                         creds_dict = json.loads(google_creds_env)
                         flow = InstalledAppFlow.from_client_secrets_dict(creds_dict, SCOPES)
                         # For deployment, we need to handle OAuth flow differently
@@ -85,9 +107,20 @@ class GoogleDriveService:
                         "Or set GOOGLE_DRIVE_CREDENTIALS environment variable"
                     )
             
-            # Save credentials for next run
-            with open(self.token_file, 'wb') as token:
-                pickle.dump(creds, token)
+            # Save credentials for next run (try file first, then env var hint)
+            try:
+                # Try to save to file (works on Render, not on Vercel serverless)
+                with open(self.token_file, 'wb') as token:
+                    pickle.dump(creds, token)
+                print("✅ Saved Google Drive token to file")
+            except Exception as e:
+                print(f"⚠️ Could not save token to file (serverless?): {e}")
+                print("💡 Tip: For Vercel/serverless, save token JSON to GOOGLE_DRIVE_TOKEN env var")
+                # Save token info to environment variable format (user can copy this)
+                if hasattr(creds, 'to_json'):
+                    token_json = creds.to_json()
+                    print(f"💡 Token JSON (save to GOOGLE_DRIVE_TOKEN env var):")
+                    print(token_json[:200] + "..." if len(token_json) > 200 else token_json)
         
         self.service = build('drive', 'v3', credentials=creds)
         self.authenticated = True
