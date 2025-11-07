@@ -1044,30 +1044,39 @@ def load_mps_from_excel():
         
         print(f"📊 Loading MPS data from Excel: {MPS_EXCEL_PATH}")
         
-        # Load Excel file
-        import pandas as pd
-        df = pd.read_excel(MPS_EXCEL_PATH)
+        # Load Excel file using openpyxl (lighter than pandas)
+        import openpyxl
+        wb = openpyxl.load_workbook(MPS_EXCEL_PATH, data_only=True)
+        sheet = wb.active
         
-        print(f"📊 Loaded {len(df)} rows from Excel file")
+        # Get headers from first row
+        headers = [cell.value for cell in sheet[1]]
+        
+        print(f"📊 Loaded Excel file with {sheet.max_row} rows")
         
         # Convert to MPS format
         mps_orders = []
-        for _, row in df.iterrows():
+        for row in sheet.iter_rows(min_row=2, values_only=False):
+            row_dict = {}
+            for i, cell in enumerate(row):
+                if i < len(headers):
+                    row_dict[headers[i]] = cell.value
+            
             mps_order = {
-                'order_id': str(row.get('Order ID', '')),
-                'item_code': str(row.get('Item Code', '')),
-                'description': str(row.get('Description', '')),
-                'quantity': float(row.get('Quantity', 1)),
-                'start_date': str(row.get('Start Date', '')),
-                'due_date': str(row.get('Due Date', '')),
-                'status': str(row.get('Status', 'scheduled')),
-                'priority': str(row.get('Priority', 'medium')),
-                'customer': str(row.get('Customer', '')),
-                'work_center': str(row.get('Work Center', 'Production')),
-                'estimated_hours': float(row.get('Estimated Hours', 8)),
-                'actual_hours': float(row.get('Actual Hours', 0)),
+                'order_id': str(row_dict.get('Order ID', '')),
+                'item_code': str(row_dict.get('Item Code', '')),
+                'description': str(row_dict.get('Description', '')),
+                'quantity': float(row_dict.get('Quantity', 1)) if row_dict.get('Quantity') else 1.0,
+                'start_date': str(row_dict.get('Start Date', '')),
+                'due_date': str(row_dict.get('Due Date', '')),
+                'status': str(row_dict.get('Status', 'scheduled')),
+                'priority': str(row_dict.get('Priority', 'medium')),
+                'customer': str(row_dict.get('Customer', '')),
+                'work_center': str(row_dict.get('Work Center', 'Production')),
+                'estimated_hours': float(row_dict.get('Estimated Hours', 8)) if row_dict.get('Estimated Hours') else 8.0,
+                'actual_hours': float(row_dict.get('Actual Hours', 0)) if row_dict.get('Actual Hours') else 0.0,
                 'materials': [],
-                'revenue': float(row.get('Revenue', 0))
+                'revenue': float(row_dict.get('Revenue', 0)) if row_dict.get('Revenue') else 0.0
             }
             mps_orders.append(mps_order)
         

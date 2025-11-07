@@ -5,12 +5,35 @@ Real-time business intelligence with comprehensive data analysis
 POWERED BY GPT-4o FOR ADVANCED VISUAL REPORTING AND FORECASTING
 """
 import json
-import pandas as pd
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
-import numpy as np
 from typing import Dict, List, Any, Optional
 import re
+
+# Lazy import pandas - only import when needed
+_pandas_available = None
+_pd = None
+
+def _get_pandas():
+    """Lazy import pandas - returns None if not available"""
+    global _pandas_available, _pd
+    if _pandas_available is None:
+        try:
+            import pandas as pd
+            _pd = pd
+            _pandas_available = True
+        except ImportError:
+            _pd = None
+            _pandas_available = False
+    return _pd
+
+def _get_numpy():
+    """Lazy import numpy - returns None if not available"""
+    try:
+        import numpy as np
+        return np
+    except ImportError:
+        return None
 import os
 from openai import OpenAI
 
@@ -49,6 +72,10 @@ class EnterpriseAnalytics:
             return {"error": "No sales data available"}
             
         try:
+            pd = _get_pandas()
+            if pd is None:
+                return {"error": "Pandas not available - enterprise analytics requires pandas package"}
+            
             # Convert to DataFrame for advanced analysis
             df = pd.DataFrame(sales_data)
             
@@ -1045,8 +1072,10 @@ class EnterpriseAnalytics:
         if len(revenues) == 0:
             return 0.0
         
-        mean_revenue = np.mean(revenues)
-        std_revenue = np.std(revenues)
+        # Calculate mean and std without numpy (lighter)
+        mean_revenue = sum(revenues) / len(revenues)
+        variance = sum((x - mean_revenue) ** 2 for x in revenues) / len(revenues)
+        std_revenue = variance ** 0.5
         
         return (std_revenue / mean_revenue) if mean_revenue > 0 else 0.0
     
