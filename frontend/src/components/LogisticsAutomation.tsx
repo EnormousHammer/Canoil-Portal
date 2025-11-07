@@ -16,6 +16,8 @@ interface EmailAnalysis {
   weight_per_pallet?: string;
   pallet_count?: number;
   pallet_dimensions?: string;
+  packaging_type?: string; // 'case', 'pallet', or 'skid'
+  skid_info?: string; // Pre-formatted packaging info (e.g., "1 box 27×22×20 inches")
   pieces_count?: number;
   batch_numbers?: string;
   carrier?: string;
@@ -98,9 +100,12 @@ const LogisticsAutomation: React.FC = () => {
       return;
     }
     
-    setLoading(true);
+    // Clear all previous results before processing new email
+    setResult(null);
+    setDocuments([]);
     setError('');
     setAutoDetection(null);
+    setLoading(true);
 
     try {
       const response = await fetch(getApiUrl('/api/logistics/process-email'), {
@@ -443,6 +448,21 @@ const LogisticsAutomation: React.FC = () => {
     return ['USA', 'US', 'UNITED STATES'].includes(destination);
   };
 
+  const isCrossBorder = () => {
+    if (!result?.so_data) return false;
+    
+    // Commercial Invoice only for cross-border shipments (not Canada)
+    const destination = (result.so_data.ship_to?.country || 
+                        result.so_data.shipping_address?.country || 
+                        result.email_shipping?.destination_country ||
+                        result.email_shipping?.final_destination ||
+                        result.email_analysis?.destination_country ||
+                        result.email_analysis?.final_destination || '').toUpperCase();
+    
+    // If destination is not Canada, it's cross-border
+    return destination && !['CANADA', 'CA', 'CAN'].includes(destination);
+  };
+
   const generateTSCA = async () => {
     if (!result) return;
 
@@ -690,8 +710,12 @@ const LogisticsAutomation: React.FC = () => {
       return;
     }
 
-    setLoading(true);
+    // Clear all previous results before processing new email
+    setResult(null);
+    setDocuments([]);
     setError('');
+    setAutoDetection(null);
+    setLoading(true);
 
     try {
       const formData = new FormData();
@@ -802,29 +826,35 @@ const LogisticsAutomation: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-gradient-to-r from-white to-blue-50/50 rounded-2xl shadow-xl border border-blue-100/50 p-8 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-3 rounded-lg">
-              <Truck className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Logistics Automation</h1>
-                <p className="text-gray-600">GPT-4o Vision powered form filling</p>
-            </div>
+            <div className="flex items-center gap-5">
+              <div className="bg-white p-3 rounded-xl shadow-md border border-gray-100">
+                <img 
+                  src="/logo.png" 
+                  alt="Canoil Logo" 
+                  className="w-14 h-14 object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                  Shipping & Logistics Management
+                </h1>
+                <p className="text-gray-600 mt-1 text-sm font-medium">Streamlined document processing and shipment management</p>
+              </div>
             </div>
             
             {/* Show "Start New Shipment" button if there's existing data */}
             {(result || documents.length > 0) && (
               <button
                 onClick={startNewShipment}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
                 title="Clear all data and start a new shipment"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-5 h-5" />
                 Start New Shipment
               </button>
             )}
@@ -832,84 +862,132 @@ const LogisticsAutomation: React.FC = () => {
         </div>
 
         {/* Processing Mode Selection */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Truck className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Processing Mode</h2>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <Truck className="w-6 h-6 text-blue-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Processing Mode</h2>
           </div>
           
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className={`relative flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+              processingMode === 'auto' 
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50'
+            }`}>
               <input
                 type="radio"
                 name="processingMode"
                 value="auto"
                 checked={processingMode === 'auto'}
                 onChange={(e) => setProcessingMode(e.target.value as 'auto' | 'manual')}
-                className="text-blue-600"
+                className="mt-1 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
               />
-              <span className="font-medium">🤖 Automatic (Recommended)</span>
-              <span className="text-sm text-gray-600">- Auto-detect SO number and find file</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">🤖</span>
+                  <span className="font-bold text-gray-900">Automatic</span>
+                  <span className="bg-blue-100 text-blue-600 text-xs font-semibold px-2 py-0.5 rounded-full">Recommended</span>
+                </div>
+                <p className="text-sm text-gray-600">Auto-detect SO number and find file</p>
+              </div>
             </label>
             
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className={`relative flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+              processingMode === 'manual' 
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50'
+            }`}>
               <input
                 type="radio"
                 name="processingMode"
                 value="manual"
                 checked={processingMode === 'manual'}
                 onChange={(e) => setProcessingMode(e.target.value as 'auto' | 'manual')}
-                className="text-blue-600"
+                className="mt-1 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
               />
-              <span className="font-medium">📁 Manual</span>
-              <span className="text-sm text-gray-600">- Upload SO file manually</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">📁</span>
+                  <span className="font-bold text-gray-900">Manual</span>
+                </div>
+                <p className="text-sm text-gray-600">Upload SO file manually</p>
+              </div>
             </label>
           </div>
         </div>
 
         {/* Email Input Section */}
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Mail className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Email Content</h2>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <Mail className="w-6 h-6 text-blue-600" />
             </div>
-            
+            <h2 className="text-2xl font-bold text-gray-900">Email Content</h2>
+          </div>
+          
           <textarea
             value={emailText}
             onChange={(e) => setEmailText(e.target.value)}
-            placeholder="Paste the logistics email content here... (e.g., 'SO 3015 for Fastenal...')"
-            className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            rows={6}
+            onKeyDown={(e) => {
+              // Allow Enter to process, but Shift+Enter creates new line
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                // Only process if not loading and email text exists
+                if (!loading && emailText.trim()) {
+                  // For manual mode, also check if SO file exists
+                  if (processingMode === 'manual' && !soFile) {
+                    return; // Don't process if manual mode without file
+                  }
+                  // Trigger the appropriate process function
+                  if (processingMode === 'auto') {
+                    processLogisticsAuto();
+                  } else {
+                    processLogistics();
+                  }
+                }
+              }
+            }}
+            placeholder="Paste the logistics email content here... (e.g., 'SO 3015 for Fastenal...') Press Enter to process (Shift+Enter for new line)"
+            className="w-full p-5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all duration-200 text-gray-700 placeholder-gray-400 font-mono text-sm"
+            rows={8}
           />
-                </div>
+        </div>
                 
         {/* SO File Upload Section - Only show in manual mode */}
         {processingMode === 'manual' && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5 text-blue-600" />
-              <h2 className="text-xl font-semibold text-gray-900">SO PDF File</h2>
-                  </div>
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <FileText className="w-6 h-6 text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">SO PDF File</h2>
+            </div>
             
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={(e) => setSoFile(e.target.files?.[0] || null)}
-              className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-                  </div>
-                )}
+            <div className="relative">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setSoFile(e.target.files?.[0] || null)}
+                className="w-full p-5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+            </div>
+          </div>
+        )}
                 
         {/* Auto-Detection Results */}
         {autoDetection && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
-                <span className="font-semibold text-blue-900">Auto-Detection Results</span>
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl shadow-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <CheckCircle className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="text-xl font-bold text-blue-900">Auto-Detection Results</span>
               </div>
               {autoDetection.file_path && (
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button 
                     onClick={() => {
                       const pdfPath = autoDetection.file_path;
@@ -920,9 +998,9 @@ const LogisticsAutomation: React.FC = () => {
                         window.open(url, '_blank');
                       }
                     }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
                   >
-                    <ExternalLink className="w-3 h-3" />
+                    <ExternalLink className="w-4 h-4" />
                     View SO
                   </button>
                   <button 
@@ -932,54 +1010,72 @@ const LogisticsAutomation: React.FC = () => {
                         window.open(`file:///${pdfPath.replace(/\\/g, '/')}`, '_blank');
                       }
                     }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1"
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
                   >
-                    <FileText className="w-3 h-3" />
+                    <FileText className="w-4 h-4" />
                     Open File
                   </button>
                 </div>
               )}
             </div>
-            <div className="text-sm text-blue-700 space-y-1">
-              <div><span className="font-medium">SO Number:</span> {autoDetection.so_number}</div>
-              <div><span className="font-medium">File Found:</span> {autoDetection.filename}</div>
-              <div><span className="font-medium">Status:</span> ✅ Ready for processing</div>
+            <div className="bg-white/70 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-bold text-blue-900 min-w-[100px]">SO Number:</span>
+                <span className="text-blue-700 font-semibold">{autoDetection.so_number}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-bold text-blue-900 min-w-[100px]">File Found:</span>
+                <span className="text-blue-700">{autoDetection.filename}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-bold text-blue-900 min-w-[100px]">Status:</span>
+                <span className="text-green-600 font-semibold flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  Ready for processing
+                </span>
+              </div>
             </div>
-                  </div>
-                )}
+          </div>
+        )}
                 
         {/* Process Button */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
           <button
             onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
             disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-5 px-8 rounded-xl flex items-center justify-center gap-3 transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
           >
             {loading ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                {processingMode === 'auto' ? 'Auto-detecting SO and processing...' : 'Processing with GPT-4o Vision...'}
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                {processingMode === 'auto' ? 'Auto-detecting SO and processing...' : 'Processing logistics...'}
               </>
             ) : (
               <>
-                <Send className="w-5 h-5" />
+                <Send className="w-6 h-6" />
                 {processingMode === 'auto' ? '🤖 Auto Process Logistics' : 'Process Logistics'}
               </>
             )}
           </button>
-          <div className="mt-3 text-sm text-gray-600 text-center">
-            <strong>Auto Mode:</strong> Works with or without SO PDF files - perfect for sample shipments!
-          </div>
+          {processingMode === 'auto' && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+              <p className="text-sm text-blue-800 text-center">
+                <strong className="font-semibold">Auto Mode:</strong> Works with or without SO PDF files - perfect for sample shipments!
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <span className="text-red-800 font-medium">Error</span>
+          <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl shadow-lg p-6 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="bg-red-100 p-2 rounded-lg">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <span className="text-xl font-bold text-red-900">Error</span>
             </div>
-            <div className="text-red-700 mt-1 whitespace-pre-line">{error}</div>
+            <div className="bg-white/70 rounded-xl p-4 text-red-800 whitespace-pre-line font-medium">{error}</div>
           </div>
         )}
         
@@ -1131,7 +1227,7 @@ const LogisticsAutomation: React.FC = () => {
                     <div className="flex gap-3 mt-2">
                       <div className="flex items-center gap-1.5 text-xs text-slate-600">
                         <Mail className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Email parsed with GPT-4o</span>
+                        <span>Email parsed successfully</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-slate-600">
                         <FileText className="w-3.5 h-3.5 text-blue-500" />
@@ -1246,8 +1342,14 @@ const LogisticsAutomation: React.FC = () => {
                         <span className="font-medium">{result.email_data?.total_weight || 'Not specified'}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Pallets:</span>
-                        <span className="font-medium">{result.email_data?.pallet_count || 'Not specified'}</span>
+                        <span className="text-gray-600">
+                          {result.email_data?.packaging_type === 'case' ? 'Box/Case:' : 'Pallets:'}
+                        </span>
+                        <span className="font-medium">
+                          {result.email_data?.packaging_type === 'case' 
+                            ? (result.email_data?.skid_info || result.email_data?.pallet_count || 'Not specified')
+                            : (result.email_data?.pallet_count || 'Not specified')}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Batch #:</span>
@@ -1462,8 +1564,14 @@ const LogisticsAutomation: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pallets</label>
-                      <div className="text-lg font-semibold text-gray-900">{result.email_data?.pallet_count || result.email_shipping?.pallet_info?.count || 'N/A'}</div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {result.email_data?.packaging_type === 'case' ? 'Box/Case' : 'Pallets'}
+                      </label>
+                      <div className="text-lg font-semibold text-gray-900">
+                        {result.email_data?.packaging_type === 'case'
+                          ? (result.email_data?.skid_info || result.email_data?.pallet_count || 'N/A')
+                          : (result.email_data?.pallet_count || result.email_shipping?.pallet_info?.count || 'N/A')}
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -1475,8 +1583,14 @@ const LogisticsAutomation: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pallet Dimensions</label>
-                    <div className="text-sm font-medium text-gray-700">{result.email_data?.pallet_dimensions || result.email_shipping?.pallet_info?.dimensions || 'N/A'}</div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      {result.email_data?.packaging_type === 'case' ? 'Box Dimensions' : 'Pallet Dimensions'}
+                    </label>
+                    <div className="text-sm font-medium text-gray-700">
+                      {result.email_data?.skid_info 
+                        ? result.email_data.skid_info 
+                        : (result.email_data?.pallet_dimensions || result.email_shipping?.pallet_info?.dimensions || 'N/A')}
+                    </div>
                   </div>
                   {result.email_data?.special_instructions && (
                     <div>
@@ -1545,7 +1659,7 @@ const LogisticsAutomation: React.FC = () => {
                       </div>
                       <h3 className="font-bold text-slate-900 text-sm">Complete Email Analysis</h3>
                     </div>
-                    <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-medium shadow-sm">GPT-4o PARSED</span>
+                    <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-medium shadow-sm">PARSED</span>
                   </div>
                 </div>
                 <div className="p-6">
@@ -1814,7 +1928,7 @@ const LogisticsAutomation: React.FC = () => {
                     )}
                   </button>
                   <p className="text-xs text-slate-600 mt-2.5 text-center bg-slate-50 py-2 px-3 rounded border border-slate-200">
-                    <span className="font-semibold">Auto-detects:</span> BOL, Packing Slip, Commercial Invoice (cross-border), Dangerous Goods (if applicable), TSCA (cross-border), USMCA (if HTS matches)
+                    <span className="font-semibold">Auto-detects:</span> BOL, Packing Slip{isCrossBorder() ? ', Commercial Invoice' : ''}, Dangerous Goods (if applicable), TSCA (cross-border), USMCA (if HTS matches)
                   </p>
                 </div>
                 
@@ -1844,15 +1958,18 @@ const LogisticsAutomation: React.FC = () => {
                       Packing Slip
                     </button>
                     
-                    <button
-                      onClick={generateCommercialInvoice}
-                      disabled={loading || !result}
-                      className="bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white font-medium py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors shadow-sm hover:shadow text-sm"
-                      title="Generate Commercial Invoice only"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Commercial Invoice
-                    </button>
+                    {/* Commercial Invoice Button - Only show for cross-border shipments */}
+                    {isCrossBorder() && (
+                      <button
+                        onClick={generateCommercialInvoice}
+                        disabled={loading || !result}
+                        className="bg-slate-600 hover:bg-slate-700 disabled:bg-slate-400 text-white font-medium py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors shadow-sm hover:shadow text-sm"
+                        title="Generate Commercial Invoice only (cross-border shipments)"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Commercial Invoice
+                      </button>
+                    )}
                     
                     {/* Dangerous Goods Button - Only show if items contain DG */}
                     {hasDangerousGoods() && (

@@ -222,12 +222,13 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
     if email_analysis.get('skid_info'):
         skid = email_analysis['skid_info']
         print(f"   DEBUG: Using skid_info from parsing: {skid}")
-        # Try to extract count from string like "2 pallets (48x40x48)"
+        # Try to extract count from string like "2 pallets (48x40x48)" or "1 box 27×22×20 inches"
         count = 1
         import re
-        count_match = re.search(r'(\d+)\s*(?:pallet|skid)', skid, re.IGNORECASE)
+        count_match = re.search(r'(\d+)\s*(?:pallet|skid|box|case)', skid, re.IGNORECASE)
         if count_match:
             count = int(count_match.group(1))
+        print(f"   DEBUG: Extracted count from skid_info: {count}")
         return skid, count
     
     # Check multiple possible locations for pallet info
@@ -252,7 +253,30 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
         source = "dimensions"
     
     if not pallet_info:
+        # Try to build skid_info from pallet_dimensions and packaging_type if available
+        pallet_dims = email_analysis.get('pallet_dimensions')
+        packaging_type = email_analysis.get('packaging_type', 'pallet')
+        pallet_count = email_analysis.get('pallet_count')
+        
+        if pallet_dims:
+            # Use "box" for display if packaging_type is "case" (case = box in shipping)
+            display_type = 'box' if packaging_type == 'case' else packaging_type
+            
+            if pallet_count and pallet_count > 0:
+                if pallet_count == 1:
+                    skid_info = f"1 {display_type} {pallet_dims}"
+                else:
+                    skid_info = f"{pallet_count} {display_type}s {pallet_dims} each"
+            else:
+                skid_info = f"{display_type} {pallet_dims}"
+            
+            print(f"   DEBUG: Built skid_info from pallet_dimensions and packaging_type: {skid_info}")
+            return skid_info, pallet_count or 1
+        
         print(f"   DEBUG: No pallet info found in email_analysis. Keys: {list(email_analysis.keys())}")
+        print(f"   DEBUG: Checking for skid_info directly: {email_analysis.get('skid_info', 'NOT FOUND')}")
+        print(f"   DEBUG: Checking for pallet_dimensions: {email_analysis.get('pallet_dimensions', 'NOT FOUND')}")
+        print(f"   DEBUG: Checking for packaging_type: {email_analysis.get('packaging_type', 'NOT FOUND')}")
         print(f"   ⚠️ WARNING: No skid dimensions in email - leaving blank")
         return "", 0
     
@@ -260,9 +284,17 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
     
     # If string format
     if isinstance(pallet_info, str):
-        # Try to extract count from string
+        # Try to extract count from string - check for box/case first, then pallet/skid
         count = 1
         import re
+        # Check for box/case first (not a skid or pallet)
+        box_match = re.search(r'(\d+)\s*(?:box|case)', pallet_info, re.IGNORECASE)
+        if box_match:
+            count = int(box_match.group(1))
+            # This is a box, not a skid/pallet - use the string as-is or format it
+            return pallet_info.strip(), count
+        
+        # Check for pallet/skid
         count_match = re.search(r'(\d+)\s*(?:pallet|skid)', pallet_info, re.IGNORECASE)
         if count_match:
             count = int(count_match.group(1))
@@ -272,11 +304,15 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
     if isinstance(pallet_info, dict):
         dimensions = pallet_info.get('dimensions', '')
         count = pallet_info.get('count', 1)
+        packaging_type = email_analysis.get('packaging_type', 'pallet')
+        # Use "box" for display if packaging_type is "case" (case = box in shipping)
+        display_type = 'box' if packaging_type == 'case' else 'pallet'
+        
         if dimensions:
             if count > 1:
-                return f"{count} pallets ({dimensions})", count
+                return f"{count} {display_type}s ({dimensions})", count
             else:
-                return dimensions, count
+                return f"{display_type} {dimensions}", count
         else:
             print(f"   DEBUG: Pallet info is dict but no dimensions. Keys: {list(pallet_info.keys())}")
             print(f"   ⚠️ WARNING: No skid dimensions in pallet info - leaving blank")
@@ -467,15 +503,31 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
                 'weight': ''
             })
         
-        # Row 3: Skid info (comes after DG if exists, or row 2 if no DG)
-        if skid_info:
-            rows.append({
-                'pieces': '',
-                'description': f"Skid: {skid_info}",
-                'weight': ''
-            })
-        
         # NO empty row between items - pack tightly
+    
+    # After all items are added, add pallet/skid/case information ONCE
+    # This ensures it's always included even with 3+ items
+    # Always add skid info if we have either skid_info string or total_skids count
+    if skid_info and skid_info.strip():
+        # skid_info already contains the correct label (case, skid, pallet) from email parsing
+        # Just use it directly - don't add "Skid:" prefix
+        rows.append({
+            'pieces': '',
+            'description': skid_info,
+            'weight': ''
+        })
+        print(f"   ✅ Added packaging info to BOL: {skid_info}")
+    elif total_skids > 0:
+        # No skid info string, but we have total skids count - use that
+        skid_text = f"{total_skids} Total Skid{'s' if total_skids > 1 else ''}"
+        rows.append({
+            'pieces': '',
+            'description': skid_text,
+            'weight': ''
+        })
+        print(f"   ✅ Added total skids to BOL: {skid_text}")
+    else:
+        print(f"   ⚠️  No skid info available (skid_info='{skid_info}', total_skids={total_skids})")
     
     # Add PO# and SO# on next available row
     ref_parts = []
@@ -488,10 +540,13 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         'weight': ''
     })
     
-    # Add Total Skids on next available row (if available)
-    if total_skids > 0:
-        skid_text = f"{total_skids} Total Skid{'s' if total_skids > 1 else ''}"
-        rows.append({'pieces': '', 'description': skid_text, 'weight': ''})
+    # Add Total Skids on next available row (if we have both skid_info and total_skids, and total not already shown)
+    if total_skids > 0 and skid_info and skid_info.strip():
+        # Check if skid_info already contains the total count
+        if str(total_skids) not in skid_info:
+            skid_text = f"{total_skids} Total Skid{'s' if total_skids > 1 else ''}"
+            rows.append({'pieces': '', 'description': skid_text, 'weight': ''})
+            print(f"   ✅ Added total skids (additional) to BOL: {skid_text}")
     
     return rows
 

@@ -430,23 +430,90 @@ def parse_email_deterministic(email_text: str) -> dict:
                 pass
     
     # Pallet dimensions - flexible pattern (2 or 3 dimensions, with/without "inches")
-    dims = re.search(r'(\d+)\s*[xX×]\s*(\d+)(?:\s*[xX×]\s*(\d+))?', text)
-    if dims:
-        dimensions = [dims.group(1), dims.group(2)]
-        if dims.group(3):
-            dimensions.append(dims.group(3))
-        data['pallet_dimensions'] = 'x'.join(dimensions) + ' inches'
+    # Extract dimensions and detect packaging type (case, skid, pallet)
+    packaging_type = None
+    dims = None
     
-    # Create skid_info combining pallet count and dimensions for BOL
+    # CRITICAL: Check if email mentions "case" or "cases" - this means BOX, NOT pallet
+    has_cases = bool(re.search(r'\b(case|cases)\b', text, re.IGNORECASE))
+    has_pallets = bool(re.search(r'\b(pallet|pallets|skid|skids)\b', text, re.IGNORECASE))
+    
+    # Look for packaging type with dimensions: "In 1 case 27×22×20 inches", "on 2 pallets 48x40", etc.
+    # Pattern 1: "In 1 case 27×22×20 inches" or "in 1 case 27x22x20"
+    case_match = re.search(r'in\s+(\d+)\s+(?:case|cases)\s+(\d+)\s*[xX×]\s*(\d+)(?:\s*[xX×]\s*(\d+))?\s*(?:inches|inch|in)?', text, re.IGNORECASE)
+    if case_match:
+        packaging_type = 'case'
+        dims = [case_match.group(2), case_match.group(3)]
+        if case_match.group(4):
+            dims.append(case_match.group(4))
+    
+    # Pattern 2: "on 2 pallets 48x40" or "2 pallets 48x40" - ONLY if no cases mentioned
+    if not dims and has_pallets and not has_cases:
+        pallet_match = re.search(r'(?:on\s+)?(\d+)\s+(?:pallet|pallets|skid|skids)\s+(\d+)\s*[xX×]\s*(\d+)(?:\s*[xX×]\s*(\d+))?\s*(?:inches|inch|in)?', text, re.IGNORECASE)
+        if pallet_match:
+            packaging_type = 'pallet'
+            dims = [pallet_match.group(2), pallet_match.group(3)]
+            if pallet_match.group(4):
+                dims.append(pallet_match.group(4))
+    
+    # Pattern 3: Just dimensions with packaging type nearby: "case 27×22×20" or "pallet 48x40"
+    if not dims:
+        pkg_match = re.search(r'\b(case|cases|pallet|pallets|skid|skids)\b.*?(\d+)\s*[xX×]\s*(\d+)(?:\s*[xX×]\s*(\d+))?\s*(?:inches|inch|in)?', text, re.IGNORECASE)
+        if pkg_match:
+            pkg_word = pkg_match.group(1).lower()
+            if 'case' in pkg_word:
+                packaging_type = 'case'
+            else:
+                packaging_type = 'pallet'
+            dims = [pkg_match.group(2), pkg_match.group(3)]
+            if pkg_match.group(4):
+                dims.append(pkg_match.group(4))
+    
+    # Fallback: just extract dimensions if no packaging type found
+    if not dims:
+        dims_match = re.search(r'(\d+)\s*[xX×]\s*(\d+)(?:\s*[xX×]\s*(\d+))?\s*(?:inches|inch|in)?', text)
+        if dims_match:
+            dims = [dims_match.group(1), dims_match.group(2)]
+            if dims_match.group(3):
+                dims.append(dims_match.group(3))
+            # Try to infer packaging type from context - prioritize case if mentioned
+            if has_cases:
+                packaging_type = 'case'
+            elif has_pallets:
+                packaging_type = 'pallet'
+    
+    if dims:
+        dimensions_str = '×'.join(dims) + ' inches'
+        data['pallet_dimensions'] = dimensions_str
+        # CRITICAL: If email mentions "case" but no "pallet", it's a case/box, NOT a pallet
+        if has_cases and not has_pallets:
+            data['packaging_type'] = 'case'
+        else:
+            data['packaging_type'] = packaging_type or 'pallet'  # Default to pallet only if no case mentioned
+    else:
+        # Even without dimensions, if email mentions cases but no pallets, it's a case
+        if has_cases and not has_pallets:
+            data['packaging_type'] = 'case'
+        else:
+            data['packaging_type'] = None
+    
+    # Create skid_info combining packaging type, count and dimensions for BOL
+    # Note: "case" = box in shipping terminology
     if data.get('pallet_count') and data.get('pallet_dimensions'):
         pallet_count = data['pallet_count']
         pallet_dims = data['pallet_dimensions']
+        pkg_type = data.get('packaging_type', 'pallet')
+        # Use "box" for display if packaging_type is "case" (case = box in shipping)
+        display_type = 'box' if pkg_type == 'case' else pkg_type
         if pallet_count == 1:
-            data['skid_info'] = f"1 pallet {pallet_dims}"
+            data['skid_info'] = f"1 {display_type} {pallet_dims}"
         else:
-            data['skid_info'] = f"{pallet_count} pallets {pallet_dims} each"
+            data['skid_info'] = f"{pallet_count} {display_type}s {pallet_dims} each"
     elif data.get('pallet_dimensions'):
-        data['skid_info'] = data['pallet_dimensions']
+        pkg_type = data.get('packaging_type', 'pallet')
+        # Use "box" for display if packaging_type is "case" (case = box in shipping)
+        display_type = 'box' if pkg_type == 'case' else pkg_type
+        data['skid_info'] = f"{display_type} {data['pallet_dimensions']}"
     else:
         data['skid_info'] = ""
     
@@ -538,8 +605,9 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                 }}
             ],
             "total_weight": "[CRITICAL] TOTAL weight for ALL items combined. If email has 'Line 1: 1,200 kg, Line 2: 1,020 kg, Line 3: 1,760 kg', you MUST add them: 1200+1020+1760=3980 kg. Always sum all line weights.",
-            "pallet_count": "[CRITICAL] TOTAL number of pallets/skids as integer. Look for phrases like 'on X pallets', 'X skids', 'On 2 pallets... On 2 pallets... On 4 pallets' (add them: 2+2+4=8). Search entire email for skid/pallet counts. If multiple mentioned, ADD THEM ALL. Required field - must extract if ANY pallet/skid mention exists.",
-            "pallet_dimensions": "[CRITICAL] Pallet/skid dimensions. Look for: '48x40', '45×45×40', '48 x 40 x 48', 'pallet dimensions: 48x40x48', 'skid size 48x40', etc. Include units if mentioned (inches/cm). Search entire email. Required field - must extract if ANY dimension mention exists.",
+            "pallet_count": "[CRITICAL] TOTAL number of pallets/skids/cases as integer. Look for phrases like 'on X pallets', 'X skids', 'In X case', 'On 2 pallets... On 2 pallets... On 4 pallets' (add them: 2+2+4=8). Search entire email for skid/pallet/case counts. If multiple mentioned, ADD THEM ALL. Required field - must extract if ANY pallet/skid/case mention exists.",
+            "pallet_dimensions": "[CRITICAL] Pallet/skid/case dimensions. Look for: '48x40', '45×45×40', '48 x 40 x 48', 'pallet dimensions: 48x40x48', 'skid size 48x40', 'In 1 case 27×22×20 inches', etc. Include units if mentioned (inches/cm). Search entire email. Required field - must extract if ANY dimension mention exists.",
+            "packaging_type": "[CRITICAL] Type of packaging: 'case', 'pallet', or 'skid'. Look for phrases like 'In 1 case 27×22×20 inches' → 'case', 'on 2 pallets 48x40' → 'pallet', 'on 3 skids' → 'skid'. If email says 'case' use 'case', if 'pallet' or 'skid' use 'pallet'. Default to 'pallet' if not specified. Required field.",
             "special_instructions": "any special handling notes",
             "ship_date": "ship date if mentioned",
             "carrier": "carrier/shipping company",
@@ -577,18 +645,25 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             {{"description": "CSW-55 PRO-LUB KEG 55kg", "quantity": "32", "unit": "kegs", "batch_number": "WH5H01G002"}}
         ]
         
-        PALLET/SKID EXTRACTION (CRITICAL - MUST ALWAYS EXTRACT):
-        Look EVERYWHERE in the email for pallet/skid information. Common formats:
-        - "On 1 pallet 48x40x48" → {{"pallet_count": 1, "pallet_dimensions": "48x40x48"}}
-        - "2 pallets, 48x40 each" → {{"pallet_count": 2, "pallet_dimensions": "48x40"}}
-        - "skid dimensions: 45x45x40 inches" → {{"pallet_count": 1, "pallet_dimensions": "45x45x40 inches"}}
-        - "On 3 skids 48 x 40 x 48" → {{"pallet_count": 3, "pallet_dimensions": "48 x 40 x 48"}}
-        - "pallet size 48x40" → {{"pallet_count": 1, "pallet_dimensions": "48x40"}}
+        PALLET/SKID/CASE EXTRACTION (CRITICAL - MUST ALWAYS EXTRACT):
+        Look EVERYWHERE in the email for pallet/skid/case information. Common formats:
+        - "On 1 pallet 48x40x48" → {{"pallet_count": 1, "pallet_dimensions": "48x40x48", "packaging_type": "pallet"}}
+        - "2 pallets, 48x40 each" → {{"pallet_count": 2, "pallet_dimensions": "48x40", "packaging_type": "pallet"}}
+        - "skid dimensions: 45x45x40 inches" → {{"pallet_count": 1, "pallet_dimensions": "45x45x40 inches", "packaging_type": "pallet"}}
+        - "On 3 skids 48 x 40 x 48" → {{"pallet_count": 3, "pallet_dimensions": "48 x 40 x 48", "packaging_type": "pallet"}}
+        - "pallet size 48x40" → {{"pallet_count": 1, "pallet_dimensions": "48x40", "packaging_type": "pallet"}}
+        - "In 1 case 27×22×20 inches" → {{"pallet_count": 1, "pallet_dimensions": "27×22×20 inches", "packaging_type": "case"}}
+        - "case 27×22×20 inches" → {{"pallet_count": 1, "pallet_dimensions": "27×22×20 inches", "packaging_type": "case"}}
+        
+        CRITICAL: Extract packaging_type correctly:
+        - If email says "case" or "cases" → packaging_type = "case"
+        - If email says "pallet", "pallets", "skid", or "skids" → packaging_type = "pallet"
+        - Default to "pallet" if not specified
         
         If multiple pallets mentioned per item: "Line 1: On 2 pallets... Line 2: On 2 pallets... Line 3: On 4 pallets"
-        → ADD THEM: 2+2+4 = 8 total pallets → {{"pallet_count": 8, "pallet_dimensions": "..."}}
+        → ADD THEM: 2+2+4 = 8 total pallets → {{"pallet_count": 8, "pallet_dimensions": "...", "packaging_type": "pallet"}}
         
-        If NO pallet count but dimensions mentioned: "48x40x48" → {{"pallet_count": 1, "pallet_dimensions": "48x40x48"}}
+        If NO pallet count but dimensions mentioned: "48x40x48" → {{"pallet_count": 1, "pallet_dimensions": "48x40x48", "packaging_type": "pallet"}}
         
         WEIGHT EXTRACTION (CRITICAL):
         If email says "Line 1: 1,200 kg... Line 2: 1,020 kg... Line 3: 1,760 kg", you MUST add them: 1200+1020+1760 = 3,980 kg total
@@ -736,7 +811,28 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             import traceback
             traceback.print_exc()
         
+        # Create skid_info from packaging_type, pallet_count, and pallet_dimensions (if extracted by GPT-4)
+        # Note: "case" = box in shipping terminology
+        if parsed_data.get('pallet_dimensions'):
+            pkg_type = parsed_data.get('packaging_type', 'pallet')  # Default to pallet if not specified
+            pallet_count = parsed_data.get('pallet_count')
+            pallet_dims = parsed_data.get('pallet_dimensions')
+            # Use "box" for display if packaging_type is "case" (case = box in shipping)
+            display_type = 'box' if pkg_type == 'case' else pkg_type
+            
+            if pallet_count and pallet_count > 0:
+                if pallet_count == 1:
+                    parsed_data['skid_info'] = f"1 {display_type} {pallet_dims}"
+                else:
+                    parsed_data['skid_info'] = f"{pallet_count} {display_type}s {pallet_dims} each"
+            else:
+                parsed_data['skid_info'] = f"{display_type} {pallet_dims}"
+        elif parsed_data.get('packaging_type'):
+            # If we have packaging_type but no dimensions, still store it
+            parsed_data['skid_info'] = ""
+        
         print(f"Successfully parsed email - SO: {parsed_data.get('so_number')}, Company: {parsed_data.get('company_name', 'None')}, Items: {len(parsed_data.get('items', []))}")
+        print(f"   Packaging type: {parsed_data.get('packaging_type', 'None')}, Skid info: {parsed_data.get('skid_info', 'None')}")
         return parsed_data
         
     except json.JSONDecodeError as je:
@@ -2444,7 +2540,14 @@ def generate_all_documents():
             from new_bol_generator import populate_new_bol_html
             
             print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
-            bol_html = populate_new_bol_html(so_data, email_shipping)
+            # Use email_analysis instead of email_shipping to ensure skid_info is included
+            # email_analysis has skid_info, pallet_count, pallet_dimensions from email parsing
+            bol_email_data = email_analysis or email_shipping
+            print(f"DEBUG BOL: Using email data with keys: {list(bol_email_data.keys())}")
+            print(f"DEBUG BOL: skid_info = {bol_email_data.get('skid_info')}")
+            print(f"DEBUG BOL: pallet_count = {bol_email_data.get('pallet_count')}")
+            print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
+            bol_html = populate_new_bol_html(so_data, bol_email_data)
             bol_filename = f"BOL_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
             uploads_dir = get_uploads_dir()
             bol_filepath = os.path.join(uploads_dir, bol_filename)
@@ -2492,9 +2595,9 @@ def generate_all_documents():
             errors.append(f"Packing Slip generation failed: {str(e)}")
             results['packing_slip'] = {'success': False, 'error': str(e)}
         
-        # SMART Commercial Invoice Generation - ONLY for cross-border shipments
+        # Commercial Invoice Generation - Always generate when "Generate All Documents" is called
         try:
-            # Determine if this is a cross-border shipment (outside Canada)
+            # Determine destination country for logging purposes
             destination_country = None
             is_cross_border = False
             
@@ -2503,6 +2606,14 @@ def generate_all_documents():
             if shipping_address.get('country'):
                 destination_country = str(shipping_address.get('country', '')).upper().strip()
             
+            # Check email_shipping for destination (if passed)
+            email_shipping = data.get('email_shipping', {})
+            if not destination_country and email_shipping:
+                if email_shipping.get('destination_country'):
+                    destination_country = str(email_shipping.get('destination_country', '')).upper().strip()
+                elif email_shipping.get('final_destination'):
+                    destination_country = str(email_shipping.get('final_destination', '')).upper().strip()
+            
             # Check email analysis for destination
             if not destination_country and email_analysis:
                 if email_analysis.get('destination_country'):
@@ -2510,7 +2621,7 @@ def generate_all_documents():
                 elif email_analysis.get('final_destination'):
                     destination_country = str(email_analysis.get('final_destination', '')).upper().strip()
             
-            # Determine if cross-border
+            # Determine if cross-border (for logging)
             if destination_country:
                 # If destination is not Canada, it's cross-border
                 is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
@@ -2520,12 +2631,14 @@ def generate_all_documents():
             else:
                 # Default to cross-border if destination unknown (safer to include)
                 is_cross_border = True
+                destination_country = 'UNKNOWN'
                 print(f"\n📋 Commercial Invoice Check:")
                 print(f"   Destination: UNKNOWN (defaulting to cross-border)")
                 print(f"   Cross-border: {is_cross_border}")
             
-            # Generate Commercial Invoice ONLY if cross-border
+            # Only generate Commercial Invoice for cross-border shipments
             if is_cross_border:
+                print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
                 from commercial_invoice_html_generator import generate_commercial_invoice_html
                 ci_html = generate_commercial_invoice_html(
                     so_data, 
@@ -2543,17 +2656,16 @@ def generate_all_documents():
                     'success': True,
                     'filename': ci_filename,
                     'download_url': f'/download/logistics/{ci_filename}',
-                    'reason': f'Cross-border shipment to {destination_country}'
+                    'reason': f'Generated for cross-border shipment to {destination_country}'
                 }
-                print(f"✅ Commercial Invoice generated (cross-border to {destination_country}): {ci_filename}")
+                print(f"✅ Commercial Invoice generated: {ci_filename}")
             else:
-                # Domestic shipment - no commercial invoice needed
+                print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
                 results['commercial_invoice'] = {
                     'success': False,
                     'skipped': True,
-                    'reason': f'Domestic shipment within Canada - Commercial Invoice not required'
+                    'reason': 'Domestic shipment - Commercial Invoice not required'
                 }
-                print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
             
         except Exception as e:
             print(f"❌ Commercial Invoice generation error: {e}")
@@ -2827,12 +2939,16 @@ def generate_all_documents():
         has_dg = dangerous_goods_info.get('has_dangerous_goods', False)
         
         # Calculate total possible documents
-        base_docs = 3  # BOL, Packing Slip, Commercial Invoice
+        base_docs = 2  # BOL, Packing Slip (always)
         total_possible_docs = base_docs
+        if is_cross_border:
+            total_possible_docs += 1  # Commercial Invoice (cross-border only)
         if has_dg:
             total_possible_docs += 1
         if has_usmca:
             total_possible_docs += 1
+        if is_cross_border:
+            total_possible_docs += 1  # TSCA (cross-border only)
         
         # Build summary message
         summary_parts = [f"Generated {len(successful_docs)}/{total_possible_docs} documents successfully"]
@@ -2871,6 +2987,15 @@ def generate_all_documents():
                 'filename': results['commercial_invoice']['filename'],
                 'download_url': results['commercial_invoice']['download_url']
             })
+            print(f"✅ Added Commercial Invoice to documents array: {results['commercial_invoice']['filename']}")
+        else:
+            ci_result = results.get('commercial_invoice', {})
+            if ci_result.get('skipped'):
+                print(f"⏭️  Commercial Invoice skipped: {ci_result.get('reason', 'Domestic shipment')}")
+            elif ci_result.get('error'):
+                print(f"❌ Commercial Invoice generation failed: {ci_result.get('error')}")
+            else:
+                print(f"⚠️  Commercial Invoice not generated (no result found)")
         
         # Add Dangerous Goods (list of docs)
         if isinstance(results.get('dangerous_goods'), list):
