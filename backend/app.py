@@ -1608,16 +1608,53 @@ def check_changes():
         return jsonify({"error": str(e)}), 500
 
 def analyze_inventory_data(data, query):
-    """Analyze inventory data to answer user queries"""
+    """Analyze inventory data to answer user queries - COMPREHENSIVE DATA ACCESS"""
     try:
-        # Extract relevant data structures - ONLY using CustomAlert5 for item data
+        # Extract ALL relevant data structures from ALL sources
         customalert5_items = data.get('CustomAlert5.json', [])
+        items = data.get('Items.json', [])
+        miitem = data.get('MIITEM.json', [])
+        miiloc = data.get('MIILOC.json', [])  # Inventory location data
+        
         bom_headers = data.get('BillsOfMaterial.json', [])
         bom_details = data.get('BillOfMaterialDetails.json', [])
+        mibomh = data.get('MIBOMH.json', [])
+        mibomd = data.get('MIBOMD.json', [])
+        
         mo_headers = data.get('ManufacturingOrderHeaders.json', [])
         mo_details = data.get('ManufacturingOrderDetails.json', [])
+        mo_routings = data.get('ManufacturingOrderRoutings.json', [])
+        mimoh = data.get('MIMOH.json', [])
+        mimomd = data.get('MIMOMD.json', [])
+        mimord = data.get('MIMORD.json', [])
+        
         po_headers = data.get('PurchaseOrders.json', [])
         po_details = data.get('PurchaseOrderDetails.json', [])
+        po_extensions = data.get('PurchaseOrderExtensions.json', [])
+        mipoh = data.get('MIPOH.json', [])
+        mipod = data.get('MIPOD.json', [])
+        mipohx = data.get('MIPOHX.json', [])
+        mipoc = data.get('MIPOC.json', [])
+        mipocv = data.get('MIPOCV.json', [])
+        mipodc = data.get('MIPODC.json', [])
+        
+        so_headers = data.get('SalesOrderHeaders.json', [])
+        so_details = data.get('SalesOrderDetails.json', [])
+        sales_orders = data.get('SalesOrders.json', [])
+        parsed_sos = data.get('ParsedSalesOrders.json', [])
+        
+        jobs = data.get('Jobs.json', [])
+        job_details = data.get('JobDetails.json', [])
+        mijobh = data.get('MIJOBH.json', [])
+        mijobd = data.get('MIJOBD.json', [])
+        
+        wo_headers = data.get('WorkOrderHeaders.json', [])
+        wo_details = data.get('WorkOrderDetails.json', [])
+        miwoh = data.get('MIWOH.json', [])
+        miwod = data.get('MIWOD.json', [])
+        
+        mps_data = data.get('MPS.json', {})
+        mps_orders = mps_data.get('mps_orders', []) if isinstance(mps_data, dict) else []
         
         # Create a comprehensive data summary for ChatGPT
         data_summary = {
@@ -1626,18 +1663,25 @@ def analyze_inventory_data(data, query):
             "total_boms": len(bom_headers),
             "active_manufacturing_orders": len([mo for mo in mo_headers if mo.get("Status", 0) in [1, 2]]),
             "active_purchase_orders": len([po for po in po_headers if po.get("Status", 0) == 1]),
+            "total_sales_orders": len(so_headers) + len(sales_orders) + len(parsed_sos),
+            "total_jobs": len(jobs),
+            "total_work_orders": len(wo_headers),
+            "mps_orders": len(mps_orders),
+            "inventory_locations": len(miiloc),
         }
         
         # Sample some data for context
         sample_items = customalert5_items[:3] if customalert5_items else []
         sample_boms = bom_headers[:3] if bom_headers else []
         sample_mos = mo_headers[:3] if mo_headers else []
+        sample_sos = (so_headers[:2] if so_headers else []) + (parsed_sos[:2] if parsed_sos else [])
         
         return {
             "data_summary": data_summary,
             "sample_items": sample_items,
             "sample_boms": sample_boms,
             "sample_mos": sample_mos,
+            "sample_sos": sample_sos,
             "available_data_files": list(data.keys())
         }
     except Exception as e:
@@ -1736,6 +1780,7 @@ def chat_query():
         data = request.get_json()
         user_query = data.get('query', '')
         date_context = data.get('dateContext', {})
+        frontend_data_sources = data.get('dataSources', {})  # Data sources summary from frontend
         
         # 🧠 SMART SALES ORDER DETECTION AND SEARCH
         import re
@@ -1822,37 +1867,115 @@ def chat_query():
                 }
             })
         
-        # Get the latest data
-        latest_folder, error = get_latest_folder()
-        if error:
-            return jsonify({"error": f"Cannot access data: {error}"}), 500
-        
-        folder_path = os.path.join(GDRIVE_BASE, latest_folder)
-        
-        # Load current data
+        # OPTIMIZATION: Use cached data first (same as /api/data endpoint)
+        global _data_cache, _cache_timestamp
         raw_data = {}
-        json_files = glob.glob(os.path.join(folder_path, "*.json"))
         
-        for json_file in json_files:
-            file_name = os.path.basename(json_file)
-            file_data = load_json_file(json_file)
-            raw_data[file_name] = file_data
+        # Check if we have valid cached data
+        if _data_cache and _cache_timestamp:
+            import time
+            cache_age = time.time() - _cache_timestamp
+            has_data = any(v and len(v) > 0 if isinstance(v, list) else v for v in _data_cache.values())
+            
+            if cache_age < _cache_duration and has_data:
+                print(f"✅ Using cached data for AI chat (age: {cache_age:.1f}s)")
+                raw_data = _data_cache.copy()  # Use cached data
+            else:
+                print(f"⚠️ Cache expired or empty (age: {cache_age:.1f}s), loading fresh data...")
+                raw_data = {}
         
-        # CRITICAL FIX: Load Sales Orders data from separate G: Drive location
-        print("RETRY: Loading Sales Orders for ChatGPT analysis...")
-        sales_orders_data = load_sales_orders()
-        if sales_orders_data:
-            raw_data.update(sales_orders_data)
-            total_so_count = sales_orders_data.get('TotalOrders', 0)
-            print(f"SUCCESS: ChatGPT now has access to {total_so_count} real Sales Orders")
-        else:
-            print("ERROR: WARNING: No Sales Orders data available for ChatGPT")
+        # If no cached data, load fresh from G: Drive (same logic as /api/data)
+        if not raw_data:
+            print("📂 Loading fresh data for AI chat...")
+            latest_folder, error = get_latest_folder()
+            if error:
+                return jsonify({"error": f"Cannot access data: {error}"}), 500
+            
+            folder_path = os.path.join(GDRIVE_BASE, latest_folder)
+            
+            # Load essential files first (same as /api/data)
+            essential_files = [
+                "CustomAlert5.json",  # PRIMARY: Complete item data
+                "MIILOC.json",        # Inventory location data
+                "SalesOrderHeaders.json",  # Sales orders
+                "SalesOrderDetails.json",  # Sales order details
+                "ManufacturingOrderHeaders.json",  # Manufacturing orders
+                "ManufacturingOrderDetails.json",  # Manufacturing order details
+                "BillsOfMaterial.json",  # BOM data
+                "BillOfMaterialDetails.json",  # BOM details
+                "PurchaseOrders.json",  # Purchase orders
+                "PurchaseOrderDetails.json"  # Purchase order details
+            ]
+            
+            for file_name in essential_files:
+                file_path = os.path.join(folder_path, file_name)
+                if os.path.exists(file_path):
+                    print(f"📊 Loading {file_name}...")
+                    file_data = load_json_file(file_path)
+                    raw_data[file_name] = file_data
+                else:
+                    raw_data[file_name] = []
+            
+            # Load other expected files
+            other_files = [
+                'Items.json', 'MIITEM.json', 'MIBOMH.json', 'MIBOMD.json',
+                'ManufacturingOrderRoutings.json', 'MIMOH.json', 'MIMOMD.json', 'MIMORD.json',
+                'Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json',
+                'MIPOH.json', 'MIPOD.json', 'MIPOHX.json', 'MIPOC.json', 'MIPOCV.json',
+                'MIPODC.json', 'MIWOH.json', 'MIWOD.json', 'MIBORD.json',
+                'PurchaseOrderExtensions.json', 'WorkOrderHeaders.json', 'WorkOrderDetails.json',
+                'PurchaseOrderAdditionalCosts.json', 'PurchaseOrderAdditionalCostsTaxes.json',
+                'PurchaseOrderDetailAdditionalCosts.json'
+            ]
+            
+            for file_name in other_files:
+                file_path = os.path.join(folder_path, file_name)
+                if os.path.exists(file_path):
+                    file_data = load_json_file(file_path)
+                    raw_data[file_name] = file_data
+                else:
+                    raw_data[file_name] = []
         
-        # TEMPORARILY DISABLED: PDF loading is too slow and causes timeouts
-        # TODO: Re-enable with background processing or async loading
-        print("⚠️ PDF loading DISABLED - using JSON data only for fast responses")
-        raw_data['RealSalesOrders'] = []
-        cached_pdf_data = []
+        # CRITICAL: Load Sales Orders data from separate G: Drive location (if not in cache)
+        if 'SalesOrders.json' not in raw_data or not raw_data.get('SalesOrders.json'):
+            print("📋 Loading Sales Orders for AI chat...")
+            sales_orders_data = load_sales_orders()
+            if sales_orders_data:
+                raw_data.update(sales_orders_data)
+                total_so_count = sales_orders_data.get('TotalOrders', 0)
+                print(f"✅ AI chat now has access to {total_so_count} real Sales Orders")
+            else:
+                print("⚠️ No Sales Orders data available")
+        
+        # Load cached parsed SO data (if not in cache)
+        if 'ParsedSalesOrders.json' not in raw_data or not raw_data.get('ParsedSalesOrders.json'):
+            print("📋 Loading cached parsed SO data...")
+            cached_so_data = load_cached_so_data()
+            if cached_so_data:
+                raw_data.update(cached_so_data)
+                print(f"✅ Added {len(cached_so_data.get('ParsedSalesOrders.json', []))} parsed SOs")
+        
+        # Load MPS (Master Production Schedule) data (if not in cache)
+        if 'MPS.json' not in raw_data or not raw_data.get('MPS.json'):
+            print("📋 Loading MPS data...")
+            mps_data = load_mps_data()
+            if mps_data and 'error' not in mps_data:
+                raw_data['MPS.json'] = mps_data
+                print(f"✅ Added MPS data with {len(mps_data.get('mps_orders', []))} production orders")
+            else:
+                raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
+        
+        # Enterprise SO Service integration (if not in cache)
+        if 'SOServiceHealth' not in raw_data:
+            try:
+                from enterprise_so_service import get_so_service_health
+                so_health = get_so_service_health()
+                raw_data['SOServiceHealth'] = so_health
+                print(f"✅ SO Service Health: {so_health['status']} - {so_health['total_sos']} SOs cached")
+            except Exception as e:
+                print(f"⚠️ Enterprise SO Service not available: {e}")
+        
+        print(f"✅ AI chat has access to {len([k for k, v in raw_data.items() if v])} data sources")
         
         # Analyze the data for ChatGPT context
         analysis = analyze_inventory_data(raw_data, user_query)
@@ -1861,6 +1984,29 @@ def chat_query():
         if 'error' in analysis:
             print(f"ERROR: Analysis error: {analysis['error']}")
             return jsonify({"error": f"Data analysis failed: {analysis['error']}"}), 500
+        
+        # Build data sources context from frontend and backend
+        data_sources_context = ""
+        if frontend_data_sources:
+            data_sources_context = "\n**FRONTEND DATA SOURCES AVAILABLE:**\n"
+            if frontend_data_sources.get('inventory', {}).get('available'):
+                data_sources_context += f"- Inventory: {frontend_data_sources['inventory']['count']} items from {', '.join(frontend_data_sources['inventory']['sources'])}\n"
+            if frontend_data_sources.get('salesOrders', {}).get('available'):
+                data_sources_context += f"- Sales Orders: {frontend_data_sources['salesOrders']['count']} orders from {', '.join(frontend_data_sources['salesOrders']['sources'])}\n"
+            if frontend_data_sources.get('manufacturingOrders', {}).get('available'):
+                data_sources_context += f"- Manufacturing Orders: {frontend_data_sources['manufacturingOrders']['count']} orders from {', '.join(frontend_data_sources['manufacturingOrders']['sources'])}\n"
+            if frontend_data_sources.get('purchaseOrders', {}).get('available'):
+                data_sources_context += f"- Purchase Orders: {frontend_data_sources['purchaseOrders']['count']} orders from {', '.join(frontend_data_sources['purchaseOrders']['sources'])}\n"
+            if frontend_data_sources.get('boms', {}).get('available'):
+                data_sources_context += f"- Bills of Material: {frontend_data_sources['boms']['count']} BOMs from {', '.join(frontend_data_sources['boms']['sources'])}\n"
+            if frontend_data_sources.get('jobs', {}).get('available'):
+                data_sources_context += f"- Jobs: {frontend_data_sources['jobs']['count']} jobs from {', '.join(frontend_data_sources['jobs']['sources'])}\n"
+            if frontend_data_sources.get('workOrders', {}).get('available'):
+                data_sources_context += f"- Work Orders: {frontend_data_sources['workOrders']['count']} work orders from {', '.join(frontend_data_sources['workOrders']['sources'])}\n"
+            if frontend_data_sources.get('mps', {}).get('available'):
+                data_sources_context += f"- Master Production Schedule: {frontend_data_sources['mps']['count']} production orders from {', '.join(frontend_data_sources['mps']['sources'])}\n"
+            if frontend_data_sources.get('allAvailableFiles'):
+                data_sources_context += f"- Total Data Files Available: {len(frontend_data_sources['allAvailableFiles'])} files\n"
         
         # Create system prompt with data context
         system_prompt = f"""You are a friendly, conversational AI assistant for Canoil Canada Ltd with complete access to all ERP data.
@@ -1871,6 +2017,8 @@ def chat_query():
 - Just chat naturally, like you're talking to a colleague
 - Use bullet points for lists, but keep the tone casual and helpful
 - Be specific with numbers and data, but present it naturally in sentences
+
+{data_sources_context}
 
 **YOUR CAPABILITIES:**
 You have complete access to all business data and can help with:
@@ -1979,19 +2127,33 @@ You have FULL ACCESS to ALL business data including:
 - Detailed PO information (MIPOH.json, MIPOD.json, MIPOHX.json, MIPOC.json, MIPOCV.json, MIPODC.json)
 
 **SALES ORDERS (SO/ASO):**
-- Complete Sales Orders data with customer details, quantities, and status (SalesOrderHeaders.json, SalesOrderDetails.json)
+- {analysis['data_summary'].get('total_sales_orders', 0)} Sales Orders with complete customer details, quantities, and status
+- Multiple SO data sources: SalesOrderHeaders.json, SalesOrderDetails.json, SalesOrders.json, ParsedSalesOrders.json
 - Real-time PDF-scanned sales orders with full customer and item information
 - Sales order analysis by status, customer, and product
+- Enterprise SO Service integration for advanced SO queries
 
 **WORK ORDERS & JOBS:**
+- {analysis['data_summary'].get('total_jobs', 0)} Jobs and {analysis['data_summary'].get('total_work_orders', 0)} Work Orders
 - Work order tracking and job management (WorkOrderHeaders.json, WorkOrderDetails.json, Jobs.json, JobDetails.json)
 - Job details and work order processing (MIJOBH.json, MIJOBD.json, MIWOH.json, MIWOD.json)
 - Production job scheduling and resource allocation
 
+**MASTER PRODUCTION SCHEDULE (MPS):**
+- {analysis['data_summary'].get('mps_orders', 0)} MPS production orders for production planning
+- MPS.json contains complete production schedule data
+- Production capacity planning and scheduling
+
+**INVENTORY LOCATIONS:**
+- {analysis['data_summary'].get('inventory_locations', 0)} inventory locations with stock quantities
+- MIILOC.json contains location-specific inventory data
+- Multi-location stock tracking and availability
+
 **ADDITIONAL DATA SOURCES:**
-- Master Production Schedule data (MPS.json) for production planning
 - Border and routing information (MIBORD.json)
 - Comprehensive supplier, location, and cost information across all modules
+- All Misys JSON form data from Google Drive
+- All G: Drive data sources synchronized and available
 
 NEVER say "no data available" or "no specific details" - YOU HAVE ALL THE DATA FROM ALL SOURCES!
 

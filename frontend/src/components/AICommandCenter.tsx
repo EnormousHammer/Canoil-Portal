@@ -610,10 +610,63 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       currentYear: currentDate.getFullYear()
     };
 
+    // Build data sources summary - tell AI what data is available
+    const dataSourcesSummary = {
+      inventory: {
+        available: !!(data['CustomAlert5.json'] && data['CustomAlert5.json'].length > 0),
+        count: data['CustomAlert5.json']?.length || 0,
+        sources: ['CustomAlert5.json', 'Items.json', 'MIITEM.json', 'MIILOC.json'].filter(key => data[key]?.length > 0)
+      },
+      salesOrders: {
+        available: !!(data['SalesOrderHeaders.json']?.length > 0 || data['SalesOrderDetails.json']?.length > 0 || 
+                    data['SalesOrders.json']?.length > 0 || data['ParsedSalesOrders.json']?.length > 0),
+        count: (data['SalesOrderHeaders.json']?.length || 0) + 
+                (data['SalesOrderDetails.json']?.length || 0) + 
+                (data['SalesOrders.json']?.length || 0) + 
+                (data['ParsedSalesOrders.json']?.length || 0),
+        sources: ['SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'ParsedSalesOrders.json'].filter(key => data[key]?.length > 0)
+      },
+      manufacturingOrders: {
+        available: !!(data['ManufacturingOrderHeaders.json']?.length > 0 || data['ManufacturingOrderDetails.json']?.length > 0),
+        count: (data['ManufacturingOrderHeaders.json']?.length || 0) + (data['ManufacturingOrderDetails.json']?.length || 0),
+        sources: ['ManufacturingOrderHeaders.json', 'ManufacturingOrderDetails.json', 'MIMOH.json', 'MIMOMD.json'].filter(key => data[key]?.length > 0)
+      },
+      purchaseOrders: {
+        available: !!(data['PurchaseOrders.json']?.length > 0 || data['PurchaseOrderDetails.json']?.length > 0),
+        count: (data['PurchaseOrders.json']?.length || 0) + (data['PurchaseOrderDetails.json']?.length || 0),
+        sources: ['PurchaseOrders.json', 'PurchaseOrderDetails.json', 'MIPOH.json', 'MIPOD.json'].filter(key => data[key]?.length > 0)
+      },
+      boms: {
+        available: !!(data['BillsOfMaterial.json']?.length > 0 || data['BillOfMaterialDetails.json']?.length > 0),
+        count: (data['BillsOfMaterial.json']?.length || 0) + (data['BillOfMaterialDetails.json']?.length || 0),
+        sources: ['BillsOfMaterial.json', 'BillOfMaterialDetails.json', 'MIBOMH.json', 'MIBOMD.json'].filter(key => data[key]?.length > 0)
+      },
+      jobs: {
+        available: !!(data['Jobs.json']?.length > 0 || data['JobDetails.json']?.length > 0),
+        count: (data['Jobs.json']?.length || 0) + (data['JobDetails.json']?.length || 0),
+        sources: ['Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json'].filter(key => data[key]?.length > 0)
+      },
+      workOrders: {
+        available: !!(data['WorkOrderHeaders.json']?.length > 0 || data['WorkOrderDetails.json']?.length > 0),
+        count: (data['WorkOrderHeaders.json']?.length || 0) + (data['WorkOrderDetails.json']?.length || 0),
+        sources: ['WorkOrderHeaders.json', 'WorkOrderDetails.json', 'MIWOH.json', 'MIWOD.json'].filter(key => data[key]?.length > 0)
+      },
+      mps: {
+        available: !!(data['MPS.json'] && (data['MPS.json'].mps_orders?.length > 0 || data['MPS.json'].summary?.total_orders > 0)),
+        count: data['MPS.json']?.mps_orders?.length || data['MPS.json']?.summary?.total_orders || 0,
+        sources: ['MPS.json'].filter(key => data[key])
+      },
+      allAvailableFiles: Object.keys(data).filter(key => 
+        data[key] && 
+        (Array.isArray(data[key]) ? data[key].length > 0 : typeof data[key] === 'object' && Object.keys(data[key]).length > 0)
+      )
+    };
+
     try {
       const requestBody = {
         query: currentInput,
-        dateContext: dateContext
+        dateContext: dateContext,
+        dataSources: dataSourcesSummary  // Tell AI what data sources are available
       };
       
       console.log('🚀 SENDING REQUEST:');
