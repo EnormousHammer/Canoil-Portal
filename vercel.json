@@ -6,7 +6,7 @@
   "functions": {
     "api/**/*.py": {
       "includeFiles": "backend/**/*.py,backend/hts_codes.json",
-      "excludeFiles": "backend/venv/**,backend/__pycache__/**,backend/cache/**,backend/generated_documents/**,backend/uploads/**,backend/so_cache/**,backend/canoil-portal/**,backend/gmail_credentials/**,backend/**/*.docx,backend/**/*.pdf,backend/**/*.html,backend/**/*.xlsx,backend/**/*.pickle,backend/**/*.pkl,backend/**/*.md,backend/cache/**/*.json,backend/pdf_extraction_test_results.json"
+      "excludeFiles": "backend/venv/**,backend/__pycache__/**,backend/cache/**,backend/generated_documents/**,backend/uploads/**,backend/so_cache/**,backend/gmail_credentials/**,backend/**/*.docx,backend/**/*.pdf,backend/**/*.html,backend/**/*.xlsx,backend/**/*.pickle"
     }
   },
   "rewrites": [
