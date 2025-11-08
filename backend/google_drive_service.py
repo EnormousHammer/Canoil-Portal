@@ -104,7 +104,19 @@ class GoogleDriveService:
             
             # If still no valid creds, need to authenticate
             if not creds or not creds.valid:
-                # Check for credentials in environment variable (for Render/Vercel/deployment)
+                # On Vercel/serverless, we can't run OAuth flow - need token from env var
+                is_serverless = os.getenv('VERCEL') or os.getenv('GOOGLE_DRIVE_TOKEN')
+                if is_serverless:
+                    error_msg = (
+                        "❌ Google Drive authentication failed on serverless.\n"
+                        "Token is missing or expired and cannot be refreshed.\n"
+                        "Solution: Get a fresh token locally and set GOOGLE_DRIVE_TOKEN in Vercel.\n"
+                        "Run 'python get_vercel_env_vars.py' locally to extract token."
+                    )
+                    print(error_msg)
+                    raise ValueError(error_msg)
+                
+                # Check for credentials in environment variable (for Render/deployment)
                 google_creds_env = os.getenv('GOOGLE_DRIVE_CREDENTIALS')
                 if google_creds_env:
                     # Use credentials from environment variable (deployment)
