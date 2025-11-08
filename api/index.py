@@ -36,6 +36,20 @@ def handler(request):
             body = getattr(request, 'body', '')
             query_string = getattr(request, 'queryString', '') or getattr(request, 'query', '')
         
+        # Handle OPTIONS preflight requests immediately with CORS headers
+        if method == 'OPTIONS':
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+                    'Access-Control-Allow-Headers': '*',
+                    'Access-Control-Max-Age': '3600',
+                    'Content-Length': '0'
+                },
+                'body': ''
+            }
+        
         # Ensure path is properly formatted
         # When request comes to /api/data, Vercel sends path=/api/data
         # Flask routes are at /api/data, so we keep the full path
@@ -101,30 +115,20 @@ def handler(request):
         body_bytes = b''.join(response_body)
         body_str = body_bytes.decode('utf-8') if isinstance(body_bytes, bytes) else body_bytes
         
-        # Convert headers list of tuples to dict (preserve all headers)
-        # Flask-CORS may add multiple headers, so we need to handle duplicates
+        # Convert headers list of tuples to dict
+        # Flask-CORS should handle CORS headers, but ensure they're preserved
         headers_dict = {}
         for header_name, header_value in response_headers:
-            # Convert header name to lowercase for consistency
-            header_key = header_name.lower()
-            # If header already exists, combine values (for headers that allow multiple values)
-            if header_key in headers_dict:
-                # For CORS headers, we want to keep all values
-                if header_key in ('access-control-allow-headers', 'access-control-expose-headers'):
-                    headers_dict[header_key] = f"{headers_dict[header_key]}, {header_value}"
-                else:
-                    # For other headers, keep the last value
-                    headers_dict[header_key] = header_value
-            else:
-                headers_dict[header_key] = header_value
+            # Keep original header name case (Vercel expects proper case)
+            headers_dict[header_name] = header_value
         
-        # Ensure CORS headers are present for all responses
-        if 'access-control-allow-origin' not in headers_dict:
-            headers_dict['access-control-allow-origin'] = '*'
-        if 'access-control-allow-methods' not in headers_dict:
-            headers_dict['access-control-allow-methods'] = 'GET, POST, OPTIONS'
-        if 'access-control-allow-headers' not in headers_dict:
-            headers_dict['access-control-allow-headers'] = '*'
+        # Ensure CORS headers are always present (even if Flask-CORS didn't add them)
+        if 'Access-Control-Allow-Origin' not in headers_dict:
+            headers_dict['Access-Control-Allow-Origin'] = '*'
+        if 'Access-Control-Allow-Methods' not in headers_dict:
+            headers_dict['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+        if 'Access-Control-Allow-Headers' not in headers_dict:
+            headers_dict['Access-Control-Allow-Headers'] = '*'
         
         # Return Vercel format
         return {
@@ -141,7 +145,7 @@ def handler(request):
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
                 'Access-Control-Allow-Headers': '*'
             },
             'body': json.dumps({'error': str(e), 'trace': error_trace})
