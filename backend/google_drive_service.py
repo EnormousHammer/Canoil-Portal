@@ -94,56 +94,17 @@ class GoogleDriveService:
         
         # If no valid credentials, get new ones
         if not creds or not creds.valid:
-            refresh_error = None
-            if creds and creds.expired:
-                if creds.refresh_token:
-                    try:
-                        print("🔄 Token expired, attempting to refresh...")
-                        creds.refresh(Request())
-                        print("✅ Refreshed expired Google Drive token")
-                    except Exception as e:
-                        refresh_error = str(e)
-                        print(f"⚠️ Failed to refresh token: {e}")
-                        print(f"⚠️ Refresh error details: {type(e).__name__}")
-                        creds = None
-                else:
-                    print("⚠️ Token expired and no refresh_token available")
-                    refresh_error = "Token expired and missing refresh_token"
+            if creds and creds.expired and creds.refresh_token:
+                try:
+                    creds.refresh(Request())
+                    print("✅ Refreshed expired Google Drive token")
+                except Exception as e:
+                    print(f"⚠️ Failed to refresh token: {e}")
                     creds = None
             
             # If still no valid creds, need to authenticate
             if not creds or not creds.valid:
-                # Check if we're on serverless (Vercel) - can't run OAuth flow
-                is_serverless = os.getenv('VERCEL') or os.getenv('GOOGLE_DRIVE_TOKEN')
-                
-                if is_serverless:
-                    # On serverless, we can't run OAuth flow - token must be valid
-                    token_env = os.getenv('GOOGLE_DRIVE_TOKEN')
-                    token_status = "missing"
-                    if token_env:
-                        try:
-                            token_dict = json.loads(token_env)
-                            has_refresh = 'refresh_token' in token_dict
-                            token_status = f"present but invalid (has refresh_token: {has_refresh})"
-                        except:
-                            token_status = "present but malformed JSON"
-                    
-                    error_msg = (
-                        f"❌ Google Drive authentication failed on serverless.\n"
-                        f"Token status: {token_status}\n"
-                    )
-                    if refresh_error:
-                        error_msg += f"Refresh error: {refresh_error}\n"
-                    error_msg += (
-                        "You have GOOGLE_DRIVE_CREDENTIALS set, but you still need a valid token.\n"
-                        "The credentials JSON is used to START authentication, but you need a TOKEN to ACCESS the API.\n"
-                        "Solution: Get a token locally (run OAuth flow once), then set GOOGLE_DRIVE_TOKEN in Vercel.\n"
-                        "Run 'python get_vercel_env_vars.py' locally to extract token from local auth."
-                    )
-                    print(error_msg)
-                    raise ValueError(error_msg)
-                
-                # Check for credentials in environment variable (for Render/deployment)
+                # Check for credentials in environment variable (for Render/Vercel/deployment)
                 google_creds_env = os.getenv('GOOGLE_DRIVE_CREDENTIALS')
                 if google_creds_env:
                     # Use credentials from environment variable (deployment)
@@ -405,61 +366,41 @@ class GoogleDriveService:
     
     def get_all_data(self):
         """Main method to get all data from Google Drive"""
-        try:
-            if not self.authenticated:
-                print("🔐 Not authenticated, calling authenticate()...")
-                self.authenticate()
-            
-            if not self.service:
-                print("❌ Google Drive service not initialized")
-                return None, "Google Drive service not initialized"
-            
-            # Find the shared drive
-            print(f"🔍 Finding shared drive: {SHARED_DRIVE_NAME}")
-            drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
-            if not drive_id:
-                print(f"❌ Shared drive '{SHARED_DRIVE_NAME}' not found")
-                return None, f"Shared drive '{SHARED_DRIVE_NAME}' not found"
-            
-            # Find the base folder
-            print(f"🔍 Finding base folder: {BASE_FOLDER_PATH}")
-            base_folder_id = self.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
-            if not base_folder_id:
-                print(f"❌ Base folder '{BASE_FOLDER_PATH}' not found")
-                return None, f"Base folder '{BASE_FOLDER_PATH}' not found"
-            
-            # Get latest folder
-            print(f"🔍 Getting latest folder from: {base_folder_id}")
-            latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
-            if not latest_folder_id:
-                print("❌ No latest folder found")
-                return None, "No latest folder found"
-            
-            # Load all JSON files from latest folder
-            print(f"📂 Loading data from folder: {latest_folder_name}")
-            data = self.load_folder_data(latest_folder_id)
-            
-            # Load sales orders data
-            print("📂 Loading sales orders data...")
-            sales_orders_data = self.load_sales_orders_data(drive_id)
-            if sales_orders_data:
-                data.update(sales_orders_data)
-            
-            folder_info = {
-                "folderName": latest_folder_name,
-                "syncDate": datetime.now().isoformat(),
-                "lastModified": datetime.now().isoformat(),
-                "folder": latest_folder_name,
-                "created": datetime.now().isoformat(),
-                "size": "N/A",
-                "fileCount": len(data)
-            }
-            
-            print(f"✅ Successfully loaded {len(data)} files from Google Drive")
-            return data, folder_info
-        except Exception as e:
-            print(f"❌ Error in get_all_data(): {e}")
-            import traceback
-            traceback.print_exc()
-            return None, f"Error loading data: {str(e)}"
+        if not self.authenticated:
+            self.authenticate()
+        
+        # Find the shared drive
+        drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
+        if not drive_id:
+            return None, "Shared drive not found"
+        
+        # Find the base folder
+        base_folder_id = self.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
+        if not base_folder_id:
+            return None, "Base folder not found"
+        
+        # Get latest folder
+        latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
+        if not latest_folder_id:
+            return None, "No latest folder found"
+        
+        # Load all JSON files from latest folder
+        data = self.load_folder_data(latest_folder_id)
+        
+        # Load sales orders data
+        sales_orders_data = self.load_sales_orders_data(drive_id)
+        if sales_orders_data:
+            data.update(sales_orders_data)
+        
+        folder_info = {
+            "folderName": latest_folder_name,
+            "syncDate": datetime.now().isoformat(),
+            "lastModified": datetime.now().isoformat(),
+            "folder": latest_folder_name,
+            "created": datetime.now().isoformat(),
+            "size": "N/A",
+            "fileCount": len(data)
+        }
+        
+        return data, folder_info
 
