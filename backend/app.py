@@ -25,7 +25,14 @@ from dotenv import load_dotenv
 import PyPDF2
 import pdfplumber
 from docx import Document
-from enterprise_analytics import EnterpriseAnalytics
+# Import enterprise analytics safely - it might fail if dependencies are missing
+try:
+    from enterprise_analytics import EnterpriseAnalytics
+    ENTERPRISE_ANALYTICS_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️ Enterprise Analytics not available: {e}")
+    EnterpriseAnalytics = None
+    ENTERPRISE_ANALYTICS_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -484,16 +491,29 @@ MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 # Google Drive API - Use API instead of local mount if configured
 USE_GOOGLE_DRIVE_API_ENV = os.getenv('USE_GOOGLE_DRIVE_API', 'false')
 USE_GOOGLE_DRIVE_API = USE_GOOGLE_DRIVE_API_ENV.lower() == 'true'
-print(f"🔍 Google Drive API config: USE_GOOGLE_DRIVE_API env='{USE_GOOGLE_DRIVE_API_ENV}', parsed={USE_GOOGLE_DRIVE_API}")
 google_drive_service = None
 
+# Initialize Google Drive API service safely
 if USE_GOOGLE_DRIVE_API:
     try:
+        print(f"🔍 Initializing Google Drive API: env='{USE_GOOGLE_DRIVE_API_ENV}', parsed={USE_GOOGLE_DRIVE_API}")
         from google_drive_service import GoogleDriveService
         google_drive_service = GoogleDriveService()
         print("✅ Google Drive API service initialized")
+        
+        # Authenticate immediately to catch errors early
+        try:
+            if not google_drive_service.authenticated:
+                print("🔐 Authenticating Google Drive service...")
+                google_drive_service.authenticate()
+            print("✅ Google Drive API service authenticated successfully")
+        except Exception as auth_error:
+            print(f"⚠️ Google Drive authentication failed: {auth_error}")
+            import traceback
+            traceback.print_exc()
+            # Continue anyway - will retry on first use
     except ImportError as e:
-        print(f"⚠️ Google Drive API not available: {e}")
+        print(f"⚠️ Google Drive API not available (ImportError): {e}")
         USE_GOOGLE_DRIVE_API = False
         google_drive_service = None
     except Exception as e:
@@ -502,6 +522,8 @@ if USE_GOOGLE_DRIVE_API:
         traceback.print_exc()
         USE_GOOGLE_DRIVE_API = False
         google_drive_service = None
+else:
+    print(f"ℹ️ Google Drive API disabled: USE_GOOGLE_DRIVE_API='{USE_GOOGLE_DRIVE_API_ENV}'")
 
 def get_latest_folder():
     """Get the latest folder from G: Drive - OPTIMIZED for speed"""
@@ -2982,6 +3004,64 @@ def detailed_item_analysis(item_identifier):
         print(f"ERROR: Error in item analysis: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/debug', methods=['GET'])
+def debug_status():
+    """Debug endpoint to check Google Drive status and environment variables"""
+    try:
+        debug_info = {
+            "timestamp": datetime.now().isoformat(),
+            "environment": {
+                "USE_GOOGLE_DRIVE_API": os.getenv('USE_GOOGLE_DRIVE_API', 'not set'),
+                "GOOGLE_DRIVE_SHARED_DRIVE_NAME": os.getenv('GOOGLE_DRIVE_SHARED_DRIVE_NAME', 'not set'),
+                "GOOGLE_DRIVE_BASE_FOLDER_PATH": os.getenv('GOOGLE_DRIVE_BASE_FOLDER_PATH', 'not set'),
+                "GOOGLE_DRIVE_SALES_ORDERS_PATH": os.getenv('GOOGLE_DRIVE_SALES_ORDERS_PATH', 'not set'),
+                "GOOGLE_DRIVE_CREDENTIALS": "set" if os.getenv('GOOGLE_DRIVE_CREDENTIALS') else "not set",
+                "GOOGLE_DRIVE_TOKEN": "set" if os.getenv('GOOGLE_DRIVE_TOKEN') else "not set",
+                "VERCEL": os.getenv('VERCEL', 'not set'),
+            },
+            "google_drive_service": {
+                "initialized": USE_GOOGLE_DRIVE_API,
+                "service_exists": google_drive_service is not None,
+                "authenticated": google_drive_service.authenticated if google_drive_service else False,
+            },
+            "local_paths": {
+                "GDRIVE_BASE": GDRIVE_BASE,
+                "exists": os.path.exists(GDRIVE_BASE) if GDRIVE_BASE else False,
+            }
+        }
+        
+        # Try to test Google Drive connection if available
+        if USE_GOOGLE_DRIVE_API and google_drive_service:
+            try:
+                if not google_drive_service.authenticated:
+                    debug_info["google_drive_service"]["auth_error"] = "Not authenticated - attempting to authenticate..."
+                    try:
+                        google_drive_service.authenticate()
+                        debug_info["google_drive_service"]["authenticated"] = google_drive_service.authenticated
+                    except Exception as auth_error:
+                        debug_info["google_drive_service"]["auth_error"] = str(auth_error)
+                
+                if google_drive_service.authenticated:
+                    # Try to find shared drive
+                    try:
+                        shared_drive_name = os.getenv('GOOGLE_DRIVE_SHARED_DRIVE_NAME', 'IT_Automation')
+                        drive_id = google_drive_service.find_shared_drive(shared_drive_name)
+                        debug_info["google_drive_service"]["shared_drive_found"] = drive_id is not None
+                        debug_info["google_drive_service"]["shared_drive_id"] = drive_id if drive_id else None
+                        debug_info["google_drive_service"]["shared_drive_name"] = shared_drive_name
+                    except Exception as e:
+                        debug_info["google_drive_service"]["shared_drive_error"] = str(e)
+            except Exception as e:
+                debug_info["google_drive_service"]["test_error"] = str(e)
+        
+        return jsonify(debug_info)
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }), 500
+
 @app.route('/api/test-data-access', methods=['GET'])
 def test_data_access():
     """Test endpoint to confirm data access and search functionality"""
@@ -3101,6 +3181,8 @@ def enterprise_analytics():
                 raw_data['RealSalesOrders'] = cached_pdf_data
         
         # Initialize analytics engine
+        if not ENTERPRISE_ANALYTICS_AVAILABLE or EnterpriseAnalytics is None:
+            return jsonify({"error": "Enterprise Analytics not available"}), 503
         analytics_engine = EnterpriseAnalytics()
         
         # Generate comprehensive analytics
@@ -3158,6 +3240,8 @@ def enterprise_analytics_ai():
             raw_data['RealSalesOrders'] = cached_pdf_data
         
         # Initialize analytics engine
+        if not ENTERPRISE_ANALYTICS_AVAILABLE or EnterpriseAnalytics is None:
+            return jsonify({"error": "Enterprise Analytics not available"}), 503
         analytics_engine = EnterpriseAnalytics()
         
         # Generate fast analytics first

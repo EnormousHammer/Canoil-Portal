@@ -15,12 +15,70 @@ sys.path.insert(0, str(backend_path))
 # Change to backend directory so imports work
 os.chdir(str(backend_path))
 
-# Import Flask app
-from app import app
+# Set environment encoding for proper output
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# Initialize Flask app variable
+app = None
+
+# Import Flask app - this will initialize Google Drive service if configured
+try:
+    print("🔍 Attempting to import Flask app...")
+    from app import app as flask_app
+    app = flask_app
+    print("✅ Flask app imported successfully")
+except ImportError as e:
+    print(f"❌ ImportError importing Flask app: {e}")
+    import traceback
+    traceback.print_exc()
+    # Don't raise - let handler catch it
+except Exception as e:
+    print(f"❌ Error importing Flask app: {e}")
+    import traceback
+    traceback.print_exc()
+    # Don't raise - let handler catch it
+
+# Try to initialize Google Drive service early if configured
+USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+if USE_GOOGLE_DRIVE_API:
+    try:
+        print("🔍 Attempting to initialize Google Drive service...")
+        from google_drive_service import GoogleDriveService
+        google_drive_service = GoogleDriveService()
+        # Authenticate immediately
+        if not google_drive_service.authenticated:
+            print("🔐 Authenticating Google Drive service...")
+            google_drive_service.authenticate()
+        print("✅ Google Drive service initialized and authenticated")
+    except Exception as e:
+        print(f"⚠️ Google Drive service initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
+        # Continue anyway - app will handle it gracefully
 
 def handler(request):
     """Vercel Python serverless function handler"""
     try:
+        # Log request for debugging - FIRST THING
+        print(f"📥 Handler called with request type: {type(request)}")
+        print(f"📥 Request object: {request}")
+        
+        # Check if Flask app was imported successfully
+        if app is None:
+            error_msg = "Flask app not imported - check logs for import errors"
+            print(f"❌ {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'error': error_msg, 
+                    'type': 'import_error',
+                    'message': 'Flask app failed to import - check Vercel logs for details'
+                })
+            }
+        
         # Vercel Python functions receive a dict with: path, method, headers, body, query
         if isinstance(request, dict):
             path = request.get('path', '/')
@@ -35,6 +93,8 @@ def handler(request):
             headers = getattr(request, 'headers', {}) or {}
             body = getattr(request, 'body', '')
             query_string = getattr(request, 'queryString', '') or getattr(request, 'query', '')
+        
+        print(f"📥 Request: {method} {path}")
         
         # Ensure path is properly formatted
         # When request comes to /api/data, Vercel sends path=/api/data
@@ -85,13 +145,27 @@ def handler(request):
             response_headers.extend(headers)
         
         # Call Flask app
-        app_iter = app(environ, start_response)
-        
-        # Collect response
-        for chunk in app_iter:
-            response_body.append(chunk)
-        if hasattr(app_iter, 'close'):
-            app_iter.close()
+        try:
+            app_iter = app(environ, start_response)
+            
+            # Collect response
+            for chunk in app_iter:
+                response_body.append(chunk)
+            if hasattr(app_iter, 'close'):
+                app_iter.close()
+        except Exception as flask_error:
+            import traceback
+            flask_trace = traceback.format_exc()
+            print(f"❌ Flask app error: {flask_error}\n{flask_trace}")
+            return {
+                'statusCode': 500,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'error': str(flask_error),
+                    'type': 'flask_error',
+                    'trace': flask_trace
+                })
+            }
         
         # Parse response
         status_code = 200
@@ -100,6 +174,8 @@ def handler(request):
         
         body_bytes = b''.join(response_body)
         body_str = body_bytes.decode('utf-8') if isinstance(body_bytes, bytes) else body_bytes
+        
+        print(f"✅ Response: {status_code} ({len(body_str)} bytes)")
         
         # Return Vercel format
         return {
@@ -110,10 +186,14 @@ def handler(request):
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"Error in handler: {e}\n{error_trace}")
+        print(f"❌ Error in handler: {e}\n{error_trace}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': str(e), 'trace': error_trace})
+            'body': json.dumps({
+                'error': str(e),
+                'type': 'handler_error',
+                'trace': error_trace
+            })
         }
 
