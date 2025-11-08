@@ -1,3 +1,14 @@
+def handler(request):
+    """Minimal test endpoint"""
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': '{"status": "working", "message": "Backend is alive!"}'
+    }
+
 """
 Simple test endpoint to verify Vercel Python function works
 """
