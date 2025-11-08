@@ -482,7 +482,9 @@ MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extra
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
 # Google Drive API - Use API instead of local mount if configured
-USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+USE_GOOGLE_DRIVE_API_ENV = os.getenv('USE_GOOGLE_DRIVE_API', 'false')
+USE_GOOGLE_DRIVE_API = USE_GOOGLE_DRIVE_API_ENV.lower() == 'true'
+print(f"🔍 Google Drive API config: USE_GOOGLE_DRIVE_API env='{USE_GOOGLE_DRIVE_API_ENV}', parsed={USE_GOOGLE_DRIVE_API}")
 google_drive_service = None
 
 if USE_GOOGLE_DRIVE_API:
@@ -493,6 +495,13 @@ if USE_GOOGLE_DRIVE_API:
     except ImportError as e:
         print(f"⚠️ Google Drive API not available: {e}")
         USE_GOOGLE_DRIVE_API = False
+        google_drive_service = None
+    except Exception as e:
+        print(f"❌ Error initializing Google Drive API service: {e}")
+        import traceback
+        traceback.print_exc()
+        USE_GOOGLE_DRIVE_API = False
+        google_drive_service = None
 
 def get_latest_folder():
     """Get the latest folder from G: Drive - OPTIMIZED for speed"""
@@ -587,14 +596,16 @@ def get_all_data():
         print("RETRY: Cache expired or missing, loading fresh data...")
         
         # Try Google Drive API first if enabled
+        print(f"🔍 Checking Google Drive API: USE_GOOGLE_DRIVE_API={USE_GOOGLE_DRIVE_API}, google_drive_service={google_drive_service is not None}")
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             try:
                 print("📡 Loading data from Google Drive API...")
                 data, folder_info = google_drive_service.get_all_data()
-                if data:
+                print(f"🔍 Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
+                if data and len(data) > 0:
                     _data_cache = data
                     _cache_timestamp = time.time()
-                    print("✅ Data loaded successfully from Google Drive API")
+                    print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files")
                     return jsonify({
                         "data": data,
                         "folderInfo": folder_info,
@@ -602,9 +613,12 @@ def get_all_data():
                         "source": "Google Drive API"
                     })
                 else:
-                    print("⚠️ Google Drive API returned no data, falling back to local")
+                    print(f"⚠️ Google Drive API returned no data (data={data}, folder_info={folder_info}), falling back to local")
             except Exception as e:
-                print(f"⚠️ Google Drive API error: {e}, falling back to local G: Drive")
+                print(f"❌ Google Drive API error: {e}")
+                import traceback
+                traceback.print_exc()
+                print("⚠️ Falling back to local G: Drive")
         
         # Check if G: Drive is accessible (local fallback)
         if not os.path.exists(GDRIVE_BASE):

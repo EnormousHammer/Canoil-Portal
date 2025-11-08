@@ -20,10 +20,12 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.metadata.readonly'
 ]
 
-# Shared Drive folder paths
-SHARED_DRIVE_NAME = "IT_Automation"  # The shared drive name
-BASE_FOLDER_PATH = "MiSys/Misys Extracted Data/API Extractions"  # Path within shared drive
-SALES_ORDERS_PATH = "Sales_CSR/Customer Orders/Sales Orders"  # Sales orders path
+# Shared Drive folder paths - can be overridden by environment variables
+SHARED_DRIVE_NAME = os.getenv('GOOGLE_DRIVE_SHARED_DRIVE_NAME', "IT_Automation")  # The shared drive name
+BASE_FOLDER_PATH = os.getenv('GOOGLE_DRIVE_BASE_FOLDER_PATH', "MiSys/Misys Extracted Data/API Extractions")  # Path within shared drive
+SALES_ORDERS_PATH = os.getenv('GOOGLE_DRIVE_SALES_ORDERS_PATH', "Sales_CSR/Customer Orders/Sales Orders")  # Sales orders path
+
+print(f"🔍 Google Drive paths: SHARED_DRIVE_NAME={SHARED_DRIVE_NAME}, BASE_FOLDER_PATH={BASE_FOLDER_PATH}, SALES_ORDERS_PATH={SALES_ORDERS_PATH}")
 
 class GoogleDriveService:
     def __init__(self, credentials_file='backend/google_drive_credentials.json', token_file='backend/google_drive_token.pickle'):
