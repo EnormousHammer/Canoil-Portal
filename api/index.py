@@ -36,20 +36,6 @@ def handler(request):
             body = getattr(request, 'body', '')
             query_string = getattr(request, 'queryString', '') or getattr(request, 'query', '')
         
-        # Handle OPTIONS preflight requests immediately with CORS headers
-        if method == 'OPTIONS':
-            return {
-                'statusCode': 200,
-                'headers': {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
-                    'Access-Control-Allow-Headers': '*',
-                    'Access-Control-Max-Age': '3600',
-                    'Content-Length': '0'
-                },
-                'body': ''
-            }
-        
         # Ensure path is properly formatted
         # When request comes to /api/data, Vercel sends path=/api/data
         # Flask routes are at /api/data, so we keep the full path
@@ -115,25 +101,10 @@ def handler(request):
         body_bytes = b''.join(response_body)
         body_str = body_bytes.decode('utf-8') if isinstance(body_bytes, bytes) else body_bytes
         
-        # Convert headers list of tuples to dict
-        # Flask-CORS should handle CORS headers, but ensure they're preserved
-        headers_dict = {}
-        for header_name, header_value in response_headers:
-            # Keep original header name case (Vercel expects proper case)
-            headers_dict[header_name] = header_value
-        
-        # Ensure CORS headers are always present (even if Flask-CORS didn't add them)
-        if 'Access-Control-Allow-Origin' not in headers_dict:
-            headers_dict['Access-Control-Allow-Origin'] = '*'
-        if 'Access-Control-Allow-Methods' not in headers_dict:
-            headers_dict['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
-        if 'Access-Control-Allow-Headers' not in headers_dict:
-            headers_dict['Access-Control-Allow-Headers'] = '*'
-        
         # Return Vercel format
         return {
             'statusCode': status_code,
-            'headers': headers_dict,
+            'headers': dict(response_headers),
             'body': body_str
         }
     except Exception as e:
@@ -142,12 +113,7 @@ def handler(request):
         print(f"Error in handler: {e}\n{error_trace}")
         return {
             'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
-                'Access-Control-Allow-Headers': '*'
-            },
+            'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': str(e), 'trace': error_trace})
         }
 
