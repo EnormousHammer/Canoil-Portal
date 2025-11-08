@@ -3,9 +3,22 @@
  * Centralized API URL configuration for the application
  */
 
-// Get API URL from environment variable or use default
+// Get API URL from environment variable or use same domain as frontend
 const envApiUrl = import.meta.env.VITE_API_URL;
-export const API_BASE_URL = envApiUrl || 'http://localhost:5002';
+
+// If VITE_API_URL is not set, use the same domain as the frontend (for Vercel same-domain setup)
+let apiBaseUrl = envApiUrl;
+if (!apiBaseUrl) {
+  // In browser, use same origin (same domain as frontend)
+  if (typeof window !== 'undefined') {
+    apiBaseUrl = window.location.origin;
+  } else {
+    // Fallback for SSR or build time
+    apiBaseUrl = 'http://localhost:5002';
+  }
+}
+
+export const API_BASE_URL = apiBaseUrl;
 
 // Log API configuration on module load (only in browser, not SSR)
 if (typeof window !== 'undefined') {
