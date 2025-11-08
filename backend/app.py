@@ -8,8 +8,15 @@ import sys
 import io
 
 # Set UTF-8 encoding for all output
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+# Only wrap stdout/stderr if not on Vercel (can cause issues on serverless)
+IS_VERCEL = os.getenv('VERCEL') == '1' or os.getenv('VERCEL_ENV') is not None
+if not IS_VERCEL:
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except (AttributeError, OSError):
+        # Already wrapped or not available (e.g., on Vercel)
+        pass
 
 # Also set environment variable for Python
 os.environ['PYTHONIOENCODING'] = 'utf-8'

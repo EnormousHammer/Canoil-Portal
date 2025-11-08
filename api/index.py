@@ -18,54 +18,53 @@ os.chdir(str(backend_path))
 # Set environment encoding for proper output
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-# Initialize Flask app variable
+# Detect if running on Vercel
+IS_VERCEL = os.getenv('VERCEL') == '1' or os.getenv('VERCEL_ENV') is not None
+
+# Initialize Flask app variable - will be loaded lazily
 app = None
+_app_import_error = None
 
-# Import Flask app - this will initialize Google Drive service if configured
-try:
-    print("🔍 Attempting to import Flask app...")
-    from app import app as flask_app
-    app = flask_app
-    print("✅ Flask app imported successfully")
-except ImportError as e:
-    print(f"❌ ImportError importing Flask app: {e}")
-    import traceback
-    traceback.print_exc()
-    # Don't raise - let handler catch it
-except Exception as e:
-    print(f"❌ Error importing Flask app: {e}")
-    import traceback
-    traceback.print_exc()
-    # Don't raise - let handler catch it
-
-# Try to initialize Google Drive service early if configured
-USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
-if USE_GOOGLE_DRIVE_API:
+def get_flask_app():
+    """Lazy load Flask app to avoid import errors at module level"""
+    global app, _app_import_error
+    
+    if app is not None:
+        return app
+    
+    if _app_import_error is not None:
+        raise _app_import_error
+    
     try:
-        print("🔍 Attempting to initialize Google Drive service...")
-        from google_drive_service import GoogleDriveService
-        google_drive_service = GoogleDriveService()
-        # Authenticate immediately
-        if not google_drive_service.authenticated:
-            print("🔐 Authenticating Google Drive service...")
-            google_drive_service.authenticate()
-        print("✅ Google Drive service initialized and authenticated")
-    except Exception as e:
-        print(f"⚠️ Google Drive service initialization failed: {e}")
+        print("🔍 Attempting to import Flask app...")
+        from app import app as flask_app
+        app = flask_app
+        print("✅ Flask app imported successfully")
+        return app
+    except ImportError as e:
+        print(f"❌ ImportError importing Flask app: {e}")
         import traceback
         traceback.print_exc()
-        # Continue anyway - app will handle it gracefully
+        _app_import_error = e
+        raise
+    except Exception as e:
+        print(f"❌ Error importing Flask app: {e}")
+        import traceback
+        traceback.print_exc()
+        _app_import_error = e
+        raise
 
 def handler(request):
     """Vercel Python serverless function handler"""
     try:
         # Log request for debugging - FIRST THING
         print(f"📥 Handler called with request type: {type(request)}")
-        print(f"📥 Request object: {request}")
         
-        # Check if Flask app was imported successfully
-        if app is None:
-            error_msg = "Flask app not imported - check logs for import errors"
+        # Try to get Flask app (lazy load)
+        try:
+            flask_app = get_flask_app()
+        except Exception as import_error:
+            error_msg = f"Flask app import failed: {str(import_error)}"
             print(f"❌ {error_msg}")
             import traceback
             traceback.print_exc()
@@ -75,7 +74,8 @@ def handler(request):
                 'body': json.dumps({
                     'error': error_msg, 
                     'type': 'import_error',
-                    'message': 'Flask app failed to import - check Vercel logs for details'
+                    'message': 'Flask app failed to import - check Vercel logs for details',
+                    'trace': traceback.format_exc()
                 })
             }
         
@@ -146,7 +146,7 @@ def handler(request):
         
         # Call Flask app
         try:
-            app_iter = app(environ, start_response)
+            app_iter = flask_app(environ, start_response)
             
             # Collect response
             for chunk in app_iter:
