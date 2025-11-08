@@ -6,16 +6,19 @@
 // Get API URL from environment variable or use same domain as frontend
 const envApiUrl = import.meta.env.VITE_API_URL;
 
-// If VITE_API_URL is not set, use the same domain as the frontend (for Vercel same-domain setup)
+// For Vercel: frontend and backend are on the same domain via vercel.json rewrites
+// So we should use the same domain as the frontend, not a hardcoded URL
+// This fixes CORS issues on preview deployments
 let apiBaseUrl = envApiUrl;
-if (!apiBaseUrl) {
-  // In browser, use same origin (same domain as frontend)
-  if (typeof window !== 'undefined') {
-    apiBaseUrl = window.location.origin;
-  } else {
-    // Fallback for SSR or build time
-    apiBaseUrl = 'http://localhost:5002';
-  }
+
+// In browser, always use same origin (same domain as frontend) to avoid CORS
+// This works because vercel.json routes /api/* to the serverless function
+if (typeof window !== 'undefined') {
+  // Use same domain as frontend (works for both production and preview deployments)
+  apiBaseUrl = window.location.origin;
+} else if (!apiBaseUrl) {
+  // Fallback for SSR or build time
+  apiBaseUrl = 'http://localhost:5002';
 }
 
 export const API_BASE_URL = apiBaseUrl;
