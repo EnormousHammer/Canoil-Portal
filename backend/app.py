@@ -3034,32 +3034,110 @@ def debug_status():
             "local_paths": {
                 "GDRIVE_BASE": GDRIVE_BASE,
                 "exists": os.path.exists(GDRIVE_BASE) if GDRIVE_BASE else False,
-            }
+            },
+            "test_steps": []
         }
         
-        # Try to test Google Drive connection if available
+        # Step-by-step test of Google Drive connection
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             try:
+                # Step 1: Check authentication
+                debug_info["test_steps"].append({
+                    "step": 1,
+                    "test": "Authentication",
+                    "status": "checking"
+                })
+                
                 if not google_drive_service.authenticated:
                     debug_info["google_drive_service"]["auth_error"] = "Not authenticated - attempting to authenticate..."
                     try:
                         google_drive_service.authenticate()
                         debug_info["google_drive_service"]["authenticated"] = google_drive_service.authenticated
+                        debug_info["test_steps"][-1]["status"] = "success" if google_drive_service.authenticated else "failed"
+                        debug_info["test_steps"][-1]["message"] = "Authenticated successfully" if google_drive_service.authenticated else "Authentication failed"
                     except Exception as auth_error:
                         debug_info["google_drive_service"]["auth_error"] = str(auth_error)
+                        debug_info["test_steps"][-1]["status"] = "failed"
+                        debug_info["test_steps"][-1]["error"] = str(auth_error)
+                else:
+                    debug_info["test_steps"][-1]["status"] = "success"
+                    debug_info["test_steps"][-1]["message"] = "Already authenticated"
                 
+                # Step 2: Find shared drive
                 if google_drive_service.authenticated:
-                    # Try to find shared drive
+                    debug_info["test_steps"].append({
+                        "step": 2,
+                        "test": "Find Shared Drive",
+                        "status": "checking"
+                    })
                     try:
                         shared_drive_name = os.getenv('GOOGLE_DRIVE_SHARED_DRIVE_NAME', 'IT_Automation')
                         drive_id = google_drive_service.find_shared_drive(shared_drive_name)
                         debug_info["google_drive_service"]["shared_drive_found"] = drive_id is not None
                         debug_info["google_drive_service"]["shared_drive_id"] = drive_id if drive_id else None
                         debug_info["google_drive_service"]["shared_drive_name"] = shared_drive_name
+                        if drive_id:
+                            debug_info["test_steps"][-1]["status"] = "success"
+                            debug_info["test_steps"][-1]["message"] = f"Found shared drive: {shared_drive_name} (ID: {drive_id})"
+                        else:
+                            debug_info["test_steps"][-1]["status"] = "failed"
+                            debug_info["test_steps"][-1]["message"] = f"Shared drive '{shared_drive_name}' not found"
                     except Exception as e:
                         debug_info["google_drive_service"]["shared_drive_error"] = str(e)
+                        debug_info["test_steps"][-1]["status"] = "failed"
+                        debug_info["test_steps"][-1]["error"] = str(e)
+                    
+                    # Step 3: Find base folder
+                    if drive_id:
+                        debug_info["test_steps"].append({
+                            "step": 3,
+                            "test": "Find Base Folder",
+                            "status": "checking"
+                        })
+                        try:
+                            base_folder_path = os.getenv('GOOGLE_DRIVE_BASE_FOLDER_PATH', 'MiSys/Misys Extracted Data/API Extractions')
+                            base_folder_id = google_drive_service.find_folder_by_path(drive_id, base_folder_path)
+                            if base_folder_id:
+                                debug_info["google_drive_service"]["base_folder_found"] = True
+                                debug_info["google_drive_service"]["base_folder_id"] = base_folder_id
+                                debug_info["test_steps"][-1]["status"] = "success"
+                                debug_info["test_steps"][-1]["message"] = f"Found base folder: {base_folder_path} (ID: {base_folder_id})"
+                            else:
+                                debug_info["google_drive_service"]["base_folder_found"] = False
+                                debug_info["test_steps"][-1]["status"] = "failed"
+                                debug_info["test_steps"][-1]["message"] = f"Base folder '{base_folder_path}' not found"
+                        except Exception as e:
+                            debug_info["google_drive_service"]["base_folder_error"] = str(e)
+                            debug_info["test_steps"][-1]["status"] = "failed"
+                            debug_info["test_steps"][-1]["error"] = str(e)
+                        
+                        # Step 4: Get latest folder
+                        if base_folder_id:
+                            debug_info["test_steps"].append({
+                                "step": 4,
+                                "test": "Get Latest Folder",
+                                "status": "checking"
+                            })
+                            try:
+                                latest_folder_id, latest_folder_name = google_drive_service.get_latest_folder(base_folder_id, drive_id)
+                                if latest_folder_id:
+                                    debug_info["google_drive_service"]["latest_folder_found"] = True
+                                    debug_info["google_drive_service"]["latest_folder_id"] = latest_folder_id
+                                    debug_info["google_drive_service"]["latest_folder_name"] = latest_folder_name
+                                    debug_info["test_steps"][-1]["status"] = "success"
+                                    debug_info["test_steps"][-1]["message"] = f"Found latest folder: {latest_folder_name} (ID: {latest_folder_id})"
+                                else:
+                                    debug_info["google_drive_service"]["latest_folder_found"] = False
+                                    debug_info["test_steps"][-1]["status"] = "failed"
+                                    debug_info["test_steps"][-1]["message"] = "No latest folder found"
+                            except Exception as e:
+                                debug_info["google_drive_service"]["latest_folder_error"] = str(e)
+                                debug_info["test_steps"][-1]["status"] = "failed"
+                                debug_info["test_steps"][-1]["error"] = str(e)
             except Exception as e:
                 debug_info["google_drive_service"]["test_error"] = str(e)
+                import traceback
+                debug_info["google_drive_service"]["test_trace"] = traceback.format_exc()
         
         return jsonify(debug_info)
     except Exception as e:
