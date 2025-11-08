@@ -101,10 +101,35 @@ def handler(request):
         body_bytes = b''.join(response_body)
         body_str = body_bytes.decode('utf-8') if isinstance(body_bytes, bytes) else body_bytes
         
+        # Convert headers list of tuples to dict (preserve all headers)
+        # Flask-CORS may add multiple headers, so we need to handle duplicates
+        headers_dict = {}
+        for header_name, header_value in response_headers:
+            # Convert header name to lowercase for consistency
+            header_key = header_name.lower()
+            # If header already exists, combine values (for headers that allow multiple values)
+            if header_key in headers_dict:
+                # For CORS headers, we want to keep all values
+                if header_key in ('access-control-allow-headers', 'access-control-expose-headers'):
+                    headers_dict[header_key] = f"{headers_dict[header_key]}, {header_value}"
+                else:
+                    # For other headers, keep the last value
+                    headers_dict[header_key] = header_value
+            else:
+                headers_dict[header_key] = header_value
+        
+        # Ensure CORS headers are present for all responses
+        if 'access-control-allow-origin' not in headers_dict:
+            headers_dict['access-control-allow-origin'] = '*'
+        if 'access-control-allow-methods' not in headers_dict:
+            headers_dict['access-control-allow-methods'] = 'GET, POST, OPTIONS'
+        if 'access-control-allow-headers' not in headers_dict:
+            headers_dict['access-control-allow-headers'] = '*'
+        
         # Return Vercel format
         return {
             'statusCode': status_code,
-            'headers': dict(response_headers),
+            'headers': headers_dict,
             'body': body_str
         }
     except Exception as e:
@@ -113,7 +138,12 @@ def handler(request):
         print(f"Error in handler: {e}\n{error_trace}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': '*'
+            },
             'body': json.dumps({'error': str(e), 'trace': error_trace})
         }
 
