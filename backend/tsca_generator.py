@@ -14,7 +14,7 @@ TSCA_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\TSCA
 
 
 def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Filter out non-product items like freight, pallet charges, etc."""
+    """Filter out non-product items like freight, pallet charges, prepay, add, etc."""
     actual_items = []
     
     for item in items:
@@ -23,7 +23,8 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Skip non-product items
         if any(keyword in description for keyword in [
             'PALLET', 'FREIGHT', 'BROKERAGE', 'CHARGE', 'FEE', 
-            'SURCHARGE', 'HANDLING', 'INSURANCE'
+            'SURCHARGE', 'HANDLING', 'INSURANCE', 'PREPAY', 
+            'PREPAID', 'ADD', 'ADDITIONAL', 'ADJUSTMENT'
         ]):
             continue
         

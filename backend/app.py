@@ -424,6 +424,27 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
+# Global error handler to catch all exceptions
+@app.errorhandler(Exception)
+def handle_all_errors(e):
+    """Catch all exceptions and return detailed error info"""
+    import traceback
+    error_trace = traceback.format_exc()
+    error_type = type(e).__name__
+    error_message = str(e)
+    
+    print(f"❌ Flask error caught: {error_type}: {error_message}")
+    print(f"❌ Traceback:\n{error_trace}")
+    
+    return jsonify({
+        'error': {
+            'code': '500',
+            'message': error_message,
+            'type': error_type,
+            'trace': error_trace
+        }
+    }), 500
+
 # Global Unicode error handler
 @app.errorhandler(UnicodeEncodeError)
 def handle_unicode_error(e):
@@ -501,6 +522,9 @@ USE_GOOGLE_DRIVE_API = USE_GOOGLE_DRIVE_API_ENV.lower() == 'true'
 google_drive_service = None
 
 # Initialize Google Drive API service safely
+# On Vercel, don't authenticate during import - authenticate lazily on first use
+IS_VERCEL = os.getenv('VERCEL') == '1' or os.getenv('VERCEL_ENV') is not None
+
 if USE_GOOGLE_DRIVE_API:
     try:
         print(f"🔍 Initializing Google Drive API: env='{USE_GOOGLE_DRIVE_API_ENV}', parsed={USE_GOOGLE_DRIVE_API}")
@@ -508,17 +532,20 @@ if USE_GOOGLE_DRIVE_API:
         google_drive_service = GoogleDriveService()
         print("✅ Google Drive API service initialized")
         
-        # Authenticate immediately to catch errors early
-        try:
-            if not google_drive_service.authenticated:
-                print("🔐 Authenticating Google Drive service...")
-                google_drive_service.authenticate()
-            print("✅ Google Drive API service authenticated successfully")
-        except Exception as auth_error:
-            print(f"⚠️ Google Drive authentication failed: {auth_error}")
-            import traceback
-            traceback.print_exc()
-            # Continue anyway - will retry on first use
+        # Only authenticate immediately if NOT on Vercel (lazy auth on Vercel)
+        if not IS_VERCEL:
+            try:
+                if not google_drive_service.authenticated:
+                    print("🔐 Authenticating Google Drive service...")
+                    google_drive_service.authenticate()
+                print("✅ Google Drive API service authenticated successfully")
+            except Exception as auth_error:
+                print(f"⚠️ Google Drive authentication failed: {auth_error}")
+                import traceback
+                traceback.print_exc()
+                # Continue anyway - will retry on first use
+        else:
+            print("ℹ️ On Vercel - Google Drive authentication will happen on first use (lazy)")
     except ImportError as e:
         print(f"⚠️ Google Drive API not available (ImportError): {e}")
         USE_GOOGLE_DRIVE_API = False
@@ -878,8 +905,22 @@ def get_all_data():
         })
         
     except Exception as e:
-        print(f"ERROR: Error in get_all_data: {e}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        error_type = type(e).__name__
+        error_message = str(e)
+        
+        print(f"❌ ERROR in get_all_data: {error_type}: {error_message}")
+        print(f"❌ Traceback:\n{error_trace}")
+        
+        return jsonify({
+            'error': {
+                'code': '500',
+                'message': error_message,
+                'type': error_type,
+                'trace': error_trace
+            }
+        }), 500
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Brain, MailOpen, Loader, CheckCircle, MessageSquareText, Sparkles, Copy, Send } from 'lucide-react';
+import { getApiUrl } from '../utils/apiConfig';
 
 interface EmailExample {
   subject: string;
@@ -122,7 +123,7 @@ Instructions:
 7. Reference previous points when relevant
 8. Maintain the user's voice and writing patterns`;
 
-      const response = await fetch('http://localhost:5002/api/ai/generate-email', {
+      const response = await fetch(getApiUrl('/api/ai/generate-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
