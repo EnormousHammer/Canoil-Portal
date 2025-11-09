@@ -295,8 +295,8 @@ class GoogleDriveService:
                 error_str = str(error)
                 if attempt < max_retries - 1:
                     print(f"⚠️ SSL/Network error downloading {file_name} (attempt {attempt + 1}/{max_retries}): {error_str}")
-                    import time
-                    time.sleep(1)  # Wait 1 second before retry
+                    import time as time_module
+                    time_module.sleep(1)  # Wait 1 second before retry
                     continue
                 else:
                     print(f"❌ Failed to download {file_name} after {max_retries} attempts: {error_str}")
@@ -367,11 +367,13 @@ class GoogleDriveService:
                 path_within_drive = SALES_ORDERS_PATH.replace("Sales_CSR/", "").replace("Sales_CSR", "")
                 if path_within_drive.startswith("/"):
                     path_within_drive = path_within_drive[1:]
+                print(f"🔍 Searching for path within Sales_CSR drive: {path_within_drive}")
                 sales_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, path_within_drive)
                 sales_orders_drive_id = sales_csr_drive_id
             else:
                 # Fallback: Try to find Sales_CSR as a folder within the current drive
                 print(f"⚠️ Sales_CSR not found as separate shared drive, trying within {SHARED_DRIVE_NAME}")
+                print(f"🔍 Searching for path: {SALES_ORDERS_PATH}")
                 sales_orders_folder_id = self.find_folder_by_path(drive_id, SALES_ORDERS_PATH)
                 sales_orders_drive_id = drive_id
             

@@ -7,8 +7,12 @@ POWERED BY GPT-4o FOR ADVANCED VISUAL REPORTING AND FORECASTING
 import json
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 import re
+
+# Use TYPE_CHECKING to avoid evaluating type hints at import time
+if TYPE_CHECKING:
+    import pandas as pd
 
 # Lazy import pandas - only import when needed
 _pandas_available = None
@@ -440,7 +444,7 @@ class EnterpriseAnalytics:
     
     # Helper methods for detailed analysis
     
-    def _analyze_monthly_trends(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_monthly_trends(self, df: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze monthly sales trends and seasonality"""
         
         monthly_stats = df.groupby(['year', 'month']).agg({
@@ -470,7 +474,7 @@ class EnterpriseAnalytics:
             "growth_rate": self._calculate_monthly_growth(monthly_data)
         }
     
-    def _analyze_seasonal_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_seasonal_patterns(self, df: 'pd.DataFrame') -> Dict[str, Any]:
         """Identify seasonal patterns and high/low seasons"""
         
         seasonal_stats = df.groupby('month').agg({
@@ -502,7 +506,7 @@ class EnterpriseAnalytics:
             "seasonality_index": self._calculate_seasonality_index(seasonal_data)
         }
     
-    def _analyze_top_customers(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _analyze_top_customers(self, df: 'pd.DataFrame') -> List[Dict[str, Any]]:
         """Analyze top customers by revenue and order frequency"""
         
         customer_stats = df.groupby('customer_name').agg({
@@ -525,7 +529,7 @@ class EnterpriseAnalytics:
         
         return top_customers
     
-    def _analyze_top_selling_items(self, df_items: pd.DataFrame) -> List[Dict[str, Any]]:
+    def _analyze_top_selling_items(self, df_items: 'pd.DataFrame') -> List[Dict[str, Any]]:
         """Analyze top-selling items by quantity and revenue"""
         
         item_stats = df_items.groupby(['item_code', 'description']).agg({
@@ -549,7 +553,7 @@ class EnterpriseAnalytics:
         
         return top_items
     
-    def _analyze_seasonal_item_trends(self, df_items: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_seasonal_item_trends(self, df_items: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze which items sell best in different seasons"""
         
         seasonal_items = df_items.groupby(['month', 'item_code', 'description']).agg({
@@ -1081,7 +1085,7 @@ class EnterpriseAnalytics:
     
     # Additional analysis methods (stubs for now, can be expanded)
     
-    def _calculate_performance_metrics(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _calculate_performance_metrics(self, df: 'pd.DataFrame') -> Dict[str, Any]:
         """Calculate additional performance metrics"""
         return {
             "conversion_rate": 0.0,  # Placeholder
@@ -1089,7 +1093,7 @@ class EnterpriseAnalytics:
             "market_share": 0.0  # Placeholder
         }
     
-    def _analyze_growth_trends(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_growth_trends(self, df: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze growth trends"""
         return {
             "quarterly_growth": 0.0,  # Placeholder
@@ -1097,43 +1101,43 @@ class EnterpriseAnalytics:
             "trend_direction": "stable"  # Placeholder
         }
     
-    def _analyze_item_revenue(self, df_items: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_item_revenue(self, df_items: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze item revenue patterns"""
         return {"revenue_distribution": "placeholder"}
     
-    def _analyze_inventory_turnover(self, df_items: pd.DataFrame, inventory_data: List[Dict]) -> Dict[str, Any]:
+    def _analyze_inventory_turnover(self, df_items: 'pd.DataFrame', inventory_data: List[Dict]) -> Dict[str, Any]:
         """Analyze inventory turnover by item"""
         return {"turnover_analysis": "placeholder"}
     
-    def _analyze_customer_item_preferences(self, df_items: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_customer_item_preferences(self, df_items: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze customer preferences by item"""
         return {"preference_analysis": "placeholder"}
     
-    def _analyze_monthly_item_performance(self, df_items: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_monthly_item_performance(self, df_items: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze monthly item performance"""
         return {"monthly_performance": "placeholder"}
     
-    def _analyze_production_capacity(self, df_mo: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_production_capacity(self, df_mo: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze production capacity"""
         return {"capacity_analysis": "placeholder"}
     
-    def _analyze_manufacturing_efficiency(self, df_mo: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_manufacturing_efficiency(self, df_mo: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze manufacturing efficiency"""
         return {"efficiency_metrics": "placeholder"}
     
-    def _analyze_resource_utilization(self, df_mo: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_resource_utilization(self, df_mo: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze resource utilization"""
         return {"utilization_metrics": "placeholder"}
     
-    def _identify_bottlenecks(self, df_mo: pd.DataFrame, bom_data: List[Dict]) -> Dict[str, Any]:
+    def _identify_bottlenecks(self, df_mo: 'pd.DataFrame', bom_data: List[Dict]) -> Dict[str, Any]:
         """Identify production bottlenecks"""
         return {"bottleneck_analysis": "placeholder"}
     
-    def _analyze_manufacturing_costs(self, df_mo: pd.DataFrame, bom_data: List[Dict]) -> Dict[str, Any]:
+    def _analyze_manufacturing_costs(self, df_mo: 'pd.DataFrame', bom_data: List[Dict]) -> Dict[str, Any]:
         """Analyze manufacturing costs"""
         return {"cost_analysis": "placeholder"}
     
-    def _analyze_quality_metrics(self, df_mo: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_quality_metrics(self, df_mo: 'pd.DataFrame') -> Dict[str, Any]:
         """Analyze quality metrics"""
         return {"quality_analysis": "placeholder"}
     
