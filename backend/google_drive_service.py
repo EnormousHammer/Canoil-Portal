@@ -13,6 +13,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
 # Google Drive API scopes
 SCOPES = [
@@ -51,6 +52,36 @@ class GoogleDriveService:
     def authenticate(self):
         """Authenticate and build Google Drive API service"""
         creds = None
+        
+        # 0) Prefer Service Account if configured (no OAuth consent, stable in server environments)
+        try:
+            sa_json_env = os.getenv('GOOGLE_DRIVE_SA_JSON') or os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+            sa_json_path = Path(os.getenv('GOOGLE_DRIVE_SA_FILE', 'backend/google_service_account.json'))
+            
+            if sa_json_env:
+                try:
+                    sa_info = json.loads(sa_json_env)
+                    creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
+                    self.service = build('drive', 'v3', credentials=creds)
+                    self.authenticated = True
+                    print("✅ Google Drive API authenticated successfully using Service Account (env)")
+                    return True
+                except Exception as e:
+                    print(f"⚠️ Service Account (env) failed: {e}")
+            
+            if not creds and sa_json_path.exists():
+                try:
+                    with open(sa_json_path, 'r', encoding='utf-8') as f:
+                        sa_info = json.load(f)
+                    creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
+                    self.service = build('drive', 'v3', credentials=creds)
+                    self.authenticated = True
+                    print("✅ Google Drive API authenticated successfully using Service Account (file)")
+                    return True
+                except Exception as e:
+                    print(f"⚠️ Service Account (file) failed: {e}")
+        except Exception as e:
+            print(f"⚠️ Service Account auth check failed: {e}")
         
         # Try loading token from environment variable first (for Vercel/serverless)
         token_env = os.getenv('GOOGLE_DRIVE_TOKEN')
