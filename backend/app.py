@@ -621,7 +621,6 @@ def get_all_data():
         
         # Check if we have valid cached data (unless forcing refresh)
         if not force_refresh and _data_cache and _cache_timestamp:
-            import time
             cache_age = time.time() - _cache_timestamp
             
             # Check if cache has actual data (not empty)
