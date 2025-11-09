@@ -605,10 +605,48 @@ def load_json_file(file_path):
 
 
 
-# Global cache for data
+# Global cache for data - MEMORY OPTIMIZED
 _data_cache = None
 _cache_timestamp = None
 _cache_duration = 300  # 5 minutes cache
+_MAX_CACHE_SIZE_MB = 100  # Maximum cache size in MB (to prevent OOM on 512MB instances)
+
+def estimate_data_size_mb(data):
+    """Estimate data size in MB (rough approximation) - MEMORY EFFICIENT"""
+    try:
+        if data is None:
+            return 0
+        # Quick estimation without full JSON conversion to save memory
+        # Count items in lists and estimate size
+        total_items = 0
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    total_items += len(value)
+                elif isinstance(value, dict):
+                    # Estimate dict size
+                    total_items += len(value) * 10  # Rough estimate
+        elif isinstance(data, list):
+            total_items = len(data)
+        
+        # Rough estimate: ~1KB per item (conservative)
+        estimated_bytes = total_items * 1024
+        size_mb = estimated_bytes / (1024 * 1024)
+        return size_mb
+    except Exception as e:
+        print(f"⚠️ Error estimating data size: {e}")
+        # If estimation fails, assume it's large and don't cache
+        return 200  # Return high value to prevent caching
+
+def should_cache_data(data):
+    """Check if data should be cached based on size"""
+    if data is None:
+        return False
+    size_mb = estimate_data_size_mb(data)
+    if size_mb > _MAX_CACHE_SIZE_MB:
+        print(f"⚠️ Data too large to cache: {size_mb:.1f}MB > {_MAX_CACHE_SIZE_MB}MB limit")
+        return False
+    return True
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
@@ -658,9 +696,17 @@ def get_all_data():
                 data, folder_info = google_drive_service.get_all_data()
                 print(f"🔍 Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
                 if data and len(data) > 0:
-                    _data_cache = data
-                    _cache_timestamp = time.time()
-                    print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files")
+                    # Only cache if data size is reasonable
+                    if should_cache_data(data):
+                        _data_cache = data
+                        _cache_timestamp = time.time()
+                        cache_size_mb = estimate_data_size_mb(data)
+                        print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files (cached, {cache_size_mb:.1f}MB)")
+                    else:
+                        # Don't cache large datasets to prevent OOM
+                        _data_cache = None
+                        _cache_timestamp = None
+                        print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files (not cached - too large)")
                     return jsonify({
                         "data": data,
                         "folderInfo": folder_info,
@@ -890,10 +936,17 @@ def get_all_data():
         
         print(f"📊 Data summary: {safe_summary}")
         
-        # Cache the data for future requests
-        _data_cache = raw_data
-        _cache_timestamp = time.time()
-        print(f"💾 Data cached for {_cache_duration} seconds")
+        # Cache the data for future requests - only if size is reasonable
+        if should_cache_data(raw_data):
+            _data_cache = raw_data
+            _cache_timestamp = time.time()
+            cache_size_mb = estimate_data_size_mb(raw_data)
+            print(f"💾 Data cached for {_cache_duration} seconds ({cache_size_mb:.1f}MB)")
+        else:
+            # Don't cache large datasets to prevent OOM
+            _data_cache = None
+            _cache_timestamp = None
+            print(f"⚠️ Data too large to cache - skipping cache to prevent OOM")
         
         return jsonify({
             "data": raw_data,
