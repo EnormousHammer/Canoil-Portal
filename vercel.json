@@ -12,7 +12,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "https://canoil-portal.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
