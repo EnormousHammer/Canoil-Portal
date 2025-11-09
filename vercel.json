@@ -3,20 +3,9 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "installCommand": "cd frontend && npm install",
-  "functions": {
-    "api/**/*.py": {
-      "includeFiles": "backend/**/*.py,backend/hts_codes.json",
-      "excludeFiles": "backend/venv/**,backend/__pycache__/**,backend/cache/**,backend/generated_documents/**,backend/uploads/**,backend/so_cache/**,backend/gmail_credentials/**,backend/**/*.docx,backend/**/*.pdf,backend/**/*.html,backend/**/*.xlsx,backend/**/*.pickle"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://canoil-portal.onrender.com/api/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "https://canoil-portal.onrender.com/api/$1" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
