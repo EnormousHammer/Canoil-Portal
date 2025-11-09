@@ -272,22 +272,36 @@ class GoogleDriveService:
             return None, None
     
     def download_file(self, file_id, file_name):
-        """Download a file from Google Drive"""
-        try:
-            request = self.service.files().get_media(fileId=file_id)
-            file_content = request.execute()
-            
-            # Parse JSON if it's a JSON file
-            if file_name.endswith('.json'):
-                try:
-                    return json.loads(file_content.decode('utf-8'))
-                except json.JSONDecodeError:
-                    return []
-            
-            return file_content
-        except HttpError as error:
-            print(f"❌ Error downloading file {file_name}: {error}")
-            return None
+        """Download a file from Google Drive with retry logic for SSL errors"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                request = self.service.files().get_media(fileId=file_id)
+                file_content = request.execute()
+                
+                # Parse JSON if it's a JSON file
+                if file_name.endswith('.json'):
+                    try:
+                        return json.loads(file_content.decode('utf-8'))
+                    except json.JSONDecodeError:
+                        return []
+                
+                return file_content
+            except HttpError as error:
+                print(f"❌ Error downloading file {file_name}: {error}")
+                return None
+            except Exception as error:
+                # Catch SSL errors and other exceptions
+                error_str = str(error)
+                if attempt < max_retries - 1:
+                    print(f"⚠️ SSL/Network error downloading {file_name} (attempt {attempt + 1}/{max_retries}): {error_str}")
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+                    continue
+                else:
+                    print(f"❌ Failed to download {file_name} after {max_retries} attempts: {error_str}")
+                    return None
+        return None
     
     def load_folder_data(self, folder_id, drive_id=None):
         """Load all JSON files from a folder"""
