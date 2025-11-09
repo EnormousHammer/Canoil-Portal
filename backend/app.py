@@ -472,9 +472,9 @@ if PR_SERVICE_AVAILABLE:
 else:
     print("Purchase Requisition service not available")
 
-# Health check route for Render/monitoring
+# Health check route for Render/monitoring (root path)
 @app.route('/', methods=['GET', 'HEAD'])
-def health_check():
+def root_health_check():
     """Health check endpoint for Render/monitoring"""
     return jsonify({
         "status": "ok",
