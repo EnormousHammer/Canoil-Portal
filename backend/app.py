@@ -3105,6 +3105,7 @@ def debug_status():
                 
                 # Step 2: Find shared drive
                 if google_drive_service.authenticated:
+                    drive_id = None  # Initialize before try block
                     debug_info["test_steps"].append({
                         "step": 2,
                         "test": "Find Shared Drive",
