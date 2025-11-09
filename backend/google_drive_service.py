@@ -289,17 +289,24 @@ class GoogleDriveService:
             print(f"❌ Error downloading file {file_name}: {error}")
             return None
     
-    def load_folder_data(self, folder_id):
+    def load_folder_data(self, folder_id, drive_id=None):
         """Load all JSON files from a folder"""
         try:
             # Find all JSON files (either JSON mime type or files ending in .json)
             query = f"('{folder_id}' in parents) and (mimeType='application/json' or name contains '.json') and trashed=false"
-            results = self.service.files().list(
-                q=query,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime)"
-            ).execute()
+            list_params = {
+                'q': query,
+                'supportsAllDrives': True,
+                'includeItemsFromAllDrives': True,
+                'fields': "files(id, name, mimeType, modifiedTime)"
+            }
+            
+            # Add shared drive parameters if drive_id is provided
+            if drive_id:
+                list_params['corpora'] = 'drive'
+                list_params['driveId'] = drive_id
+            
+            results = self.service.files().list(**list_params).execute()
             
             files = results.get('files', [])
             data = {}
@@ -428,7 +435,7 @@ class GoogleDriveService:
             return None, "No latest folder found"
         
         # Load all JSON files from latest folder
-        data = self.load_folder_data(latest_folder_id)
+        data = self.load_folder_data(latest_folder_id, drive_id)
         
         # Load sales orders data
         sales_orders_data = self.load_sales_orders_data(drive_id)
