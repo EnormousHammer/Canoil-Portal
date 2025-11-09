@@ -768,7 +768,6 @@ def get_all_data():
         print(f"⚡ LOADING: Loading G: Drive data with proper timing...")
         
         # Minimal delay for realistic loading - just enough to show progress
-        import time
         time.sleep(0.5)  # 0.5 second delay for smooth loading experience
         
         # Load only essential files first
@@ -1635,7 +1634,6 @@ def find_sales_order_file(so_number):
 def check_changes():
     """Check for real-time changes in G: Drive folders"""
     try:
-        import time
         current_time = time.time()
         changes_detected = []
         
@@ -1965,7 +1963,6 @@ def chat_query():
         
         # Check if we have valid cached data
         if _data_cache and _cache_timestamp:
-            import time
             cache_age = time.time() - _cache_timestamp
             has_data = any(v and len(v) > 0 if isinstance(v, list) else v for v in _data_cache.values())
             

@@ -353,8 +353,28 @@ class GoogleDriveService:
     def load_sales_orders_data(self, drive_id):
         """Load sales orders data from Google Drive"""
         try:
-            # Find sales orders folder
-            sales_orders_folder_id = self.find_folder_by_path(drive_id, SALES_ORDERS_PATH)
+            # Sales_CSR might be a separate shared drive, not a folder within IT_Automation
+            # Try to find Sales_CSR as a separate shared drive first
+            sales_orders_drive_id = None
+            sales_orders_folder_id = None
+            
+            # Check if Sales_CSR is a separate shared drive
+            sales_csr_drive_id = self.find_shared_drive("Sales_CSR")
+            if sales_csr_drive_id:
+                print(f"✅ Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
+                # If Sales_CSR is a separate drive, the path is relative to that drive
+                # Remove "Sales_CSR/" from the path since we're already in that drive
+                path_within_drive = SALES_ORDERS_PATH.replace("Sales_CSR/", "").replace("Sales_CSR", "")
+                if path_within_drive.startswith("/"):
+                    path_within_drive = path_within_drive[1:]
+                sales_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, path_within_drive)
+                sales_orders_drive_id = sales_csr_drive_id
+            else:
+                # Fallback: Try to find Sales_CSR as a folder within the current drive
+                print(f"⚠️ Sales_CSR not found as separate shared drive, trying within {SHARED_DRIVE_NAME}")
+                sales_orders_folder_id = self.find_folder_by_path(drive_id, SALES_ORDERS_PATH)
+                sales_orders_drive_id = drive_id
+            
             if not sales_orders_folder_id:
                 print("⚠️ Sales orders folder not found, skipping")
                 return {}
@@ -371,14 +391,19 @@ class GoogleDriveService:
             
             # Get all subfolders (status folders like "Completed", "In Production", etc.)
             query = f"'{sales_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-            results = self.service.files().list(
-                q=query,
-                corpora='drive',
-                driveId=drive_id,
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name)"
-            ).execute()
+            list_params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'fields': "files(id, name)"
+            }
+            
+            # Add shared drive parameters if drive_id is provided
+            if sales_orders_drive_id:
+                list_params['corpora'] = 'drive'
+                list_params['driveId'] = sales_orders_drive_id
+            
+            results = self.service.files().list(**list_params).execute()
             
             status_folders = results.get('files', [])
             sales_orders_data['StatusFolders'] = [f['name'] for f in status_folders]
@@ -391,16 +416,21 @@ class GoogleDriveService:
                 
                 # Get PDF and DOCX files from this folder (limit to recent files)
                 query = f"'{folder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
-                file_results = self.service.files().list(
-                    q=query,
-                    corpora='drive',
-                    driveId=drive_id,
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    orderBy='modifiedTime desc',
-                    pageSize=50,  # Limit to most recent 50 files per folder
-                    fields="files(id, name, mimeType, modifiedTime)"
-                ).execute()
+                file_list_params = {
+                    'q': query,
+                    'includeItemsFromAllDrives': True,
+                    'supportsAllDrives': True,
+                    'orderBy': 'modifiedTime desc',
+                    'pageSize': 50,  # Limit to most recent 50 files per folder
+                    'fields': "files(id, name, mimeType, modifiedTime)"
+                }
+                
+                # Add shared drive parameters if drive_id is provided
+                if sales_orders_drive_id:
+                    file_list_params['corpora'] = 'drive'
+                    file_list_params['driveId'] = sales_orders_drive_id
+                
+                file_results = self.service.files().list(**file_list_params).execute()
                 
                 files = file_results.get('files', [])
                 folder_orders = []
