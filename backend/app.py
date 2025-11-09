@@ -609,7 +609,8 @@ def load_json_file(file_path):
 _data_cache = None
 _cache_timestamp = None
 _cache_duration = 300  # 5 minutes cache
-_MAX_CACHE_SIZE_MB = 100  # Maximum cache size in MB (to prevent OOM on 512MB instances)
+# Maximum cache size in MB - increased for 2GB instance (leave ~500MB for system/other processes)
+_MAX_CACHE_SIZE_MB = 1500  # Maximum cache size in MB (2GB instance - safe limit)
 
 def estimate_data_size_mb(data):
     """Estimate data size in MB (rough approximation) - MEMORY EFFICIENT"""
