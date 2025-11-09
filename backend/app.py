@@ -472,6 +472,16 @@ if PR_SERVICE_AVAILABLE:
 else:
     print("Purchase Requisition service not available")
 
+# Health check route for Render/monitoring
+@app.route('/', methods=['GET', 'HEAD'])
+def health_check():
+    """Health check endpoint for Render/monitoring"""
+    return jsonify({
+        "status": "ok",
+        "service": "Canoil Portal Backend",
+        "timestamp": datetime.now().isoformat()
+    }), 200
+
 # Register BOL HTML blueprint - DISABLED (duplicate endpoint in logistics_automation.py)
 # if BOL_HTML_AVAILABLE:
 #     app.register_blueprint(bol_html_bp)
