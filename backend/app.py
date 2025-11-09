@@ -424,7 +424,22 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
-# Global error handler to catch all exceptions
+# Handle 404 Not Found errors specifically
+from werkzeug.exceptions import NotFound
+
+@app.errorhandler(NotFound)
+def handle_not_found(e):
+    """Handle 404 Not Found errors"""
+    print(f"⚠️ Route not found: {request.path}")
+    return jsonify({
+        'error': {
+            'code': '404',
+            'message': f'Route not found: {request.path}',
+            'type': 'NotFound'
+        }
+    }), 404
+
+# Global error handler to catch all other exceptions
 @app.errorhandler(Exception)
 def handle_all_errors(e):
     """Catch all exceptions and return detailed error info"""
