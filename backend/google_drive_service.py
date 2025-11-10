@@ -28,9 +28,9 @@ SALES_ORDERS_PATH = os.getenv('GOOGLE_DRIVE_SALES_ORDERS_PATH', "Sales_CSR/Custo
 
 # Print paths safely - wrap in try/except to prevent import failures
 try:
-    print(f"🔍 Google Drive paths: SHARED_DRIVE_NAME={SHARED_DRIVE_NAME}, BASE_FOLDER_PATH={BASE_FOLDER_PATH}, SALES_ORDERS_PATH={SALES_ORDERS_PATH}")
+    print(f"[INFO] Google Drive paths: SHARED_DRIVE_NAME={SHARED_DRIVE_NAME}, BASE_FOLDER_PATH={BASE_FOLDER_PATH}, SALES_ORDERS_PATH={SALES_ORDERS_PATH}")
 except Exception as e:
-    print(f"⚠️ Error printing Google Drive paths: {e}")
+    print(f"[WARN] Error printing Google Drive paths: {e}")
 
 class GoogleDriveService:
     def __init__(self, credentials_file='backend/google_drive_credentials.json', token_file='backend/google_drive_token.pickle'):
@@ -39,7 +39,7 @@ class GoogleDriveService:
             # Try Gmail credentials location (might be same OAuth client)
             gmail_creds = Path(__file__).parent / 'gmail_credentials' / 'credentials.json'
             if os.path.exists(str(gmail_creds)):
-                print("⚠️ Using Gmail credentials.json for Google Drive (same OAuth client)")
+                print("[WARN] Using Gmail credentials.json for Google Drive (same OAuth client)")
                 self.credentials_file = str(gmail_creds)
             else:
                 self.credentials_file = credentials_file
@@ -64,10 +64,10 @@ class GoogleDriveService:
                     creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
                     self.service = build('drive', 'v3', credentials=creds)
                     self.authenticated = True
-                    print("✅ Google Drive API authenticated successfully using Service Account (env)")
+                    print("[OK] Google Drive API authenticated successfully using Service Account (env)")
                     return True
                 except Exception as e:
-                    print(f"⚠️ Service Account (env) failed: {e}")
+                    print(f"[WARN] Service Account (env) failed: {e}")
             
             if not creds and sa_json_path.exists():
                 try:
@@ -76,12 +76,12 @@ class GoogleDriveService:
                     creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
                     self.service = build('drive', 'v3', credentials=creds)
                     self.authenticated = True
-                    print("✅ Google Drive API authenticated successfully using Service Account (file)")
+                    print("[OK] Google Drive API authenticated successfully using Service Account (file)")
                     return True
                 except Exception as e:
-                    print(f"⚠️ Service Account (file) failed: {e}")
+                    print(f"[WARN] Service Account (file) failed: {e}")
         except Exception as e:
-            print(f"⚠️ Service Account auth check failed: {e}")
+            print(f"[WARN] Service Account auth check failed: {e}")
         
         # Try loading token from environment variable first (for Vercel/serverless)
         token_env = os.getenv('GOOGLE_DRIVE_TOKEN')
@@ -101,14 +101,14 @@ class GoogleDriveService:
                             elif 'web' in creds_dict:
                                 token_dict['client_id'] = creds_dict['web'].get('client_id')
                                 token_dict['client_secret'] = creds_dict['web'].get('client_secret')
-                            print("✅ Added client_id/client_secret from GOOGLE_DRIVE_CREDENTIALS")
+                            print("[OK] Added client_id/client_secret from GOOGLE_DRIVE_CREDENTIALS")
                         except Exception as e:
-                            print(f"⚠️ Could not extract client credentials: {e}")
+                            print(f"[WARN] Could not extract client credentials: {e}")
                 
                 creds = Credentials.from_authorized_user_info(token_dict, SCOPES)
-                print("✅ Loaded Google Drive token from environment variable")
+                print("[OK] Loaded Google Drive token from environment variable")
             except Exception as e:
-                print(f"⚠️ Error loading token from environment: {e}")
+                print(f"[WARN] Error loading token from environment: {e}")
                 import traceback
                 traceback.print_exc()
                 creds = None
@@ -118,9 +118,9 @@ class GoogleDriveService:
             try:
                 with open(self.token_file, 'rb') as token:
                     creds = pickle.load(token)
-                print("✅ Loaded Google Drive token from file")
+                print("[OK] Loaded Google Drive token from file")
             except Exception as e:
-                print(f"⚠️ Error loading token from file: {e}")
+                print(f"[WARN] Error loading token from file: {e}")
                 creds = None
         
         # If no valid credentials, get new ones
@@ -128,9 +128,9 @@ class GoogleDriveService:
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
-                    print("✅ Refreshed expired Google Drive token")
+                    print("[OK] Refreshed expired Google Drive token")
                 except Exception as e:
-                    print(f"⚠️ Failed to refresh token: {e}")
+                    print(f"[WARN] Failed to refresh token: {e}")
                     creds = None
             
             # If still no valid creds, need to authenticate
@@ -139,7 +139,7 @@ class GoogleDriveService:
                 is_serverless = os.getenv('VERCEL') or os.getenv('GOOGLE_DRIVE_TOKEN')
                 if is_serverless:
                     error_msg = (
-                        "❌ Google Drive authentication failed on serverless.\n"
+                        "[ERROR] Google Drive authentication failed on serverless.\n"
                         "Token is missing or expired and cannot be refreshed.\n"
                         "Solution: Get a fresh token locally and set GOOGLE_DRIVE_TOKEN in Vercel.\n"
                         "Run 'python get_vercel_env_vars.py' locally to extract token."
@@ -156,12 +156,12 @@ class GoogleDriveService:
                         flow = InstalledAppFlow.from_client_secrets_dict(creds_dict, SCOPES)
                         # For deployment, we need to handle OAuth flow differently
                         # This will require manual auth URL generation
-                        print("⚠️ Using credentials from environment variable")
-                        print("⚠️ First-time authentication required - check logs for auth URL")
+                        print("[WARN] Using credentials from environment variable")
+                        print("[WARN] First-time authentication required - check logs for auth URL")
                         # For now, we'll still use local server if possible
                         creds = flow.run_local_server(port=0)
                     except Exception as e:
-                        print(f"❌ Error using environment credentials: {e}")
+                        print(f"[ERROR] Error using environment credentials: {e}")
                         raise
                 elif os.path.exists(self.credentials_file):
                     # Use credentials file (local development)
@@ -180,19 +180,19 @@ class GoogleDriveService:
                 # Try to save to file (works on Render, not on Vercel serverless)
                 with open(self.token_file, 'wb') as token:
                     pickle.dump(creds, token)
-                print("✅ Saved Google Drive token to file")
+                print("[OK] Saved Google Drive token to file")
             except Exception as e:
-                print(f"⚠️ Could not save token to file (serverless?): {e}")
-                print("💡 Tip: For Vercel/serverless, save token JSON to GOOGLE_DRIVE_TOKEN env var")
+                print(f"[WARN] Could not save token to file (serverless?): {e}")
+                print("[TIP] For Vercel/serverless, save token JSON to GOOGLE_DRIVE_TOKEN env var")
                 # Save token info to environment variable format (user can copy this)
                 if hasattr(creds, 'to_json'):
                     token_json = creds.to_json()
-                    print(f"💡 Token JSON (save to GOOGLE_DRIVE_TOKEN env var):")
+                    print(f"[TIP] Token JSON (save to GOOGLE_DRIVE_TOKEN env var):")
                     print(token_json[:200] + "..." if len(token_json) > 200 else token_json)
         
         self.service = build('drive', 'v3', credentials=creds)
         self.authenticated = True
-        print("✅ Google Drive API authenticated successfully")
+        print("[OK] Google Drive API authenticated successfully")
         return True
     
     def find_shared_drive(self, drive_name):
@@ -200,36 +200,36 @@ class GoogleDriveService:
         try:
             drives = self.service.drives().list().execute()
             all_drives = drives.get('drives', [])
-            print(f"🔍 Searching for shared drive '{drive_name}' among {len(all_drives)} drives")
+            print(f"[INFO] Searching for shared drive '{drive_name}' among {len(all_drives)} drives")
             
             # List all available drives for debugging
             if all_drives:
-                print(f"📋 Available shared drives:")
+                print(f"[INFO] Available shared drives:")
                 for drive in all_drives:
                     print(f"   - {drive.get('name')} (ID: {drive.get('id')})")
             
             # Try exact match first
             for drive in all_drives:
                 if drive.get('name') == drive_name:
-                    print(f"✅ Found shared drive: {drive_name} (ID: {drive['id']})")
+                    print(f"[OK] Found shared drive: {drive_name} (ID: {drive['id']})")
                     return drive['id']
             
             # Try case-insensitive match
             for drive in all_drives:
                 if drive.get('name', '').lower() == drive_name.lower():
-                    print(f"✅ Found shared drive (case-insensitive): {drive.get('name')} (ID: {drive['id']})")
+                    print(f"[OK] Found shared drive (case-insensitive): {drive.get('name')} (ID: {drive['id']})")
                     return drive['id']
             
             # Try partial match
             for drive in all_drives:
                 if drive_name.lower() in drive.get('name', '').lower():
-                    print(f"✅ Found shared drive (partial match): {drive.get('name')} (ID: {drive['id']})")
+                    print(f"[OK] Found shared drive (partial match): {drive.get('name')} (ID: {drive['id']})")
                     return drive['id']
             
-            print(f"⚠️ Shared drive '{drive_name}' not found")
+            print(f"[WARN] Shared drive '{drive_name}' not found")
             return None
         except HttpError as error:
-            print(f"❌ Error finding shared drive: {error}")
+            print(f"[ERROR] Error finding shared drive: {error}")
             return None
     
     def find_folder_by_path(self, drive_id, folder_path):
@@ -252,12 +252,12 @@ class GoogleDriveService:
                 folders = results.get('files', [])
                 if folders:
                     current_id = folders[0]['id']
-                    print(f"📁 Found folder: {folder_name} (ID: {current_id})")
+                    print(f"[OK] Found folder: {folder_name} (ID: {current_id})")
                 else:
-                    print(f"❌ Folder not found: {folder_name}")
+                    print(f"[ERROR] Folder not found: {folder_name}")
                     return None
             except HttpError as error:
-                print(f"❌ Error finding folder {folder_name}: {error}")
+                print(f"[ERROR] Error finding folder {folder_name}: {error}")
                 return None
         
         return current_id
@@ -285,13 +285,13 @@ class GoogleDriveService:
             folders = results.get('files', [])
             if folders:
                 latest = folders[0]
-                print(f"✅ Latest folder: {latest['name']} (ID: {latest['id']})")
+                print(f"[OK] Latest folder: {latest['name']} (ID: {latest['id']})")
                 return latest['id'], latest['name']
             else:
-                print("❌ No folders found")
+                print("[ERROR] No folders found")
                 return None, None
         except HttpError as error:
-            print(f"❌ Error getting latest folder: {error}")
+            print(f"[ERROR] Error getting latest folder: {error}")
             return None, None
     
     def download_file(self, file_id, file_name):
@@ -311,18 +311,18 @@ class GoogleDriveService:
                 
                 return file_content
             except HttpError as error:
-                print(f"❌ Error downloading file {file_name}: {error}")
+                print(f"[ERROR] Error downloading file {file_name}: {error}")
                 return None
             except Exception as error:
                 # Catch SSL errors and other exceptions
                 error_str = str(error)
                 if attempt < max_retries - 1:
-                    print(f"⚠️ SSL/Network error downloading {file_name} (attempt {attempt + 1}/{max_retries}): {error_str}")
+                    print(f"[WARN] SSL/Network error downloading {file_name} (attempt {attempt + 1}/{max_retries}): {error_str}")
                     import time as time_module
                     time_module.sleep(1)  # Wait 1 second before retry
                     continue
                 else:
-                    print(f"❌ Failed to download {file_name} after {max_retries} attempts: {error_str}")
+                    print(f"[ERROR] Failed to download {file_name} after {max_retries} attempts: {error_str}")
                     return None
         return None
     
@@ -351,7 +351,7 @@ class GoogleDriveService:
             for file_info in files:
                 file_id = file_info['id']
                 file_name = file_info['name']
-                print(f"📄 Downloading: {file_name}")
+                print(f"[INFO] Downloading: {file_name}")
                 file_data = self.download_file(file_id, file_name)
                 if file_data is not None:
                     data[file_name] = file_data
@@ -360,7 +360,7 @@ class GoogleDriveService:
             
             return data
         except HttpError as error:
-            print(f"❌ Error loading folder data: {error}")
+            print(f"[ERROR] Error loading folder data: {error}")
             return {}
     
     def download_file_content(self, file_id, mime_type=None):
@@ -370,7 +370,7 @@ class GoogleDriveService:
             file_content = request.execute()
             return file_content
         except HttpError as error:
-            print(f"❌ Error downloading file {file_id}: {error}")
+            print(f"[ERROR] Error downloading file {file_id}: {error}")
             return None
     
     def _scan_folder_recursively(self, folder_id, folder_name, drive_id, depth=0, max_depth=3):
@@ -430,7 +430,7 @@ class GoogleDriveService:
                 subfolder_id = subfolder['id']
                 subfolder_name = subfolder['name']
                 full_path = f"{folder_name}/{subfolder_name}" if folder_name else subfolder_name
-                print(f"📁 Scanning subfolder: {full_path} (depth: {depth})")
+                print(f"[INFO] Scanning subfolder: {full_path} (depth: {depth})")
                 
                 # Recursively scan subfolder
                 subfolder_files = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth)
@@ -439,7 +439,7 @@ class GoogleDriveService:
             return all_files
             
         except Exception as e:
-            print(f"⚠️ Error scanning folder {folder_name}: {e}")
+            print(f"[WARN] Error scanning folder {folder_name}: {e}")
             return all_files
     
     def load_sales_orders_data(self, drive_id):
@@ -451,7 +451,7 @@ class GoogleDriveService:
         try:
             # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
             # Ignore the drive_id parameter and search for Sales_CSR independently
-            print(f"🔍 Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)")
+            print(f"[INFO] Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)")
             
             sales_orders_drive_id = None
             customer_orders_folder_id = None
@@ -459,21 +459,21 @@ class GoogleDriveService:
             # Check if Sales_CSR is a separate shared drive
             sales_csr_drive_id = self.find_shared_drive("Sales_CSR")
             if sales_csr_drive_id:
-                print(f"✅ Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
+                print(f"[OK] Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
                 # Find "Customer Orders" folder (parent of both Sales Orders and Purchase Orders)
                 customer_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
                 sales_orders_drive_id = sales_csr_drive_id
             else:
                 # Sales_CSR not found - don't try fallback to IT_Automation
-                print(f"❌ Sales_CSR not found as separate shared drive - skipping sales orders")
-                print(f"💡 Sales_CSR must be a separate shared drive, not a folder within {SHARED_DRIVE_NAME}")
+                print(f"[ERROR] Sales_CSR not found as separate shared drive - skipping sales orders")
+                print(f"[TIP] Sales_CSR must be a separate shared drive, not a folder within {SHARED_DRIVE_NAME}")
                 return {}
             
             if not customer_orders_folder_id:
-                print("⚠️ Customer Orders folder not found, skipping")
+                print("[WARN] Customer Orders folder not found, skipping")
                 return {}
             
-            print(f"📂 Loading ALL orders from Customer Orders (Sales Orders + Purchase Orders + all subfolders)")
+            print(f"[INFO] Loading ALL orders from Customer Orders (Sales Orders + Purchase Orders + all subfolders)")
             
             sales_orders_data = {
                 'SalesOrders.json': [],
@@ -503,13 +503,13 @@ class GoogleDriveService:
             results = self.service.files().list(**list_params).execute()
             customer_order_folders = results.get('files', [])
             
-            print(f"📋 Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
+            print(f"[INFO] Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
             
             # Scan each folder under Customer Orders (Sales Orders, Purchase Orders, etc.)
             for order_folder in customer_order_folders:
                 folder_id = order_folder['id']
                 folder_name = order_folder['name']
-                print(f"📂 Scanning folder: {folder_name}")
+                print(f"[INFO] Scanning folder: {folder_name}")
                 
                 # Recursively scan this folder and all its subfolders
                 all_files = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
@@ -519,16 +519,16 @@ class GoogleDriveService:
                     if 'Sales' in folder_name or 'sales' in folder_name.lower():
                         sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
                         sales_orders_data['TotalSalesOrders'] += len(all_files)
-                        print(f"✅ Found {len(all_files)} sales order files in {folder_name}")
+                        print(f"[OK] Found {len(all_files)} sales order files in {folder_name}")
                     elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
                         sales_orders_data['PurchaseOrdersByStatus'][folder_name] = all_files
                         sales_orders_data['TotalPurchaseOrders'] += len(all_files)
-                        print(f"✅ Found {len(all_files)} purchase order files in {folder_name}")
+                        print(f"[OK] Found {len(all_files)} purchase order files in {folder_name}")
                     else:
                         # Other folders under Customer Orders
                         sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
                         sales_orders_data['TotalOrders'] += len(all_files)
-                        print(f"✅ Found {len(all_files)} files in {folder_name}")
+                        print(f"[OK] Found {len(all_files)} files in {folder_name}")
             
             # Calculate totals
             sales_orders_data['TotalOrders'] = sales_orders_data['TotalSalesOrders'] + sales_orders_data['TotalPurchaseOrders']
@@ -539,11 +539,11 @@ class GoogleDriveService:
                 all_status_folders.append(folder_name)
             sales_orders_data['StatusFolders'] = all_status_folders
             
-            print(f"✅ Total orders found: {sales_orders_data['TotalOrders']} (Sales: {sales_orders_data['TotalSalesOrders']}, Purchase: {sales_orders_data['TotalPurchaseOrders']})")
+            print(f"[OK] Total orders found: {sales_orders_data['TotalOrders']} (Sales: {sales_orders_data['TotalSalesOrders']}, Purchase: {sales_orders_data['TotalPurchaseOrders']})")
             return sales_orders_data
             
         except Exception as e:
-            print(f"⚠️ Error loading sales orders: {e}")
+            print(f"[WARN] Error loading sales orders: {e}")
             import traceback
             traceback.print_exc()
             return {}
