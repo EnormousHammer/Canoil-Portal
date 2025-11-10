@@ -604,26 +604,50 @@ class GoogleDriveService:
     
     def get_all_data(self):
         """Main method to get all data from Google Drive"""
+        print(f"[INFO] ===== STARTING get_all_data =====")
+        print(f"[INFO] Looking for shared drive: {SHARED_DRIVE_NAME}")
+        
         if not self.authenticated:
+            print(f"[INFO] Not authenticated, calling authenticate()...")
             self.authenticate()
         
         # Find the shared drive
+        print(f"[INFO] Calling find_shared_drive('{SHARED_DRIVE_NAME}')...")
         drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
+        print(f"[INFO] find_shared_drive returned: {drive_id}")
+        
         if not drive_id:
+            print(f"[ERROR] Shared drive '{SHARED_DRIVE_NAME}' not found!")
             return None, "Shared drive not found"
         
+        print(f"[OK] Found shared drive '{SHARED_DRIVE_NAME}' (ID: {drive_id})")
+        
         # Find the base folder
+        print(f"[INFO] Looking for base folder: {BASE_FOLDER_PATH}")
         base_folder_id = self.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
+        print(f"[INFO] find_folder_by_path returned: {base_folder_id}")
+        
         if not base_folder_id:
+            print(f"[ERROR] Base folder '{BASE_FOLDER_PATH}' not found!")
             return None, "Base folder not found"
         
+        print(f"[OK] Found base folder '{BASE_FOLDER_PATH}' (ID: {base_folder_id})")
+        
         # Get latest folder
+        print(f"[INFO] Getting latest folder from base folder...")
         latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
+        print(f"[INFO] get_latest_folder returned: {latest_folder_id}, {latest_folder_name}")
+        
         if not latest_folder_id:
+            print(f"[ERROR] No latest folder found!")
             return None, "No latest folder found"
         
+        print(f"[OK] Found latest folder: {latest_folder_name} (ID: {latest_folder_id})")
+        
         # Load all JSON files from latest folder
+        print(f"[INFO] Loading JSON files from latest folder...")
         data = self.load_folder_data(latest_folder_id, drive_id)
+        print(f"[INFO] load_folder_data returned {len(data)} files: {list(data.keys())}")
         
         # Load sales orders data (don't let errors break the main data loading)
         print(f"[INFO] ===== ATTEMPTING TO LOAD SALES ORDERS DATA =====")
