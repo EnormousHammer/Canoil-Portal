@@ -1541,16 +1541,65 @@ def refresh_so_cache():
 
 @app.route('/api/sales-order-pdf/<path:file_path>', methods=['GET'])
 def get_sales_order_pdf(file_path):
-    """Serve a Sales Order PDF file by full path"""
+    """Serve a Sales Order PDF file by full path or Google Drive file ID"""
     try:
-        print(f"SEARCH: Serving PDF: {file_path}")
+        print(f"[INFO] Serving PDF: {file_path}")
         
         # Decode URL encoding
         import urllib.parse
         decoded_path = urllib.parse.unquote(file_path)
         
+        # Check if this is a Google Drive file ID (gdrive:// prefix)
+        if decoded_path.startswith('gdrive://'):
+            file_id = decoded_path.replace('gdrive://', '')
+            print(f"[INFO] Detected Google Drive file ID: {file_id}")
+            
+            # Try Google Drive API if enabled
+            if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+                try:
+                    # Download file from Google Drive
+                    print(f"[INFO] Downloading file from Google Drive: {file_id}")
+                    file_content = google_drive_service.download_file_content(file_id)
+                    
+                    if file_content:
+                        # Get file name from Google Drive
+                        try:
+                            file_metadata = google_drive_service.service.files().get(
+                                fileId=file_id,
+                                fields='name'
+                            ).execute()
+                            filename = file_metadata.get('name', 'sales_order.pdf')
+                        except:
+                            filename = 'sales_order.pdf'
+                        
+                        print(f"[OK] Successfully downloaded file from Google Drive: {filename}")
+                        
+                        # Serve the file content
+                        from flask import Response
+                        return Response(
+                            file_content,
+                            mimetype='application/pdf',
+                            headers={
+                                'Content-Disposition': f'inline; filename="{filename}"',
+                                'Content-Type': 'application/pdf'
+                            }
+                        )
+                    else:
+                        print(f"[ERROR] Failed to download file from Google Drive: {file_id}")
+                        return jsonify({"error": f"Failed to download PDF from Google Drive: {file_id}"}), 404
+                        
+                except Exception as e:
+                    print(f"[ERROR] Google Drive API error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return jsonify({"error": f"Error downloading PDF from Google Drive: {str(e)}"}), 500
+            else:
+                print(f"[ERROR] Google Drive API not available")
+                return jsonify({"error": "Google Drive API not available"}), 500
+        
+        # Handle local file path (fallback for local development)
         if not os.path.exists(decoded_path):
-            print(f"ERROR: PDF file not found: {decoded_path}")
+            print(f"[ERROR] PDF file not found: {decoded_path}")
             return jsonify({"error": f"PDF file not found: {decoded_path}"}), 404
         
         # Serve the PDF file directly
@@ -1565,7 +1614,9 @@ def get_sales_order_pdf(file_path):
         )
         
     except Exception as e:
-        print(f"ERROR: Error serving PDF {file_path}: {e}")
+        print(f"[ERROR] Error serving PDF {file_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
