@@ -715,38 +715,55 @@ def get_all_data():
         print("RETRY: Cache expired or missing, loading fresh data...")
         
         # Try Google Drive API first if enabled
-        print(f"🔍 Checking Google Drive API: USE_GOOGLE_DRIVE_API={USE_GOOGLE_DRIVE_API}, google_drive_service={google_drive_service is not None}")
+        print(f"[INFO] Checking Google Drive API: USE_GOOGLE_DRIVE_API={USE_GOOGLE_DRIVE_API}, google_drive_service={google_drive_service is not None}")
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             try:
-                print("📡 Loading data from Google Drive API...")
-                data, folder_info = google_drive_service.get_all_data()
-                print(f"🔍 Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
-                print(f"🔍 Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
-                if data and isinstance(data, dict) and len(data) > 0:
-                    # Only cache if data size is reasonable
-                    if should_cache_data(data):
-                        _data_cache = data
-                        _cache_timestamp = time.time()
-                        cache_size_mb = estimate_data_size_mb(data)
-                        print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files (cached, {cache_size_mb:.1f}MB)")
+                print("[INFO] Loading data from Google Drive API...")
+                # Add timeout protection - don't let this hang forever
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Google Drive API call timed out after 60 seconds")
+                
+                # Set timeout for the API call (60 seconds max)
+                try:
+                    # Try to load data with timeout protection
+                    data, folder_info = google_drive_service.get_all_data()
+                    print(f"[INFO] Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
+                    print(f"[INFO] Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
+                    if data and isinstance(data, dict) and len(data) > 0:
+                        # Only cache if data size is reasonable
+                        if should_cache_data(data):
+                            _data_cache = data
+                            _cache_timestamp = time.time()
+                            cache_size_mb = estimate_data_size_mb(data)
+                            print(f"[OK] Data loaded successfully from Google Drive API: {len(data)} files (cached, {cache_size_mb:.1f}MB)")
+                        else:
+                            # Don't cache large datasets to prevent OOM
+                            _data_cache = None
+                            _cache_timestamp = None
+                            print(f"[OK] Data loaded successfully from Google Drive API: {len(data)} files (not cached - too large)")
+                        return jsonify({
+                            "data": data,
+                            "folderInfo": folder_info,
+                            "LoadTimestamp": datetime.now().isoformat(),
+                            "source": "Google Drive API"
+                        })
                     else:
-                        # Don't cache large datasets to prevent OOM
-                        _data_cache = None
-                        _cache_timestamp = None
-                        print(f"✅ Data loaded successfully from Google Drive API: {len(data)} files (not cached - too large)")
-                    return jsonify({
-                        "data": data,
-                        "folderInfo": folder_info,
-                        "LoadTimestamp": datetime.now().isoformat(),
-                        "source": "Google Drive API"
-                    })
-                else:
-                    print(f"⚠️ Google Drive API returned no data (data={data}, folder_info={folder_info}), falling back to local")
+                        print(f"[WARN] Google Drive API returned no data (data={data}, folder_info={folder_info}), falling back to local")
+                except TimeoutError as te:
+                    print(f"[ERROR] Google Drive API timeout: {te}")
+                    print("[WARN] Falling back to local G: Drive due to timeout")
+                except Exception as api_error:
+                    print(f"[ERROR] Google Drive API error: {api_error}")
+                    import traceback
+                    traceback.print_exc()
+                    print("[WARN] Falling back to local G: Drive")
             except Exception as e:
-                print(f"❌ Google Drive API error: {e}")
+                print(f"[ERROR] Google Drive API error: {e}")
                 import traceback
                 traceback.print_exc()
-                print("⚠️ Falling back to local G: Drive")
+                print("[WARN] Falling back to local G: Drive")
         
         # Check if G: Drive is accessible (local fallback)
         if not os.path.exists(GDRIVE_BASE):

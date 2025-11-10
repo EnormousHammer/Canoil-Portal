@@ -373,15 +373,28 @@ class GoogleDriveService:
             print(f"[ERROR] Error downloading file {file_id}: {error}")
             return None
     
-    def _scan_folder_recursively(self, folder_id, folder_name, drive_id, depth=0, max_depth=3):
+    def _scan_folder_recursively(self, folder_id, folder_name, drive_id, depth=0, max_depth=3, start_time=None, max_scan_time=30):
         """Recursively scan a folder and all its subfolders for PDF/DOCX files
         
         Returns: dict with structure {subfolder_path: [files]}
+        
+        Args:
+            start_time: When scanning started (for timeout protection)
+            max_scan_time: Maximum time to spend scanning (seconds)
         """
+        import time as time_module
+        
         all_files_by_folder = {}
         
         if depth > max_depth:
             return all_files_by_folder
+        
+        # Check if we've exceeded the time limit
+        if start_time:
+            elapsed = time_module.time() - start_time
+            if elapsed > max_scan_time:
+                print(f"[WARN] Scanning timeout after {elapsed:.1f}s - returning partial results")
+                return all_files_by_folder
         
         try:
             # Get all PDF/DOCX files in current folder
@@ -440,8 +453,8 @@ class GoogleDriveService:
                 full_path = f"{folder_name}/{subfolder_name}" if folder_name else subfolder_name
                 print(f"[INFO] Scanning subfolder: {full_path} (depth: {depth})")
                 
-                # Recursively scan subfolder
-                subfolder_files_dict = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth)
+                # Recursively scan subfolder (pass start_time for timeout protection)
+                subfolder_files_dict = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth, start_time, max_scan_time)
                 # Merge subfolder files into main dict
                 all_files_by_folder.update(subfolder_files_dict)
             
@@ -541,8 +554,13 @@ class GoogleDriveService:
                 
                 # Recursively scan this folder and all its subfolders
                 # Returns dict: {subfolder_path: [files]}
+                # Add timeout protection - limit scanning to 30 seconds per folder
+                import time as time_module
+                scan_start_time = time_module.time()
                 print(f"[INFO] Calling _scan_folder_recursively for folder: {folder_name} (ID: {folder_id})")
-                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
+                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3, start_time=scan_start_time, max_scan_time=30)
+                scan_elapsed = time_module.time() - scan_start_time
+                print(f"[INFO] Scan completed in {scan_elapsed:.1f}s for folder: {folder_name}")
                 print(f"[INFO] _scan_folder_recursively returned {len(files_by_subfolder)} subfolders with files for {folder_name}")
                 print(f"[INFO] Keys in files_by_subfolder: {list(files_by_subfolder.keys())}")
                 
