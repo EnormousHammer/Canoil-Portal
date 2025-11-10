@@ -3542,10 +3542,6 @@ def _list_folder_contents_recursive(service, folder_id, drive_id, depth=0, max_d
         return folders
     except Exception as e:
         return [{"error": str(e), "depth": depth}]
-        
-        return [{"name": f.get('name'), "id": f.get('id')} for f in results.get('files', [])]
-    except Exception as e:
-        return [{"error": str(e)}]
 
 @app.route('/api/test-data-access', methods=['GET'])
 def test_data_access():
