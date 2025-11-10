@@ -534,11 +534,15 @@ class GoogleDriveService:
                 
                 # Recursively scan this folder and all its subfolders
                 # Returns dict: {subfolder_path: [files]}
+                print(f"[INFO] Calling _scan_folder_recursively for folder: {folder_name} (ID: {folder_id})")
                 files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
+                print(f"[INFO] _scan_folder_recursively returned {len(files_by_subfolder)} subfolders with files for {folder_name}")
                 
                 if files_by_subfolder:
+                    print(f"[INFO] Processing {len(files_by_subfolder)} subfolders for {folder_name}")
                     # Organize by folder type and subfolder structure
                     if 'Sales' in folder_name or 'sales' in folder_name.lower():
+                        print(f"[INFO] Folder '{folder_name}' identified as SALES ORDERS folder")
                         # Add each subfolder's files to SalesOrdersByStatus
                         # Extract just the subfolder name (not full path) for frontend compatibility
                         for subfolder_path, files in files_by_subfolder.items():
