@@ -11,11 +11,14 @@ const envApiUrl = import.meta.env.VITE_API_URL;
 // This fixes CORS issues on preview deployments
 let apiBaseUrl = envApiUrl;
 
-// In browser, always use same origin (same domain as frontend) to avoid CORS
+// In browser: use env variable if set, otherwise use same origin for production
 // This works because vercel.json routes /api/* to the serverless function
 if (typeof window !== 'undefined') {
-  // Use same domain as frontend (works for both production and preview deployments)
-  apiBaseUrl = window.location.origin;
+  // If VITE_API_URL is set, use it (for local development)
+  // Otherwise use same domain as frontend (for production deployments)
+  if (!apiBaseUrl) {
+    apiBaseUrl = window.location.origin;
+  }
 } else if (!apiBaseUrl) {
   // Fallback for SSR or build time
   apiBaseUrl = 'http://localhost:5002';
