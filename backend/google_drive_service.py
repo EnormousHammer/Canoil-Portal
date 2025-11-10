@@ -522,11 +522,15 @@ class GoogleDriveService:
             
             print(f"[INFO] Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
             
+            # Log each folder found
+            for f in customer_order_folders:
+                print(f"[INFO]   - Folder found: '{f['name']}' (ID: {f['id']})")
+            
             # Scan each folder under Customer Orders (Sales Orders, Purchase Orders, etc.)
             for order_folder in customer_order_folders:
                 folder_id = order_folder['id']
                 folder_name = order_folder['name']
-                print(f"[INFO] Scanning folder: {folder_name}")
+                print(f"[INFO] ===== STARTING SCAN OF FOLDER: {folder_name} =====")
                 
                 # Recursively scan this folder and all its subfolders
                 # Returns dict: {subfolder_path: [files]}
