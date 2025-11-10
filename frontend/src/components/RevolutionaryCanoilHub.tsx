@@ -1055,38 +1055,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // REAL-TIME SALES ORDER ANALYTICS
   const salesOrderAnalytics = useMemo(() => {
-    // Combine all sales order sources
+    // Get orders from SalesOrders.json
     let salesOrders = [...(data['SalesOrders.json'] || [])];
     
-    // Count orders from SalesOrdersByStatus by folder name
+    // Also get orders from SalesOrdersByStatus (files from Google Drive folders)
     const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-    let newAndRevisedCount = 0;
-    let inProductionCount = 0;
-    let completedCount = 0;
-    let cancelledCount = 0;
-    
     if (typeof salesOrdersByStatus === 'object') {
-      Object.entries(salesOrdersByStatus).forEach(([folderName, orders]: [string, any]) => {
+      Object.values(salesOrdersByStatus).forEach((orders: any) => {
         if (Array.isArray(orders)) {
-          // Add orders to combined list
           salesOrders = [...salesOrders, ...orders];
-          
-          // Count by folder name
-          const folderLower = folderName.toLowerCase();
-          if (folderLower.includes('new') || folderLower.includes('revised')) {
-            newAndRevisedCount += orders.length;
-          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
-            inProductionCount += orders.length;
-          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
-            completedCount += orders.length;
-          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
-            cancelledCount += orders.length;
-          }
         }
       });
     }
     
-    // Count orders by status from SalesOrders.json (structured data)
+    // Count orders by status
     const newAndRevised = salesOrders.filter((so: any) => {
       const status = (so["Status"] || '').toLowerCase();
       return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
@@ -1124,19 +1106,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     return {
       newAndRevised: {
-        count: newAndRevised.length + newAndRevisedCount,
+        count: newAndRevised.length,
         lastUpdated: getLastUpdated(newAndRevised)
       },
       inProduction: {
-        count: inProduction.length + inProductionCount,
+        count: inProduction.length,
         lastUpdated: getLastUpdated(inProduction)
       },
       completed: {
-        count: completed.length + completedCount,
+        count: completed.length,
         lastUpdated: getLastUpdated(completed)
       },
       cancelled: {
-        count: cancelled.length + cancelledCount,
+        count: cancelled.length,
         lastUpdated: getLastUpdated(cancelled)
       },
       total: salesOrders.length
