@@ -1237,46 +1237,92 @@ def get_so_data_from_system(so_number):
     try:
         print(f"SEARCH: LOGISTICS: Looking up SO {so_number} by parsing PDF...")
         
-        # First, find the SO PDF file
-        sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
+        # Check if Google Drive API is enabled
+        from app import USE_GOOGLE_DRIVE_API, google_drive_service
         so_file_path = None
+        so_file_content = None
         
-        # Search through all subfolders for the SO file - PRIORITIZE LATEST VERSION
-        import os
-        matching_files = []
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            # Use Google Drive API to find SO file
+            print(f"[INFO] LOGISTICS: Using Google Drive API to find SO {so_number}...")
+            try:
+                # Find Sales_CSR drive
+                sales_csr_drive_id = google_drive_service.find_shared_drive("Sales_CSR")
+                if sales_csr_drive_id:
+                    # Find Customer Orders/Sales Orders folder
+                    customer_orders_folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
+                    if customer_orders_folder_id:
+                        sales_orders_folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, "Customer Orders/Sales Orders")
+                        if sales_orders_folder_id:
+                            # Search for SO file recursively
+                            matching_files = []
+                            files_by_folder = google_drive_service._scan_folder_recursively(sales_orders_folder_id, "Sales Orders", sales_csr_drive_id, depth=0, max_depth=3)
+                            
+                            for folder_path, files in files_by_folder.items():
+                                for file_info in files:
+                                    file_name = file_info.get('file_name', '')
+                                    if file_name.lower().endswith('.pdf'):
+                                        if so_number in file_name or f"SO_{so_number}" in file_name or f"salesorder_{so_number}" in file_name:
+                                            matching_files.append(file_info)
+                            
+                            # Sort by revision (same logic as local)
+                            if matching_files:
+                                def get_version_priority(file_info):
+                                    filename = file_info.get('file_name', '').lower()
+                                    import re
+                                    rev_match = re.search(r'_r(\d+)', filename)
+                                    if rev_match:
+                                        return 1000 + int(rev_match.group(1))
+                                    return 1
+                                
+                                matching_files.sort(key=get_version_priority, reverse=True)
+                                selected_file = matching_files[0]
+                                file_id = selected_file.get('file_id')
+                                file_name = selected_file.get('file_name', '')
+                                
+                                print(f"[OK] LOGISTICS: Found SO file in Google Drive: {file_name}")
+                                
+                                # Download file content
+                                so_file_content = google_drive_service.download_file_content(file_id)
+                                if so_file_content:
+                                    # Save to temp file for parsing
+                                    import tempfile
+                                    import os
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                                        tmp_file.write(so_file_content)
+                                        so_file_path = tmp_file.name
+                                    print(f"[OK] LOGISTICS: Downloaded SO file to temp location: {so_file_path}")
+            except Exception as e:
+                print(f"[WARN] LOGISTICS: Google Drive API search failed: {e}, falling back to local")
         
-        for root, dirs, files in os.walk(sales_orders_base):
-            for file in files:
-                if file.lower().endswith('.pdf'):
-                    # Check if SO number is in filename
-                    if so_number in file or f"SO_{so_number}" in file or f"salesorder_{so_number}" in file:
-                        file_path = os.path.join(root, file)
-                        matching_files.append(file_path)
-                        print(f"Found SO PDF: {file_path}")
-        
-        # Sort files to prioritize latest revision (R999 > R3 > R2 > R1 > original)
-        if matching_files:
-            def get_version_priority(filepath):
-                filename = os.path.basename(filepath).lower()
-                # Extract revision number from filename - handles any revision number
-                import re
-                rev_match = re.search(r'_r(\d+)', filename)
-                if rev_match:
-                    rev_num = int(rev_match.group(1))
-                    return 1000 + rev_num  # R999=1999, R3=1003, R2=1002, R1=1001
-                else:
-                    return 1  # Original version (lowest priority)
+        # Fallback to local filesystem search
+        if not so_file_path:
+            sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
+            import os
+            matching_files = []
             
-            matching_files.sort(key=get_version_priority, reverse=True)
-            so_file_path = matching_files[0] 
-            selected_file = os.path.basename(so_file_path)
-            print(f"SUCCESS: Selected latest version: {selected_file}")
-            
-            # Verify it's actually the latest
-            if len(matching_files) > 1:
-                print(f"INFO: Available versions: {[os.path.basename(f) for f in matching_files[:3]]}")
-        else:
-            so_file_path = None
+            if os.path.exists(sales_orders_base):
+                for root, dirs, files in os.walk(sales_orders_base):
+                    for file in files:
+                        if file.lower().endswith('.pdf'):
+                            if so_number in file or f"SO_{so_number}" in file or f"salesorder_{so_number}" in file:
+                                file_path = os.path.join(root, file)
+                                matching_files.append(file_path)
+                                print(f"Found SO PDF: {file_path}")
+                
+                # Sort files to prioritize latest revision
+                if matching_files:
+                    def get_version_priority(filepath):
+                        filename = os.path.basename(filepath).lower()
+                        import re
+                        rev_match = re.search(r'_r(\d+)', filename)
+                        if rev_match:
+                            return 1000 + int(rev_match.group(1))
+                        return 1
+                    
+                    matching_files.sort(key=get_version_priority, reverse=True)
+                    so_file_path = matching_files[0]
+                    print(f"SUCCESS: Selected latest version: {os.path.basename(so_file_path)}")
         
         if not so_file_path:
             print(f"ERROR: LOGISTICS: SO {so_number} PDF file not found")
@@ -1293,7 +1339,15 @@ def get_so_data_from_system(so_number):
 
             so_data['status'] = "Found in system"
             so_data['data_source'] = "Original PDF parsing"
-            so_data['file_path'] = so_file_path
+            
+            # Store file path (or Google Drive reference)
+            if USE_GOOGLE_DRIVE_API and so_file_path:
+                # Temp file - will clean up after parsing
+                so_data['file_path'] = so_file_path
+                so_data['source'] = "Google Drive API"
+            else:
+                so_data['file_path'] = so_file_path
+                so_data['source'] = "Local filesystem"
             total_amount = so_data.get('total_amount', 0)
             formatted_total = f"${total_amount:,.2f}" if total_amount else "$0.00"
             print(f"SUCCESS: LOGISTICS: Original parsing successful - Total: {formatted_total}")
@@ -1329,8 +1383,23 @@ def get_so_data_from_system(so_number):
                 print(f"  Item {i}: {item.get('item_code')} - {item.get('description')} - {item.get('quantity')} {item.get('unit')} - HTS: {hts}")
             print()
             
+            # Clean up temp file if it was created from Google Drive
+            if USE_GOOGLE_DRIVE_API and so_file_path and os.path.exists(so_file_path) and tempfile.gettempdir() in so_file_path:
+                try:
+                    os.unlink(so_file_path)
+                    print(f"[OK] LOGISTICS: Cleaned up temp file: {so_file_path}")
+                except:
+                    pass
+            
             return so_data
         except Exception as e:
+            # Clean up temp file if it was created from Google Drive
+            if USE_GOOGLE_DRIVE_API and so_file_path and os.path.exists(so_file_path) and tempfile.gettempdir() in so_file_path:
+                try:
+                    os.unlink(so_file_path)
+                except:
+                    pass
+            
             import traceback
             error_trace = traceback.format_exc()
             print(f"\n{'='*80}")
@@ -1344,6 +1413,15 @@ def get_so_data_from_system(so_number):
             return {"status": "Error", "error": f"PDF read error: {str(e)}", "traceback": error_trace}
     
     except Exception as e:
+        # Clean up temp file if it was created from Google Drive
+        if 'so_file_path' in locals() and so_file_path and os.path.exists(so_file_path):
+            try:
+                import tempfile
+                if tempfile.gettempdir() in so_file_path:
+                    os.unlink(so_file_path)
+            except:
+                pass
+        
         import traceback
         error_trace = traceback.format_exc()
         print(f"\n{'='*80}")
