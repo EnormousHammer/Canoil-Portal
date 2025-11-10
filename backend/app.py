@@ -3264,6 +3264,145 @@ def debug_status():
             "trace": traceback.format_exc()
         }), 500
 
+@app.route('/api/debug/drive-structure', methods=['GET'])
+def debug_drive_structure():
+    """Debug endpoint to list actual Google Drive folder structure"""
+    try:
+        if not USE_GOOGLE_DRIVE_API or not google_drive_service:
+            return jsonify({"error": "Google Drive API not enabled"}), 400
+        
+        if not google_drive_service.authenticated:
+            try:
+                google_drive_service.authenticate()
+            except Exception as e:
+                return jsonify({"error": f"Authentication failed: {e}"}), 500
+        
+        structure = {
+            "timestamp": datetime.now().isoformat(),
+            "all_shared_drives": [],
+            "it_automation_structure": {},
+            "sales_csr_structure": {},
+            "sales_csr_search_results": {}
+        }
+        
+        # List all shared drives
+        try:
+            drives = google_drive_service.service.drives().list().execute()
+            all_drives = drives.get('drives', [])
+            structure["all_shared_drives"] = [
+                {"name": drive.get('name'), "id": drive.get('id')}
+                for drive in all_drives
+            ]
+        except Exception as e:
+            structure["all_shared_drives_error"] = str(e)
+        
+        # Get IT_Automation structure
+        try:
+            it_drive_id = google_drive_service.find_shared_drive("IT_Automation")
+            if it_drive_id:
+                structure["it_automation_structure"] = {
+                    "drive_id": it_drive_id,
+                    "drive_name": "IT_Automation",
+                    "folders": _list_drive_folders(google_drive_service, it_drive_id, max_depth=3)
+                }
+        except Exception as e:
+            structure["it_automation_error"] = str(e)
+        
+        # Get Sales_CSR structure
+        try:
+            sales_csr_drive_id = google_drive_service.find_shared_drive("Sales_CSR")
+            if sales_csr_drive_id:
+                structure["sales_csr_structure"] = {
+                    "drive_id": sales_csr_drive_id,
+                    "drive_name": "Sales_CSR",
+                    "folders": _list_drive_folders(google_drive_service, sales_csr_drive_id, max_depth=4)
+                }
+                
+                # Try to find the sales orders path
+                path_within_drive = "Customer Orders/Sales Orders"
+                folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, path_within_drive)
+                if folder_id:
+                    structure["sales_csr_search_results"] = {
+                        "path": path_within_drive,
+                        "found": True,
+                        "folder_id": folder_id,
+                        "subfolders": _list_folder_contents(google_drive_service, folder_id, sales_csr_drive_id)
+                    }
+                else:
+                    structure["sales_csr_search_results"] = {
+                        "path": path_within_drive,
+                        "found": False,
+                        "message": "Path not found"
+                    }
+            else:
+                structure["sales_csr_structure"] = {
+                    "drive_id": None,
+                    "message": "Sales_CSR not found as shared drive"
+                }
+        except Exception as e:
+            structure["sales_csr_error"] = str(e)
+        
+        return jsonify(structure)
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }), 500
+
+def _list_drive_folders(service, drive_id, parent_id=None, depth=0, max_depth=3):
+    """Recursively list folders in a drive"""
+    if depth > max_depth:
+        return []
+    
+    try:
+        if parent_id is None:
+            parent_id = drive_id
+        
+        query = f"'{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = service.service.files().list(
+            q=query,
+            corpora='drive',
+            driveId=drive_id,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+            fields="files(id, name)",
+            pageSize=50
+        ).execute()
+        
+        folders = []
+        for folder in results.get('files', []):
+            folder_info = {
+                "name": folder.get('name'),
+                "id": folder.get('id'),
+                "depth": depth
+            }
+            if depth < max_depth:
+                folder_info["children"] = _list_drive_folders(service, drive_id, folder.get('id'), depth + 1, max_depth)
+            folders.append(folder_info)
+        
+        return folders
+    except Exception as e:
+        return [{"error": str(e)}]
+
+def _list_folder_contents(service, folder_id, drive_id):
+    """List contents of a specific folder"""
+    try:
+        query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = service.service.files().list(
+            q=query,
+            corpora='drive',
+            driveId=drive_id,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+            fields="files(id, name)",
+            pageSize=100
+        ).execute()
+        
+        return [{"name": f.get('name'), "id": f.get('id')} for f in results.get('files', [])]
+    except Exception as e:
+        return [{"error": str(e)}]
+
 @app.route('/api/test-data-access', methods=['GET'])
 def test_data_access():
     """Test endpoint to confirm data access and search functionality"""
