@@ -3256,6 +3256,47 @@ def debug_status():
                 import traceback
                 debug_info["google_drive_service"]["test_trace"] = traceback.format_exc()
         
+        # Add drive structure information if authenticated
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            try:
+                # List all shared drives
+                drives = google_drive_service.service.drives().list().execute()
+                all_drives = drives.get('drives', [])
+                debug_info["all_shared_drives"] = [
+                    {"name": drive.get('name'), "id": drive.get('id')}
+                    for drive in all_drives
+                ]
+                
+                # Try to find Sales_CSR
+                sales_csr_drive_id = google_drive_service.find_shared_drive("Sales_CSR")
+                if sales_csr_drive_id:
+                    debug_info["sales_csr_drive"] = {
+                        "found": True,
+                        "drive_id": sales_csr_drive_id,
+                        "drive_name": "Sales_CSR"
+                    }
+                    # Try to find the path
+                    path_within_drive = "Customer Orders/Sales Orders"
+                    folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, path_within_drive)
+                    if folder_id:
+                        debug_info["sales_csr_drive"]["sales_orders_path"] = {
+                            "path": path_within_drive,
+                            "found": True,
+                            "folder_id": folder_id
+                        }
+                    else:
+                        debug_info["sales_csr_drive"]["sales_orders_path"] = {
+                            "path": path_within_drive,
+                            "found": False
+                        }
+                else:
+                    debug_info["sales_csr_drive"] = {
+                        "found": False,
+                        "message": "Sales_CSR not found as shared drive"
+                    }
+            except Exception as e:
+                debug_info["drive_structure_error"] = str(e)
+        
         return jsonify(debug_info)
     except Exception as e:
         import traceback
