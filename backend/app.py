@@ -724,7 +724,7 @@ def get_all_data():
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             try:
                 print("[INFO] Loading data from Google Drive API...")
-                # Try to load data (timeout protection is handled in google_drive_service)
+                # Google Drive version uses SAME extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
                 data, folder_info = google_drive_service.get_all_data()
                 print(f"[INFO] Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
                 print(f"[INFO] Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
