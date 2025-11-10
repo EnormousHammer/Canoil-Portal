@@ -1055,7 +1055,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // REAL-TIME SALES ORDER ANALYTICS
   const salesOrderAnalytics = useMemo(() => {
-    const salesOrders = data['SalesOrders.json'] || [];
+    // Combine all sales order sources
+    let salesOrders = [...(data['SalesOrders.json'] || [])];
+    
+    // Add orders from SalesOrdersByStatus (organized by folder)
+    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    if (typeof salesOrdersByStatus === 'object') {
+      Object.values(salesOrdersByStatus).forEach((orders: any) => {
+        if (Array.isArray(orders)) {
+          salesOrders = [...salesOrders, ...orders];
+        }
+      });
+    }
     
     // Count orders by status
     const newAndRevised = salesOrders.filter((so: any) => {
