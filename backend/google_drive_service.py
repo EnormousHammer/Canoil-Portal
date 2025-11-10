@@ -545,7 +545,6 @@ class GoogleDriveService:
                     # Organize by folder type and subfolder structure
                     if 'Sales' in folder_name or 'sales' in folder_name.lower():
                         print(f"[INFO] Folder '{folder_name}' identified as SALES ORDERS folder")
-                        print(f"[INFO] Folder '{folder_name}' identified as SALES ORDERS folder")
                         # Add each subfolder's files to SalesOrdersByStatus
                         # Extract just the subfolder name (not full path) for frontend compatibility
                         for subfolder_path, files in files_by_subfolder.items():
@@ -586,6 +585,8 @@ class GoogleDriveService:
                             sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(files)
                             sales_orders_data['TotalOrders'] += len(files)
                         print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} files in {folder_name} across {len(files_by_subfolder)} subfolders")
+                else:
+                    print(f"[WARN] No files found in folder '{folder_name}' - files_by_subfolder is empty or None")
             
             # Calculate totals
             sales_orders_data['TotalOrders'] = sales_orders_data['TotalSalesOrders'] + sales_orders_data['TotalPurchaseOrders']
