@@ -611,10 +611,16 @@ class GoogleDriveService:
         # Load all JSON files from latest folder
         data = self.load_folder_data(latest_folder_id, drive_id)
         
-        # Load sales orders data
-        sales_orders_data = self.load_sales_orders_data(drive_id)
-        if sales_orders_data:
-            data.update(sales_orders_data)
+        # Load sales orders data (don't let errors break the main data loading)
+        try:
+            sales_orders_data = self.load_sales_orders_data(drive_id)
+            if sales_orders_data:
+                data.update(sales_orders_data)
+        except Exception as e:
+            print(f"[WARN] Error loading sales orders data (non-fatal): {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue without sales orders data - don't break the main data loading
         
         folder_info = {
             "folderName": latest_folder_name,
