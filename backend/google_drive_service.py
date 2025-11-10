@@ -530,20 +530,43 @@ class GoogleDriveService:
                     # Organize by folder type and subfolder structure
                     if 'Sales' in folder_name or 'sales' in folder_name.lower():
                         # Add each subfolder's files to SalesOrdersByStatus
+                        # Extract just the subfolder name (not full path) for frontend compatibility
                         for subfolder_path, files in files_by_subfolder.items():
-                            sales_orders_data['SalesOrdersByStatus'][subfolder_path] = files
+                            # Extract just the subfolder name (e.g., "Sales Orders/New and Revised" -> "New and Revised")
+                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
+                            # If it's the parent folder itself, use the folder name
+                            if subfolder_path == folder_name:
+                                subfolder_name = folder_name
+                            
+                            # Use subfolder name as key (frontend expects simple names like "New and Revised")
+                            if subfolder_name not in sales_orders_data['SalesOrdersByStatus']:
+                                sales_orders_data['SalesOrdersByStatus'][subfolder_name] = []
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(files)
                             sales_orders_data['TotalSalesOrders'] += len(files)
                         print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} sales order files in {folder_name} across {len(files_by_subfolder)} subfolders")
                     elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
                         # Add each subfolder's files to PurchaseOrdersByStatus
                         for subfolder_path, files in files_by_subfolder.items():
-                            sales_orders_data['PurchaseOrdersByStatus'][subfolder_path] = files
+                            # Extract just the subfolder name
+                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
+                            if subfolder_path == folder_name:
+                                subfolder_name = folder_name
+                            
+                            if subfolder_name not in sales_orders_data['PurchaseOrdersByStatus']:
+                                sales_orders_data['PurchaseOrdersByStatus'][subfolder_name] = []
+                            sales_orders_data['PurchaseOrdersByStatus'][subfolder_name].extend(files)
                             sales_orders_data['TotalPurchaseOrders'] += len(files)
                         print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} purchase order files in {folder_name} across {len(files_by_subfolder)} subfolders")
                     else:
                         # Other folders under Customer Orders
                         for subfolder_path, files in files_by_subfolder.items():
-                            sales_orders_data['SalesOrdersByStatus'][subfolder_path] = files
+                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
+                            if subfolder_path == folder_name:
+                                subfolder_name = folder_name
+                            
+                            if subfolder_name not in sales_orders_data['SalesOrdersByStatus']:
+                                sales_orders_data['SalesOrdersByStatus'][subfolder_name] = []
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(files)
                             sales_orders_data['TotalOrders'] += len(files)
                         print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} files in {folder_name} across {len(files_by_subfolder)} subfolders")
             
