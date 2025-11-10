@@ -374,11 +374,14 @@ class GoogleDriveService:
             return None
     
     def _scan_folder_recursively(self, folder_id, folder_name, drive_id, depth=0, max_depth=3):
-        """Recursively scan a folder and all its subfolders for PDF/DOCX files"""
-        all_files = []
+        """Recursively scan a folder and all its subfolders for PDF/DOCX files
+        
+        Returns: dict with structure {subfolder_path: [files]}
+        """
+        all_files_by_folder = {}
         
         if depth > max_depth:
-            return all_files
+            return all_files_by_folder
         
         try:
             # Get all PDF/DOCX files in current folder
@@ -399,15 +402,20 @@ class GoogleDriveService:
             file_results = self.service.files().list(**file_list_params).execute()
             files = file_results.get('files', [])
             
-            for file_info in files:
-                all_files.append({
-                    'file_id': file_info['id'],
-                    'file_name': file_info['name'],
-                    'folder': folder_name,
-                    'folder_path': folder_name,  # Will be updated with full path
-                    'modified_time': file_info.get('modifiedTime', ''),
-                    'mime_type': file_info.get('mimeType', '')
-                })
+            # Add files from current folder
+            if files:
+                current_folder_files = []
+                for file_info in files:
+                    current_folder_files.append({
+                        'file_id': file_info['id'],
+                        'file_name': file_info['name'],
+                        'folder': folder_name,
+                        'folder_path': folder_name,
+                        'modified_time': file_info.get('modifiedTime', ''),
+                        'mime_type': file_info.get('mimeType', '')
+                    })
+                all_files_by_folder[folder_name] = current_folder_files
+                print(f"[INFO] Found {len(current_folder_files)} files in {folder_name}")
             
             # Get all subfolders and scan them recursively
             query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -433,14 +441,17 @@ class GoogleDriveService:
                 print(f"[INFO] Scanning subfolder: {full_path} (depth: {depth})")
                 
                 # Recursively scan subfolder
-                subfolder_files = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth)
-                all_files.extend(subfolder_files)
+                subfolder_files_dict = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth)
+                # Merge subfolder files into main dict
+                all_files_by_folder.update(subfolder_files_dict)
             
-            return all_files
+            return all_files_by_folder
             
         except Exception as e:
             print(f"[WARN] Error scanning folder {folder_name}: {e}")
-            return all_files
+            import traceback
+            traceback.print_exc()
+            return all_files_by_folder
     
     def load_sales_orders_data(self, drive_id):
         """Load sales orders data from Google Drive - SCANS ALL FOLDERS UNDER Customer Orders
@@ -512,23 +523,29 @@ class GoogleDriveService:
                 print(f"[INFO] Scanning folder: {folder_name}")
                 
                 # Recursively scan this folder and all its subfolders
-                all_files = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
+                # Returns dict: {subfolder_path: [files]}
+                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
                 
-                if all_files:
-                    # Organize by folder type
+                if files_by_subfolder:
+                    # Organize by folder type and subfolder structure
                     if 'Sales' in folder_name or 'sales' in folder_name.lower():
-                        sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
-                        sales_orders_data['TotalSalesOrders'] += len(all_files)
-                        print(f"[OK] Found {len(all_files)} sales order files in {folder_name}")
+                        # Add each subfolder's files to SalesOrdersByStatus
+                        for subfolder_path, files in files_by_subfolder.items():
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_path] = files
+                            sales_orders_data['TotalSalesOrders'] += len(files)
+                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} sales order files in {folder_name} across {len(files_by_subfolder)} subfolders")
                     elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
-                        sales_orders_data['PurchaseOrdersByStatus'][folder_name] = all_files
-                        sales_orders_data['TotalPurchaseOrders'] += len(all_files)
-                        print(f"[OK] Found {len(all_files)} purchase order files in {folder_name}")
+                        # Add each subfolder's files to PurchaseOrdersByStatus
+                        for subfolder_path, files in files_by_subfolder.items():
+                            sales_orders_data['PurchaseOrdersByStatus'][subfolder_path] = files
+                            sales_orders_data['TotalPurchaseOrders'] += len(files)
+                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} purchase order files in {folder_name} across {len(files_by_subfolder)} subfolders")
                     else:
                         # Other folders under Customer Orders
-                        sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
-                        sales_orders_data['TotalOrders'] += len(all_files)
-                        print(f"[OK] Found {len(all_files)} files in {folder_name}")
+                        for subfolder_path, files in files_by_subfolder.items():
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_path] = files
+                            sales_orders_data['TotalOrders'] += len(files)
+                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} files in {folder_name} across {len(files_by_subfolder)} subfolders")
             
             # Calculate totals
             sales_orders_data['TotalOrders'] = sales_orders_data['TotalSalesOrders'] + sales_orders_data['TotalPurchaseOrders']
