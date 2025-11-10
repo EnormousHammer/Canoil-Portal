@@ -199,10 +199,33 @@ class GoogleDriveService:
         """Find a shared drive by name"""
         try:
             drives = self.service.drives().list().execute()
-            for drive in drives.get('drives', []):
+            all_drives = drives.get('drives', [])
+            print(f"🔍 Searching for shared drive '{drive_name}' among {len(all_drives)} drives")
+            
+            # List all available drives for debugging
+            if all_drives:
+                print(f"📋 Available shared drives:")
+                for drive in all_drives:
+                    print(f"   - {drive.get('name')} (ID: {drive.get('id')})")
+            
+            # Try exact match first
+            for drive in all_drives:
                 if drive.get('name') == drive_name:
                     print(f"✅ Found shared drive: {drive_name} (ID: {drive['id']})")
                     return drive['id']
+            
+            # Try case-insensitive match
+            for drive in all_drives:
+                if drive.get('name', '').lower() == drive_name.lower():
+                    print(f"✅ Found shared drive (case-insensitive): {drive.get('name')} (ID: {drive['id']})")
+                    return drive['id']
+            
+            # Try partial match
+            for drive in all_drives:
+                if drive_name.lower() in drive.get('name', '').lower():
+                    print(f"✅ Found shared drive (partial match): {drive.get('name')} (ID: {drive['id']})")
+                    return drive['id']
+            
             print(f"⚠️ Shared drive '{drive_name}' not found")
             return None
         except HttpError as error:
