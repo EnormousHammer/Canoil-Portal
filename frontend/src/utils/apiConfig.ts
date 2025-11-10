@@ -3,25 +3,32 @@
  * Centralized API URL configuration for the application
  */
 
-// Get API URL from environment variable or use same domain as frontend
+// Get API URL from environment variable or use intelligent defaults
 const envApiUrl = import.meta.env.VITE_API_URL;
 
-// For Vercel: frontend and backend are on the same domain via vercel.json rewrites
-// So we should use the same domain as the frontend, not a hardcoded URL
-// This fixes CORS issues on preview deployments
-let apiBaseUrl = envApiUrl;
+// Determine API base URL based on environment
+let apiBaseUrl: string;
 
-// In browser: use env variable if set, otherwise use same origin for production
-// This works because vercel.json routes /api/* to the serverless function
 if (typeof window !== 'undefined') {
-  // If VITE_API_URL is set, use it (for local development)
-  // Otherwise use same domain as frontend (for production deployments)
-  if (!apiBaseUrl) {
+  // ===== BROWSER ENVIRONMENT =====
+  
+  // 1. EXPLICIT ENV VARIABLE (highest priority)
+  if (envApiUrl) {
+    apiBaseUrl = envApiUrl;
+  }
+  // 2. LOCAL DEVELOPMENT (localhost frontend)
+  else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    // Local development: backend runs on port 5002
+    apiBaseUrl = 'http://localhost:5002';
+  }
+  // 3. PRODUCTION/VERCEL/RENDER (same origin)
+  else {
+    // Production: backend and frontend on same domain (Vercel rewrites, Render proxy)
     apiBaseUrl = window.location.origin;
   }
-} else if (!apiBaseUrl) {
-  // Fallback for SSR or build time
-  apiBaseUrl = 'http://localhost:5002';
+} else {
+  // ===== SSR/BUILD TIME =====
+  apiBaseUrl = envApiUrl || 'http://localhost:5002';
 }
 
 export const API_BASE_URL = apiBaseUrl;

@@ -468,10 +468,31 @@ def handle_unicode_error(e):
         'error': 'Unicode encoding error - special characters detected',
         'details': 'Please check for special characters in folder/file names'
     }), 500
+# Enable CORS for all routes with proper configuration
 CORS(app, resources={
-    r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": "*"},
-    r"/download/*": {"origins": "*", "methods": ["GET", "OPTIONS"], "allow_headers": "*"}
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": "*",
+        "expose_headers": "*",
+        "supports_credentials": False
+    },
+    r"/download/*": {
+        "origins": "*",
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": "*",
+        "expose_headers": "*",
+        "supports_credentials": False
+    }
 })
+
+# Add explicit CORS headers to all responses (belt and suspenders approach)
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
@@ -496,6 +517,73 @@ def root_health_check():
         "service": "Canoil Portal Backend",
         "timestamp": datetime.now().isoformat()
     }), 200
+
+# Comprehensive health check endpoint
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Comprehensive system health check"""
+    health_status = {
+        "timestamp": datetime.now().isoformat(),
+        "status": "healthy",
+        "issues": []
+    }
+    
+    # Check G: Drive accessibility
+    gdrive_accessible = os.path.exists(GDRIVE_BASE)
+    health_status["gdrive_accessible"] = gdrive_accessible
+    if not gdrive_accessible:
+        health_status["issues"].append("G: Drive not accessible")
+        health_status["status"] = "degraded"
+    
+    # Check Google Drive API
+    health_status["google_drive_api_enabled"] = USE_GOOGLE_DRIVE_API
+    if USE_GOOGLE_DRIVE_API and google_drive_service:
+        health_status["google_drive_api_initialized"] = True
+        health_status["google_drive_authenticated"] = google_drive_service.authenticated
+        if not google_drive_service.authenticated:
+            health_status["issues"].append("Google Drive API not authenticated")
+            health_status["status"] = "degraded"
+    else:
+        health_status["google_drive_api_initialized"] = False
+        health_status["google_drive_authenticated"] = False
+    
+    # Check OpenAI availability
+    health_status["openai_available"] = openai_available
+    if not openai_available:
+        health_status["issues"].append("OpenAI API not available")
+    
+    # Check cache status
+    global _cache_timestamp, _data_cache
+    if _cache_timestamp:
+        cache_age = time.time() - _cache_timestamp
+        health_status["cache_age_seconds"] = round(cache_age, 2)
+        health_status["cache_age_minutes"] = round(cache_age / 60, 2)
+        
+        # Check if cache has data
+        if _data_cache:
+            cache_has_data = any(
+                len(v) > 0 
+                for v in _data_cache.values() 
+                if isinstance(v, list)
+            )
+            health_status["cache_has_data"] = cache_has_data
+            if not cache_has_data:
+                health_status["issues"].append("Cache exists but contains no data")
+                health_status["status"] = "degraded"
+        else:
+            health_status["cache_has_data"] = False
+    else:
+        health_status["cache_age_seconds"] = None
+        health_status["cache_has_data"] = False
+    
+    # Check Gmail service
+    health_status["gmail_service_available"] = GMAIL_SERVICE_AVAILABLE
+    
+    # Overall status
+    if len(health_status["issues"]) > 3:
+        health_status["status"] = "unhealthy"
+    
+    return jsonify(health_status), 200 if health_status["status"] != "unhealthy" else 503
 
 # Register BOL HTML blueprint - DISABLED (duplicate endpoint in logistics_automation.py)
 # if BOL_HTML_AVAILABLE:
@@ -670,13 +758,30 @@ def estimate_data_size_mb(data):
         return 200  # Return high value to prevent caching
 
 def should_cache_data(data):
-    """Check if data should be cached based on size"""
+    """Check if data should be cached based on size and content"""
     if data is None:
+        print("⚠️ Cannot cache: data is None")
         return False
+    
+    # CRITICAL: Check if data has actual content
+    has_content = False
+    if isinstance(data, dict):
+        has_content = any(
+            len(v) > 0 
+            for v in data.values() 
+            if isinstance(v, list)
+        )
+    
+    if not has_content:
+        print("🚨 CACHE VALIDATION FAILED: Data has no content - refusing to cache empty data!")
+        return False
+    
     size_mb = estimate_data_size_mb(data)
     if size_mb > _MAX_CACHE_SIZE_MB:
         print(f"⚠️ Data too large to cache: {size_mb:.1f}MB > {_MAX_CACHE_SIZE_MB}MB limit")
         return False
+    
+    print(f"✅ Cache validation passed: data has content ({size_mb:.1f}MB)")
     return True
 
 @app.route('/api/data', methods=['GET'])
@@ -729,17 +834,17 @@ def get_all_data():
                 print(f"[INFO] Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
                 print(f"[INFO] Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
                 if data and isinstance(data, dict) and len(data) > 0:
-                    # Only cache if data size is reasonable
+                    # CRITICAL: Validate data has content before caching
                     if should_cache_data(data):
                         _data_cache = data
                         _cache_timestamp = time.time()
                         cache_size_mb = estimate_data_size_mb(data)
                         print(f"[OK] Data loaded successfully from Google Drive API: {len(data)} files (cached, {cache_size_mb:.1f}MB)")
                     else:
-                        # Don't cache large datasets to prevent OOM
+                        # Don't cache empty or large datasets
                         _data_cache = None
                         _cache_timestamp = None
-                        print(f"[OK] Data loaded successfully from Google Drive API: {len(data)} files (not cached - too large)")
+                        print(f"[WARN] Data not cached - either empty or too large")
                     return jsonify({
                         "data": data,
                         "folderInfo": folder_info,
@@ -1004,27 +1109,6 @@ def get_all_data():
                 'type': error_type,
                 'trace': error_trace
             }
-        }), 500
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    try:
-        latest_folder, error = get_latest_folder()
-        status = "healthy" if latest_folder else "unhealthy"
-        message = f"Latest folder: {latest_folder}" if latest_folder else f"Error: {error}"
-        
-        return jsonify({
-            "status": status,
-            "message": message,
-            "timestamp": datetime.now().isoformat(),
-            "gdrive_path": GDRIVE_BASE
-        })
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
         }), 500
 
 def scan_folder_recursively(folder_path, status, path_parts=[]):

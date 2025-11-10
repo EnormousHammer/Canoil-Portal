@@ -127,10 +127,30 @@ class GoogleDriveService:
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
+                    print("[INFO] Token expired, attempting to refresh...")
                     creds.refresh(Request())
-                    print("[OK] Refreshed expired Google Drive token")
+                    print("[OK] ✅ Successfully refreshed expired Google Drive token")
+                    
+                    # Save refreshed token immediately
+                    try:
+                        with open(self.token_file, 'wb') as token:
+                            pickle.dump(creds, token)
+                        print("[OK] Saved refreshed token to file")
+                    except Exception as save_error:
+                        print(f"[WARN] Could not save refreshed token: {save_error}")
+                        
                 except Exception as e:
-                    print(f"[WARN] Failed to refresh token: {e}")
+                    print(f"[ERROR] ❌ Failed to refresh token: {e}")
+                    print(f"[ERROR] Token refresh failed - deleting invalid token file")
+                    
+                    # Delete invalid token file to force re-authentication
+                    try:
+                        if os.path.exists(self.token_file):
+                            os.remove(self.token_file)
+                            print("[OK] Deleted invalid token file")
+                    except Exception as del_error:
+                        print(f"[WARN] Could not delete token file: {del_error}")
+                    
                     creds = None
             
             # If still no valid creds, need to authenticate

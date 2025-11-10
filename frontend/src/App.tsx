@@ -112,6 +112,10 @@ function App() {
   const [lastSalesOrderCount, setLastSalesOrderCount] = useState(0);
   const [showSyncNotification, setShowSyncNotification] = useState(false);
   const [newSOsAvailable, setNewSOsAvailable] = useState(0);
+  
+  // System health monitoring
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [showHealthWarning, setShowHealthWarning] = useState(false);
 
   // Handle login
   const handleLogin = (user: { name: string; email: string; isAdmin: boolean }) => {
@@ -209,6 +213,38 @@ function App() {
       clearInterval(syncInterval);
     };
   }, [dataLoaded, isLoggedIn, lastSalesOrderCount]);
+  
+  // Health monitoring: Check system health every 30 seconds
+  useEffect(() => {
+    if (!dataLoaded || !isLoggedIn) return;
+    
+    const checkHealth = async () => {
+      try {
+        const response = await fetch(getApiUrl('/api/health'));
+        const health = await response.json();
+        setSystemHealth(health);
+        
+        // Show warning if system has issues
+        if (health.issues && health.issues.length > 0) {
+          setShowHealthWarning(true);
+          console.warn('🚨 System health issues detected:', health.issues);
+        } else {
+          setShowHealthWarning(false);
+        }
+      } catch (error) {
+        console.error('❌ Error checking system health:', error);
+        setShowHealthWarning(true);
+      }
+    };
+    
+    // Check immediately
+    checkHealth();
+    
+    // Check every 30 seconds
+    const healthInterval = setInterval(checkHealth, 30000);
+    
+    return () => clearInterval(healthInterval);
+  }, [dataLoaded, isLoggedIn]);
 
   // Function to check for new sales orders without full reload
   const checkForNewSalesOrders = async () => {
@@ -501,6 +537,77 @@ function App() {
   // Show main application after loading
   return (
     <div className="transition-opacity duration-1000 ease-in">
+      {/* System Health Warning Banner */}
+      {showHealthWarning && systemHealth && systemHealth.issues && systemHealth.issues.length > 0 && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999]">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-4 rounded-xl shadow-2xl border-2 border-red-400 flex items-center gap-4 max-w-2xl">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">⚠️ System Issues Detected</h3>
+              <ul className="text-sm text-red-100 mt-1">
+                {systemHealth.issues.map((issue: string, idx: number) => (
+                  <li key={idx}>• {issue}</li>
+                ))}
+              </ul>
+              {!systemHealth.gdrive_accessible && (
+                <p className="text-xs text-red-200 mt-2">
+                  💡 Tip: Check if G: Drive is mounted
+                </p>
+              )}
+              {!systemHealth.openai_available && (
+                <p className="text-xs text-red-200 mt-2">
+                  💡 Tip: Check OPENAI_API_KEY environment variable
+                </p>
+              )}
+            </div>
+            <button 
+              onClick={() => setShowHealthWarning(false)}
+              className="flex-shrink-0 text-white/70 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Empty Data Warning Banner */}
+      {dataLoaded && data && Object.keys(data).length > 0 && (() => {
+        const hasData = Object.values(data).some((v: any) => 
+          Array.isArray(v) && v.length > 0
+        );
+        return !hasData ? (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[9998]">
+            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 text-white px-6 py-4 rounded-xl shadow-2xl border-2 border-yellow-400 flex items-center gap-4 max-w-2xl">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg">📭 No Data Loaded</h3>
+                <p className="text-sm text-yellow-100">
+                  Backend returned empty data. Check console logs and system health.
+                </p>
+              </div>
+              <button 
+                onClick={handleRefreshData}
+                className="flex-shrink-0 bg-white text-orange-600 px-4 py-2 rounded-lg font-bold hover:bg-yellow-50 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : null;
+      })()}
+      
       {/* Sync Notification Banner */}
       {showSyncNotification && newSOsAvailable > 0 && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] animate-bounce">
