@@ -3128,6 +3128,52 @@ def detailed_item_analysis(item_identifier):
         print(f"ERROR: Error in item analysis: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/debug/sales-orders-folders', methods=['GET'])
+def debug_sales_orders_folders():
+    """Debug endpoint to show exact folder names in SalesOrdersByStatus"""
+    try:
+        debug_info = {
+            "timestamp": datetime.now().isoformat(),
+            "sales_orders_by_status": {},
+            "folder_names": [],
+            "folder_counts": {}
+        }
+        
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            try:
+                # Get sales orders data
+                sales_orders_data = google_drive_service.load_sales_orders_data(None)
+                
+                if sales_orders_data and 'SalesOrdersByStatus' in sales_orders_data:
+                    debug_info["sales_orders_by_status"] = {
+                        "keys": list(sales_orders_data['SalesOrdersByStatus'].keys()),
+                        "folder_details": {}
+                    }
+                    
+                    for folder_name, files in sales_orders_data['SalesOrdersByStatus'].items():
+                        debug_info["folder_names"].append(folder_name)
+                        debug_info["folder_counts"][folder_name] = len(files) if isinstance(files, list) else 0
+                        debug_info["sales_orders_by_status"]["folder_details"][folder_name] = {
+                            "file_count": len(files) if isinstance(files, list) else 0,
+                            "sample_file": files[0] if isinstance(files, list) and len(files) > 0 else None
+                        }
+                else:
+                    debug_info["error"] = "No SalesOrdersByStatus data found"
+            except Exception as e:
+                debug_info["error"] = str(e)
+                import traceback
+                debug_info["traceback"] = traceback.format_exc()
+        else:
+            debug_info["error"] = "Google Drive API not available"
+        
+        return jsonify(debug_info)
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 @app.route('/api/debug', methods=['GET'])
 def debug_status():
     """Debug endpoint to check Google Drive status and environment variables"""
