@@ -1721,7 +1721,8 @@ def get_sales_order_folder(folder_path):
                         
                         print(f"[OK] Loaded {len(folders)} folders and {len(files)} files from Google Drive: {folder_path}")
                         
-                        return jsonify({
+                        # Cache the result
+                        folder_data = {
                             'path': folder_path,
                             'full_path': full_path,
                             'folders': folders,
@@ -1729,6 +1730,14 @@ def get_sales_order_folder(folder_path):
                             'total_folders': len(folders),
                             'total_files': len(files),
                             'source': 'Google Drive API'
+                        }
+                        _so_folder_cache[folder_path] = folder_data
+                        _so_folder_cache_timestamps[folder_path] = time.time()
+                        print(f"[OK] Cached folder data for: {folder_path}")
+                        
+                        return jsonify({
+                            **folder_data,
+                            'cached': False
                         })
                     else:
                         print(f"[WARN] Folder not found in Google Drive: {full_path}, falling back to local")
