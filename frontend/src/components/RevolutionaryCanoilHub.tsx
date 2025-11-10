@@ -1058,17 +1058,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     // Combine all sales order sources
     let salesOrders = [...(data['SalesOrders.json'] || [])];
     
-    // Add orders from SalesOrdersByStatus (organized by folder)
+    // Count orders from SalesOrdersByStatus by folder name
     const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    let newAndRevisedCount = 0;
+    let inProductionCount = 0;
+    let completedCount = 0;
+    let cancelledCount = 0;
+    
     if (typeof salesOrdersByStatus === 'object') {
-      Object.values(salesOrdersByStatus).forEach((orders: any) => {
+      Object.entries(salesOrdersByStatus).forEach(([folderName, orders]: [string, any]) => {
         if (Array.isArray(orders)) {
+          // Add orders to combined list
           salesOrders = [...salesOrders, ...orders];
+          
+          // Count by folder name
+          const folderLower = folderName.toLowerCase();
+          if (folderLower.includes('new') || folderLower.includes('revised')) {
+            newAndRevisedCount += orders.length;
+          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
+            inProductionCount += orders.length;
+          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
+            completedCount += orders.length;
+          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
+            cancelledCount += orders.length;
+          }
         }
       });
     }
     
-    // Count orders by status
+    // Count orders by status from SalesOrders.json (structured data)
     const newAndRevised = salesOrders.filter((so: any) => {
       const status = (so["Status"] || '').toLowerCase();
       return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
@@ -1106,19 +1124,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     return {
       newAndRevised: {
-        count: newAndRevised.length,
+        count: newAndRevised.length + newAndRevisedCount,
         lastUpdated: getLastUpdated(newAndRevised)
       },
       inProduction: {
-        count: inProduction.length,
+        count: inProduction.length + inProductionCount,
         lastUpdated: getLastUpdated(inProduction)
       },
       completed: {
-        count: completed.length,
+        count: completed.length + completedCount,
         lastUpdated: getLastUpdated(completed)
       },
       cancelled: {
-        count: cancelled.length,
+        count: cancelled.length + cancelledCount,
         lastUpdated: getLastUpdated(cancelled)
       },
       total: salesOrders.length
