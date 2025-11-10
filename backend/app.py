@@ -721,7 +721,8 @@ def get_all_data():
                 print("📡 Loading data from Google Drive API...")
                 data, folder_info = google_drive_service.get_all_data()
                 print(f"🔍 Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
-                if data and len(data) > 0:
+                print(f"🔍 Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
+                if data and isinstance(data, dict) and len(data) > 0:
                     # Only cache if data size is reasonable
                     if should_cache_data(data):
                         _data_cache = data
