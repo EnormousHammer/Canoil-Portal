@@ -3488,11 +3488,12 @@ def _list_drive_folders(service, drive_id, parent_id=None, depth=0, max_depth=3)
         return [{"error": str(e)}]
 
 def _list_folder_contents_recursive(service, folder_id, drive_id, depth=0, max_depth=3):
-    """Recursively list all folders and their contents"""
+    """Recursively list all folders and their contents with file counts"""
     if depth > max_depth:
         return []
     
     try:
+        # Get all subfolders
         query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = service.service.files().list(
             q=query,
@@ -3503,6 +3504,44 @@ def _list_folder_contents_recursive(service, folder_id, drive_id, depth=0, max_d
             fields="files(id, name)",
             pageSize=100
         ).execute()
+        
+        folders = []
+        for folder in results.get('files', []):
+            subfolder_id = folder.get('id')
+            subfolder_name = folder.get('name')
+            
+            # Count PDF/DOCX files in this folder
+            file_query = f"'{subfolder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+            file_results = service.service.files().list(
+                q=file_query,
+                corpora='drive',
+                driveId=drive_id,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)",
+                pageSize=100
+            ).execute()
+            file_count = len(file_results.get('files', []))
+            
+            folder_info = {
+                "name": subfolder_name,
+                "id": subfolder_id,
+                "depth": depth,
+                "file_count": file_count
+            }
+            
+            # Recursively get children
+            if depth < max_depth:
+                children = _list_folder_contents_recursive(service, subfolder_id, drive_id, depth + 1, max_depth)
+                folder_info["children"] = children
+                folder_info["total_file_count"] = file_count + sum(c.get("total_file_count", 0) for c in children)
+            else:
+                folder_info["total_file_count"] = file_count
+            
+            folders.append(folder_info)
+        return folders
+    except Exception as e:
+        return [{"error": str(e), "depth": depth}]
         
         return [{"name": f.get('name'), "id": f.get('id')} for f in results.get('files', [])]
     except Exception as e:
