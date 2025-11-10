@@ -1565,11 +1565,152 @@ def get_sales_order_pdf(file_path):
 
 @app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
 def get_sales_order_folder(folder_path):
-    """Get Sales Order folder contents dynamically - REAL TIME SYNC"""
+    """Get Sales Order folder contents dynamically - REAL TIME SYNC from Google Drive"""
     try:
-        print(f"SEARCH: Loading Sales Order folder: {folder_path}")
+        print(f"[INFO] Loading Sales Order folder: {folder_path}")
         
-        # Construct full path
+        # Try Google Drive API first if enabled
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            try:
+                # Find Sales_CSR drive
+                sales_csr_drive_id = google_drive_service.find_shared_drive("Sales_CSR")
+                if not sales_csr_drive_id:
+                    print(f"[ERROR] Sales_CSR drive not found")
+                    # Fall back to local
+                else:
+                    # Build the full path: Customer Orders/Sales Orders/{folder_path}
+                    full_path = f"Customer Orders/Sales Orders/{folder_path}" if folder_path else "Customer Orders/Sales Orders"
+                    
+                    # Find the folder by path
+                    folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, full_path)
+                    if not folder_id:
+                        # Try alternative path (maybe folder_path is already the full path)
+                        folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, folder_path)
+                    
+                    if folder_id:
+                        print(f"[OK] Found folder in Google Drive: {full_path} (ID: {folder_id})")
+                        
+                        # Get folder contents
+                        folders = []
+                        files = []
+                        
+                        # Get subfolders
+                        query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+                        list_params = {
+                            'q': query,
+                            'corpora': 'drive',
+                            'driveId': sales_csr_drive_id,
+                            'includeItemsFromAllDrives': True,
+                            'supportsAllDrives': True,
+                            'fields': "files(id, name)",
+                            'pageSize': 100
+                        }
+                        results = google_drive_service.service.files().list(**list_params).execute()
+                        subfolders = results.get('files', [])
+                        
+                        for subfolder in subfolders:
+                            subfolder_id = subfolder['id']
+                            subfolder_name = subfolder['name']
+                            
+                            # Count files in subfolder
+                            file_query = f"'{subfolder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+                            file_results = google_drive_service.service.files().list(
+                                q=file_query,
+                                corpora='drive',
+                                driveId=sales_csr_drive_id,
+                                includeItemsFromAllDrives=True,
+                                supportsAllDrives=True,
+                                fields="files(id, name)",
+                                pageSize=100
+                            ).execute()
+                            file_count = len(file_results.get('files', []))
+                            
+                            # Count subfolders
+                            folder_query = f"'{subfolder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+                            folder_results = google_drive_service.service.files().list(
+                                q=folder_query,
+                                corpora='drive',
+                                driveId=sales_csr_drive_id,
+                                includeItemsFromAllDrives=True,
+                                supportsAllDrives=True,
+                                fields="files(id, name)",
+                                pageSize=100
+                            ).execute()
+                            folder_count = len(folder_results.get('files', []))
+                            
+                            folders.append({
+                                'name': subfolder_name,
+                                'type': 'folder',
+                                'file_count': file_count,
+                                'folder_count': folder_count,
+                                'path': f"{folder_path}/{subfolder_name}" if folder_path else subfolder_name
+                            })
+                        
+                        # Get files in current folder
+                        file_query = f"'{folder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+                        file_results = google_drive_service.service.files().list(
+                            q=file_query,
+                            corpora='drive',
+                            driveId=sales_csr_drive_id,
+                            includeItemsFromAllDrives=True,
+                            supportsAllDrives=True,
+                            'fields': "files(id, name, size, modifiedTime, mimeType)",
+                            'pageSize': 100
+                        ).execute()
+                        drive_files = file_results.get('files', [])
+                        
+                        for drive_file in drive_files:
+                            file_name = drive_file['name']
+                            file_size = int(drive_file.get('size', 0))
+                            modified_time = drive_file.get('modifiedTime', '')
+                            file_id = drive_file['id']
+                            
+                            # Format modified time
+                            if modified_time:
+                                try:
+                                    from dateutil import parser
+                                    dt = parser.parse(modified_time)
+                                    modified = dt.strftime('%Y-%m-%d %H:%M')
+                                except:
+                                    modified = modified_time[:16].replace('T', ' ')
+                            else:
+                                modified = 'Unknown'
+                            
+                            files.append({
+                                'name': file_name,
+                                'type': 'file',
+                                'size': file_size,
+                                'modified': modified,
+                                'path': f"gdrive://{file_id}",  # Use Google Drive file ID
+                                'file_id': file_id,
+                                'is_pdf': file_name.lower().endswith('.pdf') or 'pdf' in drive_file.get('mimeType', '').lower(),
+                                'is_excel': file_name.lower().endswith(('.xlsx', '.xls'))
+                            })
+                        
+                        # Sort folders and files
+                        folders.sort(key=lambda x: x['name'])
+                        files.sort(key=lambda x: x['name'])
+                        
+                        print(f"[OK] Loaded {len(folders)} folders and {len(files)} files from Google Drive: {folder_path}")
+                        
+                        return jsonify({
+                            'path': folder_path,
+                            'full_path': full_path,
+                            'folders': folders,
+                            'files': files,
+                            'total_folders': len(folders),
+                            'total_files': len(files),
+                            'source': 'Google Drive API'
+                        })
+                    else:
+                        print(f"[WARN] Folder not found in Google Drive: {full_path}, falling back to local")
+            except Exception as e:
+                print(f"[ERROR] Google Drive API error: {e}")
+                import traceback
+                traceback.print_exc()
+                print("[WARN] Falling back to local G: Drive")
+        
+        # Fallback to local G: Drive (for local development)
         full_path = os.path.join(SALES_ORDERS_BASE, folder_path)
         
         if not os.path.exists(full_path):
@@ -1636,7 +1777,7 @@ def get_sales_order_folder(folder_path):
         folders.sort(key=lambda x: x['name'])
         files.sort(key=lambda x: x['name'])
         
-        print(f"SUCCESS: Loaded {len(folders)} folders and {len(files)} files from {folder_path}")
+        print(f"[OK] Loaded {len(folders)} folders and {len(files)} files from local G: Drive: {folder_path}")
         
         return jsonify({
             'path': folder_path,
@@ -1644,11 +1785,14 @@ def get_sales_order_folder(folder_path):
             'folders': folders,
             'files': files,
             'total_folders': len(folders),
-            'total_files': len(files)
+            'total_files': len(files),
+            'source': 'Local G: Drive'
         })
         
     except Exception as e:
-        print(f"ERROR: Error loading folder {folder_path}: {e}")
+        print(f"[ERROR] Error loading folder {folder_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/sales-orders/find/<so_number>', methods=['GET'])
