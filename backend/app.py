@@ -688,28 +688,13 @@ def get_all_data():
             cache_age = time.time() - _cache_timestamp
             
             # Check if cache has actual data (not empty)
-            # Count files with actual data (not empty lists/dicts)
-            files_with_data = 0
-            total_items = 0
-            for key, value in _data_cache.items():
-                if isinstance(value, list) and len(value) > 0:
-                    files_with_data += 1
-                    total_items += len(value)
-                elif isinstance(value, dict) and len(value) > 0:
-                    files_with_data += 1
-                    total_items += len(value)
-                elif value and not isinstance(value, (list, dict)):
-                    files_with_data += 1
-                    total_items += 1
+            has_data = any(v and len(v) > 0 if isinstance(v, list) else v for v in _data_cache.values())
             
-            has_data = files_with_data > 0 and total_items > 0
+            print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}, has_data={has_data}")
             
-            print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}, has_data={has_data}, files_with_data={files_with_data}, total_items={total_items}")
-            
-            # Only use cache if it has meaningful data AND is fresh
-            # Require at least 5 files with data to consider cache valid
-            if cache_age < _cache_duration and has_data and files_with_data >= 5:
-                print(f"SUCCESS: Returning cached data ({files_with_data} files, {total_items} items)")
+            # Only use cache if it has data AND is fresh
+            if cache_age < _cache_duration and has_data:
+                print("SUCCESS: Returning cached data (no G: Drive access needed)")
                 return jsonify({
                     "data": _data_cache,
                     "folderInfo": {
@@ -719,16 +704,13 @@ def get_all_data():
                         "folder": "Cached",
                         "created": "Cached",
                         "size": "Cached",
-                        "fileCount": files_with_data
+                        "fileCount": len([k for k, v in _data_cache.items() if v and (len(v) > 0 if isinstance(v, list) else v)])
                     },
                     "LoadTimestamp": "Cached",
                     "cached": True
                 })
-            elif not has_data or files_with_data < 5:
-                print(f"⚠️ Cache exists but insufficient data (files={files_with_data}, items={total_items}) - forcing refresh")
-                # Clear cache to force refresh
-                _data_cache = None
-                _cache_timestamp = None
+            elif not has_data:
+                print("⚠️ Cache exists but is empty - forcing refresh")
         
         print("RETRY: Cache expired or missing, loading fresh data...")
         
