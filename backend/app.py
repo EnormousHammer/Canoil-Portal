@@ -3406,21 +3406,35 @@ def debug_drive_structure():
                     "folders": _list_drive_folders(google_drive_service, sales_csr_drive_id, max_depth=4)
                 }
                 
-                # Try to find the sales orders path
-                path_within_drive = "Customer Orders/Sales Orders"
-                folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, path_within_drive)
-                if folder_id:
-                    structure["sales_csr_search_results"] = {
-                        "path": path_within_drive,
-                        "found": True,
-                        "folder_id": folder_id,
-                        "subfolders": _list_folder_contents(google_drive_service, folder_id, sales_csr_drive_id)
+                # Try to find Customer Orders folder
+                customer_orders_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
+                if customer_orders_id:
+                    structure["customer_orders_structure"] = {
+                        "folder_id": customer_orders_id,
+                        "folder_name": "Customer Orders",
+                        "subfolders": _list_folder_contents_recursive(google_drive_service, customer_orders_id, sales_csr_drive_id, max_depth=3)
                     }
+                    
+                    # Try to find the sales orders path
+                    path_within_drive = "Customer Orders/Sales Orders"
+                    folder_id = google_drive_service.find_folder_by_path(sales_csr_drive_id, path_within_drive)
+                    if folder_id:
+                        structure["sales_csr_search_results"] = {
+                            "path": path_within_drive,
+                            "found": True,
+                            "folder_id": folder_id,
+                            "subfolders": _list_folder_contents_recursive(google_drive_service, folder_id, sales_csr_drive_id, max_depth=3)
+                        }
+                    else:
+                        structure["sales_csr_search_results"] = {
+                            "path": path_within_drive,
+                            "found": False,
+                            "message": "Path not found"
+                        }
                 else:
-                    structure["sales_csr_search_results"] = {
-                        "path": path_within_drive,
+                    structure["customer_orders_structure"] = {
                         "found": False,
-                        "message": "Path not found"
+                        "message": "Customer Orders folder not found"
                     }
             else:
                 structure["sales_csr_structure"] = {
@@ -3473,8 +3487,11 @@ def _list_drive_folders(service, drive_id, parent_id=None, depth=0, max_depth=3)
     except Exception as e:
         return [{"error": str(e)}]
 
-def _list_folder_contents(service, folder_id, drive_id):
-    """List contents of a specific folder"""
+def _list_folder_contents_recursive(service, folder_id, drive_id, depth=0, max_depth=3):
+    """Recursively list all folders and their contents"""
+    if depth > max_depth:
+        return []
+    
     try:
         query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
         results = service.service.files().list(
