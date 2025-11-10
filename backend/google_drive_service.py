@@ -490,12 +490,15 @@ class GoogleDriveService:
                 sys.path.insert(0, str(backend_path))
             
             # Import extraction functions from app.py
+            extract_so_data_from_pdf = None
+            extract_so_data_from_docx = None
             try:
                 from app import extract_so_data_from_pdf, extract_so_data_from_docx
                 print(f"[OK] Successfully imported PDF/DOCX extraction functions")
             except ImportError as e:
                 print(f"[ERROR] Failed to import extraction functions: {e}")
-                return {}
+                print(f"[WARN] Will return file metadata only (no parsing)")
+                # Continue without parsing - return file metadata instead
             
             # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
             # Ignore the drive_id parameter and search for Sales_CSR independently
@@ -574,9 +577,16 @@ class GoogleDriveService:
                 
                 if files_by_subfolder:
                     # Process files: download and parse PDFs/DOCX
+                    # LIMIT: Parse max 25 files per folder to prevent timeout
                     all_parsed_orders = []
+                    max_files_per_folder = 25
+                    total_files_processed = 0
                     
                     for subfolder_path, files in files_by_subfolder.items():
+                        if total_files_processed >= max_files_per_folder:
+                            print(f"[WARN] Reached limit of {max_files_per_folder} files per folder - stopping")
+                            break
+                        
                         subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
                         if subfolder_path == folder_name:
                             subfolder_name = folder_name
@@ -585,6 +595,9 @@ class GoogleDriveService:
                         
                         # Download and parse each PDF/DOCX file
                         for file_info in files:
+                            if total_files_processed >= max_files_per_folder:
+                                break
+                            
                             file_id = file_info.get('file_id')
                             file_name = file_info.get('file_name', '')
                             
@@ -593,12 +606,25 @@ class GoogleDriveService:
                                 continue
                             
                             try:
-                                print(f"[INFO] Downloading and parsing: {file_name}")
+                                print(f"[INFO] Downloading and parsing: {file_name} ({total_files_processed + 1}/{max_files_per_folder})")
                                 
-                                # Download file content
-                                file_content = self.download_file_content(file_id)
+                                # Download file content with retry
+                                file_content = None
+                                for retry in range(3):
+                                    try:
+                                        file_content = self.download_file_content(file_id)
+                                        if file_content:
+                                            break
+                                    except Exception as e:
+                                        if retry < 2:
+                                            print(f"[WARN] Retry {retry + 1}/3 for {file_name}: {e}")
+                                            import time as time_module
+                                            time_module.sleep(1)
+                                        else:
+                                            raise
+                                
                                 if not file_content:
-                                    print(f"[WARN] Failed to download {file_name}")
+                                    print(f"[WARN] Failed to download {file_name} after retries")
                                     continue
                                 
                                 # Save to temp file for parsing
@@ -609,11 +635,11 @@ class GoogleDriveService:
                                     tmp_path = tmp_file.name
                                 
                                 try:
-                                    # Parse based on file type
+                                    # Parse based on file type (if extraction functions available)
                                     so_info = None
-                                    if file_name.lower().endswith(('.docx', '.doc')):
+                                    if extract_so_data_from_docx and file_name.lower().endswith(('.docx', '.doc')):
                                         so_info = extract_so_data_from_docx(tmp_path)
-                                    elif file_name.lower().endswith('.pdf'):
+                                    elif extract_so_data_from_pdf and file_name.lower().endswith('.pdf'):
                                         so_info = extract_so_data_from_pdf(tmp_path)
                                     
                                     if so_info:
@@ -623,9 +649,48 @@ class GoogleDriveService:
                                         so_info['file_name'] = file_name
                                         parsed_orders_in_folder.append(so_info)
                                         all_parsed_orders.append(so_info)
+                                        total_files_processed += 1
                                         print(f"[OK] Parsed SO: {so_info.get('so_number', 'Unknown')} - {so_info.get('customer_name', 'Unknown')}")
                                     else:
-                                        print(f"[WARN] Failed to parse {file_name}")
+                                        # If parsing failed or functions unavailable, create metadata entry
+                                        if not extract_so_data_from_pdf and not extract_so_data_from_docx:
+                                            # Extraction functions not available - create metadata entry
+                                            import re
+                                            order_num = 'Unknown'
+                                            patterns = [
+                                                r'salesorder[_\s-]*(\d+)',
+                                                r'sales\s*order[_\s-]*(\d+)',
+                                                r'so[_\s-]*(\d+)',
+                                                r'order[_\s-]*(\d+)',
+                                                r'(\d+)'
+                                            ]
+                                            for pattern in patterns:
+                                                match = re.search(pattern, file_name.lower())
+                                                if match:
+                                                    order_num = match.group(1)
+                                                    break
+                                            
+                                            so_info = {
+                                                'so_number': order_num,
+                                                'Order No.': order_num,
+                                                'customer_name': 'Unknown',
+                                                'Customer': 'Unknown',
+                                                'file_name': file_name,
+                                                'file_type': file_name.split('.')[-1].upper(),
+                                                'folder_path': subfolder_name,
+                                                'status': subfolder_name,
+                                                'parsed': False
+                                            }
+                                            parsed_orders_in_folder.append(so_info)
+                                            all_parsed_orders.append(so_info)
+                                            total_files_processed += 1
+                                            print(f"[OK] Created metadata entry for: {file_name} (SO: {order_num})")
+                                        else:
+                                            print(f"[WARN] Failed to parse {file_name}")
+                                except Exception as parse_error:
+                                    print(f"[ERROR] Error parsing {file_name}: {parse_error}")
+                                    import traceback
+                                    traceback.print_exc()
                                 finally:
                                     # Clean up temp file
                                     try:
@@ -635,6 +700,8 @@ class GoogleDriveService:
                                     
                             except Exception as e:
                                 print(f"[ERROR] Error processing {file_name}: {e}")
+                                import traceback
+                                traceback.print_exc()
                                 continue
                         
                         # Add parsed orders to SalesOrdersByStatus
