@@ -1654,8 +1654,8 @@ def get_sales_order_folder(folder_path):
                             driveId=sales_csr_drive_id,
                             includeItemsFromAllDrives=True,
                             supportsAllDrives=True,
-                            'fields': "files(id, name, size, modifiedTime, mimeType)",
-                            'pageSize': 100
+                            fields="files(id, name, size, modifiedTime, mimeType)",
+                            pageSize=100
                         ).execute()
                         drive_files = file_results.get('files', [])
                         
