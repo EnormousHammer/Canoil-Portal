@@ -1087,20 +1087,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     let cancelledCount = 0;
     
     if (typeof salesOrdersByStatus === 'object') {
+      console.log('[DEBUG] SalesOrdersByStatus keys:', Object.keys(salesOrdersByStatus));
       Object.entries(salesOrdersByStatus).forEach(([folderName, orders]: [string, any]) => {
         if (Array.isArray(orders)) {
           const folderLower = folderName.toLowerCase();
+          console.log(`[DEBUG] Processing folder: "${folderName}" (${orders.length} files)`);
+          
+          // Match folder names - be more flexible
           if (folderLower.includes('new') || folderLower.includes('revised')) {
             newAndRevisedCount += orders.length;
+            console.log(`[DEBUG] Matched "${folderName}" to New and Revised: +${orders.length}`);
           } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
             inProductionCount += orders.length;
+            console.log(`[DEBUG] Matched "${folderName}" to In Production: +${orders.length}`);
           } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
             completedCount += orders.length;
+            console.log(`[DEBUG] Matched "${folderName}" to Completed: +${orders.length}`);
           } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
             cancelledCount += orders.length;
+            console.log(`[DEBUG] Matched "${folderName}" to Cancelled: +${orders.length}`);
+          } else {
+            console.log(`[DEBUG] Folder "${folderName}" did not match any status category`);
           }
         }
       });
+      console.log(`[DEBUG] Final counts - New: ${newAndRevisedCount}, Production: ${inProductionCount}, Completed: ${completedCount}, Cancelled: ${cancelledCount}`);
     }
     
     // Get last updated dates
