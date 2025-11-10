@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "dulcet-order-474521-q1",
+  "private_key_id": "ba58f47cda2219b6eb609af3d950661b775ffb7a",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCP0xYYPXbkRQCG\nQZkgjOhMjqgEcTaothMwS4s2JfB7d636YKWhfHUzp0V0yYsiVsa3Gx2+excNXdch\n2gxtOqQHAnESCq14nEDn+vf3wBtRrSBr3ERZEK44NsOY0FoWrJb4WQUuRt4r25ZU\nkwi6qmajGMuSnox07dvOMuyLWxUGJI446TW/8JurT7fspR85YQqaVYHGv2zLZm03\n9zVU2IVibxzJsjemb7itF4Q73VWC2IcKnO56vVUSBA6di5g4tIAm/lqoYCkya0xe\nekOclIemk7EjqZTPfjjpTnWNfV4jrIyiuhnLPep/ReDMCEkOzCeCl65tFqdpLxQu\nlKVY0ERXAgMBAAECggEADqmFKp0gK5RHQeiabOxAhbF+D8803yKKC+s0+s+yV6ad\n82pP6F8bmaj3Vo5yDeL3039DBdde7xYT0lfRhX8sF/+CjxrMkCupyEctvrGfIgal\nc/7axD5ZlycqGJWWYZJgZQVk7FCoN04QYiMyiXPJY94paWiaxr7gS4H7MG0YKcMq\nx5+Rl3TMGmwu8+3OkaO5gnaAvQ9GT6kz9Nx7SmypRO8G6jWnN7nntS842j6f257Z\nCcFpy/udVmFWhaDEwWh4fHm2iFYwv0h7YCPpENfTHGkB0Zg70BCvIA5wCK1IgEhY\nautmFUFNeVotbUiImSn5szfF5AKHY12PMmtbc8OWwQKBgQDIph5xiUpnGPpHK13G\nVqfsGaRTOQIoyH7Z5Cliffcd0xYaXOUWj/cRYAySKHEgDkyRXMqTqsLfvgOovtG7\n+kMO/I8MhU8nPUNsXktMxMdKNeOI5P9MsOm4vb7nneeb1/bX/FdMwNXwH7Psxf1n\nw8pcQ5aCm7fjBknrgEjy3CS5QQKBgQC3gAQs/Usf1xuJNaFLsAZ7LVi1FMEDTAZn\nNAkUs/NHOTNTD0sSkGJCjNyh0ql6x6XN+PtQMJ3KO05epGqEcoG+UybAl+RLlytC\ni+aM9TutQIG7850UK3YDMO96C46JLQSD7tSjv6ES5x9OMm1vXrfV0Gk0ABm2LmdB\nHWsXAZA/lwKBgQCbXVXRYBdGgWa6WPABtfPMs4Y0Er6DScw/d5Y794GzjFFfFHMm\n507OG2tgeQQvaCMNo6YQdXbzvLQko6zPO1dVcWZqsYa6wYtFjDYOOYh/A/8tbvPo\nNEylifcabYB7gdxXHcOTYPXHOyUcv6oaANbeXk9azqyyk5oFSo4xzxh4gQKBgQCg\nHiKGp1bAJ9EtPxDJnIVrQjxfdgadu97yeuNZn1Qu1+jDF1sojbhP3d4/jjS4oDE7\ns4CHjoSBDJLr3ofbnpc73g64i1F37CahYLYCVZKHMPyDZqWwDeRiEHdGhYMQi6me\n/e2qHPKOLgKRF0uKnJnJBpxl9Zh58a/Dj8n8Py8BbQKBgGIqX1O+lgjOv8WOAuTz\nluQ38xQS3B9Es9Dl8PuFrUfniN/tfSg6mDsX0B0o6WgwF19h0ISq/yB3KjiRVhOz\nMS9gSkHruVgsqIwO/c/KxxWsES8n/utzHDOPfl1plAORgjmoSHjv/xSmCqiUDQbA\nzFz8qeeOzrXfTs/otWi6EEgY\n-----END PRIVATE KEY-----\n",
+  "client_email": "canoil-portal-app@dulcet-order-474521-q1.iam.gserviceaccount.com",
+  "client_id": "103993501579547016006",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/canoil-portal-app%40dulcet-order-474521-q1.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
