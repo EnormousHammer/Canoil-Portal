@@ -1649,9 +1649,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           )}
 
           {/* Email Assistant */}
-          {activeSection === 'email-assistant' && (
+          {activeSection === 'email-assistant' && currentUser && (
             <GmailCleanEmail
-              currentUser={currentUser || null}
+              currentUser={currentUser}
               setActiveSection={setActiveSection}
             />
           )}
