@@ -448,10 +448,17 @@ class GoogleDriveService:
             return all_files_by_folder
             
         except Exception as e:
-            print(f"[WARN] Error scanning folder {folder_name}: {e}")
-            import traceback
-            traceback.print_exc()
-            return all_files_by_folder
+            error_str = str(e)
+            # SSL errors are common with Google Drive API - log but continue
+            if 'SSL' in error_str or 'WRONG_VERSION' in error_str:
+                print(f"[WARN] SSL error scanning folder {folder_name} (non-fatal): {error_str}")
+                # Return what we have so far - don't let SSL errors break everything
+                return all_files_by_folder
+            else:
+                print(f"[WARN] Error scanning folder {folder_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                return all_files_by_folder
     
     def load_sales_orders_data(self, drive_id):
         """Load sales orders data from Google Drive - SCANS ALL FOLDERS UNDER Customer Orders
