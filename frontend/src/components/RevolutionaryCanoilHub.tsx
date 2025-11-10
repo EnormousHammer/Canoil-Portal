@@ -1055,20 +1055,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // REAL-TIME SALES ORDER ANALYTICS
   const salesOrderAnalytics = useMemo(() => {
-    // Get orders from SalesOrders.json
-    let salesOrders = [...(data['SalesOrders.json'] || [])];
+    // Get orders from SalesOrders.json (structured data with Status field)
+    const salesOrders = data['SalesOrders.json'] || [];
     
-    // Also get orders from SalesOrdersByStatus (files from Google Drive folders)
-    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-    if (typeof salesOrdersByStatus === 'object') {
-      Object.values(salesOrdersByStatus).forEach((orders: any) => {
-        if (Array.isArray(orders)) {
-          salesOrders = [...salesOrders, ...orders];
-        }
-      });
-    }
-    
-    // Count orders by status
+    // Count orders from SalesOrders.json by status
     const newAndRevised = salesOrders.filter((so: any) => {
       const status = (so["Status"] || '').toLowerCase();
       return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
@@ -1089,6 +1079,30 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       return status.includes('cancelled') || status.includes('canceled') || status.includes('void');
     });
     
+    // Count orders from SalesOrdersByStatus by folder name (files from Google Drive)
+    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    let newAndRevisedCount = 0;
+    let inProductionCount = 0;
+    let completedCount = 0;
+    let cancelledCount = 0;
+    
+    if (typeof salesOrdersByStatus === 'object') {
+      Object.entries(salesOrdersByStatus).forEach(([folderName, orders]: [string, any]) => {
+        if (Array.isArray(orders)) {
+          const folderLower = folderName.toLowerCase();
+          if (folderLower.includes('new') || folderLower.includes('revised')) {
+            newAndRevisedCount += orders.length;
+          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
+            inProductionCount += orders.length;
+          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
+            completedCount += orders.length;
+          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
+            cancelledCount += orders.length;
+          }
+        }
+      });
+    }
+    
     // Get last updated dates
     const getLastUpdated = (orders: any[]) => {
       if (orders.length === 0) return 'No data';
@@ -1104,24 +1118,34 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       return latestDate.toLocaleDateString();
     };
     
+    // Calculate total from both sources
+    let totalFromStatus = 0;
+    if (typeof salesOrdersByStatus === 'object') {
+      Object.values(salesOrdersByStatus).forEach((orders: any) => {
+        if (Array.isArray(orders)) {
+          totalFromStatus += orders.length;
+        }
+      });
+    }
+    
     return {
       newAndRevised: {
-        count: newAndRevised.length,
+        count: newAndRevised.length + newAndRevisedCount,
         lastUpdated: getLastUpdated(newAndRevised)
       },
       inProduction: {
-        count: inProduction.length,
+        count: inProduction.length + inProductionCount,
         lastUpdated: getLastUpdated(inProduction)
       },
       completed: {
-        count: completed.length,
+        count: completed.length + completedCount,
         lastUpdated: getLastUpdated(completed)
       },
       cancelled: {
-        count: cancelled.length,
+        count: cancelled.length + cancelledCount,
         lastUpdated: getLastUpdated(cancelled)
       },
-      total: salesOrders.length
+      total: salesOrders.length + totalFromStatus
     };
   }, [data]);
 
