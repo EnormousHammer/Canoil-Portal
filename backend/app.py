@@ -1691,18 +1691,29 @@ def get_sales_order_folder(folder_path):
                             subfolder_id = subfolder['id']
                             subfolder_name = subfolder['name']
                             
-                            # Count files in subfolder
-                            file_query = f"'{subfolder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
-                            file_results = google_drive_service.service.files().list(
-                                q=file_query,
-                                corpora='drive',
-                                driveId=sales_csr_drive_id,
-                                includeItemsFromAllDrives=True,
-                                supportsAllDrives=True,
-                                fields="files(id, name)",
-                                pageSize=100
-                            ).execute()
-                            file_count = len(file_results.get('files', []))
+                            # Count files in subfolder RECURSIVELY (like local version)
+                            # Use _scan_folder_recursively to get all files
+                            try:
+                                files_by_folder = google_drive_service._scan_folder_recursively(
+                                    subfolder_id, subfolder_name, sales_csr_drive_id, 
+                                    depth=0, max_depth=3, start_time=None, max_scan_time=10
+                                )
+                                # Count all files across all subfolders
+                                file_count = sum(len(files) for files in files_by_folder.values())
+                            except Exception as e:
+                                print(f"[WARN] Error counting files recursively for {subfolder_name}: {e}")
+                                # Fallback to immediate files only
+                                file_query = f"'{subfolder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+                                file_results = google_drive_service.service.files().list(
+                                    q=file_query,
+                                    corpora='drive',
+                                    driveId=sales_csr_drive_id,
+                                    includeItemsFromAllDrives=True,
+                                    supportsAllDrives=True,
+                                    fields="files(id, name)",
+                                    pageSize=100
+                                ).execute()
+                                file_count = len(file_results.get('files', []))
                             
                             # Count subfolders
                             folder_query = f"'{subfolder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
