@@ -790,16 +790,15 @@ class GoogleDriveService:
         data = self.load_folder_data(latest_folder_id, drive_id)
         print(f"[INFO] load_folder_data returned {len(data)} files: {list(data.keys())}")
         
-        # Load sales orders data (don't let errors break the main data loading)
-        print(f"[INFO] ===== ATTEMPTING TO LOAD SALES ORDERS DATA =====")
+        # Load sales orders data - uses SAME local extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
+        print(f"[INFO] ===== LOADING SALES ORDERS (using local extraction functions) =====")
         try:
             sales_orders_data = self.load_sales_orders_data(drive_id)
-            print(f"[INFO] load_sales_orders_data returned: {type(sales_orders_data)}, keys: {list(sales_orders_data.keys()) if isinstance(sales_orders_data, dict) else 'not a dict'}")
             if sales_orders_data:
                 data.update(sales_orders_data)
-                print(f"[OK] Successfully added sales orders data to main data")
+                print(f"[OK] Successfully added sales orders data")
             else:
-                print(f"[INFO] No sales orders data returned (empty dict or None)")
+                print(f"[INFO] No sales orders data returned")
         except Exception as e:
             print(f"[ERROR] Exception loading sales orders data (non-fatal): {e}")
             import traceback
