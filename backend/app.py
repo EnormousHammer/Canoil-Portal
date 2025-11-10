@@ -633,7 +633,12 @@ def load_json_file(file_path):
 # Global cache for data - MEMORY OPTIMIZED
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 300  # 5 minutes cache
+_cache_duration = 600  # 10 minutes cache (increased from 5 minutes)
+
+# Sales Order folder cache - stores folder contents by path
+_so_folder_cache = {}
+_so_folder_cache_timestamps = {}
+_so_folder_cache_duration = 300  # 5 minutes cache for folders
 # Maximum cache size in MB - increased for 2GB instance (leave ~500MB for system/other processes)
 _MAX_CACHE_SIZE_MB = 1500  # Maximum cache size in MB (2GB instance - safe limit)
 
@@ -1565,9 +1570,32 @@ def get_sales_order_pdf(file_path):
 
 @app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
 def get_sales_order_folder(folder_path):
-    """Get Sales Order folder contents dynamically - REAL TIME SYNC from Google Drive"""
+    """Get Sales Order folder contents dynamically - REAL TIME SYNC from Google Drive with caching"""
+    global _so_folder_cache, _so_folder_cache_timestamps
+    
     try:
-        print(f"[INFO] Loading Sales Order folder: {folder_path}")
+        force_refresh = request.args.get('force', 'false').lower() == 'true'
+        print(f"[INFO] Loading Sales Order folder: {folder_path} (force_refresh={force_refresh})")
+        
+        # Check cache first (unless forcing refresh)
+        if not force_refresh and folder_path in _so_folder_cache and folder_path in _so_folder_cache_timestamps:
+            cache_age = time.time() - _so_folder_cache_timestamps[folder_path]
+            cached_data = _so_folder_cache[folder_path]
+            
+            if cache_age < _so_folder_cache_duration and cached_data:
+                print(f"[OK] Returning cached folder data (age: {cache_age:.1f}s, duration: {_so_folder_cache_duration}s)")
+                return jsonify({
+                    **cached_data,
+                    'cached': True,
+                    'cache_age': cache_age
+                })
+            else:
+                print(f"[INFO] Cache expired (age: {cache_age:.1f}s), loading fresh data...")
+                # Remove expired cache
+                if folder_path in _so_folder_cache:
+                    del _so_folder_cache[folder_path]
+                if folder_path in _so_folder_cache_timestamps:
+                    del _so_folder_cache_timestamps[folder_path]
         
         # Try Google Drive API first if enabled
         if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
@@ -1779,7 +1807,8 @@ def get_sales_order_folder(folder_path):
         
         print(f"[OK] Loaded {len(folders)} folders and {len(files)} files from local G: Drive: {folder_path}")
         
-        return jsonify({
+        # Cache the result
+        folder_data = {
             'path': folder_path,
             'full_path': full_path,
             'folders': folders,
@@ -1787,6 +1816,14 @@ def get_sales_order_folder(folder_path):
             'total_folders': len(folders),
             'total_files': len(files),
             'source': 'Local G: Drive'
+        }
+        _so_folder_cache[folder_path] = folder_data
+        _so_folder_cache_timestamps[folder_path] = time.time()
+        print(f"[OK] Cached folder data for: {folder_path}")
+        
+        return jsonify({
+            **folder_data,
+            'cached': False
         })
         
     except Exception as e:
