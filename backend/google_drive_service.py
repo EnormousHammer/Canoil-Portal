@@ -475,12 +475,28 @@ class GoogleDriveService:
     
     def load_sales_orders_data(self, drive_id):
         """Load sales orders data from Google Drive - SCANS ALL FOLDERS UNDER Customer Orders
+        Downloads and parses PDF/DOCX files to extract actual sales order data (like local version)
         
         Note: drive_id parameter is ignored - we always search for Sales_CSR as a separate drive
         Scans: Sales Orders, Purchase Orders, and ALL their subfolders recursively
         """
         print(f"[INFO] ===== STARTING load_sales_orders_data =====")
         try:
+            # Import extraction functions dynamically to avoid circular imports
+            import sys
+            from pathlib import Path
+            backend_path = Path(__file__).parent
+            if str(backend_path) not in sys.path:
+                sys.path.insert(0, str(backend_path))
+            
+            # Import extraction functions from app.py
+            try:
+                from app import extract_so_data_from_pdf, extract_so_data_from_docx
+                print(f"[OK] Successfully imported PDF/DOCX extraction functions")
+            except ImportError as e:
+                print(f"[ERROR] Failed to import extraction functions: {e}")
+                return {}
+            
             # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
             # Ignore the drive_id parameter and search for Sales_CSR independently
             print(f"[INFO] Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)")
@@ -520,7 +536,7 @@ class GoogleDriveService:
                 'TotalSalesOrders': 0,
                 'TotalPurchaseOrders': 0,
                 'StatusFolders': [],
-                'ScanMethod': 'Google Drive API - Recursive Scan'
+                'ScanMethod': 'Google Drive API - PDF/DOCX Parsing'
             }
             
             # Get all folders under Customer Orders (Sales Orders, Purchase Orders, etc.)
@@ -542,10 +558,6 @@ class GoogleDriveService:
             
             print(f"[INFO] Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
             
-            # Log each folder found
-            for f in customer_order_folders:
-                print(f"[INFO]   - Folder found: '{f['name']}' (ID: {f['id']})")
-            
             # Scan each folder under Customer Orders (Sales Orders, Purchase Orders, etc.)
             for order_folder in customer_order_folders:
                 folder_id = order_folder['id']
@@ -554,67 +566,100 @@ class GoogleDriveService:
                 
                 # Recursively scan this folder and all its subfolders
                 # Returns dict: {subfolder_path: [files]}
-                # Add timeout protection - limit scanning to 30 seconds per folder
                 import time as time_module
                 scan_start_time = time_module.time()
-                print(f"[INFO] Calling _scan_folder_recursively for folder: {folder_name} (ID: {folder_id})")
                 files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3, start_time=scan_start_time, max_scan_time=30)
                 scan_elapsed = time_module.time() - scan_start_time
                 print(f"[INFO] Scan completed in {scan_elapsed:.1f}s for folder: {folder_name}")
-                print(f"[INFO] _scan_folder_recursively returned {len(files_by_subfolder)} subfolders with files for {folder_name}")
-                print(f"[INFO] Keys in files_by_subfolder: {list(files_by_subfolder.keys())}")
                 
-                # Process even if empty - we still want to log what was found
                 if files_by_subfolder:
-                    print(f"[INFO] Processing {len(files_by_subfolder)} subfolders for {folder_name}")
-                    # Organize by folder type and subfolder structure
-                    if 'Sales' in folder_name or 'sales' in folder_name.lower():
-                        print(f"[INFO] Folder '{folder_name}' identified as SALES ORDERS folder")
-                        # Add each subfolder's files to SalesOrdersByStatus
-                        # Extract just the subfolder name (not full path) for frontend compatibility
-                        for subfolder_path, files in files_by_subfolder.items():
-                            # Extract just the subfolder name (e.g., "Sales Orders/New and Revised" -> "New and Revised")
-                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
-                            # If it's the parent folder itself, use the folder name
-                            if subfolder_path == folder_name:
-                                subfolder_name = folder_name
+                    # Process files: download and parse PDFs/DOCX
+                    all_parsed_orders = []
+                    
+                    for subfolder_path, files in files_by_subfolder.items():
+                        subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
+                        if subfolder_path == folder_name:
+                            subfolder_name = folder_name
+                        
+                        parsed_orders_in_folder = []
+                        
+                        # Download and parse each PDF/DOCX file
+                        for file_info in files:
+                            file_id = file_info.get('file_id')
+                            file_name = file_info.get('file_name', '')
                             
-                            # Use subfolder name as key (frontend expects simple names like "New and Revised")
+                            # Only process PDF/DOCX files
+                            if not file_name.lower().endswith(('.pdf', '.docx', '.doc')):
+                                continue
+                            
+                            try:
+                                print(f"[INFO] Downloading and parsing: {file_name}")
+                                
+                                # Download file content
+                                file_content = self.download_file_content(file_id)
+                                if not file_content:
+                                    print(f"[WARN] Failed to download {file_name}")
+                                    continue
+                                
+                                # Save to temp file for parsing
+                                import tempfile
+                                import os
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file_name)[1]) as tmp_file:
+                                    tmp_file.write(file_content)
+                                    tmp_path = tmp_file.name
+                                
+                                try:
+                                    # Parse based on file type
+                                    so_info = None
+                                    if file_name.lower().endswith(('.docx', '.doc')):
+                                        so_info = extract_so_data_from_docx(tmp_path)
+                                    elif file_name.lower().endswith('.pdf'):
+                                        so_info = extract_so_data_from_pdf(tmp_path)
+                                    
+                                    if so_info:
+                                        # Add folder path info
+                                        so_info['folder_path'] = subfolder_name
+                                        so_info['file_type'] = file_name.split('.')[-1].upper()
+                                        so_info['file_name'] = file_name
+                                        parsed_orders_in_folder.append(so_info)
+                                        all_parsed_orders.append(so_info)
+                                        print(f"[OK] Parsed SO: {so_info.get('so_number', 'Unknown')} - {so_info.get('customer_name', 'Unknown')}")
+                                    else:
+                                        print(f"[WARN] Failed to parse {file_name}")
+                                finally:
+                                    # Clean up temp file
+                                    try:
+                                        os.unlink(tmp_path)
+                                    except:
+                                        pass
+                                    
+                            except Exception as e:
+                                print(f"[ERROR] Error processing {file_name}: {e}")
+                                continue
+                        
+                        # Add parsed orders to SalesOrdersByStatus
+                        if 'Sales' in folder_name or 'sales' in folder_name.lower():
                             if subfolder_name not in sales_orders_data['SalesOrdersByStatus']:
                                 sales_orders_data['SalesOrdersByStatus'][subfolder_name] = []
-                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(files)
-                            sales_orders_data['TotalSalesOrders'] += len(files)
-                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} sales order files in {folder_name} across {len(files_by_subfolder)} subfolders")
-                    elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
-                        # Add each subfolder's files to PurchaseOrdersByStatus
-                        for subfolder_path, files in files_by_subfolder.items():
-                            # Extract just the subfolder name
-                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
-                            if subfolder_path == folder_name:
-                                subfolder_name = folder_name
-                            
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(parsed_orders_in_folder)
+                            sales_orders_data['TotalSalesOrders'] += len(parsed_orders_in_folder)
+                        elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
                             if subfolder_name not in sales_orders_data['PurchaseOrdersByStatus']:
                                 sales_orders_data['PurchaseOrdersByStatus'][subfolder_name] = []
-                            sales_orders_data['PurchaseOrdersByStatus'][subfolder_name].extend(files)
-                            sales_orders_data['TotalPurchaseOrders'] += len(files)
-                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} purchase order files in {folder_name} across {len(files_by_subfolder)} subfolders")
-                    else:
-                        # Other folders under Customer Orders
-                        for subfolder_path, files in files_by_subfolder.items():
-                            subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
-                            if subfolder_path == folder_name:
-                                subfolder_name = folder_name
-                            
+                            sales_orders_data['PurchaseOrdersByStatus'][subfolder_name].extend(parsed_orders_in_folder)
+                            sales_orders_data['TotalPurchaseOrders'] += len(parsed_orders_in_folder)
+                        else:
                             if subfolder_name not in sales_orders_data['SalesOrdersByStatus']:
                                 sales_orders_data['SalesOrdersByStatus'][subfolder_name] = []
-                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(files)
-                            sales_orders_data['TotalOrders'] += len(files)
-                        print(f"[OK] Found {sum(len(files) for files in files_by_subfolder.values())} files in {folder_name} across {len(files_by_subfolder)} subfolders")
-                else:
-                    print(f"[WARN] No files found in folder '{folder_name}' - files_by_subfolder is empty or None")
+                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(parsed_orders_in_folder)
+                            sales_orders_data['TotalOrders'] += len(parsed_orders_in_folder)
+                    
+                    # Add all parsed orders to SalesOrders.json (flat list)
+                    sales_orders_data['SalesOrders.json'].extend(all_parsed_orders)
+                    print(f"[OK] Parsed {len(all_parsed_orders)} sales orders from {folder_name}")
             
             # Calculate totals
-            sales_orders_data['TotalOrders'] = sales_orders_data['TotalSalesOrders'] + sales_orders_data['TotalPurchaseOrders']
+            sales_orders_data['TotalOrders'] = len(sales_orders_data['SalesOrders.json'])
             
             # Collect all status folders
             all_status_folders = []
@@ -622,7 +667,7 @@ class GoogleDriveService:
                 all_status_folders.append(folder_name)
             sales_orders_data['StatusFolders'] = all_status_folders
             
-            print(f"[OK] Total orders found: {sales_orders_data['TotalOrders']} (Sales: {sales_orders_data['TotalSalesOrders']}, Purchase: {sales_orders_data['TotalPurchaseOrders']})")
+            print(f"[OK] Total orders parsed: {sales_orders_data['TotalOrders']} (Sales: {sales_orders_data['TotalSalesOrders']}, Purchase: {sales_orders_data['TotalPurchaseOrders']})")
             return sales_orders_data
             
         except Exception as e:
