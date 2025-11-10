@@ -459,6 +459,7 @@ class GoogleDriveService:
         Note: drive_id parameter is ignored - we always search for Sales_CSR as a separate drive
         Scans: Sales Orders, Purchase Orders, and ALL their subfolders recursively
         """
+        print(f"[INFO] ===== STARTING load_sales_orders_data =====")
         try:
             # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
             # Ignore the drive_id parameter and search for Sales_CSR independently
@@ -468,11 +469,16 @@ class GoogleDriveService:
             customer_orders_folder_id = None
             
             # Check if Sales_CSR is a separate shared drive
+            print(f"[INFO] Calling find_shared_drive('Sales_CSR')...")
             sales_csr_drive_id = self.find_shared_drive("Sales_CSR")
+            print(f"[INFO] find_shared_drive returned: {sales_csr_drive_id}")
+            
             if sales_csr_drive_id:
                 print(f"[OK] Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
                 # Find "Customer Orders" folder (parent of both Sales Orders and Purchase Orders)
+                print(f"[INFO] Searching for 'Customer Orders' folder in Sales_CSR drive...")
                 customer_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
+                print(f"[INFO] find_folder_by_path returned: {customer_orders_folder_id}")
                 sales_orders_drive_id = sales_csr_drive_id
             else:
                 # Sales_CSR not found - don't try fallback to IT_Automation
@@ -612,12 +618,19 @@ class GoogleDriveService:
         data = self.load_folder_data(latest_folder_id, drive_id)
         
         # Load sales orders data (don't let errors break the main data loading)
+        print(f"[INFO] ===== ATTEMPTING TO LOAD SALES ORDERS DATA =====")
         try:
             sales_orders_data = self.load_sales_orders_data(drive_id)
+            print(f"[INFO] load_sales_orders_data returned: {type(sales_orders_data)}, keys: {list(sales_orders_data.keys()) if isinstance(sales_orders_data, dict) else 'not a dict'}")
             if sales_orders_data:
                 data.update(sales_orders_data)
+                print(f"[OK] Successfully added sales orders data to main data")
+            else:
+                print(f"[INFO] No sales orders data returned (empty dict or None)")
         except Exception as e:
-            print(f"[WARN] Error loading sales orders data (non-fatal): {e}")
+            print(f"[ERROR] Exception loading sales orders data (non-fatal): {e}")
+            import traceback
+            traceback.print_exc()
             # Continue without sales orders data - don't break the main data loading
         
         folder_info = {
