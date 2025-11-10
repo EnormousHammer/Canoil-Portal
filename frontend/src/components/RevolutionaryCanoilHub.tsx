@@ -1093,17 +1093,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           const folderLower = folderName.toLowerCase();
           console.log(`[DEBUG] Processing folder: "${folderName}" (${orders.length} files)`);
           
-          // Match folder names - be more flexible
-          if (folderLower.includes('new') || folderLower.includes('revised')) {
+          // Match folder names - be more flexible and match exact folder names
+          // Check for exact matches first, then partial matches
+          if (folderLower === 'new and revised' || folderLower.includes('new') || folderLower.includes('revised')) {
             newAndRevisedCount += orders.length;
             console.log(`[DEBUG] Matched "${folderName}" to New and Revised: +${orders.length}`);
-          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
+          } else if (folderLower === 'in production' || folderLower.includes('production') || folderLower.includes('manufacturing')) {
             inProductionCount += orders.length;
             console.log(`[DEBUG] Matched "${folderName}" to In Production: +${orders.length}`);
-          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
+          } else if (folderLower === 'completed and closed' || folderLower.includes('completed') || folderLower.includes('closed')) {
             completedCount += orders.length;
             console.log(`[DEBUG] Matched "${folderName}" to Completed: +${orders.length}`);
-          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
+          } else if (folderLower === 'cancelled' || folderLower.includes('cancelled') || folderLower.includes('canceled')) {
             cancelledCount += orders.length;
             console.log(`[DEBUG] Matched "${folderName}" to Cancelled: +${orders.length}`);
           } else {
