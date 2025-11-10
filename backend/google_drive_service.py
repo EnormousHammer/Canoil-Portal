@@ -374,10 +374,15 @@ class GoogleDriveService:
             return None
     
     def load_sales_orders_data(self, drive_id):
-        """Load sales orders data from Google Drive"""
+        """Load sales orders data from Google Drive
+        
+        Note: drive_id parameter is ignored - we always search for Sales_CSR as a separate drive
+        """
         try:
-            # Sales_CSR might be a separate shared drive, not a folder within IT_Automation
-            # Try to find Sales_CSR as a separate shared drive first
+            # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
+            # Ignore the drive_id parameter and search for Sales_CSR independently
+            print(f"🔍 Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)")
+            
             sales_orders_drive_id = None
             sales_orders_folder_id = None
             
@@ -387,18 +392,17 @@ class GoogleDriveService:
                 print(f"✅ Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
                 # If Sales_CSR is a separate drive, the path is relative to that drive
                 # Remove "Sales_CSR/" from the path since we're already in that drive
-                path_within_drive = SALES_ORDERS_PATH.replace("Sales_CSR/", "").replace("Sales_CSR", "")
+                path_within_drive = SALES_ORDERS_PATH.replace("Sales_CSR/", "").replace("Sales_CSR", "").strip()
                 if path_within_drive.startswith("/"):
                     path_within_drive = path_within_drive[1:]
-                print(f"🔍 Searching for path within Sales_CSR drive: {path_within_drive}")
+                print(f"🔍 Searching for path within Sales_CSR drive: '{path_within_drive}'")
                 sales_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, path_within_drive)
                 sales_orders_drive_id = sales_csr_drive_id
             else:
-                # Fallback: Try to find Sales_CSR as a folder within the current drive
-                print(f"⚠️ Sales_CSR not found as separate shared drive, trying within {SHARED_DRIVE_NAME}")
-                print(f"🔍 Searching for path: {SALES_ORDERS_PATH}")
-                sales_orders_folder_id = self.find_folder_by_path(drive_id, SALES_ORDERS_PATH)
-                sales_orders_drive_id = drive_id
+                # Sales_CSR not found - don't try fallback to IT_Automation
+                print(f"❌ Sales_CSR not found as separate shared drive - skipping sales orders")
+                print(f"💡 Sales_CSR must be a separate shared drive, not a folder within {SHARED_DRIVE_NAME}")
+                return {}
             
             if not sales_orders_folder_id:
                 print("⚠️ Sales orders folder not found, skipping")
