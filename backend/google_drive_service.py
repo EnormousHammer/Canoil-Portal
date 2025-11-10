@@ -373,10 +373,80 @@ class GoogleDriveService:
             print(f"❌ Error downloading file {file_id}: {error}")
             return None
     
+    def _scan_folder_recursively(self, folder_id, folder_name, drive_id, depth=0, max_depth=3):
+        """Recursively scan a folder and all its subfolders for PDF/DOCX files"""
+        all_files = []
+        
+        if depth > max_depth:
+            return all_files
+        
+        try:
+            # Get all PDF/DOCX files in current folder
+            query = f"'{folder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
+            file_list_params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'orderBy': 'modifiedTime desc',
+                'pageSize': 100,  # Get more files per folder
+                'fields': "files(id, name, mimeType, modifiedTime)"
+            }
+            
+            if drive_id:
+                file_list_params['corpora'] = 'drive'
+                file_list_params['driveId'] = drive_id
+            
+            file_results = self.service.files().list(**file_list_params).execute()
+            files = file_results.get('files', [])
+            
+            for file_info in files:
+                all_files.append({
+                    'file_id': file_info['id'],
+                    'file_name': file_info['name'],
+                    'folder': folder_name,
+                    'folder_path': folder_name,  # Will be updated with full path
+                    'modified_time': file_info.get('modifiedTime', ''),
+                    'mime_type': file_info.get('mimeType', '')
+                })
+            
+            # Get all subfolders and scan them recursively
+            query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            list_params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'fields': "files(id, name)",
+                'pageSize': 100
+            }
+            
+            if drive_id:
+                list_params['corpora'] = 'drive'
+                list_params['driveId'] = drive_id
+            
+            results = self.service.files().list(**list_params).execute()
+            subfolders = results.get('files', [])
+            
+            for subfolder in subfolders:
+                subfolder_id = subfolder['id']
+                subfolder_name = subfolder['name']
+                full_path = f"{folder_name}/{subfolder_name}" if folder_name else subfolder_name
+                print(f"📁 Scanning subfolder: {full_path} (depth: {depth})")
+                
+                # Recursively scan subfolder
+                subfolder_files = self._scan_folder_recursively(subfolder_id, full_path, drive_id, depth + 1, max_depth)
+                all_files.extend(subfolder_files)
+            
+            return all_files
+            
+        except Exception as e:
+            print(f"⚠️ Error scanning folder {folder_name}: {e}")
+            return all_files
+    
     def load_sales_orders_data(self, drive_id):
-        """Load sales orders data from Google Drive
+        """Load sales orders data from Google Drive - SCANS ALL FOLDERS UNDER Customer Orders
         
         Note: drive_id parameter is ignored - we always search for Sales_CSR as a separate drive
+        Scans: Sales Orders, Purchase Orders, and ALL their subfolders recursively
         """
         try:
             # Sales_CSR is ALWAYS a separate shared drive, NOT a folder within IT_Automation
@@ -384,19 +454,14 @@ class GoogleDriveService:
             print(f"🔍 Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)")
             
             sales_orders_drive_id = None
-            sales_orders_folder_id = None
+            customer_orders_folder_id = None
             
             # Check if Sales_CSR is a separate shared drive
             sales_csr_drive_id = self.find_shared_drive("Sales_CSR")
             if sales_csr_drive_id:
                 print(f"✅ Found Sales_CSR as separate shared drive (ID: {sales_csr_drive_id})")
-                # If Sales_CSR is a separate drive, the path is relative to that drive
-                # Remove "Sales_CSR/" from the path since we're already in that drive
-                path_within_drive = SALES_ORDERS_PATH.replace("Sales_CSR/", "").replace("Sales_CSR", "").strip()
-                if path_within_drive.startswith("/"):
-                    path_within_drive = path_within_drive[1:]
-                print(f"🔍 Searching for path within Sales_CSR drive: '{path_within_drive}'")
-                sales_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, path_within_drive)
+                # Find "Customer Orders" folder (parent of both Sales Orders and Purchase Orders)
+                customer_orders_folder_id = self.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
                 sales_orders_drive_id = sales_csr_drive_id
             else:
                 # Sales_CSR not found - don't try fallback to IT_Automation
@@ -404,87 +469,83 @@ class GoogleDriveService:
                 print(f"💡 Sales_CSR must be a separate shared drive, not a folder within {SHARED_DRIVE_NAME}")
                 return {}
             
-            if not sales_orders_folder_id:
-                print("⚠️ Sales orders folder not found, skipping")
+            if not customer_orders_folder_id:
+                print("⚠️ Customer Orders folder not found, skipping")
                 return {}
             
-            print(f"📂 Loading sales orders from: {SALES_ORDERS_PATH}")
+            print(f"📂 Loading ALL orders from Customer Orders (Sales Orders + Purchase Orders + all subfolders)")
             
             sales_orders_data = {
                 'SalesOrders.json': [],
                 'SalesOrdersByStatus': {},
+                'PurchaseOrdersByStatus': {},
                 'TotalOrders': 0,
+                'TotalSalesOrders': 0,
+                'TotalPurchaseOrders': 0,
                 'StatusFolders': [],
-                'ScanMethod': 'Google Drive API'
+                'ScanMethod': 'Google Drive API - Recursive Scan'
             }
             
-            # Get all subfolders (status folders like "Completed", "In Production", etc.)
-            query = f"'{sales_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            # Get all folders under Customer Orders (Sales Orders, Purchase Orders, etc.)
+            query = f"'{customer_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             list_params = {
                 'q': query,
                 'includeItemsFromAllDrives': True,
                 'supportsAllDrives': True,
-                'fields': "files(id, name)"
+                'fields': "files(id, name)",
+                'pageSize': 100
             }
             
-            # Add shared drive parameters if drive_id is provided
             if sales_orders_drive_id:
                 list_params['corpora'] = 'drive'
                 list_params['driveId'] = sales_orders_drive_id
             
             results = self.service.files().list(**list_params).execute()
+            customer_order_folders = results.get('files', [])
             
-            status_folders = results.get('files', [])
-            sales_orders_data['StatusFolders'] = [f['name'] for f in status_folders]
+            print(f"📋 Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
             
-            # Process each status folder
-            for status_folder in status_folders:
-                folder_id = status_folder['id']
-                folder_name = status_folder['name']
-                print(f"📁 Processing status folder: {folder_name}")
+            # Scan each folder under Customer Orders (Sales Orders, Purchase Orders, etc.)
+            for order_folder in customer_order_folders:
+                folder_id = order_folder['id']
+                folder_name = order_folder['name']
+                print(f"📂 Scanning folder: {folder_name}")
                 
-                # Get PDF and DOCX files from this folder (limit to recent files)
-                query = f"'{folder_id}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document' or name contains '.pdf' or name contains '.docx') and trashed=false"
-                file_list_params = {
-                    'q': query,
-                    'includeItemsFromAllDrives': True,
-                    'supportsAllDrives': True,
-                    'orderBy': 'modifiedTime desc',
-                    'pageSize': 50,  # Limit to most recent 50 files per folder
-                    'fields': "files(id, name, mimeType, modifiedTime)"
-                }
+                # Recursively scan this folder and all its subfolders
+                all_files = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3)
                 
-                # Add shared drive parameters if drive_id is provided
-                if sales_orders_drive_id:
-                    file_list_params['corpora'] = 'drive'
-                    file_list_params['driveId'] = sales_orders_drive_id
-                
-                file_results = self.service.files().list(**file_list_params).execute()
-                
-                files = file_results.get('files', [])
-                folder_orders = []
-                
-                # Download and parse files (this would need actual parsing logic)
-                # For now, we'll return metadata - actual parsing happens in backend
-                for file_info in files:
-                    folder_orders.append({
-                        'file_id': file_info['id'],
-                        'file_name': file_info['name'],
-                        'folder': folder_name,
-                        'modified_time': file_info.get('modifiedTime', ''),
-                        'mime_type': file_info.get('mimeType', '')
-                    })
-                
-                if folder_orders:
-                    sales_orders_data['SalesOrdersByStatus'][folder_name] = folder_orders
-                    sales_orders_data['TotalOrders'] += len(folder_orders)
-                    print(f"✅ Found {len(folder_orders)} files in {folder_name}")
+                if all_files:
+                    # Organize by folder type
+                    if 'Sales' in folder_name or 'sales' in folder_name.lower():
+                        sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
+                        sales_orders_data['TotalSalesOrders'] += len(all_files)
+                        print(f"✅ Found {len(all_files)} sales order files in {folder_name}")
+                    elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
+                        sales_orders_data['PurchaseOrdersByStatus'][folder_name] = all_files
+                        sales_orders_data['TotalPurchaseOrders'] += len(all_files)
+                        print(f"✅ Found {len(all_files)} purchase order files in {folder_name}")
+                    else:
+                        # Other folders under Customer Orders
+                        sales_orders_data['SalesOrdersByStatus'][folder_name] = all_files
+                        sales_orders_data['TotalOrders'] += len(all_files)
+                        print(f"✅ Found {len(all_files)} files in {folder_name}")
             
-            print(f"✅ Total sales orders found: {sales_orders_data['TotalOrders']}")
+            # Calculate totals
+            sales_orders_data['TotalOrders'] = sales_orders_data['TotalSalesOrders'] + sales_orders_data['TotalPurchaseOrders']
+            
+            # Collect all status folders
+            all_status_folders = []
+            for folder_name, files in sales_orders_data['SalesOrdersByStatus'].items():
+                all_status_folders.append(folder_name)
+            sales_orders_data['StatusFolders'] = all_status_folders
+            
+            print(f"✅ Total orders found: {sales_orders_data['TotalOrders']} (Sales: {sales_orders_data['TotalSalesOrders']}, Purchase: {sales_orders_data['TotalPurchaseOrders']})")
             return sales_orders_data
             
         except Exception as e:
             print(f"⚠️ Error loading sales orders: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
     
     def get_all_data(self):
