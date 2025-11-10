@@ -611,25 +611,13 @@ class GoogleDriveService:
         # Load all JSON files from latest folder
         data = self.load_folder_data(latest_folder_id, drive_id)
         
-        # Verify main data loaded successfully
-        if not data or len(data) == 0:
-            print(f"[WARN] No JSON files loaded from latest folder: {latest_folder_name}")
-            return None, "No data files found in latest folder"
-        
-        print(f"[OK] Loaded {len(data)} JSON files from IT_Automation drive")
-        
         # Load sales orders data (don't let errors break the main data loading)
         try:
             sales_orders_data = self.load_sales_orders_data(drive_id)
-            if sales_orders_data and isinstance(sales_orders_data, dict) and len(sales_orders_data) > 0:
+            if sales_orders_data:
                 data.update(sales_orders_data)
-                print(f"[OK] Added sales orders data to main data")
-            else:
-                print(f"[INFO] No sales orders data to add (this is OK)")
         except Exception as e:
             print(f"[WARN] Error loading sales orders data (non-fatal): {e}")
-            import traceback
-            traceback.print_exc()
             # Continue without sales orders data - don't break the main data loading
         
         folder_info = {
