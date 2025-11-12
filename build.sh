@@ -3,10 +3,10 @@
 echo "Installing system dependencies..."
 
 # Update package list
-apt-get update
+sudo apt-get update
 
 # Install system packages needed by Python libraries
-apt-get install -y \
+sudo apt-get install -y \
     libpoppler-cpp-dev \
     poppler-utils \
     libjpeg-dev \
