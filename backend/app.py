@@ -593,35 +593,44 @@ def health_check():
 # else:
 #     print("BOL HTML module not available")
 
-# Initialize OpenAI client
-try:
-    from openai import OpenAI
-    # Get API key from environment variable - NEVER hardcode API keys!
-    openai_api_key = os.getenv('OPENAI_API_KEY')
-    
-    if not openai_api_key or openai_api_key == "your_openai_api_key_here":
-        print("ERROR: ERROR: OPENAI_API_KEY environment variable not set or using placeholder")
-        print("💡 Set it with: set OPENAI_API_KEY=sk-proj-your_actual_key_here")
-        print("💡 Get your API key from: https://platform.openai.com/api-keys")
-        client = None
-        openai_available = False
-    else:
+# Lazy OpenAI client initialization (avoid import-time conflicts with Google libraries)
+client = None
+openai_available = False
+
+def get_openai_client_app():
+    """Get or create OpenAI client - lazy initialization"""
+    global client, openai_available
+    if client is None:
         try:
+            from openai import OpenAI
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            
+            if not openai_api_key or openai_api_key == "your_openai_api_key_here":
+                print("ERROR: OPENAI_API_KEY environment variable not set or using placeholder")
+                openai_available = False
+                return None
+            
             client = OpenAI(api_key=openai_api_key)
-            # Test the API key with a simple request
             openai_available = True
             print("OpenAI client initialized successfully")
+            return client
         except Exception as e:
             print(f"ERROR: OpenAI client initialization failed: {e}")
-            client = None
             openai_available = False
+            return None
+    return client
+
+# Check if OpenAI is available at import time (but don't initialize client yet)
+try:
+    from openai import OpenAI
+    if os.getenv('OPENAI_API_KEY'):
+        openai_available = True
+        print("OpenAI API key detected - client will be initialized on first use")
+    else:
+        openai_available = False
+        print("OpenAI API key not found")
 except ImportError:
-    print("ERROR: OpenAI library not found. Install with: pip install openai")
-    client = None
-    openai_available = False
-except Exception as e:
-    print(f"ERROR: OpenAI initialization failed: {e}")
-    client = None
+    print("ERROR: OpenAI library not found")
     openai_available = False
 
 # G: Drive base paths - EXACT paths where data is located
