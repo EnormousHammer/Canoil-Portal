@@ -644,7 +644,7 @@ class GoogleDriveService:
                                 # Build metadata (for SalesOrders.json) - METADATA ONLY
                                 path_info = {
                                     'Order No.': order_num,
-                                    'Customer': 'Click to load details',  # Will be loaded on-demand
+                                    'Customer': '',  # Will be populated when user views the order
                                     'Order Date': order_date,
                                     'Ship Date': ship_date,
                                     'Status': subfolder_name,
