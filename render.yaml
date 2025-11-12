@@ -4,8 +4,8 @@ services:
     name: canoil-portal-backend
     env: python
     plan: starter
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && python app.py
+    buildCommand: bash build.sh
+    startCommand: bash start.sh
     envVars:
       - key: PORT
         value: 10000
