@@ -10,8 +10,18 @@ import pdfplumber
 import json
 from openai import OpenAI
 
-# Initialize OpenAI client
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# Lazy OpenAI client initialization (initialize when needed, not at import time)
+openai_client = None
+
+def get_openai_client():
+    """Get or create OpenAI client - lazy initialization to avoid import-time issues"""
+    global openai_client
+    if openai_client is None:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        openai_client = OpenAI(api_key=api_key)
+    return openai_client
 
 DEBUG = os.getenv('DEBUG_SO_PARSER', 'False').lower() == 'true'
 
@@ -130,7 +140,8 @@ If no proper carrier WITH account number found, return empty strings for both fi
 Return ONLY valid JSON, no explanations."""
 
         # Use gpt-4o-mini for faster, cheaper focused extraction
-        response = openai_client.chat.completions.create(
+        client = get_openai_client()
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
@@ -315,8 +326,9 @@ Return ONLY valid JSON, no explanations or markdown.
             print(f"  Text length: {len(raw_data['raw_text'])} chars")
             print(f"  Tables: {len(raw_data['raw_tables'])}")
         
-        # Call OpenAI
-        response = openai_client.chat.completions.create(
+        # Call OpenAI (use lazy client getter)
+        client = get_openai_client()
+        response = client.chat.completions.create(
             model="gpt-4o",  # Use GPT-4o for better table parsing
             messages=[
                 {
