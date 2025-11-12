@@ -3,7 +3,7 @@ services:
   - type: web
     name: canoil-portal-backend
     env: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
@@ -24,7 +24,7 @@ services:
   - type: web
     name: canoil-portal-frontend
     env: static
-    plan: starter
+    plan: free
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
     headers:
