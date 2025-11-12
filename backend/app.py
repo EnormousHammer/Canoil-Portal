@@ -528,24 +528,25 @@ def health_check():
         "issues": []
     }
     
-    # Check G: Drive accessibility
-    gdrive_accessible = os.path.exists(GDRIVE_BASE)
-    health_status["gdrive_accessible"] = gdrive_accessible
-    if not gdrive_accessible:
-        health_status["issues"].append("G: Drive not accessible")
-        health_status["status"] = "degraded"
-    
-    # Check Google Drive API
+    # Check Google Drive API first
     health_status["google_drive_api_enabled"] = USE_GOOGLE_DRIVE_API
     if USE_GOOGLE_DRIVE_API and google_drive_service:
+        # Using Google Drive API - don't check local G: drive
         health_status["google_drive_api_initialized"] = True
         health_status["google_drive_authenticated"] = google_drive_service.authenticated
+        health_status["gdrive_accessible"] = google_drive_service.authenticated  # API is the data source
         if not google_drive_service.authenticated:
             health_status["issues"].append("Google Drive API not authenticated")
             health_status["status"] = "degraded"
     else:
+        # Not using Google Drive API - check local G: drive
         health_status["google_drive_api_initialized"] = False
         health_status["google_drive_authenticated"] = False
+        gdrive_accessible = os.path.exists(GDRIVE_BASE)
+        health_status["gdrive_accessible"] = gdrive_accessible
+        if not gdrive_accessible:
+            health_status["issues"].append("G: Drive not accessible")
+            health_status["status"] = "degraded"
     
     # Check OpenAI availability
     health_status["openai_available"] = openai_available
