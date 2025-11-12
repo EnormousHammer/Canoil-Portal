@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy the entire backend directory
 COPY backend /app/backend
 
+# Set working directory to backend
+WORKDIR /app/backend
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=utf-8
@@ -39,5 +42,5 @@ ENV PYTHONIOENCODING=utf-8
 EXPOSE 10000
 
 # Start the application
-CMD cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
 
