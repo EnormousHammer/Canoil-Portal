@@ -810,20 +810,23 @@ class GoogleDriveService:
         data = self.load_folder_data(latest_folder_id, drive_id)
         print(f"[INFO] load_folder_data returned {len(data)} files: {list(data.keys())}")
         
+        # TEMPORARILY DISABLED: Sales orders scanning takes too long and times out
+        # TODO: Re-enable after optimizing folder scanning
+        print(f"[INFO] Sales orders loading DISABLED (too slow on Render)")
         # Load sales orders data - uses SAME local extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
-        print(f"[INFO] ===== LOADING SALES ORDERS (using local extraction functions) =====")
-        try:
-            sales_orders_data = self.load_sales_orders_data(drive_id)
-            if sales_orders_data:
-                data.update(sales_orders_data)
-                print(f"[OK] Successfully added sales orders data")
-            else:
-                print(f"[INFO] No sales orders data returned")
-        except Exception as e:
-            print(f"[ERROR] Exception loading sales orders data (non-fatal): {e}")
-            import traceback
-            traceback.print_exc()
-            # Continue without sales orders data - don't break the main data loading
+        # print(f"[INFO] ===== LOADING SALES ORDERS (using local extraction functions) =====")
+        # try:
+        #     sales_orders_data = self.load_sales_orders_data(drive_id)
+        #     if sales_orders_data:
+        #         data.update(sales_orders_data)
+        #         print(f"[OK] Successfully added sales orders data")
+        #     else:
+        #         print(f"[INFO] No sales orders data returned")
+        # except Exception as e:
+        #     print(f"[ERROR] Exception loading sales orders data (non-fatal): {e}")
+        #     import traceback
+        #     traceback.print_exc()
+        #     # Continue without sales orders data - don't break the main data loading
         
         folder_info = {
             "folderName": latest_folder_name,
