@@ -546,19 +546,9 @@ class GoogleDriveService:
                 'ScanMethod': 'Google Drive API - Smart Recursive Discovery'
             }
             
-            # Import extraction functions (same as local load_real_so_data)
-            extract_so_data_from_pdf = None
-            extract_so_data_from_docx = None
-            try:
-                import sys
-                from pathlib import Path
-                backend_path = Path(__file__).parent
-                if str(backend_path) not in sys.path:
-                    sys.path.insert(0, str(backend_path))
-                from app import extract_so_data_from_pdf, extract_so_data_from_docx
-                print(f"[OK] Successfully imported PDF/DOCX extraction functions")
-            except ImportError as e:
-                print(f"[WARN] Failed to import extraction functions: {e} - will return file metadata only")
+            # METADATA ONLY MODE - No parsing, no downloads
+            # Parsing happens on-demand via separate API endpoint
+            print(f"[INFO] Loading METADATA ONLY (no PDF parsing)")
             
             # Get all folders under Customer Orders (Sales Orders, Purchase Orders, etc.)
             query = f"'{customer_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -585,26 +575,21 @@ class GoogleDriveService:
                 folder_name = order_folder['name']
                 print(f"[INFO] ===== STARTING SCAN OF FOLDER: {folder_name} =====")
                 
-                # Recursively scan this folder and all its subfolders
+                # Recursively scan this folder and all its subfolders (METADATA ONLY - fast)
                 # Returns dict: {subfolder_path: [files]}
                 import time as time_module
                 scan_start_time = time_module.time()
-                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=3, start_time=scan_start_time, max_scan_time=30)
+                # Increased timeout to 120s since we're only getting metadata (no downloads)
+                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=5, start_time=scan_start_time, max_scan_time=120)
                 scan_elapsed = time_module.time() - scan_start_time
                 print(f"[INFO] Scan completed in {scan_elapsed:.1f}s for folder: {folder_name}")
                 
                 if files_by_subfolder:
-                    # Process files: extract metadata AND parse PDFs (like local version)
+                    # Process files: extract metadata ONLY (no downloads, no parsing)
                     all_orders = []  # File metadata (for SalesOrders.json)
-                    all_parsed_orders = []  # Parsed SO data (for ParsedSalesOrders.json)
-                    max_files_per_folder = 25  # Limit like local load_real_so_data
-                    total_files_processed = 0
                     
-                    # Process all subfolders
+                    # Process all subfolders - NO LIMIT (metadata only is fast)
                     for subfolder_path, files in files_by_subfolder.items():
-                        if total_files_processed >= max_files_per_folder:
-                            print(f"[WARN] Reached limit of {max_files_per_folder} files per folder")
-                            break
                         
                         subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
                         if subfolder_path == folder_name:
@@ -612,11 +597,8 @@ class GoogleDriveService:
                         
                         orders_in_folder = []
                         
-                        # Process each PDF/DOCX file
+                        # Process each PDF/DOCX file - METADATA ONLY
                         for file_info in files:
-                            if total_files_processed >= max_files_per_folder:
-                                break
-                            
                             file_id = file_info.get('file_id')
                             file_name = file_info.get('file_name', '')
                             modified_time = file_info.get('modified_time', '')
@@ -659,10 +641,10 @@ class GoogleDriveService:
                                     except:
                                         pass
                                 
-                                # Build metadata (for SalesOrders.json)
+                                # Build metadata (for SalesOrders.json) - METADATA ONLY
                                 path_info = {
                                     'Order No.': order_num,
-                                    'Customer': 'Customer Data',
+                                    'Customer': 'Click to load details',  # Will be loaded on-demand
                                     'Order Date': order_date,
                                     'Ship Date': ship_date,
                                     'Status': subfolder_name,
@@ -671,47 +653,11 @@ class GoogleDriveService:
                                     'File Type': file_name.split('.')[-1].upper(),
                                     'Last Modified': modified_time,
                                     'Folder Path': subfolder_path,
-                                    'Full Path': f"{folder_name}/{subfolder_path}" if subfolder_path != folder_name else folder_name
+                                    'Full Path': f"{folder_name}/{subfolder_path}" if subfolder_path != folder_name else folder_name,
+                                    'file_id': file_id  # Store file_id for on-demand parsing
                                 }
                                 orders_in_folder.append(path_info)
                                 all_orders.append(path_info)
-                                
-                                # 2. Parse PDF/DOCX (for ParsedSalesOrders.json) - like load_real_so_data
-                                if extract_so_data_from_pdf or extract_so_data_from_docx:
-                                    try:
-                                        # Download file content
-                                        file_content = self.download_file_content(file_id)
-                                        if file_content:
-                                            # Save to temp file for parsing
-                                            import tempfile
-                                            import os
-                                            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file_name)[1]) as tmp_file:
-                                                tmp_file.write(file_content)
-                                                tmp_path = tmp_file.name
-                                            
-                                            try:
-                                                # Parse based on file type (like load_real_so_data)
-                                                so_info = None
-                                                if extract_so_data_from_docx and file_name.lower().endswith(('.docx', '.doc')):
-                                                    so_info = extract_so_data_from_docx(tmp_path)
-                                                elif extract_so_data_from_pdf and file_name.lower().endswith('.pdf'):
-                                                    so_info = extract_so_data_from_pdf(tmp_path)
-                                                
-                                                if so_info:
-                                                    # Add folder path info (like load_real_so_data)
-                                                    so_info['folder_path'] = subfolder_path
-                                                    so_info['file_type'] = file_name.split('.')[-1].upper()
-                                                    all_parsed_orders.append(so_info)
-                                                    total_files_processed += 1
-                                                    print(f"[OK] Parsed SO: {so_info.get('so_number', 'Unknown')} - {so_info.get('customer_name', 'Unknown')}")
-                                            finally:
-                                                try:
-                                                    os.unlink(tmp_path)
-                                                except:
-                                                    pass
-                                    except Exception as parse_error:
-                                        print(f"[WARN] Failed to parse {file_name}: {parse_error}")
-                                        # Continue - we still have metadata
                                 
                             except Exception as e:
                                 print(f"[ERROR] Error processing {file_name}: {e}")
@@ -734,13 +680,10 @@ class GoogleDriveService:
                             sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(orders_in_folder)
                             sales_orders_data['TotalOrders'] += len(orders_in_folder)
                     
-                    # Add all orders to SalesOrders.json (flat list) - file metadata
+                    # Add all orders to SalesOrders.json (flat list) - METADATA ONLY
                     sales_orders_data['SalesOrders.json'].extend(all_orders)
                     
-                    # Add parsed orders to ParsedSalesOrders.json (for logistics automation)
-                    sales_orders_data['ParsedSalesOrders.json'].extend(all_parsed_orders)
-                    
-                    print(f"[OK] Found {len(all_orders)} sales orders (metadata) and {len(all_parsed_orders)} parsed SOs from {folder_name}")
+                    print(f"[OK] Found {len(all_orders)} sales orders (metadata only) from {folder_name}")
             
             # Add all parsed orders from all folders to ParsedSalesOrders.json
             # (already done above, but ensure it's in the final structure)
