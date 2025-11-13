@@ -41,6 +41,7 @@ ENV PYTHONIOENCODING=utf-8
 # Expose port
 EXPOSE 10000
 
-# Start the application
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2
+# Start the application  
+# Use 1 worker so cache persists in memory between requests
+CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
 
