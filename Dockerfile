@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy the entire backend directory
 COPY backend /app/backend
 
+# Create uploads directory for logistics automation
+RUN mkdir -p /app/backend/uploads/logistics && chmod 777 /app/backend/uploads/logistics
+
 # Set working directory to backend
 WORKDIR /app/backend
 
