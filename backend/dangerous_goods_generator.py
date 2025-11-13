@@ -11,9 +11,15 @@ from datetime import datetime
 import re
 
 # Dangerous Goods Product Mapping
+# Template paths are relative to this file's directory
+def _get_template_path(filename):
+    """Get absolute path to template file"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_dir, 'templates', 'dangerous_goods', filename)
+
 DANGEROUS_GOODS_PRODUCTS = {
     'REOLUBE TURBOFLUID 32B GT': {
-        'template': r'G:\Shared drives\IT_Automation\Automating Roles\Logistics\Dangerous Goods Decleration\REOLUBE TURBOFLUID 32B GT.docx',
+        'template': _get_template_path('REOLUBE TURBOFLUID 32B GT.docx'),
         'match_patterns': [
             '32B GT',           # In description
             '32BGT',            # In item code (without space)
@@ -24,7 +30,7 @@ DANGEROUS_GOODS_PRODUCTS = {
         ]
     },
     'REOLUBE TURBOFLUID 46B': {
-        'template': r'G:\Shared drives\IT_Automation\Automating Roles\Logistics\Dangerous Goods Decleration\REOLUBE TURBOFLUID 46B.docx',
+        'template': _get_template_path('REOLUBE TURBOFLUID 46B.docx'),
         'match_patterns': [
             '46B',              # In description or code
             'REOL46B',          # Full item code prefix
@@ -35,7 +41,7 @@ DANGEROUS_GOODS_PRODUCTS = {
         ]
     },
     'REOLUBE TURBOFLUID 46XC': {
-        'template': r'G:\Shared drives\IT_Automation\Automating Roles\Logistics\Dangerous Goods Decleration\REOLUBE TURBOFLUID 46XC.docx',
+        'template': _get_template_path('REOLUBE TURBOFLUID 46XC.docx'),
         'match_patterns': [
             '46XC',             # In description or code
             'REOL46XC',         # Full item code prefix
