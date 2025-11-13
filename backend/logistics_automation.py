@@ -34,11 +34,14 @@ logistics_bp = Blueprint('logistics', __name__, url_prefix='')
 client = None
 
 def get_openai_client():
-    """Initialize OpenAI client only when needed"""
+    """Initialize OpenAI client only when needed and API key is available"""
     global client
     if client is None:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key or api_key == "your_openai_api_key_here" or len(api_key) < 20:
+            return None
         try:
-            client = OpenAI()  # Uses OPENAI_API_KEY from environment
+            client = OpenAI(api_key=api_key)
             return client
         except Exception as e:
             print(f"OpenAI client initialization failed: {e}")
@@ -1334,8 +1337,14 @@ def get_so_data_from_system(so_number):
             from app import parse_sales_order_pdf
             so_data = parse_sales_order_pdf(so_file_path)
             if not so_data:
-                print(f"ERROR: LOGISTICS: Original parsing failed")
+                print(f"ERROR: LOGISTICS: PDF parsing failed - no data returned")
                 return {"status": "Error", "error": "Could not parse PDF data"}
+            
+            # CRITICAL: Check if parsing returned error structure (shouldn't happen with new code, but safety check)
+            if so_data.get('status') == 'Parse Error' or so_data.get('customer_name') == 'Error - parsing failed':
+                error_msg = so_data.get('error', 'Unknown parsing error')
+                print(f"ERROR: LOGISTICS: PDF parsing failed: {error_msg}")
+                return {"status": "Error", "error": f"PDF parsing failed: {error_msg}"}
 
             so_data['status'] = "Found in system"
             so_data['data_source'] = "Original PDF parsing"
@@ -2962,7 +2971,9 @@ def generate_all_documents():
                 print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
                 
                 # Source USMCA form (already signed)
-                usmca_source = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\UCMCA\SIGNED USMCA FORM.pdf"
+                # Use relative path that works in Docker
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
                 
                 if os.path.exists(usmca_source):
                     # Copy to uploads folder with timestamped name
