@@ -525,7 +525,15 @@ def generate_dangerous_goods_declarations(
         # Find SDS and COFA documents - with error handling
         if find_documents_for_dg_item:
             try:
-                docs = find_documents_for_dg_item(item_code or product_name, batch_number)
+                # Try to import Google Drive service to pass to document finder
+                google_drive_svc = None
+                try:
+                    from app import google_drive_service
+                    google_drive_svc = google_drive_service
+                except:
+                    pass
+                
+                docs = find_documents_for_dg_item(item_code or product_name, batch_number, google_drive_svc)
                 
                 if docs.get('sds'):
                     sds_path = docs['sds']
