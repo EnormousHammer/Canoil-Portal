@@ -9,7 +9,10 @@ from datetime import datetime
 from typing import Dict, Any
 from bs4 import BeautifulSoup
 
-PACKING_SLIP_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\Packing Slip\Packing Slip Template 2.html"
+# Use relative path for Docker compatibility
+import os
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+PACKING_SLIP_TEMPLATE = os.path.join(_current_dir, 'templates', 'packing_slip', 'Packing Slip Template 2.html')
 
 def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str, Any], items: list) -> str:
     """

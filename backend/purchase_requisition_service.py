@@ -15,7 +15,9 @@ import io
 pr_service = Blueprint('pr_service', __name__)
 
 GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
-PR_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\CSR Email_to_PO.Analyzer_to_SO maker\Purchase Requisition\Examples\PR-2025-06-09-Lanxess.xlsx"
+# Use relative path for Docker compatibility
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
 def get_latest_folder():

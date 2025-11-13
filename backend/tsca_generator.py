@@ -10,7 +10,10 @@ import os
 from typing import Dict, Any, List
 
 # TSCA template path (with correct address: 62 Todd Road, Georgetown)
-TSCA_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\TSCA\TSCA CERTIFICATION_UPDATED.pdf"
+# Use relative path for Docker compatibility
+import os
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+TSCA_TEMPLATE = os.path.join(_current_dir, 'templates', 'tsca', 'TSCA CERTIFICATION_UPDATED.pdf')
 
 
 def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

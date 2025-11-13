@@ -10,7 +10,10 @@ from typing import Dict, Any, List, Optional
 from bs4 import BeautifulSoup
 
 # Template location
-NEW_BOL_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\Bill Of Landing\final_bol_template.html"
+# Use relative path for Docker compatibility
+import os
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+NEW_BOL_TEMPLATE = os.path.join(_current_dir, 'templates', 'bol', 'final_bol_template.html')
 
 # Dangerous Goods product mapping - ALL REOLUBE products are DG
 DANGEROUS_GOODS_PRODUCTS = {

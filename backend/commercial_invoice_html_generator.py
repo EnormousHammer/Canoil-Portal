@@ -9,7 +9,10 @@ from datetime import datetime
 from typing import Dict, Any
 from bs4 import BeautifulSoup
 
-COMMERCIAL_INVOICE_TEMPLATE = r"G:\Shared drives\IT_Automation\Automating Roles\Logistics\Commercial Invoice\Commerical Invoice New.html"
+# Use relative path for Docker compatibility
+import os
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+COMMERCIAL_INVOICE_TEMPLATE = os.path.join(_current_dir, 'templates', 'commercial_invoice', 'Commerical Invoice New.html')
 
 def normalize_date_format(date_str: str) -> str:
     """
