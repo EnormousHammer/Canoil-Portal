@@ -44,5 +44,5 @@ EXPOSE 10000
 # Start the application  
 # Use 1 worker so cache persists in memory between requests
 # Timeout 900s (15 min) to allow Google Drive initial scan to complete
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --timeout 900 --workers 1
+CMD ["sh", "-c", "echo 'Starting Gunicorn on port' $PORT && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 900 --workers 1 --log-level debug"]
 
