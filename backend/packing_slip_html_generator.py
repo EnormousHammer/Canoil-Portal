@@ -10,7 +10,6 @@ from typing import Dict, Any
 from bs4 import BeautifulSoup
 
 # Use relative path for Docker compatibility
-import os
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PACKING_SLIP_TEMPLATE = os.path.join(_current_dir, 'templates', 'packing_slip', 'Packing Slip Template 2.html')
 

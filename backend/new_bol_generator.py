@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 
 # Template location
 # Use relative path for Docker compatibility
-import os
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 NEW_BOL_TEMPLATE = os.path.join(_current_dir, 'templates', 'bol', 'final_bol_template.html')
 

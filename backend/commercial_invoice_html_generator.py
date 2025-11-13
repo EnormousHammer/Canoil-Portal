@@ -10,7 +10,6 @@ from typing import Dict, Any
 from bs4 import BeautifulSoup
 
 # Use relative path for Docker compatibility
-import os
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 COMMERCIAL_INVOICE_TEMPLATE = os.path.join(_current_dir, 'templates', 'commercial_invoice', 'Commerical Invoice New.html')
 
