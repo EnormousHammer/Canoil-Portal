@@ -867,12 +867,18 @@ def get_all_data():
     global _data_cache, _cache_timestamp
     
     try:
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"🔵 /api/data CALLED - Method: {request.method}")
+        print(f"🔵 Origin: {request.headers.get('Origin', 'NO ORIGIN')}")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        
         # Handle HEAD/OPTIONS requests quickly without loading data
         if request.method in ['HEAD', 'OPTIONS']:
+            print(f"✅ Returning 200 for {request.method} request")
             return jsonify({"status": "ok"}), 200
         
         force_refresh = request.args.get('force', 'false').lower() == 'true'
-        print(f"/api/data endpoint called (force_refresh={force_refresh})")
+        print(f"🔵 GET request - force_refresh={force_refresh}")
         
         # Check if we have valid cached data (unless forcing refresh)
         if not force_refresh and _data_cache and _cache_timestamp:
@@ -1159,6 +1165,7 @@ def get_all_data():
         print(f"📊 Data summary: {safe_summary}")
         
         # Cache the data for future requests - only if size is reasonable
+        print(f"🔵 About to cache data...")
         if should_cache_data(raw_data):
             _data_cache = raw_data
             _cache_timestamp = time.time()
@@ -1170,12 +1177,17 @@ def get_all_data():
             _cache_timestamp = None
             print(f"⚠️ Data too large to cache - skipping cache to prevent OOM")
         
-        return jsonify({
+        print(f"🔵 Creating JSON response...")
+        response_data = {
             "data": raw_data,
             "folderInfo": folder_info,
             "LoadTimestamp": datetime.now().isoformat(),
             "cached": False  # Indicate this was fresh data
-        })
+        }
+        print(f"🔵 About to jsonify and return...")
+        result = jsonify(response_data)
+        print(f"✅ JSON created successfully, returning 200")
+        return result
         
     except Exception as e:
         import traceback

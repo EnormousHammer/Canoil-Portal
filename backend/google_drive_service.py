@@ -217,9 +217,25 @@ class GoogleDriveService:
     
     def find_shared_drive(self, drive_name):
         """Find a shared drive by name"""
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"[INFO] Attempt {attempt + 1}/{max_retries} to list shared drives")
+                drives = self.service.drives().list().execute()
+                all_drives = drives.get('drives', [])
+                break  # Success - exit retry loop
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                    print(f"[WARN] Error listing drives (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"[INFO] Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"[ERROR] Failed to list drives after {max_retries} attempts")
+                    raise
+        
         try:
-            drives = self.service.drives().list().execute()
-            all_drives = drives.get('drives', [])
             print(f"[INFO] Searching for shared drive '{drive_name}' among {len(all_drives)} drives")
             
             # List all available drives for debugging
