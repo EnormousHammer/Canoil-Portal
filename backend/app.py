@@ -486,6 +486,18 @@ def load_real_so_data():
 
 app = Flask(__name__, static_folder='../frontend/dist', static_url_path='')
 
+# Enable CORS immediately after app creation - CRITICAL for Cloud Run!
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": False,
+        "max_age": 3600
+    }
+})
+
 # Configure Flask for Unicode handling
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
@@ -534,26 +546,8 @@ def handle_unicode_error(e):
         'error': 'Unicode encoding error - special characters detected',
         'details': 'Please check for special characters in folder/file names'
     }), 500
-# Enable CORS for all routes with proper configuration
-CORS(app, resources={
-    r"/api/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": "*",
-        "expose_headers": "*",
-        "supports_credentials": False
-    },
-    r"/download/*": {
-        "origins": "*",
-        "methods": ["GET", "OPTIONS"],
-        "allow_headers": "*",
-        "expose_headers": "*",
-        "supports_credentials": False
-    }
-})
-
-# CORS headers are handled by flask_cors above - no need to add manually
-# Removed duplicate @app.after_request to prevent "*, *" error
+# CORS is now initialized immediately after Flask app creation (see line 490)
+# This ensures all routes have proper CORS headers
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
