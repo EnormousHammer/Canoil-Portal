@@ -134,9 +134,9 @@ export class GDriveDataLoader {
         isProduction: import.meta.env.PROD
       });
       
-      // Add 60 second timeout for Render.com cold starts (free tier backends sleep)
+      // Add 120 second timeout for Cloud Run cold starts and Google Drive API data loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
       
       let response: Response;
       try {
@@ -164,11 +164,11 @@ export class GDriveDataLoader {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
-          console.error('❌ Backend request timeout after 60 seconds:', {
+          console.error('❌ Backend request timeout after 120 seconds:', {
             url: apiUrl,
-            hint: '⚠️ Backend may be sleeping (Render.com free tier) or down. It can take 30-60 seconds to wake up.'
+            hint: '⚠️ Backend is loading data from Google Drive API. First load can take 60-90 seconds.'
           });
-          throw new Error('Backend connection timeout - the server may be waking up from sleep. Please try again in a moment.');
+          throw new Error('Backend connection timeout - loading data from Google Drive. Please try again in a moment.');
         }
         throw fetchError;
       }
