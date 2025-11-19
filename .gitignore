@@ -48,6 +48,13 @@ backend/uploads/
 backend/*.db
 backend/instance/
 
+# Google Cloud credentials (NEVER COMMIT THESE!)
+service-account-key.json
+*service-account*.json
+backend/google_drive_token.pickle
+backend/gmail_credentials/token.json
+backend/gmail_credentials/token.pickle
+
 # OS files
 Thumbs.db
 desktop.ini
