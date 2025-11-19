@@ -7,10 +7,53 @@ import os
 import json
 import time
 import threading
+import tempfile
+import shutil
 from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from app import extract_so_data_from_pdf
+
+def safe_json_write(file_path, data, indent=2):
+    """Safe atomic JSON write to prevent corruption"""
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=os.path.dirname(file_path),
+            prefix='.tmp_',
+            suffix='.json'
+        )
+        
+        try:
+            with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=indent, default=str, ensure_ascii=False)
+            
+            # Validate
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                json.load(f)
+            
+            # Backup
+            if os.path.exists(file_path):
+                backup_path = file_path + '.backup'
+                try:
+                    shutil.copy2(file_path, backup_path)
+                except:
+                    pass
+            
+            # Atomic rename
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            os.rename(temp_path, file_path)
+            return True
+        except Exception as e:
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            raise e
+    except Exception as e:
+        print(f"❌ Safe JSON write failed for {file_path}: {e}")
+        return False
 
 class SOFileWatcher(FileSystemEventHandler):
     """Watches for new SO files and queues them for parsing"""
@@ -138,13 +181,15 @@ class EnterpriseSO:
         return {}
     
     def save_cache(self, parsed_cache):
-        """Save cache files"""
+        """Save cache files using SAFE atomic writes"""
         # Convert to list format
         parsed_list = list(parsed_cache.values())
         
-        # Save parsed SOs
-        with open(self.parsed_sos_file, 'w') as f:
-            json.dump(parsed_list, f, indent=2, default=str)
+        # Save parsed SOs - SAFE WRITE
+        print(f"💾 Saving {len(parsed_list)} SOs to cache (safe atomic write)...")
+        if not safe_json_write(self.parsed_sos_file, parsed_list, indent=2):
+            print(f"❌ Failed to save parsed SOs cache")
+            return False
         
         # Build item index
         item_index = []
@@ -157,11 +202,12 @@ class EnterpriseSO:
                     'quantity': item.get('quantity', 0)
                 })
         
-        # Save item index
-        with open(self.item_index_file, 'w') as f:
-            json.dump(item_index, f, indent=2)
+        # Save item index - SAFE WRITE
+        if not safe_json_write(self.item_index_file, item_index, indent=2):
+            print(f"❌ Failed to save item index")
+            return False
         
-        # Save status
+        # Save status - SAFE WRITE
         status = {
             'last_updated': datetime.now().isoformat(),
             'total_sos': len(parsed_list),
@@ -169,8 +215,12 @@ class EnterpriseSO:
             'status': 'healthy'
         }
         
-        with open(self.cache_status_file, 'w') as f:
-            json.dump(status, f, indent=2)
+        if not safe_json_write(self.cache_status_file, status, indent=2):
+            print(f"❌ Failed to save cache status")
+            return False
+        
+        print(f"✅ Cache saved successfully with backup")
+        return True
     
     def start_file_watcher(self):
         """Start watching for new SO files"""

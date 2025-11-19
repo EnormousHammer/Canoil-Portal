@@ -963,6 +963,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     };
   }, [data]);
 
+  // Pre-compute assembled items (PERFORMANCE: do once, not in render loop)
+  const assembledItemsSet = useMemo(() => {
+    const bomDetails = data['BillOfMaterialDetails.json'] || [];
+    const set = new Set<string>();
+    bomDetails.forEach((bom: any) => {
+      if (bom["Parent Item No."]) {
+        set.add(bom["Parent Item No."]);
+      }
+    });
+    return set;
+  }, [data]);
+
   // Filtered inventory with sorting and filtering
   const filteredInventory = useMemo(() => {
     let items = data['CustomAlert5.json'] || [];
@@ -1053,34 +1065,55 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return items;
   }, [data, inventoryFilter, inventorySearchQuery, sortBy, filterStatus]);
 
-  // REAL-TIME SALES ORDER ANALYTICS
+  // REAL-TIME SALES ORDER ANALYTICS - FIXED TO USE CORRECT DATA SOURCES
   const salesOrderAnalytics = useMemo(() => {
-    // Get orders from SalesOrders.json (structured data with Status field)
-    const salesOrders = data['SalesOrders.json'] || [];
+    console.log('[SALES ORDER DEBUG] Calculating analytics with correct data sources');
     
-    // Count orders from SalesOrders.json by status
-    const newAndRevised = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
+    // SOURCE 1: RealSalesOrders (PDF-extracted - MOST ACCURATE)
+    const realSalesOrders = data['RealSalesOrders'] || [];
+    console.log('  RealSalesOrders:', realSalesOrders.length);
+    
+    // SOURCE 2: SalesOrdersByStatus (PDF files organized by folder)
+    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    console.log('  SalesOrdersByStatus folders:', Object.keys(salesOrdersByStatus));
+    
+    // SOURCE 3: Fallback to MiSys structured data
+    const salesOrderHeaders = data['SalesOrderHeaders.json'] || [];
+    const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
+    console.log('  SalesOrderHeaders.json:', salesOrderHeaders.length);
+    console.log('  ParsedSalesOrders.json:', parsedSalesOrders.length);
+    
+    // Combine all real sales orders
+    const allSalesOrders = [
+      ...realSalesOrders,
+      ...parsedSalesOrders,
+      ...salesOrderHeaders
+    ];
+    
+    console.log('  Combined total:', allSalesOrders.length);
+    
+    // Count orders from combined sources by status
+    const newAndRevised = allSalesOrders.filter((so: any) => {
+      const status = (so["Status"] || so.status || '').toLowerCase();
       return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
     });
     
-    const inProduction = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
+    const inProduction = allSalesOrders.filter((so: any) => {
+      const status = (so["Status"] || so.status || '').toLowerCase();
       return status.includes('production') || status.includes('manufacturing') || status.includes('in progress') || status.includes('scheduled');
     });
     
-    const completed = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
+    const completed = allSalesOrders.filter((so: any) => {
+      const status = (so["Status"] || so.status || '').toLowerCase();
       return status.includes('completed') || status.includes('closed') || status.includes('shipped') || status.includes('delivered');
     });
     
-    const cancelled = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
+    const cancelled = allSalesOrders.filter((so: any) => {
+      const status = (so["Status"] || so.status || '').toLowerCase();
       return status.includes('cancelled') || status.includes('canceled') || status.includes('void');
     });
     
-    // Count orders from SalesOrdersByStatus by folder name (files from Google Drive)
-    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    // Count orders from SalesOrdersByStatus by folder name (PDF files from Google Drive)
     let newAndRevisedCount = 0;
     let inProductionCount = 0;
     let completedCount = 0;
@@ -1088,37 +1121,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     if (typeof salesOrdersByStatus === 'object') {
       console.log('[DEBUG] SalesOrdersByStatus keys:', Object.keys(salesOrdersByStatus));
-      Object.entries(salesOrdersByStatus).forEach(([folderName, orders]: [string, any]) => {
-        if (Array.isArray(orders)) {
+      Object.entries(salesOrdersByStatus).forEach(([folderName, ordersOrCount]: [string, any]) => {
+        // Handle both array format (orders) AND number format (count)
+        const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
+        
+        if (count > 0) {
           const folderLower = folderName.toLowerCase();
-          console.log(`[DEBUG] Processing folder: "${folderName}" (${orders.length} files)`);
+          console.log(`[DEBUG] Processing folder: "${folderName}" (${count} files)`);
           
           // Match folder names - be more flexible and match exact folder names
-          // Check for exact matches first, then partial matches
-          if (folderLower === 'new and revised' || folderLower.includes('new') || folderLower.includes('revised')) {
-            newAndRevisedCount += orders.length;
-            console.log(`[DEBUG] Matched "${folderName}" to New and Revised: +${orders.length}`);
-          } else if (folderLower === 'in production' || folderLower.includes('production') || folderLower.includes('manufacturing')) {
-            inProductionCount += orders.length;
-            console.log(`[DEBUG] Matched "${folderName}" to In Production: +${orders.length}`);
-          } else if (folderLower === 'completed and closed' || folderLower.includes('completed') || folderLower.includes('closed')) {
-            completedCount += orders.length;
-            console.log(`[DEBUG] Matched "${folderName}" to Completed: +${orders.length}`);
-          } else if (folderLower === 'cancelled' || folderLower.includes('cancelled') || folderLower.includes('canceled')) {
-            cancelledCount += orders.length;
-            console.log(`[DEBUG] Matched "${folderName}" to Cancelled: +${orders.length}`);
+          if (folderLower.includes('new') || folderLower.includes('revised')) {
+            newAndRevisedCount += count;
+            console.log(`[DEBUG] Matched "${folderName}" to New and Revised: +${count}`);
+          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
+            inProductionCount += count;
+            console.log(`[DEBUG] Matched "${folderName}" to In Production: +${count}`);
+          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
+            completedCount += count;
+            console.log(`[DEBUG] Matched "${folderName}" to Completed: +${count}`);
+          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
+            cancelledCount += count;
+            console.log(`[DEBUG] Matched "${folderName}" to Cancelled: +${count}`);
           } else {
             console.log(`[DEBUG] Folder "${folderName}" did not match any status category`);
           }
         }
       });
-      console.log(`[DEBUG] Final counts - New: ${newAndRevisedCount}, Production: ${inProductionCount}, Completed: ${completedCount}, Cancelled: ${cancelledCount}`);
+      console.log(`[DEBUG] Final folder counts - New: ${newAndRevisedCount}, Production: ${inProductionCount}, Completed: ${completedCount}, Cancelled: ${cancelledCount}`);
     }
     
     // Get last updated dates
     const getLastUpdated = (orders: any[]) => {
       if (orders.length === 0) return 'No data';
-      const dates = orders.map(so => new Date(so["Order Date"] || so["Created Date"] || Date.now()));
+      const dates = orders.map(so => new Date(so["Order Date"] || so["order_date"] || so["Created Date"] || Date.now()));
       const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
       const today = new Date();
       const diffTime = today.getTime() - latestDate.getTime();
@@ -1133,14 +1168,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     // Calculate total from both sources
     let totalFromStatus = 0;
     if (typeof salesOrdersByStatus === 'object') {
-      Object.values(salesOrdersByStatus).forEach((orders: any) => {
-        if (Array.isArray(orders)) {
-          totalFromStatus += orders.length;
-        }
+      Object.values(salesOrdersByStatus).forEach((ordersOrCount: any) => {
+        // Handle both array format (orders) AND number format (count)
+        const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
+        totalFromStatus += count;
       });
     }
     
-    return {
+    const finalCounts = {
       newAndRevised: {
         count: newAndRevised.length + newAndRevisedCount,
         lastUpdated: getLastUpdated(newAndRevised)
@@ -1157,8 +1192,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         count: cancelled.length + cancelledCount,
         lastUpdated: getLastUpdated(cancelled)
       },
-      total: salesOrders.length + totalFromStatus
+      total: allSalesOrders.length + totalFromStatus
     };
+    
+    console.log('[SALES ORDER DEBUG] Final analytics:', finalCounts);
+    return finalCounts;
   }, [data]);
 
   // ENHANCED CUSTOMER ANALYSIS - Real business intelligence with smart name combining
@@ -1552,19 +1590,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             <div className="text-xl font-black">SALES</div>
             <div className="text-sm">
               {(() => {
-                const realSalesOrders = data['RealSalesOrders'] || [];
-                const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-                
-                let totalOrders = realSalesOrders.length;
-                
-                if (typeof salesOrdersByStatus === 'object') {
-                  Object.values(salesOrdersByStatus).forEach((orders: any) => {
-                    if (Array.isArray(orders)) {
-                      totalOrders += orders.length;
-                    }
-                  });
-                }
-                
+                // Use TotalOrders from backend (most accurate) or fall back to counting
+                const totalOrders = data['TotalOrders'] || (data['SalesOrders.json'] || []).length || 0;
                 return `${totalOrders} Orders`;
               })()}
             </div>
@@ -4467,10 +4494,51 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   
                   <div className="flex gap-4">
-                    <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-colors">
+                    <button 
+                      onClick={async () => {
+                        try {
+                          alert('🚀 Generating logistics documents...\n\nThis will create:\n• BOL\n• Commercial Invoice\n• Packing Slip\n• TSCA (if US)\n• Dangerous Goods (if DG)');
+                          
+                          const response = await fetch(getApiUrl('/api/logistics/generate-all-documents'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              so_number: logisticsData.soNumber,
+                              po_number: logisticsData.poNumber,
+                              shipment_type: logisticsData.shipmentType,
+                              carrier: logisticsData.carrier,
+                              destination: logisticsData.destination,
+                              gross_weight: logisticsData.grossWeight,
+                              pickup_date: logisticsData.pickupDate,
+                              workflow: selectedWorkflow
+                            })
+                          });
+                          
+                          if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `Logistics_Documents_${logisticsData.soNumber || 'export'}.zip`;
+                            link.click();
+                            window.URL.revokeObjectURL(url);
+                            alert('✅ Documents generated successfully!');
+                          } else {
+                            const error = await response.text();
+                            alert(`❌ Error generating documents:\n${error}`);
+                          }
+                        } catch (error) {
+                          alert(`❌ Error: ${error.message}`);
+                        }
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-colors"
+                    >
                       📄 Generate & Download Run Sheet
                     </button>
-                    <button className="px-6 py-4 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
+                    <button 
+                      onClick={() => window.print()}
+                      className="px-6 py-4 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+                    >
                       🖨️ Print
                     </button>
                     <button 
@@ -5256,10 +5324,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     statusText = 'Low Stock';
                   }
                   
-                  // Check if item is assembled (has BOM components)
-                  const isAssembled = (data['BillOfMaterialDetails.json'] || []).some((bom: any) => 
-                    bom["Parent Item No."] === item["Item No."]
-                  );
+                  // Check if item is assembled (PERFORMANCE: using pre-computed Set)
+                  const isAssembled = assembledItemsSet.has(item["Item No."]);
                   
                   return (
                     <div 

@@ -139,9 +139,9 @@ function App() {
     if (isLoggedIn) {
       console.log("🚀 User logged in - starting data loading");
       
-      // Minimum 10 second loading time - but wait for data to actually load
+      // Minimum 2 second loading time for smooth UX - but wait for data to actually load
       const minLoadingTimeout = setTimeout(() => {
-        console.log("✅ Minimum 10 seconds complete - checking if data loaded");
+        console.log("✅ Minimum 2 seconds complete - checking if data loaded");
         if (dataLoaded) {
           console.log("✅ Data loaded - launching app");
           setIsLoading(false);
@@ -149,7 +149,7 @@ function App() {
         } else {
           console.log("⏳ Data still loading - waiting...");
         }
-      }, 10000); // Minimum 10 seconds
+      }, 2000); // Minimum 2 seconds for smooth UX
       
       return () => {
         clearTimeout(minLoadingTimeout);
@@ -196,25 +196,16 @@ function App() {
     }
   }, [dataLoaded]);
 
-  // Auto-sync: Check for new sales orders every 2 minutes
+  // Auto-sync: DISABLED - Data is a snapshot from MiSys exports, not live
+  // User can manually click "Sync Now" if needed
   useEffect(() => {
-    if (!dataLoaded || !isLoggedIn) return;
-    
-    console.log('🔄 Starting auto-sync for Sales Orders (every 2 minutes)');
-    
-    // Check every 2 minutes (120000ms)
-    const syncInterval = setInterval(() => {
-      console.log('🔍 Checking for new sales orders...');
-      checkForNewSalesOrders();
-    }, 120000); // 2 minutes
-    
-    return () => {
-      console.log('🛑 Stopping auto-sync');
-      clearInterval(syncInterval);
-    };
+    // Auto-sync disabled for snapshot-based data
+    // Only syncs on user request via "Sync Now" button
+    return () => {};
   }, [dataLoaded, isLoggedIn, lastSalesOrderCount]);
   
-  // Health monitoring: Check system health every 30 seconds
+  // Health monitoring: DISABLED - Not needed for static snapshot data
+  // Check health only on initial load
   useEffect(() => {
     if (!dataLoaded || !isLoggedIn) return;
     
@@ -224,26 +215,16 @@ function App() {
         const health = await response.json();
         setSystemHealth(health);
         
-        // Show warning if system has issues
         if (health.issues && health.issues.length > 0) {
           setShowHealthWarning(true);
-          console.warn('🚨 System health issues detected:', health.issues);
-        } else {
-          setShowHealthWarning(false);
         }
       } catch (error) {
         console.error('❌ Error checking system health:', error);
-        setShowHealthWarning(true);
       }
     };
     
-    // Check immediately
+    // Check once on load only
     checkHealth();
-    
-    // Check every 30 seconds
-    const healthInterval = setInterval(checkHealth, 30000);
-    
-    return () => clearInterval(healthInterval);
   }, [dataLoaded, isLoggedIn]);
 
   // Function to check for new sales orders without full reload
@@ -277,8 +258,14 @@ function App() {
     try {
       const result = await gdriveLoader.loadAllData();
       const mpsUrl = getApiUrl('/api/mps');
-      const mpsData = await fetch(mpsUrl)
+      
+      // Add timeout for Render.com cold starts
+      const refreshMpsController = new AbortController();
+      const refreshMpsTimeoutId = setTimeout(() => refreshMpsController.abort(), 60000);
+      
+      const mpsData = await fetch(mpsUrl, { signal: refreshMpsController.signal })
         .then(response => {
+          clearTimeout(refreshMpsTimeoutId);
           if (response.ok) {
             return response.json();
           } else {
@@ -293,13 +280,21 @@ function App() {
           }
         })
         .catch(error => {
-          console.error('⚠️ Error loading MPS data on refresh:', {
-            error: error.message,
-            url: mpsUrl,
-            hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
-              ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
-              : 'Check if backend server is running and accessible.'
-          });
+          clearTimeout(refreshMpsTimeoutId);
+          if (error.name === 'AbortError') {
+            console.error('⚠️ MPS data refresh timeout after 60 seconds:', {
+              url: mpsUrl,
+              hint: '⚠️ Backend may be sleeping or down.'
+            });
+          } else {
+            console.error('⚠️ Error loading MPS data on refresh:', {
+              error: error.message,
+              url: mpsUrl,
+              hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+                ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
+                : 'Check if backend server is running and accessible.'
+            });
+          }
           return { mps_orders: [], summary: { total_orders: 0 } };
         });
       
@@ -406,8 +401,14 @@ function App() {
         hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
         isProduction: import.meta.env.PROD
       });
-      const mpsPromise = fetch(mpsUrl)
+      
+      // Add 60 second timeout for Render.com cold starts
+      const mpsController = new AbortController();
+      const mpsTimeoutId = setTimeout(() => mpsController.abort(), 60000);
+      
+      const mpsPromise = fetch(mpsUrl, { signal: mpsController.signal })
         .then(response => {
+          clearTimeout(mpsTimeoutId);
           if (response.ok) {
             return response.json();
           } else {
@@ -423,14 +424,22 @@ function App() {
           }
         })
         .catch(error => {
-          console.error('⚠️ Error loading MPS data:', {
-            error: error.message,
-            url: mpsUrl,
-            stack: error.stack,
-            hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
-              ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
-              : 'Check if backend server is running and accessible.'
-          });
+          clearTimeout(mpsTimeoutId);
+          if (error.name === 'AbortError') {
+            console.error('⚠️ MPS data request timeout after 60 seconds:', {
+              url: mpsUrl,
+              hint: '⚠️ Backend may be sleeping (Render.com free tier) or down.'
+            });
+          } else {
+            console.error('⚠️ Error loading MPS data:', {
+              error: error.message,
+              url: mpsUrl,
+              stack: error.stack,
+              hint: mpsUrl.includes('localhost') && import.meta.env.PROD 
+                ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
+                : 'Check if backend server is running and accessible.'
+            });
+          }
           return { mps_orders: [], summary: { total_orders: 0 } };
         });
 
@@ -514,11 +523,8 @@ function App() {
     );
   }
 
-  console.log(`🔍 Render check: isLoggedIn=${isLoggedIn}, isLoading=${isLoading}, showLoadingScreen=${showLoadingScreen}`);
-  
   // Show loading screen with login if not logged in, or normal loading if logged in
   if (!isLoggedIn || isLoading || showLoadingScreen) {
-    console.log("✅ Rendering ultra-premium loading screen");
     return (
       <UltimateEnterpriseLoadingScreen
         loadingStatus={loadingStatus}

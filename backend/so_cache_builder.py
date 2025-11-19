@@ -7,7 +7,7 @@ import os
 import json
 import sys
 from datetime import datetime
-from logistics_automation import extract_so_data_from_pdf
+from app import extract_so_data_from_pdf
 
 # Add current directory to path
 sys.path.append('.')
@@ -43,8 +43,17 @@ def build_so_cache():
     # Find all SO PDFs
     all_so_files = []
     print(f"🔍 Scanning for SO PDFs in: {sales_orders_base}")
+    print(f"   This may take 30-60 seconds for large folders...")
     
+    folder_count = 0
     for root, dirs, files in os.walk(sales_orders_base):
+        folder_count += 1
+        folder_name = os.path.basename(root)
+        
+        # Show progress during scan
+        if folder_count % 5 == 0:
+            print(f"   Scanning folder #{folder_count}: {folder_name} ({len(all_so_files)} SOs found so far)")
+        
         for file in files:
             if file.lower().endswith('.pdf') and 'salesorder_' in file.lower():
                 file_path = os.path.join(root, file)
@@ -57,7 +66,8 @@ def build_so_cache():
                     'folder': os.path.basename(root)
                 })
     
-    print(f"📄 Found {len(all_so_files)} SO PDF files")
+    print(f"\n✅ SCAN COMPLETE!")
+    print(f"📄 Found {len(all_so_files)} SO PDF files in {folder_count} folders")
     
     # Parse SOs (skip already cached ones)
     parsed_sos = []
@@ -80,9 +90,14 @@ def build_so_cache():
                     'quantity': item.get('quantity', 0)
                 })
             skipped_count += 1
+            if i % 10 == 0:
+                print(f"⏩ Skipped {skipped_count} cached SOs (up to #{i})")
             continue
         
-        print(f"📄 [{i}/{len(all_so_files)}] Parsing SO {so_number}...")
+        # Progress indicator
+        print(f"\n📄 [{i}/{len(all_so_files)}] Parsing: {so_number}")
+        print(f"   Folder: {so_file['folder']}")
+        print(f"   Progress: {(i/len(all_so_files)*100):.1f}% complete")
         
         try:
             # Parse the PDF
@@ -106,7 +121,16 @@ def build_so_cache():
                     })
                 
                 parsed_count += 1
-                print(f"    ✅ Parsed {len(parsed_data.get('items', []))} items")
+                print(f"   ✅ SUCCESS: {len(parsed_data.get('items', []))} items | Customer: {parsed_data.get('customer', 'N/A')}")
+                
+                # Show summary every 25 SOs
+                if parsed_count % 25 == 0:
+                    print(f"\n{'='*60}")
+                    print(f"   📊 PROGRESS SUMMARY")
+                    print(f"   Parsed so far: {parsed_count} SOs")
+                    print(f"   Items indexed: {len(item_index)}")
+                    print(f"   Time remaining: ~{int((len(all_so_files)-i)*1.5/60)} minutes")
+                    print(f"{'='*60}\n")
                 
             else:
                 print(f"    ❌ Failed to parse or no items found")

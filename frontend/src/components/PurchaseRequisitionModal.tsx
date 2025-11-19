@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '../utils/apiConfig';
 
 interface PurchaseRequisitionModalProps {
   isOpen: boolean;
@@ -256,7 +257,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     if (isFirstItem && item.preferred_supplier && !supplierInfo) {
       try {
         console.log(`🔍 Fetching supplier details for: ${item.preferred_supplier}`);
-        const response = await fetch(`http://localhost:5002/api/pr/supplier/${encodeURIComponent(item.preferred_supplier)}`);
+        const response = await fetch(getApiUrl(`/api/pr/supplier/${encodeURIComponent(item.preferred_supplier)}`));
         
         console.log('📥 Response status:', response.status);
         
@@ -330,7 +331,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
 
       console.log('📤 Sending request:', requestData);
 
-      const response = await fetch('http://localhost:5002/api/pr/generate', {
+      const response = await fetch(getApiUrl('/api/pr/generate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

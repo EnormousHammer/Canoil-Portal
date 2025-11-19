@@ -846,7 +846,6 @@ export const ProductionSchedule: React.FC<ProductionScheduleProps> = ({ data, on
                           All ({allOrders.length})
                         </button>
                         {(() => {
-                          console.log('🔍 Rendering filter buttons for statuses:', mpsStatusValues);
                           return mpsStatusValues.map((status) => {
                           // Map MPS status to display name and count
                           const getStatusDisplayName = (status: string) => {

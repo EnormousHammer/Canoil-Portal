@@ -1,0 +1,67 @@
+================================================================================
+    🔥 FIX: STOP LOGGING IN EVERY TIME ON RENDER/NGROK 🔥
+================================================================================
+
+PROBLEM: Have to log into Google every time = NOT ACCEPTABLE ❌
+
+SOLUTION: Store tokens as environment variables on Render ✅
+
+================================================================================
+    QUICK FIX (3 MINUTES)
+================================================================================
+
+STEP 1: Extract Tokens
+-----------------------
+Run this command:
+    SETUP_RENDER_TOKENS.bat
+
+This prints 2 environment variables to copy.
+
+STEP 2: Add to Render  
+-----------------------
+1. Go to: https://dashboard.render.com/
+2. Select: canoil-portal-backend
+3. Click: Environment tab
+4. Add these 2 variables:
+   - GOOGLE_DRIVE_TOKEN = (paste JSON from Step 1)
+   - GMAIL_TOKEN = (paste JSON from Step 1)
+5. Click: Save Changes
+
+STEP 3: Wait & Verify
+---------------------
+- Render auto-redeploys (2-3 min)
+- Open your ngrok/Vercel URL
+- Should load WITHOUT login prompt ✅
+- Check Render logs for:
+  "✅ Gmail credentials loaded from environment variable"
+
+================================================================================
+    RESULT
+================================================================================
+
+BEFORE: Log in every single time ❌
+AFTER:  Log in ONCE, works forever ✅
+
+NO MORE "why do i have to log in every time" - YOU DON'T ANYMORE! 🎉
+
+================================================================================
+    TROUBLESHOOTING
+================================================================================
+
+"No tokens found"?
+  → Run start_backend.bat first and authenticate
+
+Still asking for login?
+  → Check env vars are set on Render
+  → Verify JSON is valid (no extra quotes)
+  → Trigger manual redeploy
+
+Need help?
+  → See: FIX_LOGIN_EVERY_TIME.md
+  → See: RENDER_PERSISTENT_LOGIN_FIX.md (detailed)
+
+================================================================================
+
+
+
+

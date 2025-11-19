@@ -5,6 +5,7 @@ import { ProductionSchedule } from './ProductionSchedule';
 import { CleanEnterpriseDashboard } from './CleanEnterpriseDashboard';
 import LogisticsAutomation from './LogisticsAutomation';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
+import { getApiUrl } from '../utils/apiConfig';
 
 // Purchase Order Types
 type AddressBlock = {
@@ -748,7 +749,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       const folderPath = path.join('/');
       console.log('🔄 Loading SO folder data for:', folderPath);
       
-      const response = await fetch(`http://localhost:5002/api/sales-orders/folder/${folderPath}`);
+      const response = await fetch(getApiUrl(`/api/sales-orders/folder/${folderPath}`));
       if (response.ok) {
         const folderData = await response.json();
         setSoFolderData(folderData);
@@ -806,7 +807,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     try {
       // View PDF in browser via backend using full file path
       const encodedPath = encodeURIComponent(file.path);
-      const url = `http://localhost:5002/api/sales-order-pdf/${encodedPath}`;
+      const url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
       console.log('🌐 Opening PDF in browser:', url);
       
       // Give immediate feedback

@@ -19,6 +19,13 @@ services:
         value: MiSys/Misys Extracted Data/API Extractions
       - key: GOOGLE_DRIVE_SALES_ORDERS_PATH
         value: Sales_CSR/Customer Orders/Sales Orders
+      # IMPORTANT: Add these tokens to persist authentication across restarts
+      # Run: python backend/extract_tokens_for_render.py
+      # Then add the values manually in Render dashboard
+      # - key: GOOGLE_DRIVE_TOKEN
+      #   value: (paste JSON token here)
+      # - key: GMAIL_TOKEN
+      #   value: (paste JSON token here)
 
   # Frontend React Vite Service
   - type: web

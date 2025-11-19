@@ -21,7 +21,12 @@ if (typeof window !== 'undefined') {
     // Local development: backend runs on port 5002
     apiBaseUrl = 'http://localhost:5002';
   }
-  // 3. PRODUCTION/VERCEL/RENDER (same origin)
+  // 3. NGROK (tunnel to local backend)
+  else if (window.location.hostname.includes('ngrok')) {
+    // Ngrok: use same origin (ngrok forwards to backend)
+    apiBaseUrl = window.location.origin;
+  }
+  // 4. PRODUCTION/VERCEL/RENDER (same origin)
   else {
     // Production: backend and frontend on same domain (Vercel rewrites, Render proxy)
     apiBaseUrl = window.location.origin;

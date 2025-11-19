@@ -139,16 +139,13 @@ class GmailEmailService:
             self.writing_style_profile = None
     
     def _load_credentials(self):
-        """Load saved Gmail credentials - try JSON first, then pickle"""
-        json_path = self.credentials_path / 'token.json'
-        pickle_path = self.credentials_path / 'token.pickle'
-        
-        # Try loading from JSON first
-        if json_path.exists():
-            print(f"📄 Loading credentials from JSON: {json_path}")
+        """Load saved Gmail credentials - try ENV VAR first, then JSON, then pickle"""
+        # 🔥 PRIORITY 1: Try loading from environment variable (for Render/Vercel/ngrok)
+        gmail_token_env = os.getenv('GMAIL_TOKEN')
+        if gmail_token_env:
+            print("📡 Loading Gmail credentials from GMAIL_TOKEN environment variable...")
             try:
-                with open(json_path, 'r') as f:
-                    creds_dict = json.load(f)
+                creds_dict = json.loads(gmail_token_env)
                 
                 # Reconstruct credentials object
                 self.creds = Credentials(
@@ -159,22 +156,53 @@ class GmailEmailService:
                     client_secret=creds_dict.get('client_secret'),
                     scopes=creds_dict.get('scopes')
                 )
-                print("✅ Credentials loaded from JSON")
+                print("✅ Gmail credentials loaded from environment variable (persistent across restarts)")
+                # Don't return yet - still need to validate below
             except Exception as e:
-                print(f"❌ Error loading JSON credentials: {e}")
+                print(f"❌ Error loading Gmail credentials from environment variable: {e}")
+                import traceback
+                traceback.print_exc()
                 self.creds = None
-        # Fallback to pickle if JSON doesn't exist
-        elif pickle_path.exists():
-            print(f"📄 Loading credentials from pickle: {pickle_path}")
-            try:
-                with open(pickle_path, 'rb') as f:
-                    self.creds = pickle.load(f)
-                print("✅ Credentials loaded from pickle")
-            except Exception as e:
-                print(f"❌ Error loading pickle credentials: {e}")
-                self.creds = None
-        else:
-            print("❌ No saved credentials found")
+        
+        # PRIORITY 2: Try loading from JSON file
+        if not self.creds:
+            json_path = self.credentials_path / 'token.json'
+            if json_path.exists():
+                print(f"📄 Loading credentials from JSON: {json_path}")
+                try:
+                    with open(json_path, 'r') as f:
+                        creds_dict = json.load(f)
+                    
+                    # Reconstruct credentials object
+                    self.creds = Credentials(
+                        token=creds_dict.get('token'),
+                        refresh_token=creds_dict.get('refresh_token'),
+                        token_uri=creds_dict.get('token_uri'),
+                        client_id=creds_dict.get('client_id'),
+                        client_secret=creds_dict.get('client_secret'),
+                        scopes=creds_dict.get('scopes')
+                    )
+                    print("✅ Credentials loaded from JSON file")
+                except Exception as e:
+                    print(f"❌ Error loading JSON credentials: {e}")
+                    self.creds = None
+        
+        # PRIORITY 3: Fallback to pickle if JSON doesn't exist
+        if not self.creds:
+            pickle_path = self.credentials_path / 'token.pickle'
+            if pickle_path.exists():
+                print(f"📄 Loading credentials from pickle: {pickle_path}")
+                try:
+                    with open(pickle_path, 'rb') as f:
+                        self.creds = pickle.load(f)
+                    print("✅ Credentials loaded from pickle file")
+                except Exception as e:
+                    print(f"❌ Error loading pickle credentials: {e}")
+                    self.creds = None
+        
+        # No credentials found anywhere
+        if not self.creds:
+            print("❌ No saved credentials found (checked GMAIL_TOKEN env var, token.json, token.pickle)")
             return
         
         # Check credential status and refresh if needed
@@ -223,13 +251,25 @@ class GmailEmailService:
             
             token_path = self.credentials_path / 'token.json'
             with open(token_path, 'w') as f:
-                json.dump(creds_dict, f)
+                json.dump(creds_dict, f, indent=2)
             print("✅ Gmail credentials saved as JSON")
             
             # Also save as pickle for backwards compatibility
             pickle_path = self.credentials_path / 'token.pickle'
             with open(pickle_path, 'wb') as f:
                 pickle.dump(self.creds, f)
+            
+            # 🔥 IMPORTANT: Print token for Render/Vercel/ngrok environment variable
+            print("\n" + "="*80)
+            print("📋 COPY THIS TO YOUR RENDER ENVIRONMENT VARIABLES:")
+            print("="*80)
+            print("Variable name: GMAIL_TOKEN")
+            print("Variable value:")
+            print(json.dumps(creds_dict, indent=None))
+            print("="*80)
+            print("💡 This will prevent having to log in every time on Render/ngrok!")
+            print("="*80 + "\n")
+            
         except Exception as e:
             print(f"❌ Error saving credentials: {e}")
             import traceback

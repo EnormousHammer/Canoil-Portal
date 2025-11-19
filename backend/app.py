@@ -32,6 +32,8 @@ from dotenv import load_dotenv
 import PyPDF2
 import pdfplumber
 from docx import Document
+import tempfile
+import shutil
 # Import enterprise analytics safely - it might fail if dependencies are missing
 try:
     from enterprise_analytics import EnterpriseAnalytics
@@ -46,6 +48,70 @@ load_dotenv()
 
 # Debug flag for SO parsing
 DEBUG_SO = True  # Temporarily enabled for debugging
+
+# ============================================================
+# SAFE JSON WRITER - PREVENTS CORRUPTION
+# ============================================================
+
+def safe_json_write(file_path, data, indent=2):
+    """
+    Safely write JSON to prevent corruption from crashes/interruptions
+    
+    Uses atomic writes:
+    1. Write to temporary file
+    2. Validate JSON is complete
+    3. Backup existing file
+    4. Atomically rename temp to target
+    """
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # Create temp file in same directory (for atomic rename)
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=os.path.dirname(file_path),
+            prefix='.tmp_',
+            suffix='.json'
+        )
+        
+        try:
+            # Write to temp file
+            with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=indent, default=str, ensure_ascii=False)
+            
+            # Validate JSON can be read back
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                json.load(f)  # Will raise exception if corrupted
+            
+            # Backup existing file if it exists
+            if os.path.exists(file_path):
+                backup_path = file_path + '.backup'
+                try:
+                    shutil.copy2(file_path, backup_path)
+                except:
+                    pass  # Backup failure shouldn't stop the write
+            
+            # Atomic rename (overwrites target)
+            # On Windows, need to remove target first
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            os.rename(temp_path, file_path)
+            
+            return True
+            
+        except Exception as e:
+            # Clean up temp file on error
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            raise e
+            
+    except Exception as e:
+        print(f"❌ Safe JSON write failed for {file_path}: {e}")
+        return False
+
+# ============================================================
 
 # Import logistics automation module
 try:
@@ -418,7 +484,7 @@ def load_real_so_data():
     
     return so_data
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='')
 
 # Configure Flask for Unicode handling
 app.config['JSON_AS_ASCII'] = False
@@ -486,13 +552,8 @@ CORS(app, resources={
     }
 })
 
-# Add explicit CORS headers to all responses (belt and suspenders approach)
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+# CORS headers are handled by flask_cors above - no need to add manually
+# Removed duplicate @app.after_request to prevent "*, *" error
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
@@ -508,15 +569,27 @@ if PR_SERVICE_AVAILABLE:
 else:
     print("Purchase Requisition service not available")
 
-# Health check route for Render/monitoring (root path)
-@app.route('/', methods=['GET', 'HEAD'])
-def root_health_check():
-    """Health check endpoint for Render/monitoring"""
-    return jsonify({
-        "status": "ok",
-        "service": "Canoil Portal Backend",
-        "timestamp": datetime.now().isoformat()
-    }), 200
+# Serve frontend at root path
+@app.route('/', methods=['GET'])
+def serve_frontend():
+    """Serve the frontend application"""
+    from flask import send_from_directory
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Catch-all route for frontend routing (SPA)
+@app.route('/<path:path>')
+def catch_all(path):
+    """Serve frontend files or index.html for SPA routing"""
+    from flask import send_from_directory
+    # If it's an API route, let Flask handle it normally
+    if path.startswith('api/'):
+        return jsonify({"error": "API route not found"}), 404
+    # Try to serve the static file
+    try:
+        return send_from_directory(app.static_folder, path)
+    except:
+        # If file doesn't exist, serve index.html (for SPA routing)
+        return send_from_directory(app.static_folder, 'index.html')
 
 # Comprehensive health check endpoint
 @app.route('/api/health', methods=['GET'])
@@ -731,12 +804,12 @@ def load_json_file(file_path):
 # Global cache for data - MEMORY OPTIMIZED
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 600  # 10 minutes cache (increased from 5 minutes)
+_cache_duration = 3600  # 1 hour cache (for 24/7 operation - data doesn't change that often)
 
 # Sales Order folder cache - stores folder contents by path
 _so_folder_cache = {}
 _so_folder_cache_timestamps = {}
-_so_folder_cache_duration = 300  # 5 minutes cache for folders
+_so_folder_cache_duration = 1800  # 30 minutes cache for folders (increased for 24/7 stability)
 # Maximum cache size in MB - increased for 2GB instance (leave ~500MB for system/other processes)
 _MAX_CACHE_SIZE_MB = 1500  # Maximum cache size in MB (2GB instance - safe limit)
 
@@ -794,12 +867,16 @@ def should_cache_data(data):
     print(f"✅ Cache validation passed: data has content ({size_mb:.1f}MB)")
     return True
 
-@app.route('/api/data', methods=['GET'])
+@app.route('/api/data', methods=['GET', 'HEAD', 'OPTIONS'])
 def get_all_data():
     """Get all data from latest G: Drive folder - with caching"""
     global _data_cache, _cache_timestamp
     
     try:
+        # Handle HEAD/OPTIONS requests quickly without loading data
+        if request.method in ['HEAD', 'OPTIONS']:
+            return jsonify({"status": "ok"}), 200
+        
         force_refresh = request.args.get('force', 'false').lower() == 'true'
         print(f"/api/data endpoint called (force_refresh={force_refresh})")
         
@@ -942,42 +1019,22 @@ def get_all_data():
         folder_path = os.path.join(GDRIVE_BASE, latest_folder)
         print(f"📂 Loading data from folder: {folder_path}")
         
-        # FAST LOADING - Only load essential files first for speed
+        # LOAD ACTUAL DATA FROM JSON FILES
         raw_data = {}
         
-        # Essential files for proper data loading - 10 critical files
+        print(f"📥 LOADING: MiSys data files from G: Drive...")
+        
+        # Load essential data files
         essential_files = [
-            "CustomAlert5.json",  # PRIMARY: Complete item data
-            "MIILOC.json",        # Inventory location data
-            "SalesOrderHeaders.json",  # Sales orders
-            "SalesOrderDetails.json",  # Sales order details
-            "ManufacturingOrderHeaders.json",  # Manufacturing orders
-            "ManufacturingOrderDetails.json",  # Manufacturing order details
-            "BillsOfMaterial.json",  # BOM data
-            "BillOfMaterialDetails.json",  # BOM details
-            "PurchaseOrders.json",  # Purchase orders
-            "PurchaseOrderDetails.json"  # Purchase order details
+            'CustomAlert5.json', 'MIILOC.json',
+            'SalesOrderHeaders.json', 'SalesOrderDetails.json',
+            'ManufacturingOrderHeaders.json', 'ManufacturingOrderDetails.json',
+            'BillsOfMaterial.json', 'BillOfMaterialDetails.json',
+            'PurchaseOrders.json', 'PurchaseOrderDetails.json'
         ]
         
-        print(f"⚡ LOADING: Loading G: Drive data with proper timing...")
-        
-        # Minimal delay for realistic loading - just enough to show progress
-        time.sleep(0.5)  # 0.5 second delay for smooth loading experience
-        
-        # Load only essential files first
-        for file_name in essential_files:
-            file_path = os.path.join(folder_path, file_name)
-            if os.path.exists(file_path):
-                print(f"📊 Loading {file_name}...")
-                file_data = load_json_file(file_path)
-                raw_data[file_name] = file_data
-                print(f"SUCCESS: {file_name} loaded with {len(file_data) if isinstance(file_data, list) else 1} records")
-            else:
-                print(f"⚠️ {file_name} not found, using empty array")
-                raw_data[file_name] = []
-        
-        # Initialize other expected files as empty arrays for now
-        other_files = [
+        # Load all other MiSys files
+        all_other_files = [
             'Items.json', 'MIITEM.json', 'MIBOMH.json', 'MIBOMD.json',
             'ManufacturingOrderRoutings.json', 'MIMOH.json', 'MIMOMD.json', 'MIMORD.json',
             'Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json',
@@ -988,10 +1045,14 @@ def get_all_data():
             'PurchaseOrderDetailAdditionalCosts.json'
         ]
         
-        for file_name in other_files:
-            raw_data[file_name] = []
+        all_files = essential_files + all_other_files
         
-        print(f"⚡ FAST LOADING COMPLETE: {len([k for k, v in raw_data.items() if v])} files loaded")
+        # Load each file
+        for file_name in all_files:
+            file_path = os.path.join(folder_path, file_name)
+            raw_data[file_name] = load_json_file(file_path)
+        
+        print(f"✅ LOADED: {len(all_files)} data files from G: Drive")
         
         # Use data AS-IS - no conversion needed!
         
@@ -1006,50 +1067,75 @@ def get_all_data():
             "fileCount": len([f for f in raw_data.keys() if f.endswith('.json')])
         }
         
-        # Load Sales Orders data - ULTRA-FAST OPTIMIZED
-        print("Loading Sales Orders - Performance Optimized...")
+        # SCAN SALES ORDERS METADATA - ALWAYS fresh, fast scan (5-10 seconds)
+        print("📦 SCANNING: Sales Orders metadata (live scan - always fresh)...")
         try:
-            from so_performance_optimizer import get_optimized_so_data, get_so_performance_stats
-            from so_background_refresh import start_so_background_refresh, get_so_refresh_status
-            
-            # Start background refresh service if not already running
-            try:
-                start_so_background_refresh()
-            except:
-                pass  # Service might already be running
-            
-            sales_orders_data = get_optimized_so_data()
-            if sales_orders_data:
-                raw_data.update(sales_orders_data)
-                load_time = sales_orders_data.get('LoadTime', 0)
-                total_orders = sales_orders_data.get('TotalOrders', 0)
-                load_method = sales_orders_data.get('LoadMethod', 'Unknown')
-                print(f"⚡ SO LOAD: {total_orders} orders in {load_time:.3f}s ({load_method})")
+            # Fast filesystem scan - NO PDF parsing, ALWAYS fresh
+            sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
+            if os.path.exists(sales_orders_base):
+                print(f"   Scanning: {sales_orders_base}")
+                metadata_list = []
+                folder_counts = {}  # Track counts per folder
+                folder_count = 0
                 
-                # Add performance stats to response
-                perf_stats = get_so_performance_stats()
-                raw_data['SOPerformanceStats'] = perf_stats
+                for root, dirs, files in os.walk(sales_orders_base):
+                    folder_count += 1
+                    
+                    # Get the TOP-LEVEL status folder (New and Revised, In Production, Completed and Closed, Cancelled)
+                    # Extract relative path from base and get first folder
+                    relative_path = os.path.relpath(root, sales_orders_base)
+                    path_parts = relative_path.split(os.sep)
+                    
+                    # Determine the status folder (top-level category)
+                    if relative_path == '.':
+                        status_folder = "Root"
+                    else:
+                        status_folder = path_parts[0]  # First folder after base (New and Revised, In Production, etc.)
+                    
+                    # Also keep the immediate folder name for metadata
+                    folder_name = os.path.basename(root) or "Root"
+                    
+                    for file in files:
+                        if file.lower().endswith('.pdf') and 'salesorder_' in file.lower():
+                            file_path = os.path.join(root, file)
+                            so_number = file.replace('salesorder_', '').replace('SalesOrder_', '').replace('.pdf', '').replace('.PDF', '')
+                            file_stat = os.stat(file_path)
+                            
+                            metadata_list.append({
+                                'SalesOrderNumber': so_number,
+                                'Title': f"SO {so_number}",  # Display title
+                                'FileName': file,
+                                'FilePath': file_path,
+                                'Folder': folder_name,  # Immediate folder (for drill-down)
+                                'StatusFolder': status_folder,  # Top-level status
+                                'ModifiedDate': datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+                                'Status': status_folder  # Use top-level status folder
+                            })
+                            
+                            # Count by TOP-LEVEL status folder
+                            folder_counts[status_folder] = folder_counts.get(status_folder, 0) + 1
                 
-                # Add background refresh status
-                try:
-                    refresh_status = get_so_refresh_status()
-                    raw_data['SOBackgroundRefresh'] = refresh_status
-                except:
-                    pass
-        except Exception as e:
-            print(f"⚠️ SO Optimizer not available, falling back to standard loader: {e}")
-            # Fallback to original method
-            sales_orders_data = load_sales_orders()
-            if sales_orders_data:
-                raw_data.update(sales_orders_data)
-                print(f"SUCCESS: Added {sales_orders_data.get('TotalOrders', 0)} sales orders to data")
-        
-        # Load cached parsed SO data for instant lookups
-        print("RETRY: Loading cached parsed SO data...")
-        cached_so_data = load_cached_so_data()
-        if cached_so_data:
-            raw_data.update(cached_so_data)
-            print(f"SUCCESS: Added {len(cached_so_data.get('ParsedSalesOrders.json', []))} parsed SOs to data")
+                raw_data['SalesOrders.json'] = metadata_list
+                raw_data['TotalOrders'] = len(metadata_list)
+                raw_data['SalesOrdersByStatus'] = folder_counts  # Counts by folder/status
+                
+                print(f"SUCCESS: Scanned {len(metadata_list)} Sales Orders in {folder_count} folders")
+                print(f"   Breakdown by folder:")
+                for folder, count in sorted(folder_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                    print(f"     • {folder}: {count} SOs")
+            else:
+                print(f"⚠️ G: drive not accessible: {sales_orders_base}")
+                raw_data['SalesOrders.json'] = []
+                raw_data['SalesOrdersByStatus'] = {}
+                raw_data['TotalOrders'] = 0
+                
+        except Exception as scan_error:
+            print(f"❌ SO scan failed: {scan_error}")
+            import traceback
+            traceback.print_exc()
+            raw_data['SalesOrders.json'] = []
+            raw_data['SalesOrdersByStatus'] = {}
+            raw_data['TotalOrders'] = 0
         
         # Enterprise SO Service integration
         try:
@@ -1060,15 +1146,9 @@ def get_all_data():
         except Exception as e:
             print(f"⚠️ Enterprise SO Service not available: {e}")
         
-        # Load MPS (Master Production Schedule) data
-        print("RETRY: Loading MPS data...")
-        mps_data = load_mps_data()
-        if mps_data and 'error' not in mps_data:
-            raw_data['MPS.json'] = mps_data
-            print(f"SUCCESS: Added MPS data with {len(mps_data.get('mps_orders', []))} production orders")
-        else:
-            print(f"MPS data not available: {mps_data.get('error', 'Unknown error')}")
-            raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
+        # Skip MPS data - load on-demand via /api/mps endpoint
+        print("⏭️ SKIP: MPS data (load on-demand)")
+        raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
         
         print(f"SUCCESS: Successfully loaded data from {latest_folder}")
         
@@ -1713,12 +1793,16 @@ def get_sales_order_pdf(file_path):
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
+@app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET', 'HEAD', 'OPTIONS'])
 def get_sales_order_folder(folder_path):
     """Get Sales Order folder contents dynamically - REAL TIME SYNC from Google Drive with caching"""
     global _so_folder_cache, _so_folder_cache_timestamps
     
     try:
+        # Handle HEAD/OPTIONS requests quickly
+        if request.method in ['HEAD', 'OPTIONS']:
+            return jsonify({"status": "ok"}), 200
+        
         force_refresh = request.args.get('force', 'false').lower() == 'true'
         print(f"[INFO] Loading Sales Order folder: {folder_path} (force_refresh={force_refresh})")
         
@@ -2056,6 +2140,70 @@ def find_sales_order_file(so_number):
     except Exception as e:
         print(f"ERROR: Error searching for SO file {so_number}: {e}")
         return jsonify({"found": False, "error": str(e)}), 500
+
+@app.route('/api/sales-orders/parse/<so_number>', methods=['GET'])
+def parse_sales_order_on_demand(so_number):
+    """Parse a specific Sales Order PDF on-demand (when user clicks it)"""
+    try:
+        print(f"📄 PARSE ON-DEMAND: SO {so_number}")
+        
+        # Check if already cached
+        cache_path = os.path.join(os.path.dirname(__file__), 'cache', 'ParsedSOsOnDemand.json')
+        parsed_cache = {}
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    parsed_cache = json.load(f)
+                if so_number in parsed_cache:
+                    print(f"   ✓ Cache hit for SO {so_number}")
+                    return jsonify(parsed_cache[so_number])
+            except:
+                parsed_cache = {}
+        
+        # Find the SO file
+        base_path = SALES_ORDERS_BASE
+        if not os.path.exists(base_path):
+            return jsonify({"error": "Sales Orders folder not accessible"}), 500
+        
+        # Find SO file
+        so_file_path = None
+        for root, dirs, files in os.walk(base_path):
+            for file in files:
+                if file.lower().endswith('.pdf') and so_number in file.lower():
+                    so_file_path = os.path.join(root, file)
+                    break
+            if so_file_path:
+                break
+        
+        if not so_file_path:
+            return jsonify({"error": f"SO {so_number} not found"}), 404
+        
+        print(f"   Parsing: {os.path.basename(so_file_path)}")
+        
+        # Parse the PDF
+        parsed_data = extract_so_data_from_pdf(so_file_path)
+        
+        if not parsed_data:
+            return jsonify({"error": "Failed to parse SO"}), 500
+        
+        # Add metadata
+        parsed_data['so_number'] = so_number
+        parsed_data['file_path'] = so_file_path
+        parsed_data['parsed_at'] = datetime.now().isoformat()
+        
+        # Cache it
+        parsed_cache[so_number] = parsed_data
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        safe_json_write(cache_path, parsed_cache)
+        
+        print(f"   ✓ Parsed and cached SO {so_number}")
+        return jsonify(parsed_data)
+        
+    except Exception as e:
+        print(f"❌ Error parsing SO {so_number}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/check-changes', methods=['GET'])
 def check_changes():
@@ -4958,12 +5106,110 @@ def ai_health_check():
 # END EMAIL ASSISTANT API ROUTES
 # ========================================
 
+def preload_backend_data():
+    """Preload all backend data on startup so it's ready when user logs in"""
+    global _data_cache, _cache_timestamp
+    
+    print("\n" + "="*60)
+    print("🔄 PRELOADING BACKEND DATA ON STARTUP")
+    print("="*60 + "\n")
+    
+    try:
+        # Check if Google Drive API is enabled
+        if USE_GOOGLE_DRIVE_API and google_drive_service:
+            print("📡 Using Google Drive API for data...")
+            try:
+                data, folder_info = google_drive_service.get_all_data()
+                if data and isinstance(data, dict) and len(data) > 0:
+                    _data_cache = data
+                    _cache_timestamp = time.time()
+                    print(f"✅ Preloaded {len(data)} data files from Google Drive API")
+                    return True
+            except Exception as e:
+                print(f"⚠️ Google Drive API preload failed: {e}")
+                print("   Falling back to local G: drive...")
+        
+        # Check if local G: Drive is accessible
+        if not os.path.exists(GDRIVE_BASE):
+            print(f"⚠️ G: Drive not accessible: {GDRIVE_BASE}")
+            print("   Backend will load data on first request")
+            return False
+        
+        # Get latest folder
+        latest_folder, error = get_latest_folder()
+        if error:
+            print(f"❌ Error getting latest folder: {error}")
+            return False
+        
+        folder_path = os.path.join(GDRIVE_BASE, latest_folder)
+        print(f"📂 Loading data from: {latest_folder}")
+        
+        # Don't preload MiSys data - let it load on first request
+        print(f"   ⏭️ Skipping preload (data will load on first request)")
+        return False  # Don't cache empty data
+        
+        # Scan Sales Orders metadata (FAST - always fresh)
+        print("📦 Scanning Sales Orders...")
+        sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
+        if os.path.exists(sales_orders_base):
+            metadata_list = []
+            folder_counts = {}
+            
+            for root, dirs, files in os.walk(sales_orders_base):
+                folder_name = os.path.basename(root) or "Root"
+                for file in files:
+                    if file.lower().endswith('.pdf') and 'salesorder_' in file.lower():
+                        file_path = os.path.join(root, file)
+                        so_number = file.replace('salesorder_', '').replace('SalesOrder_', '').replace('.pdf', '').replace('.PDF', '')
+                        file_stat = os.stat(file_path)
+                        
+                        metadata_list.append({
+                            'SalesOrderNumber': so_number,
+                            'Title': f"SO {so_number}",
+                            'FileName': file,
+                            'FilePath': file_path,
+                            'Folder': folder_name,
+                            'ModifiedDate': datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+                            'Status': folder_name
+                        })
+                        folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
+            
+            raw_data['SalesOrders.json'] = metadata_list
+            raw_data['TotalOrders'] = len(metadata_list)
+            raw_data['SalesOrdersByStatus'] = folder_counts
+            print(f"   ✓ {len(metadata_list)} SOs")
+        else:
+            raw_data['SalesOrders.json'] = []
+            raw_data['TotalOrders'] = 0
+            raw_data['SalesOrdersByStatus'] = {}
+        
+        # Skip MPS data - load on-demand
+        print("⏭️ Skipping MPS data (load on-demand)")
+        raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
+        
+        # Cache the data
+        if should_cache_data(raw_data):
+            _data_cache = raw_data
+            _cache_timestamp = time.time()
+            cache_size_mb = estimate_data_size_mb(raw_data)
+            print(f"\n💾 Data cached: {cache_size_mb:.1f}MB")
+            print("✅ Backend data preloaded - ready for users!")
+            return True
+        else:
+            print("⚠️ Data too large to cache")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Preload error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    finally:
+        print("\n" + "="*60 + "\n")
+
 if __name__ == '__main__':
     print("Starting Flask backend...")
     print(f"G: Drive path: {GDRIVE_BASE}")
-    
-    # SKIP G: Drive test on startup - it's SLOW! Test it on first API call instead
-    print("⏭️ Skipping G: Drive test on startup for faster launch")
     
     # Print Gmail service status
     if GMAIL_SERVICE_AVAILABLE:
@@ -4971,9 +5217,23 @@ if __name__ == '__main__':
     else:
         print("❌ Gmail Email Assistant service not available")
     
+    # PRELOAD DATA BEFORE STARTING SERVER
+    # DISABLED: Slows down startup, data loads on-demand instead
+    # preload_backend_data()
+    
     # Get port from environment variable (for deployment) or use default
     port = int(os.environ.get('PORT', 5002))
     host = os.environ.get('HOST', '0.0.0.0')  # Use 0.0.0.0 for deployment
     
-    print(f"🚀 Flask server starting on {host}:{port}...")
+    # Detect environment
+    is_cloud_run = os.getenv('K_SERVICE') is not None
+    is_vercel = os.getenv('VERCEL') == '1'
+    
+    if is_cloud_run:
+        print(f"🚀 Flask server starting on Cloud Run - {host}:{port}...")
+    elif is_vercel:
+        print(f"🚀 Flask server starting on Vercel - {host}:{port}...")
+    else:
+        print(f"🚀 Flask server starting locally - {host}:{port}...")
+    
     app.run(host=host, port=port, debug=False)

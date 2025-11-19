@@ -1,0 +1,714 @@
+Setup started at Sun 11/16/2025 14:52:11.93 
+ 
+[1/6] Checking Python... 
+Python 3.11.9
+   OK: Python found 
+[2/6] Checking Node.js... 
+v24.11.1
+   OK: Node.js found 
+[3/6] Installing Python packages... 
+Requirement already satisfied: Flask==2.3.3 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 1)) (2.3.3)
+Requirement already satisfied: Flask-CORS==4.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 2)) (4.0.0)
+Requirement already satisfied: openai==1.51.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 3)) (1.51.2)
+Requirement already satisfied: python-dotenv==1.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 5)) (1.0.0)
+Requirement already satisfied: pandas==2.0.3 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 6)) (2.0.3)
+Requirement already satisfied: openpyxl==3.1.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 7)) (3.1.2)
+Requirement already satisfied: PyPDF2==3.0.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 8)) (3.0.1)
+Requirement already satisfied: pdfplumber==0.11.7 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 9)) (0.11.7)
+Requirement already satisfied: python-docx==1.2.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 10)) (1.2.0)
+Requirement already satisfied: Pillow>=10.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 11)) (12.0.0)
+Requirement already satisfied: pdf2image>=1.17.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 12)) (1.17.0)
+Requirement already satisfied: docx2pdf>=0.1.8 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 13)) (0.1.8)
+Requirement already satisfied: google-auth>=2.23.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 14)) (2.41.1)
+Requirement already satisfied: google-auth-oauthlib>=1.1.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 15)) (1.2.3)
+Requirement already satisfied: google-auth-httplib2>=0.1.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 16)) (0.2.1)
+Requirement already satisfied: google-api-python-client>=2.100.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 17)) (2.187.0)
+Requirement already satisfied: gunicorn==21.2.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from -r backend\requirements.txt (line 18)) (21.2.0)
+Requirement already satisfied: Werkzeug>=2.3.7 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Flask==2.3.3->-r backend\requirements.txt (line 1)) (3.1.3)
+Requirement already satisfied: Jinja2>=3.1.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Flask==2.3.3->-r backend\requirements.txt (line 1)) (3.1.6)
+Requirement already satisfied: itsdangerous>=2.1.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Flask==2.3.3->-r backend\requirements.txt (line 1)) (2.2.0)
+Requirement already satisfied: click>=8.1.3 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Flask==2.3.3->-r backend\requirements.txt (line 1)) (8.3.1)
+Requirement already satisfied: blinker>=1.6.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Flask==2.3.3->-r backend\requirements.txt (line 1)) (1.9.0)
+Requirement already satisfied: anyio<5,>=3.5.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (4.11.0)
+Requirement already satisfied: distro<2,>=1.7.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (1.9.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (0.28.1)
+Requirement already satisfied: jiter<1,>=0.4.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (0.12.0)
+Requirement already satisfied: pydantic<3,>=1.9.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (2.12.4)
+Requirement already satisfied: sniffio in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (1.3.1)
+Requirement already satisfied: tqdm>4 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (4.67.1)
+Requirement already satisfied: typing-extensions<5,>=4.11 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openai==1.51.2->-r backend\requirements.txt (line 3)) (4.15.0)
+Requirement already satisfied: python-dateutil>=2.8.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pandas==2.0.3->-r backend\requirements.txt (line 6)) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pandas==2.0.3->-r backend\requirements.txt (line 6)) (2025.2)
+Requirement already satisfied: tzdata>=2022.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pandas==2.0.3->-r backend\requirements.txt (line 6)) (2025.2)
+Requirement already satisfied: numpy>=1.21.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pandas==2.0.3->-r backend\requirements.txt (line 6)) (2.3.4)
+Requirement already satisfied: et-xmlfile in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from openpyxl==3.1.2->-r backend\requirements.txt (line 7)) (2.0.0)
+Requirement already satisfied: pdfminer.six==20250506 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (20250506)
+Requirement already satisfied: pypdfium2>=4.18.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (5.0.0)
+Requirement already satisfied: lxml>=3.1.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from python-docx==1.2.0->-r backend\requirements.txt (line 10)) (6.0.2)
+Requirement already satisfied: packaging in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from gunicorn==21.2.0->-r backend\requirements.txt (line 18)) (25.0)
+Requirement already satisfied: charset-normalizer>=2.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pdfminer.six==20250506->pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (3.4.4)
+Requirement already satisfied: cryptography>=36.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pdfminer.six==20250506->pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (46.0.3)
+Requirement already satisfied: pywin32>=227 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from docx2pdf>=0.1.8->-r backend\requirements.txt (line 13)) (311)
+Requirement already satisfied: cachetools<7.0,>=2.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-auth>=2.23.0->-r backend\requirements.txt (line 14)) (6.2.2)
+Requirement already satisfied: pyasn1-modules>=0.2.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-auth>=2.23.0->-r backend\requirements.txt (line 14)) (0.4.2)
+Requirement already satisfied: rsa<5,>=3.1.4 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-auth>=2.23.0->-r backend\requirements.txt (line 14)) (4.9.1)
+Requirement already satisfied: requests-oauthlib>=0.7.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-auth-oauthlib>=1.1.0->-r backend\requirements.txt (line 15)) (2.0.0)
+Requirement already satisfied: httplib2<1.0.0,>=0.19.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-auth-httplib2>=0.1.1->-r backend\requirements.txt (line 16)) (0.31.0)
+Requirement already satisfied: google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (2.28.1)
+Requirement already satisfied: uritemplate<5,>=3.0.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (4.2.0)
+Requirement already satisfied: idna>=2.8 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from anyio<5,>=3.5.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (3.11)
+Requirement already satisfied: colorama in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from click>=8.1.3->Flask==2.3.3->-r backend\requirements.txt (line 1)) (0.4.6)
+Requirement already satisfied: googleapis-common-protos<2.0.0,>=1.56.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (1.72.0)
+Requirement already satisfied: protobuf!=3.20.0,!=3.20.1,!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<7.0.0,>=3.19.5 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (6.33.1)
+Requirement already satisfied: proto-plus<2.0.0,>=1.22.3 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (1.26.1)
+Requirement already satisfied: requests<3.0.0,>=2.18.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (2.32.5)
+Requirement already satisfied: pyparsing<4,>=3.0.4 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from httplib2<1.0.0,>=0.19.0->google-auth-httplib2>=0.1.1->-r backend\requirements.txt (line 16)) (3.2.5)
+Requirement already satisfied: certifi in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from httpx<1,>=0.23.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (2025.11.12)
+Requirement already satisfied: httpcore==1.* in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from httpx<1,>=0.23.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (1.0.9)
+Requirement already satisfied: h11>=0.16 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from httpcore==1.*->httpx<1,>=0.23.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (0.16.0)
+Requirement already satisfied: MarkupSafe>=2.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from Jinja2>=3.1.2->Flask==2.3.3->-r backend\requirements.txt (line 1)) (3.0.3)
+Requirement already satisfied: pyasn1<0.7.0,>=0.6.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pyasn1-modules>=0.2.1->google-auth>=2.23.0->-r backend\requirements.txt (line 14)) (0.6.1)
+Requirement already satisfied: annotated-types>=0.6.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pydantic<3,>=1.9.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (0.7.0)
+Requirement already satisfied: pydantic-core==2.41.5 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pydantic<3,>=1.9.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (2.41.5)
+Requirement already satisfied: typing-inspection>=0.4.2 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from pydantic<3,>=1.9.0->openai==1.51.2->-r backend\requirements.txt (line 3)) (0.4.2)
+Requirement already satisfied: six>=1.5 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from python-dateutil>=2.8.2->pandas==2.0.3->-r backend\requirements.txt (line 6)) (1.17.0)
+Requirement already satisfied: oauthlib>=3.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from requests-oauthlib>=0.7.0->google-auth-oauthlib>=1.1.0->-r backend\requirements.txt (line 15)) (3.3.1)
+Requirement already satisfied: cffi>=2.0.0 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from cryptography>=36.0.0->pdfminer.six==20250506->pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (2.0.0)
+Requirement already satisfied: urllib3<3,>=1.21.1 in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from requests<3.0.0,>=2.18.0->google-api-core!=2.0.*,!=2.1.*,!=2.2.*,!=2.3.0,<3.0.0,>=1.31.5->google-api-python-client>=2.100.0->-r backend\requirements.txt (line 17)) (2.5.0)
+Requirement already satisfied: pycparser in c:\users\canoil portal\appdata\local\programs\python\python311\lib\site-packages (from cffi>=2.0.0->cryptography>=36.0.0->pdfminer.six==20250506->pdfplumber==0.11.7->-r backend\requirements.txt (line 9)) (2.23)
+
+[notice] A new release of pip is available: 24.0 -> 25.3
+[notice] To update, run: python.exe -m pip install --upgrade pip
+   OK: Python packages installed 
+[4/6] Installing npm packages... 
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EPERM: operation not permitted, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, close
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EPERM: operation not permitted, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EPERM: operation not permitted, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR EBADF: bad file descriptor, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn tar TAR_ENTRY_ERROR UNKNOWN: unknown error, write
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\mime-types',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\mime-types'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\mime-types'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\mime-db',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\mime-db'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\mime-db'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\@types\\node-fetch',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\@types\node-fetch'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\@types\\node-fetch'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\@types\\node',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\@types\node\timers'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\@types\\node\\timers'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\form-data-encoder',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\form-data-encoder\@type\util'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\form-data-encoder\\@type\\util'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\has-tostringtag',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\has-tostringtag\test\shams'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\has-tostringtag\\test\\shams'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\has-symbols',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\has-symbols\test\shams'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\has-symbols\\test\\shams'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\formdata-node',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\formdata-node\lib'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\formdata-node\\lib'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\web-streams-polyfill',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'G:\Shared drives\IT_Automation\Canoil Apps\Canoil Helper\canoil-portal\frontend\node_modules\web-streams-polyfill'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'G:\\Shared drives\\IT_Automation\\Canoil Apps\\Canoil Helper\\canoil-portal\\frontend\\node_modules\\web-streams-polyfill'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+npm error code EBADF
+npm error syscall write
+npm error errno -4083
+npm error EBADF: bad file descriptor, write
+npm error A complete log of this run can be found in: C:\Users\Canoil Portal\AppData\Local\npm-cache\_logs\2025-11-16T19_52_31_259Z-debug-0.log

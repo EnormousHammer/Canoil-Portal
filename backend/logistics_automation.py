@@ -1237,6 +1237,9 @@ def parse_email_fallback(email_text):
 
 def get_so_data_from_system(so_number):
     """Get SO data by extracting from PDF file - PARSES ACTUAL SO PDF - NO MOCK DATA"""
+    import tempfile
+    import os
+    
     try:
         print(f"SEARCH: LOGISTICS: Looking up SO {so_number} by parsing PDF...")
         
@@ -1289,8 +1292,6 @@ def get_so_data_from_system(so_number):
                                 so_file_content = google_drive_service.download_file_content(file_id)
                                 if so_file_content:
                                     # Save to temp file for parsing
-                                    import tempfile
-                                    import os
                                     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
                                         tmp_file.write(so_file_content)
                                         so_file_path = tmp_file.name
@@ -1298,11 +1299,20 @@ def get_so_data_from_system(so_number):
             except Exception as e:
                 print(f"[WARN] LOGISTICS: Google Drive API search failed: {e}, falling back to local")
         
-        # Fallback to local filesystem search
+        # Fallback to local filesystem search (only if G: drive is accessible)
         if not so_file_path:
             sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
-            import os
             matching_files = []
+            
+            # Check if G: drive is accessible (will be False when accessed remotely via ngrok)
+            if not os.path.exists(sales_orders_base):
+                print(f"[WARN] LOGISTICS: G: drive not accessible (normal for remote/ngrok access)")
+                print(f"[INFO] LOGISTICS: Set USE_GOOGLE_DRIVE_API=true to enable remote SO access")
+                return {
+                    "status": "Error", 
+                    "error": f"SO {so_number} not accessible. G: drive not available and Google Drive API not configured.",
+                    "hint": "Enable Google Drive API for remote access"
+                }
             
             if os.path.exists(sales_orders_base):
                 for root, dirs, files in os.walk(sales_orders_base):
@@ -1425,7 +1435,6 @@ def get_so_data_from_system(so_number):
         # Clean up temp file if it was created from Google Drive
         if 'so_file_path' in locals() and so_file_path and os.path.exists(so_file_path):
             try:
-                import tempfile
                 if tempfile.gettempdir() in so_file_path:
                     os.unlink(so_file_path)
             except:

@@ -134,24 +134,43 @@ export class GDriveDataLoader {
         isProduction: import.meta.env.PROD
       });
       
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
+      // Add 60 second timeout for Render.com cold starts (free tier backends sleep)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Flask API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: apiUrl,
-          error: errorText,
-          hint: apiUrl.includes('localhost') ? '⚠️ Using localhost - check VITE_API_URL environment variable' : ''
+      let response: Response;
+      try {
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
         });
-        throw new Error(`Flask API error: ${response.status} ${response.statusText} - ${errorText}`);
+        clearTimeout(timeoutId);
+      
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Flask API error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: apiUrl,
+            error: errorText,
+            hint: apiUrl.includes('localhost') ? '⚠️ Using localhost - check VITE_API_URL environment variable' : ''
+          });
+          throw new Error(`Flask API error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ Backend request timeout after 60 seconds:', {
+            url: apiUrl,
+            hint: '⚠️ Backend may be sleeping (Render.com free tier) or down. It can take 30-60 seconds to wake up.'
+          });
+          throw new Error('Backend connection timeout - the server may be waking up from sleep. Please try again in a moment.');
+        }
+        throw fetchError;
       }
       
       const contentType = response.headers.get('content-type');

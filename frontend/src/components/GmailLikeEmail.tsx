@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, RefreshCw, LogIn, Search, ChevronDown, ChevronRight, Clock, Paperclip } from 'lucide-react';
+import { getApiUrl } from '../utils/apiConfig';
 
 interface EmailAssistantProps {
   currentUser: { name: string; email: string; isAdmin: boolean } | null;
@@ -44,7 +45,7 @@ export const GmailLikeEmail: React.FC<EmailAssistantProps> = ({ currentUser, set
   // Check Gmail connection status
   const checkGmailConnection = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/email/status');
+      const response = await fetch(getApiUrl('/api/email/status'));
       const data = await response.json();
       
       if (data.success && data.connected) {
@@ -65,7 +66,7 @@ export const GmailLikeEmail: React.FC<EmailAssistantProps> = ({ currentUser, set
       setIsLoading(true);
       console.log('🔑 Starting Gmail OAuth flow...');
       
-      const response = await fetch('http://localhost:5002/api/email/auth/start', {
+      const response = await fetch(getApiUrl('/api/email/auth/start'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -95,7 +96,7 @@ export const GmailLikeEmail: React.FC<EmailAssistantProps> = ({ currentUser, set
       setIsLoading(true);
       console.log('🔐 Submitting auth code...');
       
-      const response = await fetch('http://localhost:5002/api/email/auth/submit-code', {
+      const response = await fetch(getApiUrl('/api/email/auth/submit-code'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -127,7 +128,7 @@ export const GmailLikeEmail: React.FC<EmailAssistantProps> = ({ currentUser, set
       console.log('🔄 Starting email fetch...', { forceRefresh, isLoading });
       setIsLoading(true);
       
-      const url = `http://localhost:5002/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`;
+      const url = getApiUrl(`/api/email/inbox?max=2000${forceRefresh ? '&force=true' : ''}`);
       console.log('🌐 Fetching from:', url);
       const response = await fetch(url);
       const data = await response.json();
