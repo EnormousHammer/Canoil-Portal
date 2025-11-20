@@ -259,9 +259,9 @@ function App() {
       const result = await gdriveLoader.loadAllData();
       const mpsUrl = getApiUrl('/api/mps');
       
-      // Add timeout for Render.com cold starts
+      // Add 300 second timeout to match Cloud Run configuration
       const refreshMpsController = new AbortController();
-      const refreshMpsTimeoutId = setTimeout(() => refreshMpsController.abort(), 120000);
+      const refreshMpsTimeoutId = setTimeout(() => refreshMpsController.abort(), 300000);
       
       const mpsData = await fetch(mpsUrl, { signal: refreshMpsController.signal })
         .then(response => {
@@ -282,7 +282,7 @@ function App() {
         .catch(error => {
           clearTimeout(refreshMpsTimeoutId);
           if (error.name === 'AbortError') {
-            console.error('⚠️ MPS data refresh timeout after 120 seconds:', {
+            console.error('⚠️ MPS data refresh timeout after 300 seconds:', {
               url: mpsUrl,
               hint: '⚠️ Backend may be sleeping or down.'
             });
@@ -402,9 +402,9 @@ function App() {
         isProduction: import.meta.env.PROD
       });
       
-      // Add 120 second timeout for Cloud Run and Google Drive API loading
+      // Add 300 second timeout to match Cloud Run configuration
       const mpsController = new AbortController();
-      const mpsTimeoutId = setTimeout(() => mpsController.abort(), 120000);
+      const mpsTimeoutId = setTimeout(() => mpsController.abort(), 300000);
       
       const mpsPromise = fetch(mpsUrl, { signal: mpsController.signal })
         .then(response => {
@@ -426,7 +426,7 @@ function App() {
         .catch(error => {
           clearTimeout(mpsTimeoutId);
           if (error.name === 'AbortError') {
-            console.error('⚠️ MPS data request timeout after 120 seconds:', {
+            console.error('⚠️ MPS data request timeout after 300 seconds:', {
               url: mpsUrl,
               hint: '⚠️ Backend may be sleeping (Render.com free tier) or down.'
             });

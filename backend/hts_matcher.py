@@ -12,9 +12,12 @@ class HTSMatcher:
         """Load HTS codes from JSON file"""
         try:
             hts_file_path = os.path.join(os.path.dirname(__file__), 'hts_codes.json')
-            with open(hts_file_path, 'r') as f:
+            
+            # Read file and close it before processing
+            with open(hts_file_path, 'r', encoding='utf-8') as f:
                 hts_data = json.load(f)
                 
+            # File is now closed, process data
             # Flatten the structure for easier lookup
             for letter, items in hts_data.items():
                 for item in items:
@@ -41,10 +44,27 @@ class HTSMatcher:
                                 'description': item['description']
                             }
                     
-            print(f"Loaded {len(self.hts_codes)} HTS code entries")
+            # Print after file is closed and data is processed
+            # Use sys.stdout.write directly to avoid issues with wrapped stdout
+            try:
+                import sys
+                sys.stdout.write(f"Loaded {len(self.hts_codes)} HTS code entries\n")
+                sys.stdout.flush()
+            except (IOError, OSError, AttributeError):
+                # If stdout is closed or unavailable, just skip print
+                pass
             
+        except FileNotFoundError:
+            # File doesn't exist - that's okay, use empty dict
+            self.hts_codes = {}
         except Exception as e:
-            print(f"Warning: Could not load HTS codes: {e}")
+            # Any other error - log it safely
+            try:
+                import sys
+                sys.stdout.write(f"Warning: Could not load HTS codes: {e}\n")
+                sys.stdout.flush()
+            except (IOError, OSError, AttributeError):
+                pass
             self.hts_codes = {}
     
     def match_hts_code(self, item_description, item_code=None):
@@ -237,8 +257,17 @@ class HTSMatcher:
         return None
 
 # Create a singleton instance
-hts_matcher = HTSMatcher()
+# Use lazy initialization to avoid import-time errors
+hts_matcher = None
+
+def get_hts_matcher():
+    """Get or create the HTS matcher instance (lazy initialization)"""
+    global hts_matcher
+    if hts_matcher is None:
+        hts_matcher = HTSMatcher()
+    return hts_matcher
 
 def get_hts_code_for_item(item_description, item_code=None):
     """Convenience function to get HTS code info for an item"""
-    return hts_matcher.match_hts_code(item_description, item_code)
+    matcher = get_hts_matcher()
+    return matcher.match_hts_code(item_description, item_code)

@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+# from flask_compress import Compress  # Temporarily disabled - causing startup issues
 import os
 
 # Fix Unicode encoding issues for Windows
@@ -34,6 +35,7 @@ import pdfplumber
 from docx import Document
 import tempfile
 import shutil
+import pickle
 # Import enterprise analytics safely - it might fail if dependencies are missing
 try:
     from enterprise_analytics import EnterpriseAnalytics
@@ -114,36 +116,42 @@ def safe_json_write(file_path, data, indent=2):
 # ============================================================
 
 # Import logistics automation module
+# Try absolute import first (works when running as script)
+# Then try relative import (works when running as package)
 try:
-    from .logistics_automation import logistics_bp
+    from logistics_automation import logistics_bp
     LOGISTICS_AVAILABLE = True
 except ImportError:
     try:
-        from logistics_automation import logistics_bp
+        from .logistics_automation import logistics_bp
         LOGISTICS_AVAILABLE = True
     except ImportError as e:
         print(f"Logistics module not available: {e}")
         LOGISTICS_AVAILABLE = False
 
 # Import purchase requisition service
+# Try absolute import first (works when running as script)
+# Then try relative import (works when running as package)
 try:
-    from .purchase_requisition_service import pr_service
+    from purchase_requisition_service import pr_service
     PR_SERVICE_AVAILABLE = True
 except ImportError:
     try:
-        from purchase_requisition_service import pr_service
+        from .purchase_requisition_service import pr_service
         PR_SERVICE_AVAILABLE = True
     except ImportError as e:
         print(f"Purchase Requisition service not available: {e}")
         PR_SERVICE_AVAILABLE = False
 
 # Import Gmail email service
+# Try absolute import first (works when running as script)
+# Then try relative import (works when running as package)
 try:
-    from .gmail_email_service import get_gmail_service
+    from gmail_email_service import get_gmail_service
     GMAIL_SERVICE_AVAILABLE = True
 except ImportError:
     try:
-        from gmail_email_service import get_gmail_service
+        from .gmail_email_service import get_gmail_service
         GMAIL_SERVICE_AVAILABLE = True
     except ImportError as e:
         print(f"Gmail Email service not available: {e}")
@@ -320,9 +328,9 @@ def extract_so_data_from_pdf(pdf_path):
     try:
         # Import the new raw extractor functions
         try:
-            from .raw_so_extractor import extract_raw_from_pdf, structure_with_openai
-        except ImportError:
             from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
+        except ImportError:
+            from .raw_so_extractor import extract_raw_from_pdf, structure_with_openai
         
         if DEBUG_SO:
             print(f"\n{'='*80}")
@@ -401,9 +409,8 @@ def load_real_so_data():
         print(f"ERROR: Base SO directory not found: {base_directory}")
         return so_data
     
-    # Priority folders for faster scanning
+    # Priority folders for faster scanning - ONLY active folders (NO Cancelled/Closed)
     priority_folders = [
-        "Completed and Closed",
         "In Production",
         "New and Revised"
     ]
@@ -485,6 +492,9 @@ def load_real_so_data():
     return so_data
 
 app = Flask(__name__, static_folder='../frontend/dist', static_url_path='')
+
+# Flask-Compress temporarily disabled to test if it's causing startup crash
+# Will implement manual GZIP compression instead
 
 # Enable CORS immediately after app creation - CRITICAL for Cloud Run!
 CORS(app, resources={
@@ -807,6 +817,71 @@ _so_folder_cache_duration = 1800  # 30 minutes cache for folders (increased for 
 # Maximum cache size in MB - increased for 2GB instance (leave ~500MB for system/other processes)
 _MAX_CACHE_SIZE_MB = 1500  # Maximum cache size in MB (2GB instance - safe limit)
 
+# Persistent cache directory (Cloud Run /tmp persists during container lifetime)
+CACHE_DIR = "/tmp/canoil_cache"
+CACHE_FILE = os.path.join(CACHE_DIR, "data_cache.pkl")
+CACHE_METADATA_FILE = os.path.join(CACHE_DIR, "cache_metadata.json")
+
+def ensure_cache_dir():
+    """Ensure cache directory exists"""
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+    except Exception as e:
+        print(f"⚠️ Failed to create cache directory: {e}")
+
+def save_cache_to_disk(data, folder_info=None):
+    """Save cache to disk for persistence (survives container restarts)"""
+    try:
+        ensure_cache_dir()
+        cache_data = {
+            'data': data,
+            'timestamp': time.time(),
+            'folder_info': folder_info
+        }
+        with open(CACHE_FILE, 'wb') as f:
+            pickle.dump(cache_data, f)
+        print(f"💾 Cache saved to disk: {CACHE_FILE}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Failed to save cache to disk: {e}")
+        return False
+
+def load_cache_from_disk():
+    """Load cache from disk if available and fresh"""
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'rb') as f:
+                cache_data = pickle.load(f)
+            cache_age = time.time() - cache_data['timestamp']
+            if cache_age < _cache_duration:
+                print(f"✅ Loaded cache from disk (age: {cache_age:.1f}s)")
+                return cache_data['data'], cache_data.get('folder_info'), cache_data['timestamp']
+            else:
+                print(f"⚠️ Disk cache expired (age: {cache_age:.1f}s)")
+    except Exception as e:
+        print(f"⚠️ Failed to load cache from disk: {e}")
+    return None, None, None
+
+def load_file_times_from_metadata():
+    """Load file modification times from metadata for incremental sync"""
+    try:
+        if os.path.exists(CACHE_METADATA_FILE):
+            with open(CACHE_METADATA_FILE, 'r') as f:
+                metadata = json.load(f)
+                return metadata.get('file_times', {})
+    except Exception as e:
+        print(f"⚠️ Failed to load file times metadata: {e}")
+    return {}
+
+def save_file_times_to_metadata(file_times):
+    """Save file modification times to metadata for incremental sync"""
+    try:
+        ensure_cache_dir()
+        with open(CACHE_METADATA_FILE, 'w') as f:
+            json.dump({'file_times': file_times}, f)
+    except Exception as e:
+        print(f"⚠️ Failed to save file times metadata: {e}")
+
 def estimate_data_size_mb(data):
     """Estimate data size in MB (rough approximation) - MEMORY EFFICIENT"""
     try:
@@ -880,6 +955,33 @@ def get_all_data():
         force_refresh = request.args.get('force', 'false').lower() == 'true'
         print(f"🔵 GET request - force_refresh={force_refresh}")
         
+        # Try loading from disk cache first (survives container restarts)
+        if not force_refresh:
+            disk_data, disk_folder_info, disk_timestamp = load_cache_from_disk()
+            if disk_data and disk_timestamp:
+                cache_age = time.time() - disk_timestamp
+                has_data = any(v and len(v) > 0 if isinstance(v, list) else v for v in disk_data.values())
+                
+                if cache_age < _cache_duration and has_data:
+                    # Restore to memory cache
+                    _data_cache = disk_data
+                    _cache_timestamp = disk_timestamp
+                    print("✅ Using disk cache (survived container restart)")
+                    return jsonify({
+                        "data": _data_cache,
+                        "folderInfo": disk_folder_info or {
+                            "folderName": "Cached Data",
+                            "syncDate": "Cached",
+                            "lastModified": "Cached",
+                            "folder": "Cached",
+                            "created": "Cached",
+                            "size": "Cached",
+                            "fileCount": len([k for k, v in _data_cache.items() if v and (len(v) > 0 if isinstance(v, list) else v)])
+                        },
+                        "LoadTimestamp": "Cached",
+                        "cached": True
+                    })
+        
         # Check if we have valid cached data (unless forcing refresh)
         if not force_refresh and _data_cache and _cache_timestamp:
             cache_age = time.time() - _cache_timestamp
@@ -915,16 +1017,117 @@ def get_all_data():
         print(f"[INFO] Checking Google Drive API: USE_GOOGLE_DRIVE_API={USE_GOOGLE_DRIVE_API}, google_drive_service={google_drive_service is not None}")
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             try:
-                print("[INFO] Loading data from Google Drive API...")
-                # Google Drive version uses SAME extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
-                data, folder_info = google_drive_service.get_all_data()
+                # Get cached file modification times for incremental sync
+                cached_file_times = load_file_times_from_metadata()
+                
+                # Use incremental sync if we have cached data, otherwise full load
+                if _data_cache and cached_file_times:
+                    print("[INFO] Using incremental sync (only changed files)...")
+                    data, folder_info, new_file_times = google_drive_service.get_all_data_incremental(cached_file_times)
+                    
+                    # Merge with existing cache (for unchanged files)
+                    for filename, file_data in _data_cache.items():
+                        if filename not in data:  # File unchanged
+                            data[filename] = file_data
+                    
+                    # Update file times for next sync
+                    # Merge new times with existing (keep unchanged file times)
+                    for filename, file_time in cached_file_times.items():
+                        if filename not in new_file_times:  # File unchanged
+                            new_file_times[filename] = file_time
+                    
+                    save_file_times_to_metadata(new_file_times)
+                else:
+                    print("[INFO] Loading all data from Google Drive API (full sync)...")
+                    # Google Drive version uses SAME extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
+                    data, folder_info = google_drive_service.get_all_data()
+                    
+                    # Save file times for next incremental sync
+                    # Get file modification times from Google Drive
+                    try:
+                        latest_folder_id, _ = google_drive_service.find_latest_api_extractions_folder()
+                        if latest_folder_id:
+                            query = f"('{latest_folder_id}' in parents) and (mimeType='application/json' or name contains '.json') and trashed=false"
+                            list_params = {
+                                'q': query,
+                                'supportsAllDrives': True,
+                                'includeItemsFromAllDrives': True,
+                                'fields': "files(name, modifiedTime)"
+                            }
+                            if google_drive_service.shared_drive_id:
+                                list_params['corpora'] = 'drive'
+                                list_params['driveId'] = google_drive_service.shared_drive_id
+                            
+                            results = google_drive_service.service.files().list(**list_params).execute()
+                            files = results.get('files', [])
+                            file_times = {f['name']: f.get('modifiedTime', '') for f in files}
+                            save_file_times_to_metadata(file_times)
+                    except Exception as e:
+                        print(f"⚠️ Failed to save file times: {e}")
                 print(f"[INFO] Google Drive API returned: data type={type(data)}, data length={len(data) if data else 0}, folder_info={folder_info}")
                 print(f"[INFO] Data keys: {list(data.keys()) if data and isinstance(data, dict) else 'not a dict'}")
                 if data and isinstance(data, dict) and len(data) > 0:
+                    # Load Sales Orders from important folders - WITH TIMEOUT to prevent hanging
+                    # Load "In Production" (includes Scheduled subfolder) and "New and Revised"
+                    print("📦 LOADING: Sales Orders (In Production, New and Revised) for initial load...")
+                    so_filter_folders = ['In Production', 'New and Revised']
+                    
+                    # Set empty defaults first (so response can return even if Sales Orders fail)
+                    data['SalesOrders.json'] = []
+                    data['SalesOrdersByStatus'] = {}
+                    data['TotalOrders'] = 0
+                    data['StatusFolders'] = []
+                    
+                    try:
+                        import signal
+                        import threading
+                        
+                        # Use threading with timeout to prevent blocking
+                        sales_data_result = [None]
+                        sales_data_error = [None]
+                        
+                        def load_sales_orders_thread():
+                            try:
+                                if google_drive_service and google_drive_service.authenticated:
+                                    print("[INFO] Using Google Drive API for Sales Orders")
+                                    sales_data_result[0] = google_drive_service.load_sales_orders_data(None, filter_folders=so_filter_folders)
+                                else:
+                                    print("[INFO] Using local filesystem for Sales Orders")
+                                    sales_data_result[0] = load_sales_orders(filter_folders=so_filter_folders)
+                            except Exception as e:
+                                sales_data_error[0] = e
+                        
+                        # Start loading in thread with 10 second timeout
+                        thread = threading.Thread(target=load_sales_orders_thread, daemon=True)
+                        thread.start()
+                        thread.join(timeout=10)  # 10 second max wait
+                        
+                        if thread.is_alive():
+                            print("⚠️ Sales Orders loading timed out after 10s - returning without Sales Orders")
+                            print("⚠️ Use /api/sales-orders endpoint for full Sales Orders data")
+                        elif sales_data_error[0]:
+                            print(f"⚠️ Error loading Sales Orders: {sales_data_error[0]}")
+                            import traceback
+                            traceback.print_exc()
+                        elif sales_data_result[0]:
+                            # Success - add Sales Orders to data
+                            sales_data = sales_data_result[0]
+                            data['SalesOrders.json'] = sales_data.get('SalesOrders.json', [])
+                            data['SalesOrdersByStatus'] = sales_data.get('SalesOrdersByStatus', {})
+                            data['TotalOrders'] = sales_data.get('TotalOrders', 0)
+                            data['StatusFolders'] = sales_data.get('StatusFolders', [])
+                            data['ScanMethod'] = sales_data.get('ScanMethod', 'Google Drive API')
+                            print(f"✅ Loaded {data['TotalOrders']} Sales Orders from {len(data['SalesOrdersByStatus'])} folders")
+                    except Exception as e:
+                        print(f"⚠️ Error in Sales Orders loading thread: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    
                     # CRITICAL: Validate data has content before caching
                     if should_cache_data(data):
                         _data_cache = data
                         _cache_timestamp = time.time()
+                        save_cache_to_disk(data, folder_info)  # Save to disk for persistence
                         cache_size_mb = estimate_data_size_mb(data)
                         print(f"[OK] Data loaded successfully from Google Drive API: {len(data)} files (cached, {cache_size_mb:.1f}MB)")
                     else:
@@ -1022,37 +1225,17 @@ def get_all_data():
         # LOAD ACTUAL DATA FROM JSON FILES
         raw_data = {}
         
-        print(f"📥 LOADING: MiSys data files from G: Drive...")
+        print(f"📥 LOADING: ALL MiSys data files from API Extractions (HTTP/2 enabled - no size limit)...")
         
-        # Load essential data files
-        essential_files = [
-            'CustomAlert5.json', 'MIILOC.json',
-            'SalesOrderHeaders.json', 'SalesOrderDetails.json',
-            'ManufacturingOrderHeaders.json', 'ManufacturingOrderDetails.json',
-            'BillsOfMaterial.json', 'BillOfMaterialDetails.json',
-            'PurchaseOrders.json', 'PurchaseOrderDetails.json'
-        ]
+        # Load ALL JSON files from the folder (HTTP/2 removes 32MB limit)
+        json_files = glob.glob(os.path.join(folder_path, "*.json"))
+        for json_file in json_files:
+            file_name = os.path.basename(json_file)
+            raw_data[file_name] = load_json_file(json_file)
         
-        # Load all other MiSys files
-        all_other_files = [
-            'Items.json', 'MIITEM.json', 'MIBOMH.json', 'MIBOMD.json',
-            'ManufacturingOrderRoutings.json', 'MIMOH.json', 'MIMOMD.json', 'MIMORD.json',
-            'Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json',
-            'MIPOH.json', 'MIPOD.json', 'MIPOHX.json', 'MIPOC.json', 'MIPOCV.json',
-            'MIPODC.json', 'MIWOH.json', 'MIWOD.json', 'MIBORD.json',
-            'PurchaseOrderExtensions.json', 'WorkOrders.json', 'WorkOrderDetails.json',
-            'PurchaseOrderAdditionalCosts.json', 'PurchaseOrderAdditionalCostsTaxes.json',
-            'PurchaseOrderDetailAdditionalCosts.json'
-        ]
-        
-        all_files = essential_files + all_other_files
-        
-        # Load each file
-        for file_name in all_files:
-            file_path = os.path.join(folder_path, file_name)
-            raw_data[file_name] = load_json_file(file_path)
-        
-        print(f"✅ LOADED: {len(all_files)} data files from G: Drive")
+        print(f"✅ LOADED: {len(raw_data)} JSON files from API Extractions folder")
+        print(f"   Files: {', '.join(sorted(raw_data.keys()))}")
+        print(f"📦 Sales Orders: Default loads 'In Production' + 'New and Revised' only (~8.6MB)")
         
         # Use data AS-IS - no conversion needed!
         
@@ -1067,75 +1250,33 @@ def get_all_data():
             "fileCount": len([f for f in raw_data.keys() if f.endswith('.json')])
         }
         
-        # SCAN SALES ORDERS METADATA - ALWAYS fresh, fast scan (5-10 seconds)
-        print("📦 SCANNING: Sales Orders metadata (live scan - always fresh)...")
+        # Load Sales Orders from important folders
+        # Load "In Production" (includes Scheduled subfolder) and "New and Revised"
+        print("📦 Loading Sales Orders from: In Production, New and Revised")
+        so_filter_folders = ['In Production', 'New and Revised']
+        
         try:
-            # Fast filesystem scan - NO PDF parsing, ALWAYS fresh
-            sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
-            if os.path.exists(sales_orders_base):
-                print(f"   Scanning: {sales_orders_base}")
-                metadata_list = []
-                folder_counts = {}  # Track counts per folder
-                folder_count = 0
-                
-                for root, dirs, files in os.walk(sales_orders_base):
-                    folder_count += 1
-                    
-                    # Get the TOP-LEVEL status folder (New and Revised, In Production, Completed and Closed, Cancelled)
-                    # Extract relative path from base and get first folder
-                    relative_path = os.path.relpath(root, sales_orders_base)
-                    path_parts = relative_path.split(os.sep)
-                    
-                    # Determine the status folder (top-level category)
-                    if relative_path == '.':
-                        status_folder = "Root"
-                    else:
-                        status_folder = path_parts[0]  # First folder after base (New and Revised, In Production, etc.)
-                    
-                    # Also keep the immediate folder name for metadata
-                    folder_name = os.path.basename(root) or "Root"
-                    
-                    for file in files:
-                        if file.lower().endswith('.pdf') and 'salesorder_' in file.lower():
-                            file_path = os.path.join(root, file)
-                            so_number = file.replace('salesorder_', '').replace('SalesOrder_', '').replace('.pdf', '').replace('.PDF', '')
-                            file_stat = os.stat(file_path)
-                            
-                            metadata_list.append({
-                                'SalesOrderNumber': so_number,
-                                'Title': f"SO {so_number}",  # Display title
-                                'FileName': file,
-                                'FilePath': file_path,
-                                'Folder': folder_name,  # Immediate folder (for drill-down)
-                                'StatusFolder': status_folder,  # Top-level status
-                                'ModifiedDate': datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
-                                'Status': status_folder  # Use top-level status folder
-                            })
-                            
-                            # Count by TOP-LEVEL status folder
-                            folder_counts[status_folder] = folder_counts.get(status_folder, 0) + 1
-                
-                raw_data['SalesOrders.json'] = metadata_list
-                raw_data['TotalOrders'] = len(metadata_list)
-                raw_data['SalesOrdersByStatus'] = folder_counts  # Counts by folder/status
-                
-                print(f"SUCCESS: Scanned {len(metadata_list)} Sales Orders in {folder_count} folders")
-                print(f"   Breakdown by folder:")
-                for folder, count in sorted(folder_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                    print(f"     • {folder}: {count} SOs")
+            if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+                print("[INFO] Using Google Drive API for Sales Orders")
+                sales_data = google_drive_service.load_sales_orders_data(None, filter_folders=so_filter_folders)
             else:
-                print(f"⚠️ G: drive not accessible: {sales_orders_base}")
-                raw_data['SalesOrders.json'] = []
-                raw_data['SalesOrdersByStatus'] = {}
-                raw_data['TotalOrders'] = 0
-                
-        except Exception as scan_error:
-            print(f"❌ SO scan failed: {scan_error}")
-            import traceback
-            traceback.print_exc()
-            raw_data['SalesOrders.json'] = []
-            raw_data['SalesOrdersByStatus'] = {}
-            raw_data['TotalOrders'] = 0
+                print("[INFO] Using local filesystem for Sales Orders")
+                sales_data = load_sales_orders(filter_folders=so_filter_folders)
+            
+            # Extract data from sales_data response
+            raw_data['SalesOrders.json'] = sales_data.get('SalesOrders.json', [])
+            raw_data['SalesOrdersByStatus'] = sales_data.get('SalesOrdersByStatus', {})
+            raw_data['TotalOrders'] = sales_data.get('TotalOrders', 0)
+            raw_data['StatusFolders'] = sales_data.get('StatusFolders', [])
+            
+            print(f"✅ Loaded {raw_data['TotalOrders']} Sales Orders from {len(raw_data['SalesOrdersByStatus'])} folders")
+        except Exception as e:
+            print(f"⚠️ Error loading Sales Orders: {e}")
+            # Don't fail the entire request if Sales Orders fail
+        raw_data['SalesOrders.json'] = []
+        raw_data['SalesOrdersByStatus'] = {}
+        raw_data['TotalOrders'] = 0
+        raw_data['StatusFolders'] = []
         
         # Enterprise SO Service integration
         try:
@@ -1169,6 +1310,7 @@ def get_all_data():
         if should_cache_data(raw_data):
             _data_cache = raw_data
             _cache_timestamp = time.time()
+            save_cache_to_disk(raw_data, folder_info)  # Save to disk for persistence
             cache_size_mb = estimate_data_size_mb(raw_data)
             print(f"💾 Data cached for {_cache_duration} seconds ({cache_size_mb:.1f}MB)")
         else:
@@ -1270,8 +1412,19 @@ def scan_folder_recursively(folder_path, status, path_parts=[]):
                 except Exception as e:
                     print(f"ERROR: Error processing file {file}: {e}")
         
-        # Recursively process subfolders
+        # Recursively process subfolders - EXCLUDE "Closed" and "Cancelled"
+        excluded_subfolders = ['Closed', 'Cancelled', 'closed', 'cancelled', 'Completed and Closed']
         for subfolder in subfolders:
+            # SKIP excluded folders
+            if subfolder in excluded_subfolders:
+                print(f"[INFO] SKIPPING excluded subfolder: {subfolder}")
+                continue
+            
+            # Also skip if subfolder name contains excluded terms
+            if any(excluded in subfolder for excluded in excluded_subfolders):
+                print(f"[INFO] SKIPPING subfolder containing excluded term: {subfolder}")
+                continue
+            
             subfolder_path = os.path.join(folder_path, subfolder)
             new_path_parts = path_parts + [subfolder]
             subfolder_orders = scan_folder_recursively(subfolder_path, status, new_path_parts)
@@ -1324,8 +1477,13 @@ def load_cached_so_data():
         print(f"ERROR: Error loading cached SO data: {e}")
         return None
 
-def load_sales_orders():
-    """Smart Sales Orders loader - discovers ANY folder structure dynamically"""
+def load_sales_orders(filter_folders=None):
+    """Smart Sales Orders loader - discovers ANY folder structure dynamically
+    
+    Args:
+        filter_folders: List of specific folders to load (e.g., ['In Production', 'New and Revised'])
+                       If None, loads all folders
+    """
     try:
         print(f"SEARCH: Smart scanning Sales Orders from: {SALES_ORDERS_BASE}")
         
@@ -1335,9 +1493,19 @@ def load_sales_orders():
         
         # Discover all status folders dynamically
         base_items = os.listdir(SALES_ORDERS_BASE)
-        status_folders = [item for item in base_items if os.path.isdir(os.path.join(SALES_ORDERS_BASE, item)) and item != 'desktop.ini']
+        all_status_folders = [item for item in base_items if os.path.isdir(os.path.join(SALES_ORDERS_BASE, item)) and item != 'desktop.ini']
         
-        print(f"SEARCH: Discovered status folders: {status_folders}")
+        # ALWAYS exclude "Closed" and "Cancelled" from main loading (unless explicitly requested)
+        excluded_folders = ['Closed', 'Cancelled', 'closed', 'cancelled', 'Completed and Closed']
+        all_status_folders = [f for f in all_status_folders if f not in excluded_folders]
+        
+        # Apply filter if specified
+        if filter_folders:
+            status_folders = [f for f in all_status_folders if f in filter_folders]
+            print(f"SEARCH: Filtered to specific folders: {status_folders} (out of {all_status_folders})")
+        else:
+            status_folders = all_status_folders
+            print(f"SEARCH: Discovered all status folders: {status_folders}")
         
         sales_data = {}
         all_orders = []
@@ -1583,13 +1751,49 @@ def clear_data_cache():
 
 @app.route('/api/data/lazy-load', methods=['POST'])
 def lazy_load_additional_data():
-    """Lazy load additional data files when needed"""
+    """Lazy load additional data files when needed - supports files or groups"""
     try:
         data = request.get_json()
         requested_files = data.get('files', [])
+        requested_groups = data.get('groups', [])
         
-        if not requested_files:
-            return jsonify({"error": "No files specified"}), 400
+        # Define groups (same as in get_all_data)
+        lazy_load_groups = {
+            'manufacturing': [
+                'ManufacturingOrderHeaders.json', 'ManufacturingOrderDetails.json',
+                'ManufacturingOrderRoutings.json', 'MIMOH.json', 'MIMOMD.json', 'MIMORD.json'
+            ],
+            'bom': [
+                'BillsOfMaterial.json', 'BillOfMaterialDetails.json',
+                'MIBOMH.json', 'MIBOMD.json'
+            ],
+            'purchasing': [
+                'PurchaseOrders.json', 'PurchaseOrderDetails.json',
+                'MIPOH.json', 'MIPOD.json', 'MIPOHX.json', 'MIPOC.json', 'MIPOCV.json', 'MIPODC.json',
+                'PurchaseOrderExtensions.json', 'PurchaseOrderAdditionalCosts.json',
+                'PurchaseOrderAdditionalCostsTaxes.json', 'PurchaseOrderDetailAdditionalCosts.json'
+            ],
+            'jobs': [
+                'Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json'
+            ],
+            'workorders': [
+                'WorkOrders.json', 'WorkOrderDetails.json',
+                'MIWOH.json', 'MIWOD.json', 'MIBORD.json'
+            ],
+            'items': [
+                'Items.json', 'MIITEM.json'
+            ]
+        }
+        
+        # Expand groups into files
+        all_files_to_load = list(requested_files)
+        for group in requested_groups:
+            if group in lazy_load_groups:
+                all_files_to_load.extend(lazy_load_groups[group])
+                print(f"📦 Loading group '{group}' with {len(lazy_load_groups[group])} files")
+        
+        if not all_files_to_load:
+            return jsonify({"error": "No files or groups specified"}), 400
         
         # Check if G: Drive is accessible
         if not os.path.exists(GDRIVE_BASE):
@@ -1602,7 +1806,7 @@ def lazy_load_additional_data():
         folder_path = os.path.join(GDRIVE_BASE, latest_folder)
         loaded_files = {}
         
-        for file_name in requested_files:
+        for file_name in all_files_to_load:
             file_path = os.path.join(folder_path, file_name)
             if os.path.exists(file_path):
                 file_data = load_json_file(file_path)
@@ -1614,7 +1818,8 @@ def lazy_load_additional_data():
         
         return jsonify({
             "data": loaded_files,
-            "LoadTimestamp": datetime.now().isoformat()
+            "LoadTimestamp": datetime.now().isoformat(),
+            "filesLoaded": len(loaded_files)
         })
         
     except Exception as e:
@@ -1623,12 +1828,69 @@ def lazy_load_additional_data():
 
 @app.route('/api/sales-orders', methods=['GET'])
 def get_sales_orders():
-    """Get all Sales Orders from G: Drive - organized by status"""
+    """Get Sales Orders from G: Drive - BY DEFAULT loads only ACTIVE orders
+    
+    Query params:
+    - folders: Comma-separated list of folders to load (e.g., "In Production,New and Revised")
+    - all: Set to 'true' to load all folders (including historical)
+    
+    DEFAULT BEHAVIOR (no params): Loads only "In Production" and "New and Revised" (~8.6MB)
+    """
     try:
-        sales_data = load_sales_orders()
+        # Get folder filter from query params
+        folders_param = request.args.get('folders', '')
+        load_all = request.args.get('all', 'false').lower() == 'true'
+        
+        # Determine which folders to load
+        if load_all:
+            filter_folders = None  # Load all
+            print("[INFO] Loading ALL Sales Orders folders (active + historical)")
+        elif folders_param:
+            filter_folders = [f.strip() for f in folders_param.split(',')]
+            print(f"[INFO] Loading Sales Orders from specific folders: {filter_folders}")
+        else:
+            # DEFAULT: Load only active folders
+            filter_folders = ['In Production', 'New and Revised']
+            print(f"[INFO] Loading ACTIVE Sales Orders only: {filter_folders}")
+        
+        # Check if using Google Drive API (Cloud Run) or local filesystem
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            print("[INFO] Using Google Drive API for Sales Orders")
+            sales_data = google_drive_service.load_sales_orders_data(None, filter_folders=filter_folders)
+        else:
+            print("[INFO] Using local filesystem for Sales Orders")
+            sales_data = load_sales_orders(filter_folders=filter_folders)
+        
         return jsonify(sales_data)
     except Exception as e:
         print(f"ERROR: Error in get_sales_orders: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/sales-orders/historical', methods=['GET'])
+def get_historical_sales_orders():
+    """Get HISTORICAL Sales Orders (Cancelled, Completed and Closed)
+    
+    Only load when user specifically requests historical data.
+    """
+    try:
+        print("[INFO] Loading HISTORICAL Sales Orders (Cancelled, Completed and Closed)")
+        filter_folders = ['Cancelled', 'Completed and Closed']
+        
+        # Check if using Google Drive API or local filesystem
+        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            print("[INFO] Using Google Drive API for historical Sales Orders")
+            sales_data = google_drive_service.load_sales_orders_data(None, filter_folders=filter_folders)
+        else:
+            print("[INFO] Using local filesystem for historical Sales Orders")
+            sales_data = load_sales_orders(filter_folders=filter_folders)
+        
+        return jsonify(sales_data)
+    except Exception as e:
+        print(f"ERROR: Error in get_historical_sales_orders: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/enterprise/so-service/health', methods=['GET'])
@@ -2607,13 +2869,15 @@ def chat_query():
                     raw_data[file_name] = []
         
         # CRITICAL: Load Sales Orders data from separate G: Drive location (if not in cache)
+        # ONLY load active folders (In Production, New and Revised) - NO Cancelled/Closed
         if 'SalesOrders.json' not in raw_data or not raw_data.get('SalesOrders.json'):
-            print("📋 Loading Sales Orders for AI chat...")
-            sales_orders_data = load_sales_orders()
+            print("📋 Loading Sales Orders for AI chat (active folders only)...")
+            so_filter_folders = ['In Production', 'New and Revised']
+            sales_orders_data = load_sales_orders(filter_folders=so_filter_folders)
             if sales_orders_data:
                 raw_data.update(sales_orders_data)
                 total_so_count = sales_orders_data.get('TotalOrders', 0)
-                print(f"✅ AI chat now has access to {total_so_count} real Sales Orders")
+                print(f"✅ AI chat now has access to {total_so_count} real Sales Orders (active only)")
             else:
                 print("⚠️ No Sales Orders data available")
         
@@ -4124,8 +4388,11 @@ def enterprise_analytics():
             file_data = load_json_file(json_file)
             raw_data[file_name] = file_data
         
-        # Load Sales Orders data
-        sales_orders_data = load_sales_orders()
+        # Load Sales Orders data - ONLY active folders (In Production, New and Revised)
+        # NO Cancelled/Closed for analytics
+        print("📋 Loading Sales Orders for analytics (active folders only)...")
+        so_filter_folders = ['In Production', 'New and Revised']
+        sales_orders_data = load_sales_orders(filter_folders=so_filter_folders)
         if sales_orders_data:
             raw_data.update(sales_orders_data)
         
@@ -4205,8 +4472,11 @@ def enterprise_analytics_ai():
             file_data = load_json_file(json_file)
             raw_data[file_name] = file_data
         
-        # Load Sales Orders data
-        sales_orders_data = load_sales_orders()
+        # Load Sales Orders data - ONLY active folders (In Production, New and Revised)
+        # NO Cancelled/Closed for AI analytics
+        print("📋 Loading Sales Orders for AI analytics (active folders only)...")
+        so_filter_folders = ['In Production', 'New and Revised']
+        sales_orders_data = load_sales_orders(filter_folders=so_filter_folders)
         if sales_orders_data:
             raw_data.update(sales_orders_data)
         
@@ -5129,6 +5399,7 @@ def preload_backend_data():
                 if data and isinstance(data, dict) and len(data) > 0:
                     _data_cache = data
                     _cache_timestamp = time.time()
+                    save_cache_to_disk(data, None)  # Save to disk for persistence
                     print(f"✅ Preloaded {len(data)} data files from Google Drive API")
                     return True
             except Exception as e:
@@ -5197,6 +5468,7 @@ def preload_backend_data():
         if should_cache_data(raw_data):
             _data_cache = raw_data
             _cache_timestamp = time.time()
+            save_cache_to_disk(raw_data, None)  # Save to disk for persistence
             cache_size_mb = estimate_data_size_mb(raw_data)
             print(f"\n💾 Data cached: {cache_size_mb:.1f}MB")
             print("✅ Backend data preloaded - ready for users!")

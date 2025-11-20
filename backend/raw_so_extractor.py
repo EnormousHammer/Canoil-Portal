@@ -20,7 +20,22 @@ def get_openai_client():
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
-        openai_client = OpenAI(api_key=api_key)
+        try:
+            # Initialize with only api_key - no other parameters to avoid version conflicts
+            openai_client = OpenAI(api_key=api_key)
+        except TypeError as e:
+            # Handle version mismatch errors (e.g., proxies parameter issue)
+            print(f"ERROR: OpenAI client initialization failed - likely version mismatch: {e}")
+            print(f"Attempting to import OpenAI version info...")
+            try:
+                import openai
+                print(f"OpenAI library version: {openai.__version__}")
+            except:
+                pass
+            raise
+        except Exception as e:
+            print(f"ERROR: OpenAI client initialization failed: {e}")
+            raise
     return openai_client
 
 DEBUG = os.getenv('DEBUG_SO_PARSER', 'False').lower() == 'true'
@@ -508,7 +523,14 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         if not structured_data:
             print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
-            return None
+            print(f"FALLBACK: Returning raw extracted data (unstructured)")
+            # Return raw data as fallback - at least we have something
+            return {
+                'raw_extraction': raw_data,
+                'structured': False,
+                'error': 'OpenAI structuring failed - returning raw data',
+                'filename': raw_data.get('filename', os.path.basename(pdf_path))
+            }
         
         return structured_data
         

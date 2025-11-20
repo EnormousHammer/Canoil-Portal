@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, startTransition } from 'react';
 import { 
   Database, 
   Shield, 
@@ -99,22 +99,30 @@ export const UltimateEnterpriseLoadingScreen: React.FC<UltimateEnterpriseLoading
     }, 100);
   };
 
-  // Handle login
+  // Handle login - optimized to prevent UI blocking
   const handleLogin = async () => {
     if (!selectedUser) return;
     
-    setIsLoggingIn(true);
-    setLoginError('');
+    // Use startTransition to mark state updates as non-urgent (prevents UI blocking)
+    startTransition(() => {
+      setIsLoggingIn(true);
+      setLoginError('');
+    });
     
-    // Simulate login delay
+    // Defer heavy work to next tick to prevent blocking
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // Simulate login delay (non-blocking)
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Check if admin user
     if (selectedUser.isAdmin) {
       // Admin users need password 1967
       if (password !== '1967') {
-        setLoginError('Invalid password for admin user. Admin password is required.');
-        setIsLoggingIn(false);
+        startTransition(() => {
+          setLoginError('Invalid password for admin user. Admin password is required.');
+          setIsLoggingIn(false);
+        });
         return;
       }
     } else {
@@ -122,9 +130,11 @@ export const UltimateEnterpriseLoadingScreen: React.FC<UltimateEnterpriseLoading
       // For now, allow any password for regular users
     }
     
-    // Successful login
+    // Successful login - use startTransition for callback
     if (onUserLogin) {
-      onUserLogin(selectedUser);
+      startTransition(() => {
+        onUserLogin(selectedUser);
+      });
     }
   };
 

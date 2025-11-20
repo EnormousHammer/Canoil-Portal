@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
 
 interface PurchaseRequisitionModalProps {
@@ -139,8 +139,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     }
   }, [poData]);
 
-  // Get all items from data - try ALL possible sources
-  const getAllItems = () => {
+  // Get all items from data - try ALL possible sources (MEMOIZED to prevent repeated calls)
+  const getAllItems = useMemo(() => {
     if (!allData) return [];
     
     // Try ALL possible item sources and return first non-empty array
@@ -156,6 +156,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     for (const source of sources) {
       const items = allData[source];
       if (items && Array.isArray(items) && items.length > 0) {
+        // Only log once per source change
         console.log(`✅ Using ${source} with ${items.length} items`);
         return items;
       }
@@ -163,11 +164,15 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     
     console.error('❌ No items found in any source!');
     return [];
-  };
+  }, [allData]); // Only recalculate when allData changes
 
-  // Debug what we actually have
+  // allItems is now directly memoized (getAllItems is already memoized above)
+  const allItems = getAllItems;
+
+  // Debug what we actually have (only once when modal opens)
+  const [debugged, setDebugged] = React.useState(false);
   React.useEffect(() => {
-    if (isOpen && allData) {
+    if (isOpen && allData && !debugged) {
       console.log('=== MODAL DATA CHECK ===');
       console.log('MIITEM.json type:', typeof allData['MIITEM.json']);
       console.log('MIITEM.json is array?', Array.isArray(allData['MIITEM.json']));
@@ -175,11 +180,12 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       console.log('MIITEM.json first item:', allData['MIITEM.json']?.[0]);
       console.log('Items.json length:', allData['Items.json']?.length);
       console.log('Items.json first item:', allData['Items.json']?.[0]);
+      setDebugged(true);
     }
-  }, [isOpen, allData]);
+  }, [isOpen, allData, debugged]);
   
-  // Track if items are loaded
-  const itemsLoaded = getAllItems().length > 0;
+  // Track if items are loaded (use memoized value)
+  const itemsLoaded = allItems.length > 0;
 
   // Handle search input change - Smart search like inventory
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,7 +198,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       return;
     }
 
-    const items = getAllItems();
+    const items = allItems;
     if (items.length === 0) return;
     
     const queryLower = query.toLowerCase();
@@ -469,7 +475,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold">Add Items</h3>
               <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">
-                {getAllItems().length > 0 ? `${getAllItems().length} items available` : 'No items data'}
+                {allItems.length > 0 ? `${allItems.length} items available` : 'No items data'}
               </span>
             </div>
             <div className="relative z-10">
@@ -554,7 +560,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
               )}
               
               {/* No results message */}
-              {searchQuery && searchQuery.length > 0 && searchResults.length === 0 && getAllItems().length > 0 && (
+              {searchQuery && searchQuery.length > 0 && searchResults.length === 0 && allItems.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg px-4 py-3">
                   <div className="text-gray-500 text-sm">No items found for "{searchQuery}"</div>
                 </div>

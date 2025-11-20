@@ -362,6 +362,53 @@ class GoogleDriveService:
                     return None
         return None
     
+    def load_specific_files(self, folder_id, drive_id, file_names):
+        """Load only specific JSON files from a folder (Cloud Run 32MB limit optimization)
+        
+        Args:
+            folder_id: Google Drive folder ID
+            drive_id: Google Drive shared drive ID
+            file_names: List of specific file names to load
+        """
+        try:
+            data = {}
+            
+            for file_name in file_names:
+                # Find specific file by name
+                query = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
+                list_params = {
+                    'q': query,
+                    'supportsAllDrives': True,
+                    'includeItemsFromAllDrives': True,
+                    'fields': "files(id, name)",
+                    'pageSize': 1
+                }
+                
+                if drive_id:
+                    list_params['corpora'] = 'drive'
+                    list_params['driveId'] = drive_id
+                
+                results = self.service.files().list(**list_params).execute()
+                files = results.get('files', [])
+                
+                if files:
+                    file_id = files[0]['id']
+                    print(f"[INFO] Downloading: {file_name}")
+                    file_data = self.download_file(file_id, file_name)
+                    if file_data is not None:
+                        data[file_name] = file_data
+                    else:
+                        data[file_name] = []
+                else:
+                    print(f"[WARN] File not found: {file_name}")
+                    data[file_name] = []
+            
+            return data
+            
+        except Exception as error:
+            print(f"[ERROR] Error loading specific files: {error}")
+            return {}
+    
     def load_folder_data(self, folder_id, drive_id=None):
         """Load all JSON files from a folder"""
         try:
@@ -509,12 +556,16 @@ class GoogleDriveService:
                 traceback.print_exc()
                 return all_files_by_folder
     
-    def load_sales_orders_data(self, drive_id):
-        """Load sales orders data from Google Drive - SCANS ALL FOLDERS UNDER Customer Orders
+    def load_sales_orders_data(self, drive_id, filter_folders=None):
+        """Load sales orders data from Google Drive - supports folder filtering
         Returns file metadata extracted from filenames (like local version - simple and reliable)
         
-        Note: drive_id parameter is ignored - we always search for Sales_CSR as a separate drive
-        Scans: Sales Orders, Purchase Orders, and ALL their subfolders recursively
+        Args:
+            drive_id: Ignored - we always search for Sales_CSR as a separate drive
+            filter_folders: List of specific folders to scan (e.g., ['In Production', 'New and Revised'])
+                           If None, scans all folders
+        
+        DEFAULT BEHAVIOR: Loads only active folders to reduce response size for Cloud Run
         """
         print(f"[INFO] ===== STARTING load_sales_orders_data =====")
         try:
@@ -585,18 +636,65 @@ class GoogleDriveService:
             
             print(f"[INFO] Found {len(customer_order_folders)} folders under Customer Orders: {[f['name'] for f in customer_order_folders]}")
             
-            # Scan each folder under Customer Orders (Sales Orders, Purchase Orders, etc.)
+            # Scan each folder under Customer Orders, but only "Sales Orders" folder
+            # (Skip Purchase Orders to reduce response size)
+            sales_orders_folder = None
             for order_folder in customer_order_folders:
-                folder_id = order_folder['id']
-                folder_name = order_folder['name']
-                print(f"[INFO] ===== STARTING SCAN OF FOLDER: {folder_name} =====")
+                if order_folder['name'] == 'Sales Orders':
+                    sales_orders_folder = order_folder
+                    break
+            
+            if not sales_orders_folder:
+                print("[WARN] Sales Orders folder not found under Customer Orders")
+                return {}
+            
+            folder_id = sales_orders_folder['id']
+            folder_name = sales_orders_folder['name']
+            print(f"[INFO] ===== STARTING SCAN OF FOLDER: {folder_name} =====")
+            
+            # Get subfolders (In Production, Cancelled, etc.)
+            query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            subfolder_params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'fields': "files(id, name)",
+                'pageSize': 100
+            }
+            if sales_orders_drive_id:
+                subfolder_params['corpora'] = 'drive'
+                subfolder_params['driveId'] = sales_orders_drive_id
+            
+            subfolder_results = self.service.files().list(**subfolder_params).execute()
+            all_status_folders = subfolder_results.get('files', [])
+            
+            print(f"[INFO] Found {len(all_status_folders)} status folders: {[f['name'] for f in all_status_folders]}")
+            
+            # ALWAYS exclude "Closed" and "Cancelled" from main loading (unless explicitly requested)
+            excluded_folders = ['Closed', 'Cancelled', 'closed', 'cancelled', 'Completed and Closed']
+            all_status_folders = [f for f in all_status_folders if f['name'] not in excluded_folders]
+            
+            # Apply filter if specified
+            if filter_folders:
+                status_folders_to_scan = [f for f in all_status_folders if f['name'] in filter_folders]
+                print(f"[INFO] FILTERED to {len(status_folders_to_scan)} folders: {[f['name'] for f in status_folders_to_scan]}")
+            else:
+                status_folders_to_scan = all_status_folders
+                print(f"[INFO] Scanning ALL {len(status_folders_to_scan)} folders (excluded: {excluded_folders})")
+            
+            # Scan each status folder
+            for status_folder in status_folders_to_scan:
+                folder_id = status_folder['id']
+                folder_name = status_folder['name']
+                print(f"[INFO] ===== SCANNING FOLDER: {folder_name} =====")
                 
-                # Recursively scan this folder and all its subfolders (METADATA ONLY - fast)
-                # Returns dict: {subfolder_path: [files]}
+                # Scan this folder and immediate subfolders only (depth 2 for "Scheduled" subfolder)
+                # For "In Production" and "New and Revised" - fast metadata-only scan
                 import time as time_module
                 scan_start_time = time_module.time()
-                # Increased timeout to 120s since we're only getting metadata (no downloads)
-                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=5, start_time=scan_start_time, max_scan_time=120)
+                # Depth 2 = folder -> subfolder (e.g., "In Production" -> "Scheduled") -> files
+                # Timeout 20s should be plenty for 2 folders with metadata-only
+                files_by_subfolder = self._scan_folder_recursively(folder_id, folder_name, sales_orders_drive_id, depth=0, max_depth=2, start_time=scan_start_time, max_scan_time=20)
                 scan_elapsed = time_module.time() - scan_start_time
                 print(f"[INFO] Scan completed in {scan_elapsed:.1f}s for folder: {folder_name}")
                 
@@ -604,12 +702,23 @@ class GoogleDriveService:
                     # Process files: extract metadata ONLY (no downloads, no parsing)
                     all_orders = []  # File metadata (for SalesOrders.json)
                     
-                    # Process all subfolders - NO LIMIT (metadata only is fast)
+                    # Process all subfolders - FILTER OUT "Closed" and "Cancelled"
+                    excluded_subfolders = ['Closed', 'Cancelled', 'closed', 'cancelled']
                     for subfolder_path, files in files_by_subfolder.items():
                         
                         subfolder_name = subfolder_path.split('/')[-1] if '/' in subfolder_path else subfolder_path
                         if subfolder_path == folder_name:
                             subfolder_name = folder_name
+                        
+                        # SKIP excluded folders (Closed, Cancelled)
+                        if subfolder_name in excluded_subfolders:
+                            print(f"[INFO] SKIPPING excluded folder: {subfolder_name}")
+                            continue
+                        
+                        # Also skip if any part of the path contains excluded folders
+                        if any(excluded in subfolder_path for excluded in excluded_subfolders):
+                            print(f"[INFO] SKIPPING path containing excluded folder: {subfolder_path}")
+                            continue
                         
                         orders_in_folder = []
                         
@@ -764,25 +873,19 @@ class GoogleDriveService:
         
         print(f"[OK] Found latest folder: {latest_folder_name} (ID: {latest_folder_id})")
         
-        # Load all JSON files from latest folder
-        print(f"[INFO] Loading JSON files from latest folder...")
-        data = self.load_folder_data(latest_folder_id, drive_id)
-        print(f"[INFO] load_folder_data returned {len(data)} files: {list(data.keys())}")
+        # Load ALL JSON files from API Extractions folder (HTTP/2 removes 32MB limit)
+        print(f"[INFO] Loading ALL JSON files from API Extractions folder (HTTP/2 enabled - no size limit)...")
         
-        # Load sales orders data - METADATA ONLY (no downloads, no parsing - fast!)
-        print(f"[INFO] ===== LOADING SALES ORDERS (METADATA ONLY) =====")
-        try:
-            sales_orders_data = self.load_sales_orders_data(drive_id)
-            if sales_orders_data:
-                data.update(sales_orders_data)
-                print(f"[OK] Successfully added sales orders metadata")
-            else:
-                print(f"[INFO] No sales orders data returned")
-        except Exception as e:
-            print(f"[ERROR] Exception loading sales orders data (non-fatal): {e}")
-            import traceback
-            traceback.print_exc()
-            # Continue without sales orders data - don't break the main data loading
+        data = self.load_folder_data(latest_folder_id, drive_id)
+        print(f"[INFO] Loaded {len(data)} files: {list(data.keys())}")
+        
+        # SKIP Sales Orders - Load via separate /api/sales-orders endpoint (Cloud Run 32MB limit)
+        print(f"[INFO] ===== SKIPPING SALES ORDERS (use /api/sales-orders endpoint) =====")
+        # Add empty placeholders so frontend doesn't break
+        data['SalesOrders.json'] = []
+        data['SalesOrdersByStatus'] = {}
+        data['TotalOrders'] = 0
+        data['StatusFolders'] = []
         
         folder_info = {
             "folderName": latest_folder_name,
@@ -795,4 +898,82 @@ class GoogleDriveService:
         }
         
         return data, folder_info
+    
+    def get_all_data_incremental(self, cached_file_times=None):
+        """
+        Load data incrementally - only download files that changed
+        
+        Args:
+            cached_file_times: Dict of {filename: modifiedTime} from last load
+        
+        Returns:
+            (data, folder_info, new_file_times)
+        """
+        if cached_file_times is None:
+            cached_file_times = {}
+        
+        print(f"[INFO] ===== INCREMENTAL SYNC =====")
+        print(f"[INFO] Cached files: {len(cached_file_times)}")
+        
+        # Find latest folder
+        latest_folder_id, latest_folder_name = self.find_latest_api_extractions_folder()
+        if not latest_folder_id:
+            return {}, {}, {}
+        
+        # Get all files with modification times
+        query = f"('{latest_folder_id}' in parents) and (mimeType='application/json' or name contains '.json') and trashed=false"
+        list_params = {
+            'q': query,
+            'supportsAllDrives': True,
+            'includeItemsFromAllDrives': True,
+            'fields': "files(id, name, mimeType, modifiedTime)",
+            'orderBy': 'modifiedTime desc'
+        }
+        
+        if self.shared_drive_id:
+            list_params['corpora'] = 'drive'
+            list_params['driveId'] = self.shared_drive_id
+        
+        results = self.service.files().list(**list_params).execute()
+        files = results.get('files', [])
+        
+        data = {}
+        new_file_times = {}
+        changed_count = 0
+        unchanged_count = 0
+        
+        for file_info in files:
+            file_name = file_info['name']
+            file_id = file_info['id']
+            modified_time = file_info.get('modifiedTime', '')
+            
+            # Check if file changed
+            cached_time = cached_file_times.get(file_name)
+            if cached_time and cached_time == modified_time:
+                # File unchanged - skip download
+                unchanged_count += 1
+                print(f"[SKIP] {file_name} (unchanged)")
+                continue
+            
+            # File changed or new - download it
+            changed_count += 1
+            print(f"[DOWNLOAD] {file_name} (changed or new)")
+            file_data = self.download_file(file_id, file_name)
+            if file_data is not None:
+                data[file_name] = file_data
+                new_file_times[file_name] = modified_time
+        
+        print(f"[INFO] Incremental sync: {changed_count} changed, {unchanged_count} unchanged")
+        
+        folder_info = {
+            "folderName": latest_folder_name,
+            "syncDate": datetime.now().isoformat(),
+            "lastModified": datetime.now().isoformat(),
+            "folder": latest_folder_name,
+            "created": datetime.now().isoformat(),
+            "size": "N/A",
+            "fileCount": len(files)
+        }
+        
+        return data, folder_info, new_file_times
 

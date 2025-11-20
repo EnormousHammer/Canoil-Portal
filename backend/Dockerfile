@@ -34,6 +34,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Run application
-CMD ["python", "app.py"]
+# Run application with Hypercorn for HTTP/2 support (removes 32MB limit)
+# Local development still uses Flask's server (app.run in app.py)
+CMD ["python", "start_hypercorn.py"]
 

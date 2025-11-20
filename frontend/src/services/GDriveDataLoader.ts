@@ -134,9 +134,9 @@ export class GDriveDataLoader {
         isProduction: import.meta.env.PROD
       });
       
-      // Add 120 second timeout for Cloud Run cold starts and Google Drive API data loading
+      // Add 300 second timeout to match Cloud Run configuration (data is 86MB, takes time to load and compress)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const timeoutId = setTimeout(() => controller.abort(), 300000);
       
       let response: Response;
       try {
@@ -164,9 +164,9 @@ export class GDriveDataLoader {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
-          console.error('❌ Backend request timeout after 120 seconds:', {
+          console.error('❌ Backend request timeout after 300 seconds:', {
             url: apiUrl,
-            hint: '⚠️ Backend is loading data from Google Drive API. First load can take 60-90 seconds.'
+            hint: '⚠️ Backend is loading 86MB of data from Google Drive API. First load can take 2-4 minutes.'
           });
           throw new Error('Backend connection timeout - loading data from Google Drive. Please try again in a moment.');
         }
@@ -208,6 +208,49 @@ export class GDriveDataLoader {
         });
         
         this.loadedData.loaded = true;
+      }
+      
+      // Load ACTIVE Sales Orders (In Production, New and Revised) - 8.6MB
+      // Historical orders (Cancelled, Completed) load on-demand via /api/sales-orders/historical
+      console.log('📦 Loading ACTIVE Sales Orders (In Production, New and Revised)...');
+      try {
+        const soUrl = getApiUrl('/api/sales-orders');  // Default loads only active folders
+        const soController = new AbortController();
+        const soTimeoutId = setTimeout(() => soController.abort(), 300000);
+        
+        const soResponse = await fetch(soUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          signal: soController.signal
+        });
+        clearTimeout(soTimeoutId);
+        
+        if (soResponse.ok) {
+          const soData = await soResponse.json();
+          // Merge Sales Orders data into main data
+          result.data['SalesOrders.json'] = soData['SalesOrders.json'] || [];
+          result.data['SalesOrdersByStatus'] = soData['SalesOrdersByStatus'] || {};
+          result.data['TotalOrders'] = soData['TotalOrders'] || 0;
+          this.loadedData['SalesOrders.json'] = soData['SalesOrders.json'] || [];
+          this.loadedData['SalesOrdersByStatus'] = soData['SalesOrdersByStatus'] || {};
+          this.loadedData['TotalOrders'] = soData['TotalOrders'] || 0;
+          console.log(`✅ Loaded ${soData['TotalOrders'] || 0} ACTIVE Sales Orders (In Production, New and Revised)`);
+          console.log('   Historical orders (Cancelled, Completed) available via /api/sales-orders/historical');
+        } else {
+          console.warn('⚠️ Could not load Sales Orders, continuing without them');
+          result.data['SalesOrders.json'] = [];
+          result.data['SalesOrdersByStatus'] = {};
+          result.data['TotalOrders'] = 0;
+        }
+      } catch (soError: any) {
+        console.warn('⚠️ Sales Orders loading failed:', soError.message);
+        console.warn('   Continuing with MiSys data only');
+        result.data['SalesOrders.json'] = [];
+        result.data['SalesOrdersByStatus'] = {};
+        result.data['TotalOrders'] = 0;
       }
       
       // Flask returns the exact structure we need
