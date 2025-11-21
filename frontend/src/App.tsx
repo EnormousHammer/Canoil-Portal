@@ -68,25 +68,22 @@ function App() {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [showHealthWarning, setShowHealthWarning] = useState(false);
 
+  // Start loading data immediately when app opens (before login)
+  useEffect(() => {
+    console.log("🚀 App opened - starting data preload in background");
+    const gdriveLoader = GDriveDataLoader.getInstance();
+    loadAllData(gdriveLoader);
+  }, []); // Run once on mount - load data immediately
+
   // Handle login
   const handleLogin = (user: { name: string; email: string; isAdmin: boolean }) => {
     console.log("🔐 User logged in:", user);
     setCurrentUser(user);
     setIsLoggedIn(true);
     
-    // Start loading data immediately after login
-    const gdriveLoader = GDriveDataLoader.getInstance();
-    loadAllData(gdriveLoader);
+    // Data should already be loading from the preload effect above
+    // If not loaded yet, it will continue loading
   };
-
-  // Start loading data when user logs in
-  useEffect(() => {
-    if (isLoggedIn && !dataLoaded) {
-      console.log("🚀 User logged in - starting data loading");
-      const gdriveLoader = GDriveDataLoader.getInstance();
-      loadAllData(gdriveLoader);
-    }
-  }, [isLoggedIn, dataLoaded]);
 
   // Auto-sync: DISABLED - Data is a snapshot from MiSys exports, not live
   // User can manually click "Sync Now" if needed
