@@ -1065,142 +1065,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return items;
   }, [data, inventoryFilter, inventorySearchQuery, sortBy, filterStatus]);
 
-  // SALES ORDER ANALYTICS - ON-DEMAND ONLY (NOT part of loading process)
-  const [analyticsCalculated, setAnalyticsCalculated] = useState(false);
-  
-  // Function to calculate analytics only when explicitly requested (NOT during data loading)
-  const calculateSalesOrderAnalytics = () => {
-    // SOURCE 1: RealSalesOrders (PDF-extracted - MOST ACCURATE)
-    const realSalesOrders = data['RealSalesOrders'] || [];
-    
-    // SOURCE 2: SalesOrdersByStatus (PDF files organized by folder)
-    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-    
-    // SOURCE 3: Fallback to MiSys structured data
-    const salesOrderHeaders = data['SalesOrderHeaders.json'] || [];
-    const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
-    
-    // Combine all real sales orders
-    const allSalesOrders = [
-      ...realSalesOrders,
-      ...parsedSalesOrders,
-      ...salesOrderHeaders
-    ];
-    
-    // Count orders from combined sources by status
-    const newAndRevised = allSalesOrders.filter((so: any) => {
-      const status = (so["Status"] || so.status || '').toLowerCase();
-      return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
-    });
-    
-    const inProduction = allSalesOrders.filter((so: any) => {
-      const status = (so["Status"] || so.status || '').toLowerCase();
-      return status.includes('production') || status.includes('manufacturing') || status.includes('in progress') || status.includes('scheduled');
-    });
-    
-    const completed = allSalesOrders.filter((so: any) => {
-      const status = (so["Status"] || so.status || '').toLowerCase();
-      return status.includes('completed') || status.includes('closed') || status.includes('shipped') || status.includes('delivered');
-    });
-    
-    const cancelled = allSalesOrders.filter((so: any) => {
-      const status = (so["Status"] || so.status || '').toLowerCase();
-      return status.includes('cancelled') || status.includes('canceled') || status.includes('void');
-    });
-    
-    // Count orders from SalesOrdersByStatus by folder name (PDF files from Google Drive)
-    let newAndRevisedCount = 0;
-    let inProductionCount = 0;
-    let completedCount = 0;
-    let cancelledCount = 0;
-    
-    if (typeof salesOrdersByStatus === 'object') {
-      Object.entries(salesOrdersByStatus).forEach(([folderName, ordersOrCount]: [string, any]) => {
-        const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
-        
-        if (count > 0) {
-          const folderLower = folderName.toLowerCase();
-          
-          if (folderLower.includes('new') || folderLower.includes('revised')) {
-            newAndRevisedCount += count;
-          } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
-            inProductionCount += count;
-          } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
-            completedCount += count;
-          } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
-            cancelledCount += count;
-          }
-        }
-      });
-    }
-    
-    // Get last updated dates
-    const getLastUpdated = (orders: any[]) => {
-      if (orders.length === 0) return 'No data';
-      const dates = orders.map(so => new Date(so["Order Date"] || so["order_date"] || so["Created Date"] || Date.now()));
-      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      const today = new Date();
-      const diffTime = today.getTime() - latestDate.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays} days ago`;
-      return latestDate.toLocaleDateString();
-    };
-    
-    // Calculate total from both sources
-    let totalFromStatus = 0;
-    if (typeof salesOrdersByStatus === 'object') {
-      Object.values(salesOrdersByStatus).forEach((ordersOrCount: any) => {
-        const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
-        totalFromStatus += count;
-      });
-    }
-    
-    return {
-      newAndRevised: {
-        count: newAndRevised.length + newAndRevisedCount,
-        lastUpdated: getLastUpdated(newAndRevised)
-      },
-      inProduction: {
-        count: inProduction.length + inProductionCount,
-        lastUpdated: getLastUpdated(inProduction)
-      },
-      completed: {
-        count: completed.length + completedCount,
-        lastUpdated: getLastUpdated(completed)
-      },
-      cancelled: {
-        count: cancelled.length + cancelledCount,
-        lastUpdated: getLastUpdated(cancelled)
-      },
-      total: allSalesOrders.length + totalFromStatus
-    };
+  // SALES ORDERS - Just use loaded data directly (no calculations, no analytics)
+  const salesOrderAnalytics = {
+    newAndRevised: { count: 0, lastUpdated: '' },
+    inProduction: { count: 0, lastUpdated: '' },
+    completed: { count: 0, lastUpdated: '' },
+    cancelled: { count: 0, lastUpdated: '' },
+    total: data['TotalOrders'] || 0
   };
-  
-  // Calculate analytics only when explicitly requested (NOT during data loading)
-  const salesOrderAnalytics = useMemo(() => {
-    if (!analyticsCalculated) {
-      // Return empty values - analytics NOT calculated during data loading
-      return {
-        newAndRevised: { count: 0, lastUpdated: 'Not calculated' },
-        inProduction: { count: 0, lastUpdated: 'Not calculated' },
-        completed: { count: 0, lastUpdated: 'Not calculated' },
-        cancelled: { count: 0, lastUpdated: 'Not calculated' },
-        total: 0
-      };
-    }
-    return calculateSalesOrderAnalytics();
-  }, [data, analyticsCalculated]);
-  
-  // Analytics only calculate when sales orders section is viewed (on-demand, not during data loading)
-  useEffect(() => {
-    if (activeSection === 'sales-orders' && !analyticsCalculated) {
-      // Calculate analytics only when user views sales orders section (not during initial data load)
-      setAnalyticsCalculated(true);
-    }
-  }, [activeSection, analyticsCalculated]);
 
   // ENHANCED CUSTOMER ANALYSIS - Real business intelligence with smart name combining
   const customerAnalytics = useMemo(() => {

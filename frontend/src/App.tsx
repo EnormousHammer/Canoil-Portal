@@ -72,16 +72,16 @@ function App() {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [showHealthWarning, setShowHealthWarning] = useState(false);
 
-  // Start loading data immediately when app opens
+  // Start loading data IMMEDIATELY when app opens (don't wait for anything)
   useEffect(() => {
-    if (!dataLoaded) {
-      console.log("🚀 App opened - starting data load");
-      const gdriveLoader = GDriveDataLoader.getInstance();
-      loadAllData(gdriveLoader).catch((error) => {
-        console.error('❌ Error loading data:', error);
-      });
-    }
-  }, [dataLoaded]);
+    console.log("🚀 App opened - starting data load IMMEDIATELY");
+    const gdriveLoader = GDriveDataLoader.getInstance();
+    loadAllData(gdriveLoader).catch((error) => {
+      console.error('❌ Error loading data:', error);
+    });
+    // Only run once on mount - don't depend on dataLoaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array = run immediately on mount
 
   // Premium 7-second loading screen with progress
   useEffect(() => {
