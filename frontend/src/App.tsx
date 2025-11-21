@@ -227,7 +227,8 @@ function App() {
         loaded: true
       });
       
-      const newSOCount = (result.data['SalesOrderHeaders.json'] || []).length;
+      // Sales Orders ONLY from PDF scanning (SalesOrders.json), NOT from MiSys
+      const newSOCount = (result.data['SalesOrders.json'] || []).length;
       setLastSalesOrderCount(newSOCount);
       setNewSOsAvailable(0);
       
