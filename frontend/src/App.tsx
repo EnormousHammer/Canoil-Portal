@@ -154,7 +154,8 @@ function App() {
     try {
       const gdriveLoader = GDriveDataLoader.getInstance();
       const result = await gdriveLoader.loadAllData();
-      const newSOCount = (result.data['SalesOrderHeaders.json'] || []).length;
+      // Sales Orders ONLY from PDF scanning (SalesOrders.json), NOT from MiSys
+      const newSOCount = (result.data['SalesOrders.json'] || []).length;
       
       if (newSOCount > lastSalesOrderCount && lastSalesOrderCount > 0) {
         // New SOs detected!
@@ -356,12 +357,11 @@ function App() {
       
       setLoadingStatus('✅ All data loaded successfully!');
       
-      // Track initial SO count for auto-sync (check both SalesOrders.json and SalesOrderHeaders.json)
-      const salesOrdersCount = (gdriveResult['SalesOrders.json'] || []).length;
-      const salesOrderHeadersCount = (gdriveResult['SalesOrderHeaders.json'] || []).length;
-      const initialSOCount = salesOrdersCount || salesOrderHeadersCount;
+      // Track initial SO count for auto-sync - ONLY from PDF scanning (SalesOrders.json)
+      // Sales Orders come from PDF files in Sales_CSR drive, NOT from MiSys data
+      const initialSOCount = (gdriveResult['SalesOrders.json'] || []).length;
       setLastSalesOrderCount(initialSOCount);
-      console.log(`📊 Initial Sales Orders loaded: ${initialSOCount} (SalesOrders: ${salesOrdersCount}, Headers: ${salesOrderHeadersCount})`);
+      console.log(`📊 Initial Sales Orders loaded: ${initialSOCount} (from PDF scanning)`);
       
       setSyncInfo({
         folderName: result.folderInfo.folderName,
