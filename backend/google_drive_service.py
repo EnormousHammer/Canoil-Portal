@@ -751,7 +751,6 @@ class GoogleDriveService:
                             print(f"[INFO] Downloading and parsing {len(files_to_download)} PDFs in parallel...")
                             import concurrent.futures
                             import tempfile
-                            import os as os_module
                             
                             def download_and_parse(file_data):
                                 file_id = file_data['file_id']
@@ -770,7 +769,7 @@ class GoogleDriveService:
                                     
                                     # Parse PDF - import raw_so_extractor directly to avoid circular import
                                     import sys
-                                    backend_dir = os_module.path.dirname(os_module.path.abspath(__file__))
+                                    backend_dir = os.path.dirname(os.path.abspath(__file__))
                                     if backend_dir not in sys.path:
                                         sys.path.insert(0, backend_dir)
                                     
@@ -815,7 +814,7 @@ class GoogleDriveService:
                                     # Clean up temp file
                                     if tmp_path:
                                         try:
-                                            os_module.unlink(tmp_path)
+                                            os.unlink(tmp_path)
                                         except:
                                             pass
                             
