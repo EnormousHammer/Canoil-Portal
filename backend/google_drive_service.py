@@ -330,6 +330,28 @@ class GoogleDriveService:
             print(f"[ERROR] Error getting latest folder: {error}")
             return None, None
     
+    def find_latest_api_extractions_folder(self):
+        """Find the latest folder in the API Extractions path"""
+        try:
+            # Find the shared drive
+            drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
+            if not drive_id:
+                print(f"[ERROR] Shared drive '{SHARED_DRIVE_NAME}' not found")
+                return None, None
+            
+            # Find the base folder
+            base_folder_id = self.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
+            if not base_folder_id:
+                print(f"[ERROR] Base folder '{BASE_FOLDER_PATH}' not found")
+                return None, None
+            
+            # Get latest folder
+            latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
+            return latest_folder_id, latest_folder_name
+        except Exception as error:
+            print(f"[ERROR] Error finding latest API extractions folder: {error}")
+            return None, None
+    
     def download_file(self, file_id, file_name):
         """Download a file from Google Drive with retry logic for SSL errors"""
         max_retries = 3

@@ -54,6 +54,11 @@ except Exception as e:
 # Lazy OpenAI client initialization (only when needed)
 client = None
 
+# SO data cache to avoid re-parsing same PDFs (10 minute TTL)
+_so_data_cache = {}
+_so_cache_timestamps = {}
+_SO_CACHE_TTL = 600  # 10 minutes
+
 def get_openai_client():
     """Initialize OpenAI client only when needed and API key is available"""
     global client
@@ -1291,6 +1296,19 @@ def get_so_data_from_system(so_number):
     """Get SO data by extracting from PDF file - PARSES ACTUAL SO PDF - NO MOCK DATA"""
     import tempfile
     import os
+    import time
+    
+    # Check cache first (avoid re-parsing same PDFs)
+    global _so_data_cache, _so_cache_timestamps
+    if so_number in _so_data_cache:
+        cache_age = time.time() - _so_cache_timestamps.get(so_number, 0)
+        if cache_age < _SO_CACHE_TTL:
+            print(f"⚡ OPTIMIZATION: Using cached SO data for {so_number} (age: {cache_age:.1f}s)")
+            return _so_data_cache[so_number]
+        else:
+            # Cache expired, remove it
+            del _so_data_cache[so_number]
+            del _so_cache_timestamps[so_number]
     
     try:
         print(f"SEARCH: LOGISTICS: Looking up SO {so_number} by parsing PDF...")
@@ -1497,6 +1515,12 @@ def get_so_data_from_system(so_number):
                     print(f"[OK] LOGISTICS: Cleaned up temp file: {so_file_path}")
                 except:
                     pass
+            
+            # Cache successful result (only cache valid SO data, not errors)
+            if isinstance(so_data, dict) and so_data.get('status') not in ['Error', 'Not found']:
+                _so_data_cache[so_number] = so_data
+                _so_cache_timestamps[so_number] = time.time()
+                print(f"💾 Cached SO data for {so_number} (TTL: {_SO_CACHE_TTL}s)")
             
             return so_data
         except Exception as e:

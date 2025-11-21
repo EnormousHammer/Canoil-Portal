@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 # from flask_compress import Compress  # Temporarily disabled - causing startup issues
 import os
+import gzip
 
 # Fix Unicode encoding issues for Windows
 import codecs
@@ -808,7 +809,7 @@ def load_json_file(file_path):
 # Global cache for data - MEMORY OPTIMIZED
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 7200  # 2 hour cache (increased for faster loads - data doesn't change that often)
+_cache_duration = 86400  # 24 hour cache (data doesn't change daily - avoid reloading 69MB every day)
 
 # Sales Order folder cache - stores folder contents by path
 _so_folder_cache = {}
@@ -1391,7 +1392,7 @@ def get_all_data():
                     _data_cache = disk_data
                     _cache_timestamp = disk_timestamp
                     print("✅ Using disk cache (survived container restart)")
-                    return jsonify({
+                    response_data = {
                         "data": _data_cache,
                         "folderInfo": disk_folder_info or {
                             "folderName": "Cached Data",
@@ -1404,7 +1405,17 @@ def get_all_data():
                         },
                         "LoadTimestamp": "Cached",
                         "cached": True
-                    })
+                    }
+                    # Compress large cached responses
+                    accept_encoding = request.headers.get('Accept-Encoding', '')
+                    if 'gzip' in accept_encoding and estimate_data_size_mb(_data_cache) > 10:
+                        json_str = json.dumps(response_data)
+                        compressed = gzip.compress(json_str.encode('utf-8'))
+                        response = Response(compressed, mimetype='application/json')
+                        response.headers['Content-Encoding'] = 'gzip'
+                        response.headers['Content-Length'] = len(compressed)
+                        return response
+                    return jsonify(response_data)
         
         # Check if we have valid cached data (unless forcing refresh)
         if not force_refresh and _data_cache and _cache_timestamp:
@@ -1418,7 +1429,7 @@ def get_all_data():
             # Only use cache if it has data AND is fresh
             if cache_age < _cache_duration and has_data:
                 print("SUCCESS: Returning cached data (no G: Drive access needed)")
-                return jsonify({
+                response_data = {
                     "data": _data_cache,
                     "folderInfo": {
                         "folderName": "Cached Data",
@@ -1431,7 +1442,17 @@ def get_all_data():
                     },
                     "LoadTimestamp": "Cached",
                     "cached": True
-                })
+                }
+                # Compress large cached responses
+                accept_encoding = request.headers.get('Accept-Encoding', '')
+                if 'gzip' in accept_encoding and estimate_data_size_mb(_data_cache) > 10:
+                    json_str = json.dumps(response_data)
+                    compressed = gzip.compress(json_str.encode('utf-8'))
+                    response = Response(compressed, mimetype='application/json')
+                    response.headers['Content-Encoding'] = 'gzip'
+                    response.headers['Content-Length'] = len(compressed)
+                    return response
+                return jsonify(response_data)
             elif not has_data:
                 print("⚠️ Cache exists but is empty - forcing refresh")
         
@@ -1754,6 +1775,19 @@ def get_all_data():
         }
         print(f"🔵 About to jsonify and return...")
         result = jsonify(response_data)
+        
+        # Compress large responses (69MB -> ~10-15MB with gzip)
+        accept_encoding = request.headers.get('Accept-Encoding', '')
+        if 'gzip' in accept_encoding and estimate_data_size_mb(raw_data) > 10:
+            print(f"📦 Compressing response ({estimate_data_size_mb(raw_data):.1f}MB)...")
+            json_str = json.dumps(response_data)
+            compressed = gzip.compress(json_str.encode('utf-8'))
+            print(f"✅ Compressed to {len(compressed) / 1024 / 1024:.1f}MB ({len(compressed) / len(json_str.encode('utf-8')) * 100:.1f}% of original)")
+            response = Response(compressed, mimetype='application/json')
+            response.headers['Content-Encoding'] = 'gzip'
+            response.headers['Content-Length'] = len(compressed)
+            return response
+        
         print(f"✅ JSON created successfully, returning 200")
         return result
         
