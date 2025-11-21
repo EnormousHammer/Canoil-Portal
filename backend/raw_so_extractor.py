@@ -18,13 +18,18 @@ def get_openai_client():
     global openai_client
     if openai_client is None:
         api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key or api_key == "your_openai_api_key_here":
-            # Fallback to working API key (same as other modules)
-            api_key = "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"
-            print("[INFO] Using fallback OpenAI API key (OPENAI_API_KEY env var not set)")
+        if not api_key:
+            error_msg = "OPENAI_API_KEY environment variable not set"
+            print(f"ERROR: {error_msg}")
+            raise ValueError(error_msg)
+        if api_key == "your_openai_api_key_here":
+            error_msg = "OPENAI_API_KEY is set to placeholder value 'your_openai_api_key_here'"
+            print(f"ERROR: {error_msg}")
+            raise ValueError(error_msg)
         try:
             # Initialize with only api_key - no other parameters to avoid version conflicts
             openai_client = OpenAI(api_key=api_key)
+            print(f"[OK] OpenAI client initialized (key length: {len(api_key)} chars)")
         except TypeError as e:
             # Handle version mismatch errors (e.g., proxies parameter issue)
             print(f"ERROR: OpenAI client initialization failed - likely version mismatch: {e}")
@@ -37,6 +42,8 @@ def get_openai_client():
             raise
         except Exception as e:
             print(f"ERROR: OpenAI client initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     return openai_client
 
@@ -344,8 +351,20 @@ Return ONLY valid JSON, no explanations or markdown.
             print(f"  Tables: {len(raw_data['raw_tables'])}")
         
         # Call OpenAI (use lazy client getter)
-        client = get_openai_client()
-        response = client.chat.completions.create(
+        try:
+            client = get_openai_client()
+        except ValueError as e:
+            print(f"ERROR: Cannot get OpenAI client: {e}")
+            print(f"  Check that OPENAI_API_KEY environment variable is set correctly")
+            return None
+        except Exception as e:
+            print(f"ERROR: Failed to initialize OpenAI client: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+        
+        try:
+            response = client.chat.completions.create(
             model="gpt-4o",  # Use GPT-4o for better table parsing
             messages=[
                 {
@@ -359,7 +378,15 @@ Return ONLY valid JSON, no explanations or markdown.
             ],
             temperature=0,  # Deterministic output
             max_tokens=4000
-        )
+            )
+        except Exception as api_error:
+            print(f"ERROR: OpenAI API call failed: {api_error}")
+            print(f"  Error type: {type(api_error).__name__}")
+            if hasattr(api_error, 'response'):
+                print(f"  API Response: {api_error.response}")
+            import traceback
+            traceback.print_exc()
+            return None
         
         # Extract and parse the response
         result_text = response.choices[0].message.content.strip()
