@@ -124,103 +124,110 @@ export class GDriveDataLoader {
 
   public async loadAllData(): Promise<{ data: any; folderInfo: any }> {
     try {
-      // OPTIMIZATION: Start ALL backend requests in parallel immediately
+      // Call Flask backend to get all data - NO FALLBACK
       const apiUrl = getApiUrl('/api/data');
-      const soUrl = getApiUrl('/api/sales-orders');
-      
-      console.log('📡 Starting parallel data loads from backend:', {
-        apiUrl,
-        soUrl,
+      console.log('📡 Loading data from backend:', {
+        url: apiUrl,
         hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
         isProduction: import.meta.env.PROD
       });
       
-      // Start all requests in parallel with 300 second timeout
+      // Add 300 second timeout to match Cloud Run configuration (data is 86MB, takes time to load and compress)
       const controller = new AbortController();
-      const soController = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 300000);
-      const soTimeoutId = setTimeout(() => soController.abort(), 300000);
       
-      // Parallel fetch for main data and Sales Orders
-      const [mainDataPromise, salesOrdersPromise] = await Promise.allSettled([
-        fetch(apiUrl, {
+      let response: Response;
+      try {
+        response = await fetch(apiUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
           },
           signal: controller.signal
-        }),
-        fetch(soUrl, {
+        });
+        clearTimeout(timeoutId);
+      
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Flask API error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: apiUrl,
+            error: errorText,
+            hint: apiUrl.includes('localhost') ? '⚠️ Using localhost - check VITE_API_URL environment variable' : ''
+          });
+          throw new Error(`Flask API error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ Backend request timeout after 300 seconds:', {
+            url: apiUrl,
+            hint: '⚠️ Backend is loading 86MB of data from Google Drive API. First load can take 2-4 minutes.'
+          });
+          throw new Error('Backend connection timeout - loading data from Google Drive. Please try again in a moment.');
+        }
+        throw fetchError;
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        console.error('❌ Non-JSON response received:', {
+          contentType,
+          url: apiUrl,
+          responsePreview: responseText.substring(0, 200)
+        });
+        throw new Error(`Expected JSON, got ${contentType}. Response: ${responseText.substring(0, 100)}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Data loaded from backend:', {
+        url: apiUrl,
+        fileCount: Object.keys(result.data || {}).length,
+        hasData: !!result.data
+      });
+      
+      // Update loaded data with ALL files from backend
+      if (result.data) {
+        // Clear existing data
+        Object.keys(this.loadedData).forEach(key => {
+          if (key !== 'loaded') {
+            this.loadedData[key] = [];
+          }
+        });
+        
+        // Load ALL files from backend response
+        Object.keys(result.data).forEach(fileName => {
+          if (fileName.endsWith('.json')) {
+            this.loadedData[fileName] = result.data[fileName] || [];
+          }
+        });
+        
+        this.loadedData.loaded = true;
+      }
+      
+      // Load ACTIVE Sales Orders (In Production, New and Revised) - 8.6MB
+      // Historical orders (Cancelled, Completed) load on-demand via /api/sales-orders/historical
+      console.log('📦 Loading ACTIVE Sales Orders (In Production, New and Revised)...');
+      try {
+        const soUrl = getApiUrl('/api/sales-orders');  // Default loads only active folders
+        const soController = new AbortController();
+        const soTimeoutId = setTimeout(() => soController.abort(), 300000);
+        
+        const soResponse = await fetch(soUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
           },
           signal: soController.signal
-        })
-      ]);
-      
-      clearTimeout(timeoutId);
-      clearTimeout(soTimeoutId);
-      
-      // Process main data response
-      let result: any;
-      if (mainDataPromise.status === 'fulfilled' && mainDataPromise.value.ok) {
-        const contentType = mainDataPromise.value.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const responseText = await mainDataPromise.value.text();
-          console.error('❌ Non-JSON response received:', {
-            contentType,
-            url: apiUrl,
-            responsePreview: responseText.substring(0, 200)
-          });
-          throw new Error(`Expected JSON, got ${contentType}. Response: ${responseText.substring(0, 100)}`);
-        }
-        
-        result = await mainDataPromise.value.json();
-        console.log('✅ Main data loaded from backend:', {
-          url: apiUrl,
-          fileCount: Object.keys(result.data || {}).length,
-          hasData: !!result.data
         });
+        clearTimeout(soTimeoutId);
         
-        // Update loaded data with ALL files from backend
-        if (result.data) {
-          // Clear existing data
-          Object.keys(this.loadedData).forEach(key => {
-            if (key !== 'loaded') {
-              this.loadedData[key] = [];
-            }
-          });
-          
-          // Load ALL files from backend response
-          Object.keys(result.data).forEach(fileName => {
-            if (fileName.endsWith('.json')) {
-              this.loadedData[fileName] = result.data[fileName] || [];
-            }
-          });
-          
-          this.loadedData.loaded = true;
-        }
-      } else {
-        const errorText = mainDataPromise.status === 'fulfilled' 
-          ? await mainDataPromise.value.text() 
-          : mainDataPromise.reason?.message || 'Unknown error';
-        console.error('❌ Flask API error response:', {
-          status: mainDataPromise.status === 'fulfilled' ? mainDataPromise.value.status : 'failed',
-          url: apiUrl,
-          error: errorText,
-          hint: apiUrl.includes('localhost') ? '⚠️ Using localhost - check VITE_API_URL environment variable' : ''
-        });
-        throw new Error(`Flask API error: ${errorText}`);
-      }
-      
-      // Process Sales Orders response (loads in parallel)
-      console.log('📦 Processing ACTIVE Sales Orders (loaded in parallel)...');
-      if (salesOrdersPromise.status === 'fulfilled' && salesOrdersPromise.value.ok) {
-        try {
-          const soData = await salesOrdersPromise.value.json();
+        if (soResponse.ok) {
+          const soData = await soResponse.json();
           // Merge Sales Orders data into main data
           result.data['SalesOrders.json'] = soData['SalesOrders.json'] || [];
           result.data['SalesOrdersByStatus'] = soData['SalesOrdersByStatus'] || {};
@@ -230,14 +237,15 @@ export class GDriveDataLoader {
           this.loadedData['TotalOrders'] = soData['TotalOrders'] || 0;
           console.log(`✅ Loaded ${soData['TotalOrders'] || 0} ACTIVE Sales Orders (In Production, New and Revised)`);
           console.log('   Historical orders (Cancelled, Completed) available via /api/sales-orders/historical');
-        } catch (soError: any) {
-          console.warn('⚠️ Sales Orders parsing failed:', soError.message);
+        } else {
+          console.warn('⚠️ Could not load Sales Orders, continuing without them');
           result.data['SalesOrders.json'] = [];
           result.data['SalesOrdersByStatus'] = {};
           result.data['TotalOrders'] = 0;
         }
-      } else {
-        console.warn('⚠️ Could not load Sales Orders, continuing without them');
+      } catch (soError: any) {
+        console.warn('⚠️ Sales Orders loading failed:', soError.message);
+        console.warn('   Continuing with MiSys data only');
         result.data['SalesOrders.json'] = [];
         result.data['SalesOrdersByStatus'] = {};
         result.data['TotalOrders'] = 0;
