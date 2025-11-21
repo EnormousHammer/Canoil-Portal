@@ -3027,9 +3027,18 @@ def generate_dangerous_goods_only():
             'error': str(e)
         }), 500
 
-@logistics_bp.route('/api/logistics/generate-all-documents', methods=['POST'])
+@logistics_bp.route('/api/logistics/generate-all-documents', methods=['POST', 'OPTIONS'])
 def generate_all_documents():
     """Generate all logistics documents (BOL, Packing Slip, Commercial Invoice) in one call"""
+    # Handle OPTIONS preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response, 200
+    
     print("\n🔥🔥🔥 NEW CODE LOADED - 2025-10-12-22:00 - BUGS FIXED 🔥🔥🔥")
     try:
         print("\n📋 === GENERATING ALL LOGISTICS DOCUMENTS ===")
@@ -3566,7 +3575,8 @@ def generate_all_documents():
                 'download_url': results['usmca_certificate']['download_url']
             })
         
-        return jsonify({
+        # Add CORS headers to response
+        response = jsonify({
             'success': len(documents) > 0,
             'documents': documents,
             'documents_generated': len(documents),
@@ -3578,6 +3588,10 @@ def generate_all_documents():
             'usmca_required': has_usmca,
             'summary': summary_message
         })
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        return response
         
     except Exception as e:
         print(f"❌ ERROR: Error in generate_all_documents: {e}")
@@ -3600,6 +3614,11 @@ def generate_all_documents():
             'summary': f"Document generation failed: {str(e)}"
         }
         
-        return jsonify(error_details), 500
+        # Add CORS headers to error response
+        response = jsonify(error_details)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        return response, 500
 
 # Removed complex dangerous goods API endpoints - keeping it simple
