@@ -774,7 +774,11 @@ class GoogleDriveService:
                                         sys.path.insert(0, backend_dir)
                                     
                                     # Use raw_so_extractor directly (same as app.py uses)
-                                    from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
+                                    try:
+                                        from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
+                                    except ImportError:
+                                        # Fallback: try relative import
+                                        from .raw_so_extractor import extract_raw_from_pdf, structure_with_openai
                                     
                                     # Extract and structure (same flow as app.py)
                                     raw_data = extract_raw_from_pdf(tmp_path)
