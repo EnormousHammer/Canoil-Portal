@@ -1065,23 +1065,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return items;
   }, [data, inventoryFilter, inventorySearchQuery, sortBy, filterStatus]);
 
-  // REAL-TIME SALES ORDER ANALYTICS - FIXED TO USE CORRECT DATA SOURCES
-  const salesOrderAnalytics = useMemo(() => {
-    console.log('[SALES ORDER DEBUG] Calculating analytics with correct data sources');
-    
+  // SALES ORDER ANALYTICS - ON-DEMAND ONLY (NOT part of loading process)
+  const [analyticsCalculated, setAnalyticsCalculated] = useState(false);
+  
+  // Function to calculate analytics only when explicitly requested (NOT during data loading)
+  const calculateSalesOrderAnalytics = () => {
     // SOURCE 1: RealSalesOrders (PDF-extracted - MOST ACCURATE)
     const realSalesOrders = data['RealSalesOrders'] || [];
-    console.log('  RealSalesOrders:', realSalesOrders.length);
     
     // SOURCE 2: SalesOrdersByStatus (PDF files organized by folder)
     const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-    console.log('  SalesOrdersByStatus folders:', Object.keys(salesOrdersByStatus));
     
     // SOURCE 3: Fallback to MiSys structured data
     const salesOrderHeaders = data['SalesOrderHeaders.json'] || [];
     const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
-    console.log('  SalesOrderHeaders.json:', salesOrderHeaders.length);
-    console.log('  ParsedSalesOrders.json:', parsedSalesOrders.length);
     
     // Combine all real sales orders
     const allSalesOrders = [
@@ -1089,8 +1086,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       ...parsedSalesOrders,
       ...salesOrderHeaders
     ];
-    
-    console.log('  Combined total:', allSalesOrders.length);
     
     // Count orders from combined sources by status
     const newAndRevised = allSalesOrders.filter((so: any) => {
@@ -1120,34 +1115,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     let cancelledCount = 0;
     
     if (typeof salesOrdersByStatus === 'object') {
-      console.log('[DEBUG] SalesOrdersByStatus keys:', Object.keys(salesOrdersByStatus));
       Object.entries(salesOrdersByStatus).forEach(([folderName, ordersOrCount]: [string, any]) => {
-        // Handle both array format (orders) AND number format (count)
         const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
         
         if (count > 0) {
           const folderLower = folderName.toLowerCase();
-          console.log(`[DEBUG] Processing folder: "${folderName}" (${count} files)`);
           
-          // Match folder names - be more flexible and match exact folder names
           if (folderLower.includes('new') || folderLower.includes('revised')) {
             newAndRevisedCount += count;
-            console.log(`[DEBUG] Matched "${folderName}" to New and Revised: +${count}`);
           } else if (folderLower.includes('production') || folderLower.includes('manufacturing')) {
             inProductionCount += count;
-            console.log(`[DEBUG] Matched "${folderName}" to In Production: +${count}`);
           } else if (folderLower.includes('completed') || folderLower.includes('closed')) {
             completedCount += count;
-            console.log(`[DEBUG] Matched "${folderName}" to Completed: +${count}`);
           } else if (folderLower.includes('cancelled') || folderLower.includes('canceled')) {
             cancelledCount += count;
-            console.log(`[DEBUG] Matched "${folderName}" to Cancelled: +${count}`);
-          } else {
-            console.log(`[DEBUG] Folder "${folderName}" did not match any status category`);
           }
         }
       });
-      console.log(`[DEBUG] Final folder counts - New: ${newAndRevisedCount}, Production: ${inProductionCount}, Completed: ${completedCount}, Cancelled: ${cancelledCount}`);
     }
     
     // Get last updated dates
@@ -1169,13 +1153,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     let totalFromStatus = 0;
     if (typeof salesOrdersByStatus === 'object') {
       Object.values(salesOrdersByStatus).forEach((ordersOrCount: any) => {
-        // Handle both array format (orders) AND number format (count)
         const count = Array.isArray(ordersOrCount) ? ordersOrCount.length : (typeof ordersOrCount === 'number' ? ordersOrCount : 0);
         totalFromStatus += count;
       });
     }
     
-    const finalCounts = {
+    return {
       newAndRevised: {
         count: newAndRevised.length + newAndRevisedCount,
         lastUpdated: getLastUpdated(newAndRevised)
@@ -1194,10 +1177,30 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       },
       total: allSalesOrders.length + totalFromStatus
     };
-    
-    console.log('[SALES ORDER DEBUG] Final analytics:', finalCounts);
-    return finalCounts;
-  }, [data]);
+  };
+  
+  // Calculate analytics only when explicitly requested (NOT during data loading)
+  const salesOrderAnalytics = useMemo(() => {
+    if (!analyticsCalculated) {
+      // Return empty values - analytics NOT calculated during data loading
+      return {
+        newAndRevised: { count: 0, lastUpdated: 'Not calculated' },
+        inProduction: { count: 0, lastUpdated: 'Not calculated' },
+        completed: { count: 0, lastUpdated: 'Not calculated' },
+        cancelled: { count: 0, lastUpdated: 'Not calculated' },
+        total: 0
+      };
+    }
+    return calculateSalesOrderAnalytics();
+  }, [data, analyticsCalculated]);
+  
+  // Analytics only calculate when sales orders section is viewed (on-demand, not during data loading)
+  useEffect(() => {
+    if (activeSection === 'sales-orders' && !analyticsCalculated) {
+      // Calculate analytics only when user views sales orders section (not during initial data load)
+      setAnalyticsCalculated(true);
+    }
+  }, [activeSection, analyticsCalculated]);
 
   // ENHANCED CUSTOMER ANALYSIS - Real business intelligence with smart name combining
   const customerAnalytics = useMemo(() => {
