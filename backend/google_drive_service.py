@@ -751,11 +751,12 @@ class GoogleDriveService:
                             print(f"[INFO] Downloading and parsing {len(files_to_download)} PDFs in parallel...")
                             import concurrent.futures
                             import tempfile
-                            import os
+                            import os as os_module
                             
                             def download_and_parse(file_data):
                                 file_id = file_data['file_id']
                                 file_name = file_data['file_name']
+                                tmp_path = None
                                 try:
                                     # Download PDF
                                     pdf_content = self.download_file_content(file_id)
@@ -767,54 +768,56 @@ class GoogleDriveService:
                                         tmp_file.write(pdf_content)
                                         tmp_path = tmp_file.name
                                     
-                                    try:
-                                        # Parse PDF - import raw_so_extractor directly to avoid circular import
-                                        import sys
-                                        import os as os_module
-                                        backend_dir = os_module.path.dirname(os_module.path.abspath(__file__))
-                                        if backend_dir not in sys.path:
-                                            sys.path.insert(0, backend_dir)
-                                        
-                                        # Use raw_so_extractor directly (same as app.py uses)
-                                        from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
-                                        
-                                        # Extract and structure (same flow as app.py)
-                                        raw_data = extract_raw_from_pdf(tmp_path)
-                                        if raw_data:
-                                            parsed_data = structure_with_openai(raw_data)
-                                        else:
-                                            parsed_data = None
-                                        
-                                        if parsed_data:
-                                            # Build order info with parsed data
-                                            order_info = {
-                                                'Order No.': parsed_data.get('so_number', 'Unknown'),
-                                                'Customer': parsed_data.get('customer_name', ''),
-                                                'Order Date': parsed_data.get('order_date', ''),
-                                                'Ship Date': parsed_data.get('due_date', ''),
-                                                'Total Amount': parsed_data.get('total_amount', 0.0),
-                                                'Items': parsed_data.get('items', []),
-                                                'Status': file_data['subfolder_name'],
-                                                'File': file_name,
-                                                'File Path': f"Google Drive: {file_data['subfolder_path']}/{file_name}",
-                                                'File Type': file_name.split('.')[-1].upper(),
-                                                'Last Modified': file_data['modified_time'],
-                                                'Folder Path': file_data['subfolder_path'],
-                                                'Full Path': f"{file_data['folder_name']}/{file_data['subfolder_path']}" if file_data['subfolder_path'] != file_data['folder_name'] else file_data['folder_name'],
-                                                'file_id': file_id,
-                                                'parsed_data': parsed_data  # Full parsed data
-                                            }
-                                            return order_info
-                                    finally:
-                                        # Clean up temp file
-                                        try:
-                                            os.unlink(tmp_path)
-                                        except:
-                                            pass
+                                    # Parse PDF - import raw_so_extractor directly to avoid circular import
+                                    import sys
+                                    backend_dir = os_module.path.dirname(os_module.path.abspath(__file__))
+                                    if backend_dir not in sys.path:
+                                        sys.path.insert(0, backend_dir)
+                                    
+                                    # Use raw_so_extractor directly (same as app.py uses)
+                                    from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
+                                    
+                                    # Extract and structure (same flow as app.py)
+                                    raw_data = extract_raw_from_pdf(tmp_path)
+                                    if raw_data:
+                                        parsed_data = structure_with_openai(raw_data)
+                                    else:
+                                        parsed_data = None
+                                    
+                                    if parsed_data:
+                                        # Build order info with parsed data
+                                        order_info = {
+                                            'Order No.': parsed_data.get('so_number', 'Unknown'),
+                                            'Customer': parsed_data.get('customer_name', ''),
+                                            'Order Date': parsed_data.get('order_date', ''),
+                                            'Ship Date': parsed_data.get('due_date', ''),
+                                            'Total Amount': parsed_data.get('total_amount', 0.0),
+                                            'Items': parsed_data.get('items', []),
+                                            'Status': file_data['subfolder_name'],
+                                            'File': file_name,
+                                            'File Path': f"Google Drive: {file_data['subfolder_path']}/{file_name}",
+                                            'File Type': file_name.split('.')[-1].upper(),
+                                            'Last Modified': file_data['modified_time'],
+                                            'Folder Path': file_data['subfolder_path'],
+                                            'Full Path': f"{file_data['folder_name']}/{file_data['subfolder_path']}" if file_data['subfolder_path'] != file_data['folder_name'] else file_data['folder_name'],
+                                            'file_id': file_id,
+                                            'parsed_data': parsed_data  # Full parsed data
+                                        }
+                                        return order_info
+                                    return None
                                     
                                 except Exception as e:
                                     print(f"[ERROR] Error downloading/parsing {file_name}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                                     return None
+                                finally:
+                                    # Clean up temp file
+                                    if tmp_path:
+                                        try:
+                                            os_module.unlink(tmp_path)
+                                        except:
+                                            pass
                             
                             # Download and parse in parallel (max 10 workers for speed)
                             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
