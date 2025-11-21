@@ -59,8 +59,6 @@ function App() {
     loaded: false
   });
   
-  const [isLoading, setIsLoading] = useState(false); // Start with false - only show loading after login
-  const [showLoadingScreen, setShowLoadingScreen] = useState(false); // Start with false - only show after login
   const [dataSource, setDataSource] = useState('checking');
   const [syncInfo, setSyncInfo] = useState<any>(null);
   const [error, setError] = useState<any>(null);
@@ -410,41 +408,6 @@ function App() {
     );
   }
 
-  // Show simple login screen if not logged in
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 flex items-center justify-center">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full mx-4 border border-white/20">
-          <div className="text-center mb-6">
-            <img 
-              src="/Canoil_logo.png" 
-              alt="Canoil Canada Ltd." 
-              className="h-16 w-auto mx-auto mb-4"
-            />
-            <h1 className="text-2xl font-bold text-white mb-2">Canoil Portal</h1>
-            <p className="text-green-200 text-sm">Please select a user to continue</p>
-          </div>
-          
-          <div className="space-y-3">
-            {[
-              { name: 'Haron Alhakimi', email: 'haron@canoilcanadaltd.com', isAdmin: true },
-              { name: 'Gamil Alhakimi', email: 'gamil@canoilcanadaltd.com', isAdmin: true },
-              { name: 'Henry Sapiano', email: 'henry@canoilcanadaltd.com', isAdmin: true }
-            ].map((user) => (
-              <button
-                key={user.email}
-                onClick={() => handleLogin(user)}
-                className="w-full bg-white/20 hover:bg-white/30 text-white px-4 py-3 rounded-lg transition-colors text-left"
-              >
-                <div className="font-semibold">{user.name}</div>
-                <div className="text-sm text-green-200">{user.email}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Show main application after loading
   return (
