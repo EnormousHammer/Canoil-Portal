@@ -70,10 +70,15 @@ function App() {
 
   // Start loading data immediately when app opens (before login)
   useEffect(() => {
-    console.log("🚀 App opened - starting data preload in background");
-    const gdriveLoader = GDriveDataLoader.getInstance();
-    loadAllData(gdriveLoader);
-  }, []); // Run once on mount - load data immediately
+    if (!dataLoaded) {
+      console.log("🚀 App opened - starting data preload in background");
+      const gdriveLoader = GDriveDataLoader.getInstance();
+      loadAllData(gdriveLoader).catch((error) => {
+        console.error('❌ Error in background data preload:', error);
+        // Don't set error state - let it retry when user logs in
+      });
+    }
+  }, [dataLoaded]); // Run when dataLoaded changes
 
   // Handle login
   const handleLogin = (user: { name: string; email: string; isAdmin: boolean }) => {
