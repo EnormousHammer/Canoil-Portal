@@ -3,6 +3,8 @@ Flask-CORS==4.0.0
 Flask-Compress==1.14
 openai>=1.54.0
 httpx>=0.27.2,<0.28.0  # Pin httpx to version compatible with OpenAI (0.28+ removed proxies parameter)
+pdfminer.six>=20250506  # Required for pdfplumber
+pypdfium2>=4.18.0  # Optional but recommended for pdfplumber
 # Force reinstall to fix Render cache issues
 python-dotenv==1.0.0
 pandas==2.0.3

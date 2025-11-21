@@ -29,6 +29,8 @@
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 30px;
+            width: 100%;
+            overflow: visible; /* Prevent cutting off content */
         }
         
         .logo-container {
@@ -57,6 +59,8 @@
         
         .packing-info {
             text-align: right;
+            min-width: 200px; /* Ensure enough space for right-aligned content */
+            flex-shrink: 0; /* Prevent shrinking */
         }
         
         .packing-info h2 {
@@ -67,6 +71,7 @@
         .packing-info div {
             font-size: 10pt;
             margin: 5px 0;
+            width: 100%; /* Ensure full width for flex containers */
         }
         
         table {
@@ -131,17 +136,61 @@
         }
         
         @media print {
-            body {
+            /* Hide scrollbars and prevent scrolling */
+            html, body {
+                overflow: hidden !important;
+                height: 100% !important;
                 background: white;
                 padding: 0;
+                margin: 0;
             }
             
             .container {
                 padding: 10px;
+                overflow: visible !important;
             }
             
-            .add-row-btn {
-                display: none;
+            /* Hide all interactive elements */
+            .add-row-btn, button, .btn, [onclick] {
+                display: none !important;
+            }
+            
+            /* Remove all scrollbars */
+            * {
+                overflow: visible !important;
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+            
+            *::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+            }
+            
+            /* Make inputs look like plain text - no borders, no outlines */
+            input[type="text"], 
+            input[type="number"], 
+            textarea, 
+            select {
+                border: none !important;
+                outline: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                appearance: none !important;
+                -webkit-appearance: none !important;
+                -moz-appearance: none !important;
+                resize: none !important;
+                overflow: hidden !important;
+                /* Remove any resize handles */
+                cursor: default !important;
+            }
+            
+            /* Remove focus indicators */
+            input:focus, textarea:focus, select:focus {
+                outline: none !important;
+                border: none !important;
+                box-shadow: none !important;
             }
             
             /* Enhanced print clarity for photocopying */
@@ -151,8 +200,8 @@
                 print-color-adjust: exact;
             }
             
-            /* Solid black borders for clear photocopies */
-            table, td, th, input, textarea {
+            /* Solid black borders for clear photocopies (only on table cells) */
+            table, td, th {
                 border-color: #000 !important;
             }
             
@@ -190,13 +239,13 @@
             <div class="packing-info">
                 <h2><strong>Packing Slip</strong></h2>
                 <div>Packing Slip №: <input type="text" id="packing_slip_number" style="width: 100px; display: inline-block;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                    <span>Date:</span>
-                    <input type="text" id="packing_date" readonly style="width: 120px; text-align: right; background: transparent; border: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; width: 100%;">
+                    <span style="flex-shrink: 0;">Date:</span>
+                    <input type="text" id="packing_date" readonly style="min-width: 150px; width: auto; text-align: right; background: transparent; border: none; font-size: 10pt; padding: 2px 4px; overflow: visible;">
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                    <span>Page:</span>
-                    <input type="text" id="page_number" value="1 of 1" style="width: 80px; text-align: right; background: transparent; border: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; width: 100%;">
+                    <span style="flex-shrink: 0;">Page:</span>
+                    <input type="text" id="page_number" value="1 of 1" style="min-width: 80px; width: auto; text-align: right; background: transparent; border: none; font-size: 10pt; padding: 2px 4px; overflow: visible;">
                 </div>
             </div>
         </div>

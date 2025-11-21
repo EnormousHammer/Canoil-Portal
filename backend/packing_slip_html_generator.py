@@ -40,7 +40,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     # Header fields
     field_values['packing_slip_number'] = f"PS-{so_data.get('so_number', '')}"
     
-    # PACKING DATE - Use order date from parsed SO (not today's date)
+    # PACKING DATE - Use order date from parsed SO, fallback to today if not available
     order_date_raw = so_data.get('order_date', '')
     if order_date_raw:
         try:
@@ -61,7 +61,10 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
             print(f"ERROR: Exception parsing order_date '{order_date_raw}': {e}")
             field_values['packing_date'] = str(order_date_raw)
     else:
-        field_values['packing_date'] = ''  # Leave empty if not in SO - NO FAKE DATA
+        # Fallback to today's date if order date not available
+        today = datetime.now()
+        field_values['packing_date'] = today.strftime('%B %d, %Y')
+        print(f"DEBUG: No order_date found, using today's date: {field_values['packing_date']}")
     
     field_values['sales_order_number'] = so_data.get('so_number', '')
     field_values['shipped_by'] = 'Canoil Canada Ltd'

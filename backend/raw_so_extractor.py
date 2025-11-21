@@ -35,19 +35,27 @@ def get_openai_client():
             print(f"ERROR: {error_msg}")
             raise ValueError(error_msg)
         try:
-            # Initialize with only api_key - no other parameters to avoid version conflicts
-            openai_client = OpenAI(api_key=api_key)
+            # Fix for httpx version incompatibility - create httpx client first
+            import httpx
+            http_client = httpx.Client(timeout=60.0)
+            openai_client = OpenAI(api_key=api_key, http_client=http_client)
             print(f"[OK] OpenAI client initialized (key length: {len(api_key)} chars)")
         except TypeError as e:
-            # Handle version mismatch errors (e.g., proxies parameter issue)
-            print(f"ERROR: OpenAI client initialization failed - likely version mismatch: {e}")
-            print(f"Attempting to import OpenAI version info...")
+            # If httpx client approach fails, try without it (for older OpenAI versions)
             try:
-                import openai
-                print(f"OpenAI library version: {openai.__version__}")
-            except:
-                pass
-            raise
+                openai_client = OpenAI(api_key=api_key)
+                print(f"[OK] OpenAI client initialized - fallback method (key length: {len(api_key)} chars)")
+            except Exception as e2:
+                # Handle version mismatch errors (e.g., proxies parameter issue)
+                print(f"ERROR: OpenAI client initialization failed - likely version mismatch: {e2}")
+                print(f"Original error: {e}")
+                print(f"Attempting to import OpenAI version info...")
+                try:
+                    import openai
+                    print(f"OpenAI library version: {openai.__version__}")
+                except:
+                    pass
+                raise e2
         except Exception as e:
             print(f"ERROR: OpenAI client initialization failed: {e}")
             import traceback

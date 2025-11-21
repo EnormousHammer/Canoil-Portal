@@ -22,13 +22,34 @@ def get_uploads_dir():
     
     return result
 import PyPDF2
-from openai import OpenAI
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError as e:
+    print(f"WARNING: OpenAI not available: {e}")
+    OpenAI = None
+    OPENAI_AVAILABLE = False
+
 import tempfile
-from hts_matcher import get_hts_code_for_item
+try:
+    from hts_matcher import get_hts_code_for_item
+    HTS_MATCHER_AVAILABLE = True
+except ImportError as e:
+    print(f"WARNING: hts_matcher not available: {e}")
+    def get_hts_code_for_item(*args, **kwargs):
+        return None
+    HTS_MATCHER_AVAILABLE = False
 # Simple dangerous goods detection - no complex imports needed
 
 # Create blueprint
-logistics_bp = Blueprint('logistics', __name__, url_prefix='')
+try:
+    logistics_bp = Blueprint('logistics', __name__, url_prefix='')
+    print("✅ Logistics blueprint created successfully")
+except Exception as e:
+    print(f"❌ ERROR: Failed to create logistics blueprint: {e}")
+    import traceback
+    traceback.print_exc()
+    raise
 
 # Lazy OpenAI client initialization (only when needed)
 client = None
@@ -36,15 +57,39 @@ client = None
 def get_openai_client():
     """Initialize OpenAI client only when needed and API key is available"""
     global client
+    if not OPENAI_AVAILABLE or OpenAI is None:
+        print("ERROR: OpenAI library not available")
+        return None
+    
     if client is None:
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key or api_key == "your_openai_api_key_here" or len(api_key) < 20:
+            print("ERROR: OPENAI_API_KEY not set or invalid")
             return None
         try:
-            client = OpenAI(api_key=api_key)
+            # Fix for httpx version incompatibility - don't pass proxies
+            import httpx
+            # Create httpx client without proxies to avoid version conflicts
+            http_client = httpx.Client(timeout=60.0)
+            client = OpenAI(api_key=api_key, http_client=http_client)
+            print("SUCCESS: OpenAI client initialized")
             return client
+        except TypeError as te:
+            # If httpx client approach fails, try without it (for older OpenAI versions)
+            try:
+                client = OpenAI(api_key=api_key)
+                print("SUCCESS: OpenAI client initialized (fallback method)")
+                return client
+            except Exception as e2:
+                import traceback
+                print(f"ERROR: OpenAI client initialization failed (both methods): {e2}")
+                print(f"Original error: {te}")
+                print(traceback.format_exc())
+                return None
         except Exception as e:
-            print(f"OpenAI client initialization failed: {e}")
+            import traceback
+            print(f"ERROR: OpenAI client initialization failed: {e}")
+            print(traceback.format_exc())
             return None
     return client
 
@@ -319,7 +364,14 @@ def parse_email_deterministic(email_text: str) -> dict:
         if not m:
             continue
         qty, unit, desc = m.groups()
+        # CRITICAL FIX: Stop description at comma or weight/batch keywords to avoid capturing extra text
+        # "3 drums of MOV Extra 0, 540 kg..." should extract just "MOV Extra 0"
         desc = desc.strip(' .')
+        # Remove everything after comma (weight, batch info, etc.)
+        if ',' in desc:
+            desc = desc.split(',')[0].strip()
+        # Also stop at common weight/batch patterns if no comma
+        desc = re.split(r',\s*(?:total|batch|kg|lbs)', desc, flags=re.IGNORECASE)[0].strip()
         # Look ahead a few lines for batch and weight
         batch = None
         weight_raw = None
@@ -601,7 +653,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             "ship_to_address": "shipping address if mentioned",
             "items": [
                 {{
-                    "description": "exact product name (e.g. REOLUBE 32B GT DRUM, Vane Spindle Grease)",
+                    "description": "[CRITICAL] Extract ONLY the product name, stop at first comma or weight/batch keywords. Example: '3 drums of MOV Extra 0, 540 kg total net weight' → extract 'MOV Extra 0' (NOT 'MOV Extra 0, 540 kg...'). Stop at comma, 'kg', 'lbs', 'total', 'batch', etc.",
                     "quantity": "numeric quantity only (e.g. 2)",
                     "unit": "container type only (drum, pail, etc.)",
                     "batch_number": "[CRITICAL] Extract batch number for THIS SPECIFIC ITEM ONLY. If email says 'Line 1: product A, batch WH5H01G002' and 'Line 2: product B, batch NT4J28T025', then item 1 gets WH5H01G002 and item 2 gets NT4J28T025. ALWAYS include batch_number field for each item, even if same batch used for all items."
@@ -1243,12 +1295,27 @@ def get_so_data_from_system(so_number):
     try:
         print(f"SEARCH: LOGISTICS: Looking up SO {so_number} by parsing PDF...")
         
-        # Check if Google Drive API is enabled
-        from app import USE_GOOGLE_DRIVE_API, google_drive_service
+        # Check if Google Drive API is enabled - handle import errors gracefully
+        USE_GOOGLE_DRIVE_API = False
+        google_drive_service = None
+        try:
+            from app import USE_GOOGLE_DRIVE_API, google_drive_service
+        except ImportError as import_err:
+            print(f"INFO: Could not import Google Drive settings: {import_err}")
+            # Try alternative import path
+            try:
+                import sys
+                if 'app' in sys.modules:
+                    app_module = sys.modules['app']
+                    USE_GOOGLE_DRIVE_API = getattr(app_module, 'USE_GOOGLE_DRIVE_API', False)
+                    google_drive_service = getattr(app_module, 'google_drive_service', None)
+            except Exception as e:
+                print(f"INFO: Alternative import also failed: {e}")
+        
         so_file_path = None
         so_file_content = None
         
-        if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+        if USE_GOOGLE_DRIVE_API and google_drive_service and hasattr(google_drive_service, 'authenticated') and google_drive_service.authenticated:
             # Use Google Drive API to find SO file
             print(f"[INFO] LOGISTICS: Using Google Drive API to find SO {so_number}...")
             try:
@@ -1344,14 +1411,35 @@ def get_so_data_from_system(so_number):
         # Parse SO PDF directly using app parser (pdfplumber internally)
         try:
             print(f"LOGISTICS: Parsing SO PDF with application parser (pdfplumber)")
-            from app import parse_sales_order_pdf
+            # Import parse_sales_order_pdf with error handling
+            try:
+                from app import parse_sales_order_pdf
+            except ImportError as import_err:
+                print(f"ERROR: Could not import parse_sales_order_pdf: {import_err}")
+                import sys
+                if 'app' in sys.modules:
+                    app_module = sys.modules['app']
+                    parse_sales_order_pdf = getattr(app_module, 'parse_sales_order_pdf', None)
+                    if not parse_sales_order_pdf:
+                        return {"status": "Error", "error": f"parse_sales_order_pdf function not available: {import_err}"}
+                else:
+                    return {"status": "Error", "error": f"Could not import parse_sales_order_pdf: {import_err}"}
+            
+            print(f"DEBUG: Calling parse_sales_order_pdf with file: {so_file_path}")
+            print(f"DEBUG: File exists: {os.path.exists(so_file_path) if so_file_path else 'N/A'}")
+            
             so_data = parse_sales_order_pdf(so_file_path)
-            if not so_data:
-                print(f"ERROR: LOGISTICS: PDF parsing failed - no data returned")
-                return {"status": "Error", "error": "Could not parse PDF data"}
+            
+            print(f"DEBUG: parse_sales_order_pdf returned: {type(so_data).__name__}")
+            if so_data:
+                print(f"DEBUG: so_data keys: {list(so_data.keys()) if isinstance(so_data, dict) else 'Not a dict'}")
+                print(f"DEBUG: so_data status: {so_data.get('status') if isinstance(so_data, dict) else 'N/A'}")
+            else:
+                print(f"ERROR: LOGISTICS: PDF parsing failed - parse_sales_order_pdf returned None or empty")
+                return {"status": "Error", "error": f"Could not parse PDF data - parser returned None. File: {os.path.basename(so_file_path) if so_file_path else 'unknown'}"}
             
             # CRITICAL: Check if parsing returned error structure (shouldn't happen with new code, but safety check)
-            if so_data.get('status') == 'Parse Error' or so_data.get('customer_name') == 'Error - parsing failed':
+            if isinstance(so_data, dict) and (so_data.get('status') == 'Parse Error' or so_data.get('customer_name') == 'Error - parsing failed'):
                 error_msg = so_data.get('error', 'Unknown parsing error')
                 print(f"ERROR: LOGISTICS: PDF parsing failed: {error_msg}")
                 return {"status": "Error", "error": f"PDF parsing failed: {error_msg}"}
@@ -1452,13 +1540,71 @@ def get_so_data_from_system(so_number):
         print(f"{'='*80}\n")
         return {"status": "Error", "error": str(e), "traceback": error_trace}
 
+# Test endpoint to verify blueprint is working
+@logistics_bp.route('/api/logistics/test', methods=['GET'])
+def test_logistics_endpoint():
+    """Test endpoint to verify logistics module is loaded"""
+    return jsonify({
+        'status': 'success',
+        'message': 'Logistics module is working',
+        'openai_available': OPENAI_AVAILABLE
+    }), 200
+
 @logistics_bp.route('/api/logistics/process-email', methods=['POST'])
 def process_email():
     """Process email content with GPT-4o and extract SO data - REAL DATA ONLY"""
+    import traceback
+    import sys
+    
+    # CRITICAL: Catch ALL errors including import errors, attribute errors, etc.
     try:
-        print("\nEMAIL: === PROCESSING LOGISTICS EMAIL WITH GPT-4o ===")
-        data = request.get_json()
-        email_content = data.get('email_content', '')
+        print("\n" + "="*80)
+        print("EMAIL: === PROCESSING LOGISTICS EMAIL WITH GPT-4o ===")
+        print("="*80)
+        print(f"DEBUG: Function called successfully")
+        print(f"DEBUG: Flask request available: {request is not None}")
+        print(f"DEBUG: Flask jsonify available: {jsonify is not None}")
+        
+        # Check if request object is available
+        if request is None:
+            error_msg = "Request object is None"
+            print(f"ERROR: {error_msg}")
+            return jsonify({'error': error_msg}), 500
+        
+        print(f"DEBUG: Request method: {request.method}")
+        print(f"DEBUG: Request content type: {request.content_type}")
+        print(f"DEBUG: Request has data: {bool(request.data)}")
+        
+        # Safely get JSON data with error handling
+        data = None
+        try:
+            if request.is_json:
+                data = request.get_json(force=True)
+                print(f"DEBUG: Parsed JSON from request.is_json path")
+            elif request.data:
+                data = json.loads(request.data.decode('utf-8'))
+                print(f"DEBUG: Parsed JSON from request.data path")
+            else:
+                # Try regular get_json as fallback
+                data = request.get_json()
+                print(f"DEBUG: Parsed JSON from request.get_json() fallback")
+        except json.JSONDecodeError as json_error:
+            error_msg = f"Invalid JSON in request: {str(json_error)}"
+            print(f"ERROR: {error_msg}")
+            print(f"ERROR: Request data preview: {request.data[:200] if request.data else 'No data'}")
+            print(traceback.format_exc())
+            return jsonify({'error': error_msg}), 400
+        except Exception as json_error:
+            error_msg = f"Failed to parse request JSON: {str(json_error)}"
+            print(f"ERROR: {error_msg}")
+            print(traceback.format_exc())
+            return jsonify({'error': error_msg}), 400
+        
+        if not data:
+            print("ERROR: LOGISTICS: No data in request")
+            return jsonify({'error': 'No data provided in request'}), 400
+        
+        email_content = data.get('email_content', '') if isinstance(data, dict) else ''
         
         if not email_content:
             print("ERROR: LOGISTICS: No email content provided")
@@ -1504,6 +1650,9 @@ def process_email():
             
             so_number = email_data['so_number']
             print(f"EMAIL: LOGISTICS: Found SO number: {so_number}")
+            print(f"DEBUG: quick_so_number from regex: {quick_so_number}")
+            print(f"DEBUG: so_number from GPT: {so_number}")
+            print(f"DEBUG: so_data_promise exists: {so_data_promise is not None}")
             
             # Get REAL SO data from system - NO MOCK DATA
             # Use pre-fetched data if available, otherwise fetch now
@@ -1526,9 +1675,17 @@ def process_email():
                 executor.shutdown(wait=False)
         
         
+        print(f"DEBUG: SO data status: {so_data.get('status') if isinstance(so_data, dict) else 'Not a dict'}")
+        print(f"DEBUG: SO data keys: {list(so_data.keys()) if isinstance(so_data, dict) else 'N/A'}")
+        
+        if not isinstance(so_data, dict):
+            print(f"ERROR: LOGISTICS: SO data is not a dict, got: {type(so_data).__name__}")
+            return jsonify({'error': f"Invalid SO data format: expected dict, got {type(so_data).__name__}"}), 500
+        
         if so_data.get('status') == 'Error':
-            print(f"ERROR: LOGISTICS: Error getting SO data: {so_data.get('error')}")
-            return jsonify({'error': f"Error loading SO data: {so_data.get('error')}"}), 500
+            error_msg = so_data.get('error', 'Unknown error')
+            print(f"ERROR: LOGISTICS: Error getting SO data: {error_msg}")
+            return jsonify({'error': f"Error loading SO data: {error_msg}"}), 500
         
         if so_data.get('status') == 'Not found':
             print(f"ERROR: LOGISTICS: SO {so_number} not found in system")
@@ -1672,204 +1829,356 @@ def process_email():
             }
         
         # 3. Validate items exist in SO - CHECK SPECIFIC LINES IF MENTIONED
+        print(f"\n🔍 STARTING ITEM VALIDATION")
+        print(f"   Email has items: {bool(email_data.get('items'))}")
+        print(f"   Email items count: {len(email_data.get('items', []))}")
         items_validation = []
-        if email_data.get('items'):
-            so_item_names = []
-            so_item_codes = []
-            so_items_to_check = []
-            
-            # Check if this is a PARTIAL SHIPMENT (specific lines mentioned)
-            is_partial_shipment = email_data.get('is_partial_shipment', False)
-            line_numbers = email_data.get('so_line_numbers', None)
-            
-            if is_partial_shipment and line_numbers:
-                print(f"\n⚠️  PARTIAL SHIPMENT DETECTED - Only validating lines: {line_numbers}")
-                # Only check SPECIFIC lines from the SO
-                for idx, so_item in enumerate(so_data.get('items', []), start=1):
-                    if idx in line_numbers:
-                        so_items_to_check.append(so_item)
-                        print(f"   Including Line {idx}: {so_item.get('item_code')} - {so_item.get('description')}")
-            else:
-                print(f"\n✅ FULL SHIPMENT - Validating all items")
-                # Check ALL items in SO
-                so_items_to_check = so_data.get('items', [])
-            
-            # Build list of SO items for comparison (from filtered list)
-            for so_item in so_items_to_check:
-                desc = so_item.get('description', '').upper()
-                code = so_item.get('item_code', '').upper()
+        try:
+            if email_data.get('items'):
+                so_item_names = []
+                so_item_codes = []
+                so_items_to_check = []
                 
-                # Skip non-product items
-                if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
-                    continue
-                    
-                so_item_names.append(desc)
-                if code:
-                    so_item_codes.append(code)
-            
-            # Check each email item
-            for email_item in email_data.get('items', []):
-                item_desc = (email_item.get('description') or '').upper().strip()
-                item_qty = email_item.get('quantity', '')
-                item_batch = email_item.get('batch_number', '')
-                
-                matched = False
-                match_details = None
-                
-                # Try to find matching SO item - SMART MATCHING
-                for i, so_desc in enumerate(so_item_names):
-                    # Exact match
-                    if item_desc in so_desc or so_desc in item_desc:
-                        matched = True
-                        match_details = f"Matched with SO item: {so_desc}"
-                        break
-                    
-                    # Smart matching for similar products
-                    # Extract key product identifiers
-                    email_words = set(re.findall(r'\b[A-Z]{2,}\b', item_desc))  # Get abbreviations like VSG, MOV
-                    so_words = set(re.findall(r'\b[A-Z]{2,}\b', so_desc))
-                    
-                    # If they share key abbreviations, consider it a match
-                    if email_words & so_words:  # Intersection of sets
-                        matched = True
-                        matched_so_item = so_item  # Store the matched item
-                        match_details = f"Smart matched with SO item: {so_desc} (shared: {email_words & so_words})"
-                        break
-                    
-                    # Check for product base name matches (ignore packaging format)
-                    # If they share key product abbreviations, consider it a match even if packaging differs
-                    if email_words & so_words:
-                        # Additional check: if the base product matches, accept different packaging
-                        base_products = ['VSG', 'MOV', 'GREASE', 'OIL', 'FLUID']
-                        shared_products = email_words & so_words & set(base_products)
-                        if shared_products:
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"Product match (packaging may differ): {shared_products}"
-                            break
-                    
-                    # Direct VSG fix - if email has VSG and SO has VSG, it's a match
-                    if 'VSG' in item_desc and 'VSG' in so_desc:
-                        matched = True
-                        matched_so_item = so_item  # Store the matched item
-                        match_details = f"VSG product matched: {item_desc} = {so_desc}"
-                        break
-                    
-                    # Check for common product variations
-                    variations = [
-                        ('VANE SPINDLE GREASE', 'VSG'),
-                        ('MOV EXTRA', 'MOV'),
-                        ('DRUMS', 'DRUM'),
-                        ('PAILS', 'PAIL')
-                    ]
-                    
-                    for long_form, short_form in variations:
-                        if ((long_form in item_desc and short_form in so_desc) or 
-                            (short_form in item_desc and long_form in so_desc)):
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"Variation matched: {long_form} = {short_form}"
-                            break
-                    
-                    if matched:
-                        break
-                
-                if not matched and so_item_codes and item_code:
-                    # Try matching by item code
-                    for i, code in enumerate(so_item_codes):
-                        so_item = so_items_to_check[i]  # Get the actual SO item object
-                        if code and (item_code in code or code in item_code):
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"Matched with SO item code: {code}"
-                            break
-                        
-                        # Check for similar item codes (allow 1-2 character differences)
-                        if code and len(code) > 3 and len(item_code) > 3:
-                            # Check if most characters match (fuzzy matching)
-                            if abs(len(code) - len(item_code)) <= 2:  # Similar length
-                                matches = sum(1 for a, b in zip(code, item_code) if a == b)
-                                if matches >= len(code) - 2:  # Allow 1-2 character differences
-                                    matched = True
-                                    matched_so_item = so_item  # Store the matched item
-                                    match_details = f"Fuzzy matched with SO item code: {code} (similarity: {matches}/{len(code)})"
-                                    break
-                
-                # If matched, also check quantity (use the SAME matched SO item, not search again)
-                quantity_match = True
-                quantity_details = ""
-                if matched and item_qty and matched_so_item:
-                    email_qty_num = float(item_qty) if item_qty else 0
-                    
-                    # Use the EXACT matched SO item (no searching again - prevents wrong item match)
-                    so_qty = matched_so_item.get('quantity', 0)
-                    try:
-                        so_qty_num = float(so_qty)
-                        
-                        # Check if quantities match (allow small tolerance for rounding)
-                        if abs(email_qty_num - so_qty_num) > 0.01:
-                            quantity_match = False
-                            quantity_details = f"Quantity mismatch: Email says {email_qty_num}, SO says {so_qty_num}"
+                # DEBUG: Check what SO data contains
+                so_items_raw = so_data.get('items', [])
+                print(f"\n🔍 DEBUG: SO ITEMS CHECK")
+                print(f"   SO items count: {len(so_items_raw) if so_items_raw else 0}")
+                print(f"   SO items type: {type(so_items_raw)}")
+                print(f"   SO items is list: {isinstance(so_items_raw, list)}")
+                if not so_items_raw:
+                    print(f"   ⚠️ WARNING: SO items list is EMPTY or None!")
+                    print(f"   SO data keys: {list(so_data.keys())}")
+                    import sys
+                    sys.stdout.flush()
+                    # CRITICAL: If SO has no items, all email items will fail
+                    validation_errors.append("SO has no items to match against")
+                    validation_details['items_check'] = {
+                        'status': 'failed',
+                        'message': "SO has no items - cannot validate email items",
+                        'total_email_items': len(email_data.get('items', [])),
+                        'matched_items': 0,
+                        'unmatched_items': [{'email_item': item.get('description')} for item in email_data.get('items', [])]
+                    }
+                elif not isinstance(so_items_raw, list):
+                    print(f"   ⚠️ ERROR: SO items is not a list! Type: {type(so_items_raw)}")
+                    so_items_raw = []
+                else:
+                    print(f"   First item type: {type(so_items_raw[0]) if so_items_raw else 'N/A'}")
+                    if so_items_raw and isinstance(so_items_raw[0], dict):
+                        print(f"   First item keys: {list(so_items_raw[0].keys())}")
+                    for idx, item in enumerate(so_items_raw[:3], 1):
+                        if isinstance(item, dict):
+                            print(f"   Item {idx}: code='{item.get('item_code')}', desc='{item.get('description')}', qty='{item.get('quantity')}'")
                         else:
-                            quantity_details = f"Quantity matches: {email_qty_num}"
-                    except:
-                        pass
+                            print(f"   Item {idx}: NOT A DICT - {type(item)}: {item}")
                 
-                item_validation = {
-                    'email_item': email_item.get('description'),
-                    'quantity': item_qty,
-                    'batch': item_batch,
-                    'matched': matched,
-                    'match_details': match_details,
-                    'quantity_match': quantity_match,
-                    'quantity_details': quantity_details
-                }
+                # Check if this is a PARTIAL SHIPMENT (specific lines mentioned)
+                is_partial_shipment = email_data.get('is_partial_shipment', False)
+                line_numbers = email_data.get('so_line_numbers', None)
                 
-                if not matched:
-                    item_validation['error'] = f"No matching item found in SO"
-                elif not quantity_match:
-                    item_validation['error'] = quantity_details
+                if is_partial_shipment and line_numbers:
+                    print(f"\n⚠️  PARTIAL SHIPMENT DETECTED - Only validating lines: {line_numbers}")
+                    # Only check SPECIFIC lines from the SO
+                    for idx, so_item in enumerate(so_items_raw, start=1):
+                        if idx in line_numbers:
+                            so_items_to_check.append(so_item)
+                            print(f"   Including Line {idx}: {so_item.get('item_code')} - {so_item.get('description')}")
+                else:
+                    print(f"\n✅ FULL SHIPMENT - Validating all items")
+                    # Check ALL items in SO
+                    so_items_to_check = so_items_raw.copy() if so_items_raw else []
+                    print(f"   Total SO items to check: {len(so_items_to_check)}")
+                
+                # Build list of SO items for comparison (from filtered list)
+                # CRITICAL: Keep indices aligned - only add items that pass the filter
+                items_before_filter = len(so_items_to_check)
+                filtered_so_items = []  # Store only the items that pass the filter
+                for so_item in so_items_to_check:
+                    desc = so_item.get('description', '').upper()
+                    code = so_item.get('item_code', '').upper()
                     
-                items_validation.append(item_validation)
-            
-            # Count unmatched items and quantity mismatches
-            unmatched_items = [iv for iv in items_validation if not iv['matched']]
-            quantity_mismatches = [iv for iv in items_validation if iv.get('matched') and not iv.get('quantity_match', True)]
-            
-            if unmatched_items or quantity_mismatches:
-                error_messages = []
-                if unmatched_items:
-                    error_messages.append(f"{len(unmatched_items)} item(s) from email not found in SO")
-                if quantity_mismatches:
-                    error_messages.append(f"{len(quantity_mismatches)} item(s) have QUANTITY MISMATCH")
+                    # Skip non-product items
+                    if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
+                        print(f"   ⏭️  SKIPPED (non-product): {desc}")
+                        continue
+                        
+                    so_item_names.append(desc)
+                    filtered_so_items.append(so_item)  # Keep aligned with so_item_names
+                    if code:
+                        so_item_codes.append(code)
+                    print(f"   ✅ ADDED to matching list: '{desc}' (code: {code})")
                 
-                validation_errors.extend(error_messages)
-                validation_details['items_check'] = {
-                    'status': 'failed',
-                    'total_email_items': len(email_data.get('items', [])),
-                    'matched_items': len(email_data.get('items', [])) - len(unmatched_items),
-                    'unmatched_items': unmatched_items,
-                    'quantity_mismatches': quantity_mismatches,
-                    'items_details': items_validation
-                }
+                # Replace so_items_to_check with filtered list to keep indices aligned
+                so_items_to_check = filtered_so_items
+                
+                print(f"\n📊 SO ITEMS SUMMARY:")
+                print(f"   Items before filter: {items_before_filter}")
+                print(f"   Items after filter: {len(so_item_names)}")
+                print(f"   SO item names: {so_item_names}")
+                print(f"   SO item codes: {so_item_codes}")
+                print(f"\n📧 EMAIL ITEMS TO MATCH:")
+                for email_item in email_data.get('items', []):
+                    print(f"   - '{email_item.get('description')}' (qty: {email_item.get('quantity')})")
+                
+                # Check each email item
+                for email_item in email_data.get('items', []):
+                    item_desc = (email_item.get('description') or '').upper().strip()
+                    item_qty = email_item.get('quantity', '')
+                    item_batch = email_item.get('batch_number', '')
+                    item_code = (email_item.get('item_code') or '').upper().strip()
+                    
+                    print(f"\n🔍 MATCHING EMAIL ITEM: '{item_desc}' (qty: {item_qty})")
+                    print(f"   Available SO items: {so_item_names[:5]}...")  # Show first 5
+                    
+                    matched = False
+                    match_details = None
+                    matched_so_item = None  # Initialize to avoid UnboundLocalError
+                    
+                    # Try to find matching SO item - SMART MATCHING
+                    for i, so_desc in enumerate(so_item_names):
+                        so_item = so_items_to_check[i]  # Get the actual SO item object
+                        # Debug: Show what we're comparing
+                        print(f"   🔍 COMPARING: Email='{item_desc}' vs SO='{so_desc}'")
+                        # Exact match
+                        exact_match_1 = item_desc in so_desc
+                        exact_match_2 = so_desc in item_desc
+                        print(f"      Check 1 (email in SO): {exact_match_1}")
+                        print(f"      Check 2 (SO in email): {exact_match_2}")
+                        if exact_match_1 or exact_match_2:
+                            matched = True
+                            matched_so_item = so_item  # Store the matched item
+                            match_details = f"Matched with SO item: {so_desc}"
+                            print(f"   ✅ EXACT MATCH: '{item_desc}' = '{so_desc}'")
+                            break
+                        
+                        # MOV Extra matching - handle "MOV Extra 0" vs "MOVEXT0DRM" or "MOV Extra 0 - Drums"
+                        # CRITICAL: Check this BEFORE smart matching to avoid matching "MOV Extra 1" with "MOV Extra 0"
+                        if 'MOV' in item_desc and 'MOV' in so_desc:
+                            # Extract numbers from both
+                            import re
+                            email_nums = re.findall(r'\d+', item_desc)
+                            so_nums = re.findall(r'\d+', so_desc)
+                            # If both have MOV and share a number, it's a match
+                            if email_nums and so_nums and any(e_num in so_desc for e_num in email_nums):
+                                matched = True
+                                matched_so_item = so_item
+                                match_details = f"MOV product matched by number: {item_desc} = {so_desc}"
+                                print(f"   ✅ MOV MATCH: '{item_desc}' = '{so_desc}' (shared number: {[n for n in email_nums if n in so_desc][0]})")
+                                break
+                        
+                        # Direct VSG fix - if email has VSG and SO has VSG, it's a match
+                        if 'VSG' in item_desc and 'VSG' in so_desc:
+                            matched = True
+                            matched_so_item = so_item  # Store the matched item
+                            match_details = f"VSG product matched: {item_desc} = {so_desc}"
+                            break
+                        
+                        # Smart matching for similar products
+                        # Extract key product identifiers
+                        email_words = set(re.findall(r'\b[A-Z]{2,}\b', item_desc))  # Get abbreviations like VSG, MOV
+                        so_words = set(re.findall(r'\b[A-Z]{2,}\b', so_desc))
+                        
+                        # If they share key abbreviations, consider it a match
+                        # BUT: For MOV products, DO NOT use smart matching - only use exact match or MOV-specific matching
+                        # This prevents "MOV Extra 1" from matching "MOV Extra 0" through shared words
+                        if email_words & so_words:  # Intersection of sets
+                            # CRITICAL: Skip smart matching entirely for MOV products - they need number matching
+                            if 'MOV' in item_desc and 'MOV' in so_desc:
+                                continue  # Skip smart matching for MOV - use exact match or MOV-specific matching only
+                            
+                            matched = True
+                            matched_so_item = so_item  # Store the matched item
+                            match_details = f"Smart matched with SO item: {so_desc} (shared: {email_words & so_words})"
+                            break
+                        
+                        # Check for product base name matches (ignore packaging format)
+                        # If they share key product abbreviations, consider it a match even if packaging differs
+                        if email_words & so_words:
+                            # Additional check: if the base product matches, accept different packaging
+                            base_products = ['VSG', 'MOV', 'GREASE', 'OIL', 'FLUID']
+                            shared_products = email_words & so_words & set(base_products)
+                            if shared_products:
+                                # For MOV, still require number match
+                                if 'MOV' in shared_products:
+                                    email_nums = re.findall(r'\d+', item_desc)
+                                    so_nums = re.findall(r'\d+', so_desc)
+                                    if email_nums and so_nums and not any(e_num in so_desc for e_num in email_nums):
+                                        continue  # Skip - MOV numbers must match
+                                
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"Product match (packaging may differ): {shared_products}"
+                                break
+                        
+                        # Check for common product variations
+                        variations = [
+                            ('VANE SPINDLE GREASE', 'VSG'),
+                            ('MOV EXTRA', 'MOV'),
+                            ('DRUMS', 'DRUM'),
+                            ('PAILS', 'PAIL')
+                        ]
+                        
+                        for long_form, short_form in variations:
+                            if ((long_form in item_desc and short_form in so_desc) or 
+                                (short_form in item_desc and long_form in so_desc)):
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"Variation matched: {long_form} = {short_form}"
+                                break
+                        
+                        if matched:
+                            break
+                    
+                    if not matched and so_item_codes and item_code:
+                        # Try matching by item code
+                        for i, code in enumerate(so_item_codes):
+                            so_item = so_items_to_check[i]  # Get the actual SO item object
+                            if code and (item_code in code or code in item_code):
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"Matched with SO item code: {code}"
+                                break
+                            
+                            # Check for similar item codes (allow 1-2 character differences)
+                            if code and len(code) > 3 and len(item_code) > 3:
+                                # Check if most characters match (fuzzy matching)
+                                if abs(len(code) - len(item_code)) <= 2:  # Similar length
+                                    matches = sum(1 for a, b in zip(code, item_code) if a == b)
+                                    if matches >= len(code) - 2:  # Allow 1-2 character differences
+                                        matched = True
+                                        matched_so_item = so_item  # Store the matched item
+                                        match_details = f"Fuzzy matched with SO item code: {code} (similarity: {matches}/{len(code)})"
+                                        break
+                    
+                    # If matched, also check quantity (use the SAME matched SO item, not search again)
+                    quantity_match = True
+                    quantity_details = ""
+                    if matched and item_qty and matched_so_item is not None:
+                        email_qty_num = float(item_qty) if item_qty else 0
+                        
+                        # Use the EXACT matched SO item (no searching again - prevents wrong item match)
+                        so_qty = matched_so_item.get('quantity', 0)
+                        print(f"   📊 QUANTITY CHECK: Email qty='{item_qty}' ({email_qty_num}), SO qty='{so_qty}' (type: {type(so_qty).__name__})")
+                        try:
+                            # Handle different quantity formats from SO
+                            if isinstance(so_qty, str):
+                                # Extract number from string like "3 DRUM" or "3.0"
+                                import re
+                                qty_match = re.search(r'(\d+\.?\d*)', str(so_qty))
+                                so_qty_num = float(qty_match.group(1)) if qty_match else float(so_qty)
+                            else:
+                                so_qty_num = float(so_qty)
+                            
+                            print(f"   📊 QUANTITY COMPARISON: Email={email_qty_num}, SO={so_qty_num}, Diff={abs(email_qty_num - so_qty_num)}")
+                            
+                            # Check if quantities match (allow small tolerance for rounding)
+                            if abs(email_qty_num - so_qty_num) > 0.01:
+                                quantity_match = False
+                                quantity_details = f"Quantity mismatch: Email says {email_qty_num}, SO says {so_qty_num}"
+                                print(f"   ❌ QUANTITY MISMATCH: {quantity_details}")
+                            else:
+                                quantity_details = f"Quantity matches: {email_qty_num}"
+                                print(f"   ✅ QUANTITY MATCH: {quantity_details}")
+                        except Exception as qty_err:
+                            print(f"   ⚠️ QUANTITY PARSE ERROR: {qty_err} - Email qty: {item_qty}, SO qty: {so_qty}")
+                            pass
+                    
+                    item_validation = {
+                        'email_item': email_item.get('description'),
+                        'quantity': item_qty,
+                        'batch': item_batch,
+                        'matched': matched,
+                        'match_details': match_details,
+                        'quantity_match': quantity_match,
+                        'quantity_details': quantity_details
+                    }
+                    
+                    if not matched:
+                        print(f"   ❌ NO MATCH FOUND for '{item_desc}'")
+                        item_validation['error'] = f"No matching item found in SO"
+                    elif not quantity_match:
+                        print(f"   ⚠️ QUANTITY MISMATCH: {quantity_details}")
+                        item_validation['error'] = quantity_details
+                    else:
+                        print(f"   ✅ MATCHED: {match_details}")
+                        
+                    items_validation.append(item_validation)
+                
+                # Count unmatched items and quantity mismatches
+                unmatched_items = [iv for iv in items_validation if not iv['matched']]
+                quantity_mismatches = [iv for iv in items_validation if iv.get('matched') and not iv.get('quantity_match', True)]
+                
+                if unmatched_items or quantity_mismatches:
+                    error_messages = []
+                    if unmatched_items:
+                        error_messages.append(f"{len(unmatched_items)} item(s) from email not found in SO")
+                    if quantity_mismatches:
+                        error_messages.append(f"{len(quantity_mismatches)} item(s) have QUANTITY MISMATCH")
+                    
+                    validation_errors.extend(error_messages)
+                    validation_details['items_check'] = {
+                        'status': 'failed',
+                        'total_email_items': len(email_data.get('items', [])),
+                        'matched_items': len(email_data.get('items', [])) - len(unmatched_items),
+                        'unmatched_items': unmatched_items,
+                        'quantity_mismatches': quantity_mismatches,
+                        'items_details': items_validation
+                    }
+                else:
+                    validation_details['items_check'] = {
+                        'status': 'passed',
+                        'total_items': len(email_data.get('items', [])),
+                        'message': f"All {len(email_data.get('items', []))} items matched successfully with correct quantities",
+                        'items_details': items_validation
+                    }
             else:
                 validation_details['items_check'] = {
-                    'status': 'passed',
-                    'total_items': len(email_data.get('items', [])),
-                    'message': f"All {len(email_data.get('items', []))} items matched successfully with correct quantities",
-                    'items_details': items_validation
+                    'status': 'warning',
+                    'message': "No items found in email to validate"
                 }
-        else:
+        except Exception as items_err:
+            import traceback
+            print(f"\n❌ CRITICAL ERROR IN ITEM VALIDATION:")
+            print(f"Error: {items_err}")
+            print(f"Traceback:\n{traceback.format_exc()}")
             validation_details['items_check'] = {
-                'status': 'warning',
-                'message': "No items found in email to validate"
+                'status': 'error',
+                'message': f"Item validation failed: {str(items_err)}",
+                'error_traceback': traceback.format_exc()
             }
+            items_validation = []
+            # CRITICAL: Add error to validation_errors so it gets returned
+            validation_errors.append(f"Item validation crashed: {str(items_err)}")
         
         # If there are validation errors, return detailed summary
         if validation_errors:
-            print(f"ERROR: LOGISTICS: Validation failed - {len(validation_errors)} errors")
-            for error in validation_errors:
-                print(f"  ERROR: {error}")
+            import sys
+            print(f"\n{'='*80}", flush=True)
+            print(f"❌ VALIDATION FAILED - {len(validation_errors)} ERROR(S):", flush=True)
+            print(f"{'='*80}", flush=True)
+            for i, error in enumerate(validation_errors, 1):
+                print(f"  ERROR #{i}: {error}", flush=True)
+            print(f"\nVALIDATION DETAILS:", flush=True)
+            print(f"  SO Number Check: {validation_details.get('so_number_check', {}).get('status', 'unknown')}", flush=True)
+            if validation_details.get('so_number_check', {}).get('status') == 'failed':
+                print(f"    Email SO: {validation_details.get('so_number_check', {}).get('email_value')}", flush=True)
+                print(f"    PDF SO: {validation_details.get('so_number_check', {}).get('so_value')}", flush=True)
+            print(f"  Company Check: {validation_details.get('company_check', {}).get('status', 'unknown')}", flush=True)
+            if validation_details.get('company_check', {}).get('status') == 'failed':
+                print(f"    Email Company: {validation_details.get('company_check', {}).get('primary_company')}", flush=True)
+                print(f"    SO Customer: {validation_details.get('company_check', {}).get('so_customer')}", flush=True)
+            print(f"  Items Check: {validation_details.get('items_check', {}).get('status', 'unknown')}", flush=True)
+            items_check = validation_details.get('items_check', {})
+            if items_check.get('status') == 'failed':
+                print(f"    Matched: {items_check.get('matched_items', 0)}/{items_check.get('total_email_items', 0)}", flush=True)
+                for item in items_check.get('unmatched_items', []):
+                    print(f"      ❌ UNMATCHED: '{item.get('email_item')}'", flush=True)
+                for item in items_check.get('quantity_mismatches', []):
+                    print(f"      ⚠️  QTY MISMATCH: '{item.get('email_item')}' - {item.get('quantity_details')}", flush=True)
+            elif items_check.get('status') == 'error':
+                print(f"    ❌ ITEM VALIDATION CRASHED: {items_check.get('message')}", flush=True)
+            print(f"{'='*80}\n", flush=True)
+            sys.stdout.flush()
             
             # Create detailed summary
             summary_parts = []
@@ -2254,20 +2563,32 @@ def process_email():
         return jsonify(result)
         
     except Exception as e:
-        import traceback
         error_msg = str(e)
         error_trace = traceback.format_exc()
+        error_type = type(e).__name__
         
         print("\n" + "="*80)
         print("FATAL ERROR IN PROCESS EMAIL")
         print("="*80)
-        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Type: {error_type}")
         print(f"Error Message: {error_msg}")
+        print(f"Error Args: {e.args if hasattr(e, 'args') else 'N/A'}")
         print("\nFull Traceback:")
         print(error_trace)
         print("="*80 + "\n")
         
-        return jsonify({'error': error_msg, 'traceback': error_trace}), 500
+        # Try to return error response, but if that fails, at least log it
+        try:
+            return jsonify({
+                'error': error_msg, 
+                'error_type': error_type,
+                'traceback': error_trace
+            }), 500
+        except Exception as response_error:
+            print(f"CRITICAL: Could not create error response: {response_error}")
+            print(f"Original error was: {error_msg}")
+            # Return minimal error
+            return f"Internal Server Error: {error_msg}", 500
 
 @logistics_bp.route('/api/logistics/generate-bol-html', methods=['POST'])
 def generate_bol():

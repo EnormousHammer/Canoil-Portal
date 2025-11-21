@@ -125,21 +125,67 @@
         }
         
         @media print {
-            body {
+            /* Hide scrollbars and prevent scrolling */
+            html, body {
+                overflow: hidden !important;
+                height: 100% !important;
                 background: white;
                 padding: 0;
+                margin: 0;
             }
+            
             .invoice-container {
                 box-shadow: none;
                 padding: 10px;
                 max-width: 100%;
+                overflow: visible !important;
             }
-            .add-row-btn, .print-btn {
+            
+            /* Remove all scrollbars */
+            * {
+                overflow: visible !important;
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+            
+            *::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+            }
+            
+            /* Hide all interactive elements */
+            .add-row-btn, .print-btn, button, .btn, [onclick] {
                 display: none !important;
             }
+            
             @page {
                 margin: 0.4in;
                 size: letter;
+            }
+            
+            /* Make inputs look like plain text - no borders, no outlines */
+            input[type="text"], 
+            input[type="number"], 
+            textarea, 
+            select {
+                border: none !important;
+                outline: none !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                appearance: none !important;
+                -webkit-appearance: none !important;
+                -moz-appearance: none !important;
+                resize: none !important;
+                overflow: hidden !important;
+                cursor: default !important;
+            }
+            
+            /* Remove focus indicators */
+            input:focus, textarea:focus, select:focus {
+                outline: none !important;
+                border: none !important;
+                box-shadow: none !important;
             }
             
             /* Enhanced print clarity for photocopying */
@@ -149,8 +195,8 @@
                 print-color-adjust: exact;
             }
             
-            /* Solid black borders for clear photocopies */
-            table, td, th, input, textarea, select {
+            /* Solid black borders for clear photocopies (only on table cells) */
+            table, td, th {
                 border-color: #000 !important;
             }
             

@@ -322,7 +322,22 @@
         padding: 0;
         margin: 0;
         background: white !important;
+        overflow: hidden !important;
     }
+    
+    /* Remove all scrollbars */
+    * {
+        overflow: visible !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+    
+    *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+    
     /* Fit the whole form exactly inside printable area */
     .container {
         width: 8.5in;   /* match Letter width */
@@ -333,7 +348,7 @@
         page-break-after: avoid;
         page-break-before: avoid;
         page-break-inside: avoid;
-        overflow: hidden;
+        overflow: visible !important;
     }
 
     /* Prevent any tables/rows from pushing to page 2 */
@@ -341,8 +356,34 @@
         page-break-inside: avoid !important;
     }
 
-    /* Hide any print UI elements if present */
-    .print-btn { display: none !important; }
+    /* Hide all interactive elements */
+    .print-btn, button, .btn, [onclick], .add-row-btn {
+        display: none !important;
+    }
+    
+    /* Make inputs look like plain text - no borders, no outlines */
+    input[type="text"], 
+    input[type="number"], 
+    textarea, 
+    select {
+        border: none !important;
+        outline: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        resize: none !important;
+        overflow: hidden !important;
+        cursor: default !important;
+    }
+    
+    /* Remove focus indicators */
+    input:focus, textarea:focus, select:focus {
+        outline: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
     
     /* Hide all placeholder text when printing */
     input::placeholder,
@@ -358,8 +399,8 @@
         print-color-adjust: exact;
     }
     
-    /* Ensure all borders are solid black for photocopying */
-    table, td, th, div, input {
+    /* Ensure all borders are solid black for photocopying (only on table cells) */
+    table, td, th {
         border-color: #000 !important;
     }
     
