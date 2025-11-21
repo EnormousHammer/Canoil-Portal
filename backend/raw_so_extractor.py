@@ -10,6 +10,14 @@ import pdfplumber
 import json
 from openai import OpenAI
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, environment variables must be set manually
+    pass
+
 # Lazy OpenAI client initialization (initialize when needed, not at import time)
 openai_client = None
 
