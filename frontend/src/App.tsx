@@ -3,7 +3,6 @@ import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { GDriveDataLoader } from './services/GDriveDataLoader';
 import { getApiUrl } from './utils/apiConfig';
 import './App.css';
-import { UltimateEnterpriseLoadingScreen } from './components/UltimateEnterpriseLoadingScreen';
 
 function App() {
   // Login state
@@ -11,54 +10,6 @@ function App() {
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean } | null>(null);
   
   const [dataLoaded, setDataLoaded] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState('Initializing Canoil Portal...');
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-
-  // Premium image carousel with the 5 provided images
-  const images = [
-    '/image_1.png',
-    '/image_2.png', 
-    '/image_3.png',
-    '/image_4.png',
-    '/image_5.png'
-  ];
-
-  // Program hints and features
-  const programHints = [
-    {
-      title: "Real-Time Manufacturing Intelligence",
-      description: "Monitor your production pipeline with live data from MISys ERP system"
-    },
-    {
-      title: "Customer & Vendor Analytics", 
-      description: "Track top customers by revenue and manage vendor relationships with detailed insights"
-    },
-    {
-      title: "Advanced Inventory Management",
-      description: "Enhanced inventory tracking with BOMs, stock levels, and automated reorder points"
-    },
-    {
-      title: "Interactive Data Explorer",
-      description: "Drill down into any record - click items, orders, or customers for detailed information"
-    },
-    {
-      title: "Manufacturing Order Tracking",
-      description: "Complete visibility into your production workflow from pending to closed orders"
-    },
-    {
-      title: "Bill of Materials Integration",
-      description: "Full BOM hierarchy visualization with component tracking and cost analysis"
-    },
-    {
-      title: "Purchase Order Management",
-      description: "Streamlined PO processing with vendor performance tracking and cost optimization"
-    },
-    {
-      title: "Enterprise Security & Compliance",
-      description: "Secure data access with role-based permissions and audit trail capabilities"
-    }
-  ];
   
   // Start with empty data structure - EXACT G: Drive .json file names
   const [data, setData] = useState<any>({
@@ -123,78 +74,19 @@ function App() {
     setCurrentUser(user);
     setIsLoggedIn(true);
     
-    // Start loading data after successful login
-    setIsLoading(true);
-    setShowLoadingScreen(true);
-    
-    // Start loading data after a brief delay to ensure UI is ready
-    setTimeout(() => {
-      const gdriveLoader = GDriveDataLoader.getInstance();
-      loadAllData(gdriveLoader);
-    }, 100);
+    // Start loading data immediately after login
+    const gdriveLoader = GDriveDataLoader.getInstance();
+    loadAllData(gdriveLoader);
   };
 
-  // Only start loading when user is logged in
+  // Start loading data when user logs in
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !dataLoaded) {
       console.log("🚀 User logged in - starting data loading");
-      
-      // Minimum 2 second loading time for smooth UX - but wait for data to actually load
-      const minLoadingTimeout = setTimeout(() => {
-        console.log("✅ Minimum 2 seconds complete - checking if data loaded");
-        if (dataLoaded) {
-          console.log("✅ Data loaded - launching app");
-          setIsLoading(false);
-          setShowLoadingScreen(false);
-        } else {
-          console.log("⏳ Data still loading - waiting...");
-        }
-      }, 2000); // Minimum 2 seconds for smooth UX
-      
-      return () => {
-        clearTimeout(minLoadingTimeout);
-      };
+      const gdriveLoader = GDriveDataLoader.getInstance();
+      loadAllData(gdriveLoader);
     }
   }, [isLoggedIn, dataLoaded]);
-
-  // Hide loading screen when data is actually loaded
-  useEffect(() => {
-    if (dataLoaded) {
-      console.log("✅ Data loaded - hiding loading screen");
-      setIsLoading(false);
-      setShowLoadingScreen(false);
-    }
-  }, [dataLoaded]);
-
-  // Image carousel effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % images.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [images.length]);
-
-  // Progress simulation - exactly 10 seconds to 100%
-  useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setLoadingProgress((prev) => {
-        if (prev >= 100) return 100;
-        return prev + 10; // 10% per second for exactly 10 seconds
-      });
-    }, 1000); // Update every 1 second for 10-second progress
-    return () => clearInterval(progressInterval);
-  }, []); // No dependencies - runs independently
-
-  // Simple effect to hide loading when data is ready
-  useEffect(() => {
-    if (dataLoaded) {
-      // Show completion for exactly 10 seconds total loading time
-      setTimeout(() => {
-        setIsLoading(false);
-        setShowLoadingScreen(false);
-      }, 7000); // 7 seconds to show completion (total 10 seconds)
-    }
-  }, [dataLoaded]);
 
   // Auto-sync: DISABLED - Data is a snapshot from MiSys exports, not live
   // User can manually click "Sync Now" if needed
@@ -325,47 +217,13 @@ function App() {
   };
 
   const loadAllData = async (gdriveLoader: GDriveDataLoader) => {
-    // Show loading screen immediately - don't wait for backend
-    setIsLoading(true);
-    setShowLoadingScreen(true);
     setDataSource('checking');
     setError(null);
-    
-    // Start with immediate status updates - exactly 10 seconds total
-    setLoadingStatus('Initializing Canoil Portal...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setLoadingStatus('Connecting to G: Drive...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
     
     try {
       // Non-blocking G: Drive check
       const gdriveReady = await gdriveLoader.checkGDriveAccessAsync();
       setDataSource(gdriveReady ? 'gdrive' : 'checking');
-      
-      setLoadingStatus('Initializing manufacturing systems...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setLoadingStatus('Loading manufacturing data...');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced time since we're loading in parallel
-      
-      setLoadingStatus('Loading production schedule data...');
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setLoadingStatus('Processing data...');
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setLoadingStatus('Configuring systems...');
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setLoadingStatus('Finalizing setup...');
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setLoadingStatus('Almost ready...');
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setLoadingStatus('Launching application...');
-      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Load actual data from G: Drive
       let result;
@@ -474,8 +332,7 @@ function App() {
         fileCount: result.folderInfo.fileCount
       });
       
-      // Mark data as loaded - transition will happen when countdown also finishes
-      setLoadingStatus('Initialization complete!');
+      // Mark data as loaded
       setDataLoaded(true);
       
     } catch (error) {
@@ -486,7 +343,6 @@ function App() {
         details: error instanceof Error ? error.message : 'Unknown error'
       });
       setDataSource('error');
-      setIsLoading(false);
     }
   };
 
@@ -523,20 +379,39 @@ function App() {
     );
   }
 
-  // Show loading screen with login if not logged in, or normal loading if logged in
-  if (!isLoggedIn || isLoading || showLoadingScreen) {
+  // Show simple login screen if not logged in
+  if (!isLoggedIn) {
     return (
-      <UltimateEnterpriseLoadingScreen
-        loadingStatus={loadingStatus}
-        dataLoaded={dataLoaded}
-        progress={loadingProgress}
-        showLogin={!isLoggedIn}
-        onUserLogin={handleLogin}
-        onComplete={() => {
-          console.log("🎉 Loading screen completed");
-          setShowLoadingScreen(false);
-        }}
-      />
+      <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 flex items-center justify-center">
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full mx-4 border border-white/20">
+          <div className="text-center mb-6">
+            <img 
+              src="/Canoil_logo.png" 
+              alt="Canoil Canada Ltd." 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-white mb-2">Canoil Portal</h1>
+            <p className="text-green-200 text-sm">Please select a user to continue</p>
+          </div>
+          
+          <div className="space-y-3">
+            {[
+              { name: 'Haron Alhakimi', email: 'haron@canoilcanadaltd.com', isAdmin: true },
+              { name: 'Gamil Alhakimi', email: 'gamil@canoilcanadaltd.com', isAdmin: true },
+              { name: 'Henry Sapiano', email: 'henry@canoilcanadaltd.com', isAdmin: true }
+            ].map((user) => (
+              <button
+                key={user.email}
+                onClick={() => handleLogin(user)}
+                className="w-full bg-white/20 hover:bg-white/30 text-white px-4 py-3 rounded-lg transition-colors text-left"
+              >
+                <div className="font-semibold">{user.name}</div>
+                <div className="text-sm text-green-200">{user.email}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
 
