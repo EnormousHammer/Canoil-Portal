@@ -375,6 +375,94 @@ function App() {
     }
   };
 
+  // Premium 7-second loading screen
+  if (showLoadingScreen) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 relative overflow-hidden">
+        {/* Animated background particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-white/20 rounded-full animate-pulse"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${2 + Math.random() * 2}s`
+              }}
+            />
+          ))}
+        </div>
+        
+        <div className="relative z-10 flex items-center justify-center min-h-screen">
+          <div className="text-center max-w-2xl mx-auto px-8">
+            {/* Logo */}
+            <div className="mb-8 animate-fade-in">
+              <img 
+                src="/Canoil_logo.png" 
+                alt="Canoil Canada Ltd." 
+                className="h-24 w-auto mx-auto drop-shadow-2xl animate-pulse"
+              />
+            </div>
+            
+            {/* Title */}
+            <h1 className="text-5xl font-black text-white mb-4 animate-fade-in">
+              Canoil Portal
+            </h1>
+            <p className="text-xl text-green-200 mb-12 animate-fade-in">
+              Enterprise Manufacturing Intelligence
+            </p>
+            
+            {/* Progress Bar */}
+            <div className="mb-8">
+              <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden shadow-lg">
+                <div 
+                  className="bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 h-full rounded-full transition-all duration-300 ease-out shadow-lg"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+              <p className="text-white/80 text-sm mt-3 font-medium">
+                {Math.round(loadingProgress)}% • Loading manufacturing data...
+              </p>
+            </div>
+            
+            {/* Loading Steps */}
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              {[
+                { label: 'Systems', icon: '⚙️', active: loadingProgress > 15 },
+                { label: 'Data', icon: '📊', active: loadingProgress > 50 },
+                { label: 'Ready', icon: '✅', active: loadingProgress > 90 }
+              ].map((step, i) => (
+                <div 
+                  key={i}
+                  className={`p-4 rounded-xl transition-all duration-300 ${
+                    step.active 
+                      ? 'bg-white/20 backdrop-blur-sm border-2 border-green-400' 
+                      : 'bg-white/10 border-2 border-transparent'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">{step.icon}</div>
+                  <div className="text-white font-semibold">{step.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <style>{`
+          @keyframes fade-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .animate-fade-in {
+            animation: fade-in 0.8s ease-out;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   // Show error state when G: drive is not accessible
   if (error) {
     return (
@@ -407,7 +495,6 @@ function App() {
       </div>
     );
   }
-
 
   // Show main application after loading
   return (
