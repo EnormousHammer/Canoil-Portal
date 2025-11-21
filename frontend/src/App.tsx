@@ -16,6 +16,7 @@ function App() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStatus, setLoadingStatus] = useState('Initializing Canoil Portal...');
   
   // Start with empty data structure - EXACT G: Drive .json file names
   const [data, setData] = useState<any>({
@@ -83,11 +84,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array = run immediately on mount
 
-  // Premium 14-second loading screen with progress
+  // Premium 20-second loading screen with progress
   useEffect(() => {
     if (showLoadingScreen) {
       const startTime = Date.now();
-      const duration = 14000; // 14 seconds
+      const duration = 20000; // 20 seconds
       
       const interval = setInterval(() => {
         const elapsed = Date.now() - startTime;
@@ -96,7 +97,7 @@ function App() {
         
         if (progress >= 100) {
           clearInterval(interval);
-          // Hide loading screen after 14 seconds (or when data is loaded, whichever comes first)
+          // Hide loading screen after 20 seconds (or when data is loaded, whichever comes first)
           setTimeout(() => {
             setShowLoadingScreen(false);
           }, 500);
@@ -107,7 +108,7 @@ function App() {
     }
   }, [showLoadingScreen]);
 
-  // Hide loading screen when data is loaded (if before 14 seconds)
+  // Hide loading screen when data is loaded (if before 20 seconds)
   useEffect(() => {
     if (dataLoaded && showLoadingScreen) {
       // Wait a moment to ensure smooth transition
@@ -250,15 +251,18 @@ function App() {
     setError(null);
     
     try {
+      setLoadingStatus('Connecting to backend...');
       // Non-blocking G: Drive check
       const gdriveReady = await gdriveLoader.checkGDriveAccessAsync();
       setDataSource(gdriveReady ? 'gdrive' : 'checking');
       
+      setLoadingStatus('Loading MiSys data from G: Drive...');
       // Load actual data from G: Drive
       let result;
       try {
         result = await gdriveLoader.loadAllData();
         console.log('✅ Data loaded successfully from G: Drive');
+        setLoadingStatus('MiSys data loaded! Loading Sales Orders...');
       } catch (error) {
         // GDriveDataLoader now returns empty structure instead of throwing for connection errors
         console.warn('⚠️ Error loading data, retrying...', error);
@@ -281,6 +285,7 @@ function App() {
       }
       const gdriveData = result.data;
       
+      setLoadingStatus('Sales Orders loaded! Loading MPS data...');
       // Load MPS data from backend API in parallel with G: Drive data
       const mpsUrl = getApiUrl('/api/mps');
       console.log('📊 Loading MPS data from:', {
@@ -339,12 +344,15 @@ function App() {
       console.log('✅ MPS data loaded successfully:', mpsData);
       console.log('📊 MPS Orders Count:', mpsData.mps_orders?.length || 0);
 
+      setLoadingStatus('Finalizing data...');
       // Use G: Drive data AS-IS - no conversion needed!
       setData({
         ...gdriveResult,
         'MPS.json': mpsData, // Add MPS data to the main data object
         loaded: true
       });
+      
+      setLoadingStatus('✅ All data loaded successfully!');
       
       // Track initial SO count for auto-sync
       const initialSOCount = (gdriveResult['SalesOrderHeaders.json'] || []).length;
@@ -375,7 +383,7 @@ function App() {
     }
   };
 
-  // Premium 7-second loading screen
+  // Premium 20-second loading screen with real-time status
   if (showLoadingScreen) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 relative overflow-hidden">
@@ -423,7 +431,7 @@ function App() {
                 />
               </div>
               <p className="text-white/80 text-sm mt-3 font-medium">
-                {Math.round(loadingProgress)}% • Loading manufacturing data...
+                {Math.round(loadingProgress)}% • {loadingStatus}
               </p>
             </div>
             
