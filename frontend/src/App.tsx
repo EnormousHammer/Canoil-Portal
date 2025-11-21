@@ -5,12 +5,12 @@ import { getApiUrl } from './utils/apiConfig';
 import './App.css';
 
 function App() {
-  // Auto-login (no login required)
+  // Auto-login (no login required) - ALWAYS ADMIN
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean }>({
-    name: 'User',
-    email: 'user@canoilcanadaltd.com',
-    isAdmin: true
+    name: 'Admin User',
+    email: 'admin@canoilcanadaltd.com',
+    isAdmin: true // ALWAYS ADMIN
   });
   
   const [dataLoaded, setDataLoaded] = useState(false);
