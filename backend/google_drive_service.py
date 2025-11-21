@@ -613,9 +613,9 @@ class GoogleDriveService:
                 'ScanMethod': 'Google Drive API - Smart Recursive Discovery'
             }
             
-            # METADATA ONLY MODE - No parsing, no downloads
-            # Parsing happens on-demand via separate API endpoint
-            print(f"[INFO] Loading METADATA ONLY (no PDF parsing)")
+            # DOWNLOAD AND PARSE PDFs - Like API Extractions (fast parallel loading)
+            # Download all PDFs in parallel, then parse in parallel
+            print(f"[INFO] Loading PDFs with parsing (like API Extractions - parallel download + parse)")
             
             # Get all folders under Customer Orders (Sales Orders, Purchase Orders, etc.)
             query = f"'{customer_orders_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -721,8 +721,9 @@ class GoogleDriveService:
                             continue
                         
                         orders_in_folder = []
+                        files_to_download = []  # Collect files for parallel download
                         
-                        # Process each PDF/DOCX file - METADATA ONLY
+                        # Collect all PDF/DOCX files first
                         for file_info in files:
                             file_id = file_info.get('file_id')
                             file_name = file_info.get('file_name', '')
@@ -736,57 +737,96 @@ class GoogleDriveService:
                             if not any(pattern in file_name.lower() for pattern in ['salesorder', 'sales order', 'so_', 'so-', 'order']):
                                 continue
                             
-                            try:
-                                # 1. Extract metadata from filename (for SalesOrders.json)
-                                import re
-                                order_num = 'Unknown'
-                                patterns = [
-                                    r'salesorder[_\s-]*(\d+)',
-                                    r'sales\s*order[_\s-]*(\d+)',
-                                    r'so[_\s-]*(\d+)',
-                                    r'order[_\s-]*(\d+)',
-                                    r'(\d+)'
-                                ]
-                                
-                                for pattern in patterns:
-                                    match = re.search(pattern, file_name.lower())
-                                    if match:
-                                        order_num = match.group(1)
-                                        break
-                                
-                                # Parse modified time
-                                order_date = ''
-                                ship_date = ''
-                                if modified_time:
+                            files_to_download.append({
+                                'file_id': file_id,
+                                'file_name': file_name,
+                                'modified_time': modified_time,
+                                'subfolder_name': subfolder_name,
+                                'subfolder_path': subfolder_path,
+                                'folder_name': folder_name
+                            })
+                        
+                        # Download and parse all PDFs in parallel (like API extractions)
+                        if files_to_download:
+                            print(f"[INFO] Downloading and parsing {len(files_to_download)} PDFs in parallel...")
+                            import concurrent.futures
+                            import tempfile
+                            import os
+                            
+                            def download_and_parse(file_data):
+                                file_id = file_data['file_id']
+                                file_name = file_data['file_name']
+                                try:
+                                    # Download PDF
+                                    pdf_content = self.download_file_content(file_id)
+                                    if not pdf_content:
+                                        return None
+                                    
+                                    # Save to temp file
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                                        tmp_file.write(pdf_content)
+                                        tmp_path = tmp_file.name
+                                    
                                     try:
-                                        from datetime import datetime
-                                        dt = datetime.fromisoformat(modified_time.replace('Z', '+00:00'))
-                                        order_date = dt.strftime('%Y-%m-%d')
-                                        ship_date = dt.strftime('%Y-%m-%d')
-                                    except:
-                                        pass
-                                
-                                # Build metadata (for SalesOrders.json) - METADATA ONLY
-                                path_info = {
-                                    'Order No.': order_num,
-                                    'Customer': '',  # Will be populated when user views the order
-                                    'Order Date': order_date,
-                                    'Ship Date': ship_date,
-                                    'Status': subfolder_name,
-                                    'File': file_name,
-                                    'File Path': f"Google Drive: {subfolder_path}/{file_name}",
-                                    'File Type': file_name.split('.')[-1].upper(),
-                                    'Last Modified': modified_time,
-                                    'Folder Path': subfolder_path,
-                                    'Full Path': f"{folder_name}/{subfolder_path}" if subfolder_path != folder_name else folder_name,
-                                    'file_id': file_id  # Store file_id for on-demand parsing
-                                }
-                                orders_in_folder.append(path_info)
-                                all_orders.append(path_info)
-                                
-                            except Exception as e:
-                                print(f"[ERROR] Error processing {file_name}: {e}")
-                                continue
+                                        # Parse PDF - import raw_so_extractor directly to avoid circular import
+                                        import sys
+                                        import os as os_module
+                                        backend_dir = os_module.path.dirname(os_module.path.abspath(__file__))
+                                        if backend_dir not in sys.path:
+                                            sys.path.insert(0, backend_dir)
+                                        
+                                        # Use raw_so_extractor directly (same as app.py uses)
+                                        from raw_so_extractor import extract_raw_from_pdf, structure_with_openai
+                                        
+                                        # Extract and structure (same flow as app.py)
+                                        raw_data = extract_raw_from_pdf(tmp_path)
+                                        if raw_data:
+                                            parsed_data = structure_with_openai(raw_data)
+                                        else:
+                                            parsed_data = None
+                                        
+                                        if parsed_data:
+                                            # Build order info with parsed data
+                                            order_info = {
+                                                'Order No.': parsed_data.get('so_number', 'Unknown'),
+                                                'Customer': parsed_data.get('customer_name', ''),
+                                                'Order Date': parsed_data.get('order_date', ''),
+                                                'Ship Date': parsed_data.get('due_date', ''),
+                                                'Total Amount': parsed_data.get('total_amount', 0.0),
+                                                'Items': parsed_data.get('items', []),
+                                                'Status': file_data['subfolder_name'],
+                                                'File': file_name,
+                                                'File Path': f"Google Drive: {file_data['subfolder_path']}/{file_name}",
+                                                'File Type': file_name.split('.')[-1].upper(),
+                                                'Last Modified': file_data['modified_time'],
+                                                'Folder Path': file_data['subfolder_path'],
+                                                'Full Path': f"{file_data['folder_name']}/{file_data['subfolder_path']}" if file_data['subfolder_path'] != file_data['folder_name'] else file_data['folder_name'],
+                                                'file_id': file_id,
+                                                'parsed_data': parsed_data  # Full parsed data
+                                            }
+                                            return order_info
+                                    finally:
+                                        # Clean up temp file
+                                        try:
+                                            os.unlink(tmp_path)
+                                        except:
+                                            pass
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Error downloading/parsing {file_name}: {e}")
+                                    return None
+                            
+                            # Download and parse in parallel (max 10 workers for speed)
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                                results = list(executor.map(download_and_parse, files_to_download))
+                            
+                            # Filter out None results and add to orders
+                            for order_info in results:
+                                if order_info:
+                                    orders_in_folder.append(order_info)
+                                    all_orders.append(order_info)
+                            
+                            print(f"[OK] Downloaded and parsed {len([r for r in results if r])}/{len(files_to_download)} PDFs")
                         
                         # Add orders to SalesOrdersByStatus
                         if 'Sales' in folder_name or 'sales' in folder_name.lower():
@@ -805,13 +845,19 @@ class GoogleDriveService:
                             sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(orders_in_folder)
                             sales_orders_data['TotalOrders'] += len(orders_in_folder)
                     
-                    # Add all orders to SalesOrders.json (flat list) - METADATA ONLY
+                    # Add all orders to SalesOrders.json (flat list) - NOW WITH PARSED DATA
                     sales_orders_data['SalesOrders.json'].extend(all_orders)
                     
-                    print(f"[OK] Found {len(all_orders)} sales orders (metadata only) from {folder_name}")
+                    # Extract parsed data for ParsedSalesOrders.json
+                    parsed_orders = []
+                    for order in all_orders:
+                        if 'parsed_data' in order:
+                            parsed_orders.append(order['parsed_data'])
+                    sales_orders_data['ParsedSalesOrders.json'].extend(parsed_orders)
+                    
+                    print(f"[OK] Found {len(all_orders)} sales orders (with parsed data) from {folder_name}")
             
-            # Add all parsed orders from all folders to ParsedSalesOrders.json
-            # (already done above, but ensure it's in the final structure)
+            # ParsedSalesOrders.json already populated above
             
             # Calculate totals
             sales_orders_data['TotalOrders'] = len(sales_orders_data['SalesOrders.json'])
