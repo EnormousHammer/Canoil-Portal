@@ -129,7 +129,7 @@ export class GDriveDataLoader {
       console.log('📡 Loading data from backend:', {
         url: apiUrl,
         hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-        isProduction: import.meta.env.PROD
+        isProduction: (import.meta as any).env?.PROD || false
       });
       
       // Add 300 second timeout to match Cloud Run configuration (data is 86MB, takes time to load and compress)
@@ -265,7 +265,7 @@ export class GDriveDataLoader {
         console.warn('⚠️ Backend not accessible - returning empty data structure', {
           url: apiUrl,
           error: error instanceof Error ? error.message : String(error),
-          hint: apiUrl.includes('localhost') && import.meta.env.PROD 
+          hint: apiUrl.includes('localhost') && (import.meta as any).env?.PROD 
             ? '⚠️ CRITICAL: Using localhost in production! Set VITE_API_URL in Vercel environment variables.' 
             : 'Check if backend server is running and accessible.'
         });
