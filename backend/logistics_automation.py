@@ -1698,6 +1698,7 @@ def process_email():
                     # If they share key abbreviations, consider it a match
                     if email_words & so_words:  # Intersection of sets
                         matched = True
+                        matched_so_item = so_item  # Store the matched item
                         match_details = f"Smart matched with SO item: {so_desc} (shared: {email_words & so_words})"
                         break
                     
@@ -1709,12 +1710,14 @@ def process_email():
                         shared_products = email_words & so_words & set(base_products)
                         if shared_products:
                             matched = True
+                            matched_so_item = so_item  # Store the matched item
                             match_details = f"Product match (packaging may differ): {shared_products}"
                             break
                     
                     # Direct VSG fix - if email has VSG and SO has VSG, it's a match
                     if 'VSG' in item_desc and 'VSG' in so_desc:
                         matched = True
+                        matched_so_item = so_item  # Store the matched item
                         match_details = f"VSG product matched: {item_desc} = {so_desc}"
                         break
                     
@@ -1730,55 +1733,53 @@ def process_email():
                         if ((long_form in item_desc and short_form in so_desc) or 
                             (short_form in item_desc and long_form in so_desc)):
                             matched = True
+                            matched_so_item = so_item  # Store the matched item
                             match_details = f"Variation matched: {long_form} = {short_form}"
                             break
                     
                     if matched:
                         break
                 
-                if not matched and so_item_codes:
-                    for code in so_item_codes:
-                        if code and (code in item_desc or item_desc in code):
+                if not matched and so_item_codes and item_code:
+                    # Try matching by item code
+                    for i, code in enumerate(so_item_codes):
+                        so_item = so_items_to_check[i]  # Get the actual SO item object
+                        if code and (item_code in code or code in item_code):
                             matched = True
+                            matched_so_item = so_item  # Store the matched item
                             match_details = f"Matched with SO item code: {code}"
                             break
                         
                         # Check for similar item codes (allow 1-2 character differences)
-                        if code and len(code) > 3:
+                        if code and len(code) > 3 and len(item_code) > 3:
                             # Check if most characters match (fuzzy matching)
-                            if abs(len(code) - len(item_desc)) <= 2:  # Similar length
-                                matches = sum(1 for a, b in zip(code, item_desc) if a == b)
+                            if abs(len(code) - len(item_code)) <= 2:  # Similar length
+                                matches = sum(1 for a, b in zip(code, item_code) if a == b)
                                 if matches >= len(code) - 2:  # Allow 1-2 character differences
                                     matched = True
+                                    matched_so_item = so_item  # Store the matched item
                                     match_details = f"Fuzzy matched with SO item code: {code} (similarity: {matches}/{len(code)})"
                                     break
                 
-                # If matched, also check quantity (use filtered SO items)
+                # If matched, also check quantity (use the SAME matched SO item, not search again)
                 quantity_match = True
                 quantity_details = ""
-                if matched and item_qty:
-                    # Find the SO item to check quantity (from filtered list)
+                if matched and item_qty and matched_so_item:
                     email_qty_num = float(item_qty) if item_qty else 0
-                    so_qty_found = None
                     
-                    for so_item in so_items_to_check:
-                        so_desc = so_item.get('description', '').upper()
-                        so_code = so_item.get('item_code', '').upper()
-                        if (item_desc in so_desc or so_desc in item_desc) or (item_desc in so_code):
-                            so_qty = so_item.get('quantity', 0)
-                            try:
-                                so_qty_num = float(so_qty)
-                                so_qty_found = so_qty_num
-                                
-                                # Check if quantities match (allow small tolerance for rounding)
-                                if abs(email_qty_num - so_qty_num) > 0.01:
-                                    quantity_match = False
-                                    quantity_details = f"Quantity mismatch: Email says {email_qty_num}, SO says {so_qty_num}"
-                                else:
-                                    quantity_details = f"Quantity matches: {email_qty_num}"
-                                break
-                            except:
-                                pass
+                    # Use the EXACT matched SO item (no searching again - prevents wrong item match)
+                    so_qty = matched_so_item.get('quantity', 0)
+                    try:
+                        so_qty_num = float(so_qty)
+                        
+                        # Check if quantities match (allow small tolerance for rounding)
+                        if abs(email_qty_num - so_qty_num) > 0.01:
+                            quantity_match = False
+                            quantity_details = f"Quantity mismatch: Email says {email_qty_num}, SO says {so_qty_num}"
+                        else:
+                            quantity_details = f"Quantity matches: {email_qty_num}"
+                    except:
+                        pass
                 
                 item_validation = {
                     'email_item': email_item.get('description'),
