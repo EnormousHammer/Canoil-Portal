@@ -356,10 +356,12 @@ function App() {
       
       setLoadingStatus('✅ All data loaded successfully!');
       
-      // Track initial SO count for auto-sync
-      const initialSOCount = (gdriveResult['SalesOrderHeaders.json'] || []).length;
+      // Track initial SO count for auto-sync (check both SalesOrders.json and SalesOrderHeaders.json)
+      const salesOrdersCount = (gdriveResult['SalesOrders.json'] || []).length;
+      const salesOrderHeadersCount = (gdriveResult['SalesOrderHeaders.json'] || []).length;
+      const initialSOCount = salesOrdersCount || salesOrderHeadersCount;
       setLastSalesOrderCount(initialSOCount);
-      console.log(`📊 Initial Sales Orders loaded: ${initialSOCount}`);
+      console.log(`📊 Initial Sales Orders loaded: ${initialSOCount} (SalesOrders: ${salesOrdersCount}, Headers: ${salesOrderHeadersCount})`);
       
       setSyncInfo({
         folderName: result.folderInfo.folderName,
