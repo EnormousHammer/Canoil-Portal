@@ -5,11 +5,17 @@ import { getApiUrl } from './utils/apiConfig';
 import './App.css';
 
 function App() {
-  // Login state
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean } | null>(null);
+  // Auto-login (no login required)
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean }>({
+    name: 'User',
+    email: 'user@canoilcanadaltd.com',
+    isAdmin: true
+  });
   
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   
   // Start with empty data structure - EXACT G: Drive .json file names
   const [data, setData] = useState<any>({
@@ -68,27 +74,50 @@ function App() {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [showHealthWarning, setShowHealthWarning] = useState(false);
 
-  // Start loading data immediately when app opens (before login)
+  // Start loading data immediately when app opens
   useEffect(() => {
     if (!dataLoaded) {
-      console.log("🚀 App opened - starting data preload in background");
+      console.log("🚀 App opened - starting data load");
       const gdriveLoader = GDriveDataLoader.getInstance();
       loadAllData(gdriveLoader).catch((error) => {
-        console.error('❌ Error in background data preload:', error);
-        // Don't set error state - let it retry when user logs in
+        console.error('❌ Error loading data:', error);
       });
     }
-  }, [dataLoaded]); // Run when dataLoaded changes
+  }, [dataLoaded]);
 
-  // Handle login
-  const handleLogin = (user: { name: string; email: string; isAdmin: boolean }) => {
-    console.log("🔐 User logged in:", user);
-    setCurrentUser(user);
-    setIsLoggedIn(true);
-    
-    // Data should already be loading from the preload effect above
-    // If not loaded yet, it will continue loading
-  };
+  // Premium 7-second loading screen with progress
+  useEffect(() => {
+    if (showLoadingScreen) {
+      const startTime = Date.now();
+      const duration = 7000; // 7 seconds
+      
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / duration) * 100, 100);
+        setLoadingProgress(progress);
+        
+        if (progress >= 100) {
+          clearInterval(interval);
+          // Hide loading screen after 7 seconds (or when data is loaded, whichever comes first)
+          setTimeout(() => {
+            setShowLoadingScreen(false);
+          }, 500);
+        }
+      }, 50); // Update every 50ms for smooth animation
+      
+      return () => clearInterval(interval);
+    }
+  }, [showLoadingScreen]);
+
+  // Hide loading screen when data is loaded (if before 7 seconds)
+  useEffect(() => {
+    if (dataLoaded && showLoadingScreen) {
+      // Wait a moment to ensure smooth transition
+      setTimeout(() => {
+        setShowLoadingScreen(false);
+      }, 500);
+    }
+  }, [dataLoaded, showLoadingScreen]);
 
   // Auto-sync: DISABLED - Data is a snapshot from MiSys exports, not live
   // User can manually click "Sync Now" if needed
