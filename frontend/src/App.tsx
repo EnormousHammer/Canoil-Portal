@@ -252,52 +252,19 @@ function App() {
     
     try {
       setLoadingStatus('Connecting to backend...');
-      // Non-blocking G: Drive check
-      const gdriveReady = await gdriveLoader.checkGDriveAccessAsync();
-      setDataSource(gdriveReady ? 'gdrive' : 'checking');
       
-      setLoadingStatus('Loading MiSys data from G: Drive...');
-      // Load actual data from G: Drive
-      let result;
-      try {
-        result = await gdriveLoader.loadAllData();
-        console.log('✅ Data loaded successfully from G: Drive');
-        setLoadingStatus('MiSys data loaded! Loading Sales Orders...');
-      } catch (error) {
-        // GDriveDataLoader now returns empty structure instead of throwing for connection errors
-        console.warn('⚠️ Error loading data, retrying...', error);
-        // Retry once more
-        try {
-          result = await gdriveLoader.loadAllData();
-          console.log('✅ Data loaded successfully on retry');
-        } catch (retryError) {
-          console.warn('⚠️ Failed to load data after retry, using empty data structure');
-          result = { 
-            data: {
-              'CustomAlert5.json': [],
-              'SalesOrderHeaders.json': [],
-              'ManufacturingOrderHeaders.json': [],
-              'PurchaseOrders.json': []
-            }, 
-            folderInfo: { folderName: 'Backend Not Connected', syncDate: new Date().toISOString() } 
-          };
-        }
-      }
-      const gdriveData = result.data;
-      
-      setLoadingStatus('Sales Orders loaded! Loading MPS data...');
-      // Load MPS data from backend API in parallel with G: Drive data
+      // OPTIMIZATION: Start backend connection and MPS load immediately in parallel
+      // Don't wait for G: Drive check - start backend requests right away
       const mpsUrl = getApiUrl('/api/mps');
-      console.log('📊 Loading MPS data from:', {
+      console.log('📊 Starting MPS data load in parallel:', {
         url: mpsUrl,
         hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
         isProduction: import.meta.env.PROD
       });
       
-      // Add 300 second timeout to match Cloud Run configuration
+      // Start MPS load immediately (non-blocking)
       const mpsController = new AbortController();
       const mpsTimeoutId = setTimeout(() => mpsController.abort(), 300000);
-      
       const mpsPromise = fetch(mpsUrl, { signal: mpsController.signal })
         .then(response => {
           clearTimeout(mpsTimeoutId);
@@ -334,12 +301,47 @@ function App() {
           }
           return { mps_orders: [], summary: { total_orders: 0 } };
         });
-
-      // Wait for both G: Drive and MPS data to load
-      const [gdriveResult, mpsData] = await Promise.all([
-        Promise.resolve(gdriveData),
-        mpsPromise
-      ]);
+      
+      // Non-blocking G: Drive check (runs in parallel with backend connection)
+      const gdriveCheckPromise = gdriveLoader.checkGDriveAccessAsync();
+      
+      setLoadingStatus('Loading data from backend...');
+      // Load actual data from G: Drive (this now loads Sales Orders in parallel internally)
+      let result;
+      try {
+        result = await gdriveLoader.loadAllData();
+        console.log('✅ Data loaded successfully from G: Drive');
+        setLoadingStatus('Data loaded! Finalizing...');
+      } catch (error) {
+        // GDriveDataLoader now returns empty structure instead of throwing for connection errors
+        console.warn('⚠️ Error loading data, retrying...', error);
+        // Retry once more
+        try {
+          result = await gdriveLoader.loadAllData();
+          console.log('✅ Data loaded successfully on retry');
+        } catch (retryError) {
+          console.warn('⚠️ Failed to load data after retry, using empty data structure');
+          result = { 
+            data: {
+              'CustomAlert5.json': [],
+              'SalesOrderHeaders.json': [],
+              'ManufacturingOrderHeaders.json': [],
+              'PurchaseOrders.json': []
+            }, 
+            folderInfo: { folderName: 'Backend Not Connected', syncDate: new Date().toISOString() } 
+          };
+        }
+      }
+      const gdriveData = result.data;
+      
+      // Update data source based on G: Drive check (non-blocking)
+      gdriveCheckPromise.then(gdriveReady => {
+        setDataSource(gdriveReady ? 'gdrive' : 'checking');
+      });
+      
+      // Wait for MPS data (already started in parallel)
+      const mpsData = await mpsPromise;
+      const gdriveResult = gdriveData;
 
       console.log('✅ MPS data loaded successfully:', mpsData);
       console.log('📊 MPS Orders Count:', mpsData.mps_orders?.length || 0);

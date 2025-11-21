@@ -1466,30 +1466,64 @@ def process_email():
         
         print(f"EMAIL: LOGISTICS: Email content length: {len(email_content)} characters")
         
-        # Use GPT parser for accurate multi-item extraction
-        print("INFO: Parsing email with GPT-4o-mini for multi-item support...")
-        email_data = parse_email_with_gpt4(email_content)
-        print(f"\n{'='*80}")
-        print(f"EMAIL DATA PARSED:")
-        print(f"  SO Number: {email_data.get('so_number')}")
-        print(f"  Line Numbers: {email_data.get('so_line_numbers')}")
-        print(f"  Is Partial Shipment: {email_data.get('is_partial_shipment')}")
-        print(f"  PO Number: {email_data.get('po_number')}")
-        print(f"  Total Weight: {email_data.get('total_weight')}")
-        print(f"  Pallet Count: {email_data.get('pallet_count')}")
-        print(f"  Pallet Dimensions: {email_data.get('pallet_dimensions')}")
-        print(f"  Carrier: {email_data.get('carrier')}")
-        print(f"{'='*80}\n")
+        # OPTIMIZATION: Quick SO number extraction with regex (fast, <1ms)
+        # This allows us to start fetching SO data in parallel with GPT parsing
+        import re
+        quick_so_match = re.search(r'(?:sales order|SO|order)\s*[#:]?\s*(\d{3,5})', email_content, re.IGNORECASE)
+        quick_so_number = quick_so_match.group(1) if quick_so_match else None
         
-        if not email_data.get('so_number'):
-            print("ERROR: LOGISTICS: No SO number found in email")
-            return jsonify({'error': 'No SO number found in email', 'email_data': email_data}), 400
+        # Start GPT parsing and SO data fetch in parallel (if we found SO number quickly)
+        import concurrent.futures
+        executor = None
+        so_data_promise = None
+        if quick_so_number:
+            print(f"⚡ OPTIMIZATION: Quick SO extraction found: {quick_so_number} - starting SO data fetch in parallel with GPT parsing...")
+            # Start SO data fetch in background (non-blocking)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            so_data_promise = executor.submit(get_so_data_from_system, quick_so_number)
         
-        so_number = email_data['so_number']
-        print(f"EMAIL: LOGISTICS: Found SO number: {so_number}")
-        
-        # Get REAL SO data from system - NO MOCK DATA
-        so_data = get_so_data_from_system(so_number)
+        try:
+            # Use GPT parser for accurate multi-item extraction
+            print("INFO: Parsing email with GPT-4o-mini for multi-item support...")
+            email_data = parse_email_with_gpt4(email_content)
+            print(f"\n{'='*80}")
+            print(f"EMAIL DATA PARSED:")
+            print(f"  SO Number: {email_data.get('so_number')}")
+            print(f"  Line Numbers: {email_data.get('so_line_numbers')}")
+            print(f"  Is Partial Shipment: {email_data.get('is_partial_shipment')}")
+            print(f"  PO Number: {email_data.get('po_number')}")
+            print(f"  Total Weight: {email_data.get('total_weight')}")
+            print(f"  Pallet Count: {email_data.get('pallet_count')}")
+            print(f"  Pallet Dimensions: {email_data.get('pallet_dimensions')}")
+            print(f"  Carrier: {email_data.get('carrier')}")
+            print(f"{'='*80}\n")
+            
+            if not email_data.get('so_number'):
+                print("ERROR: LOGISTICS: No SO number found in email")
+                return jsonify({'error': 'No SO number found in email', 'email_data': email_data}), 400
+            
+            so_number = email_data['so_number']
+            print(f"EMAIL: LOGISTICS: Found SO number: {so_number}")
+            
+            # Get REAL SO data from system - NO MOCK DATA
+            # Use pre-fetched data if available, otherwise fetch now
+            if so_data_promise and quick_so_number == so_number:
+                print("⚡ OPTIMIZATION: Using pre-fetched SO data (loaded in parallel with GPT parsing)...")
+                try:
+                    so_data = so_data_promise.result(timeout=60)  # Wait up to 60s for result
+                except concurrent.futures.TimeoutError:
+                    print("⚠️ Pre-fetch timed out, fetching SO data now...")
+                    so_data = get_so_data_from_system(so_number)
+                except Exception as fetch_error:
+                    print(f"⚠️ Pre-fetch failed: {fetch_error}, fetching SO data now...")
+                    so_data = get_so_data_from_system(so_number)
+            else:
+                # SO number from GPT doesn't match quick extraction, or quick extraction failed
+                so_data = get_so_data_from_system(so_number)
+        finally:
+            # Always clean up executor
+            if executor:
+                executor.shutdown(wait=False)
         
         
         if so_data.get('status') == 'Error':

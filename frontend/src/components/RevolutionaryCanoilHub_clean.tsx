@@ -679,35 +679,54 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return items;
   }, [data, inventoryFilter, searchQuery, sortBy, filterStatus]);
 
-  // REAL-TIME SALES ORDER ANALYTICS
+  // OPTIMIZED SALES ORDER ANALYTICS - Use folder counts directly (FAST!)
   const salesOrderAnalytics = useMemo(() => {
-    const salesOrders = data['SalesOrders.json'] || [];
+    // Use SalesOrdersByStatus folder counts directly - MUCH faster than filtering!
+    const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+    const totalOrders = data['TotalOrders'] || 0;
     
-    // Count orders by status
-    const newAndRevised = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
-      return status.includes('new') || status.includes('revised') || status.includes('pending') || status.includes('open');
-    });
+    // Get counts directly from folder structure (instant, no filtering needed!)
+    const getFolderCount = (folderName: string): number => {
+      // Try exact match first
+      if (salesOrdersByStatus[folderName]) {
+        return Array.isArray(salesOrdersByStatus[folderName]) ? salesOrdersByStatus[folderName].length : 0;
+      }
+      // Try case-insensitive match
+      const folderKey = Object.keys(salesOrdersByStatus).find(
+        key => key.toLowerCase() === folderName.toLowerCase()
+      );
+      return folderKey && Array.isArray(salesOrdersByStatus[folderKey]) 
+        ? salesOrdersByStatus[folderKey].length 
+        : 0;
+    };
     
-    const inProduction = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
-      return status.includes('production') || status.includes('manufacturing') || status.includes('in progress') || status.includes('scheduled');
-    });
+    // Get folder data for last updated calculation
+    const getFolderData = (folderName: string): any[] => {
+      const folderKey = Object.keys(salesOrdersByStatus).find(
+        key => key.toLowerCase() === folderName.toLowerCase()
+      );
+      return folderKey && Array.isArray(salesOrdersByStatus[folderKey]) 
+        ? salesOrdersByStatus[folderKey] 
+        : [];
+    };
     
-    const completed = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
-      return status.includes('completed') || status.includes('closed') || status.includes('shipped') || status.includes('delivered');
-    });
+    // Get counts directly from folders (instant!)
+    const newAndRevisedCount = getFolderCount('New and Revised');
+    const inProductionCount = getFolderCount('In Production');
+    const completedCount = getFolderCount('Completed and Closed');
+    const cancelledCount = getFolderCount('Cancelled');
     
-    const cancelled = salesOrders.filter((so: any) => {
-      const status = (so["Status"] || '').toLowerCase();
-      return status.includes('cancelled') || status.includes('canceled') || status.includes('void');
-    });
-    
-    // Get last updated dates
+    // Get last updated dates (only calculate if we have data)
     const getLastUpdated = (orders: any[]) => {
       if (orders.length === 0) return 'No data';
-      const dates = orders.map(so => new Date(so["Order Date"] || so["Created Date"] || Date.now()));
+      const dates = orders.map(so => {
+        const dateStr = so["Order Date"] || so["Created Date"] || so["Modified Date"] || so["Last Modified"];
+        if (!dateStr) return null;
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date;
+      }).filter(d => d !== null);
+      
+      if (dates.length === 0) return 'No date data';
       const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
       const today = new Date();
       const diffTime = today.getTime() - latestDate.getTime();
@@ -721,22 +740,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     return {
       newAndRevised: {
-        count: newAndRevised.length,
-        lastUpdated: getLastUpdated(newAndRevised)
+        count: newAndRevisedCount,
+        lastUpdated: getLastUpdated(getFolderData('New and Revised'))
       },
       inProduction: {
-        count: inProduction.length,
-        lastUpdated: getLastUpdated(inProduction)
+        count: inProductionCount,
+        lastUpdated: getLastUpdated(getFolderData('In Production'))
       },
       completed: {
-        count: completed.length,
-        lastUpdated: getLastUpdated(completed)
+        count: completedCount,
+        lastUpdated: getLastUpdated(getFolderData('Completed and Closed'))
       },
       cancelled: {
-        count: cancelled.length,
-        lastUpdated: getLastUpdated(cancelled)
+        count: cancelledCount,
+        lastUpdated: getLastUpdated(getFolderData('Cancelled'))
       },
-      total: salesOrders.length
+      total: totalOrders
     };
   }, [data]);
 
@@ -4052,7 +4071,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   
                 {/* Premium Status Folders Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
                   {/* New and Revised - Premium Card */}
                     <div 
@@ -4106,60 +4125,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         Last updated: {salesOrderAnalytics.inProduction.lastUpdated}
                       </div>
                       </div>
-                  </div>
-                  
-                  {/* Completed and Closed - Premium Card */}
-                    <div 
-                      onClick={() => navigateToSOFolder('Completed and Closed')}
-                    className="group relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-8 border border-blue-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer overflow-hidden"
-                    >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200/30 to-indigo-200/30 rounded-full -translate-y-16 translate-x-16"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <div className="text-2xl">✅</div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-blue-900 text-lg">Completed and Closed</div>
-                          <div className="text-sm text-blue-700 font-medium">Archive</div>
-                    </div>
-                      </div>
-                      <div className="bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl p-4 mb-4 border border-blue-200">
-                        <div className="text-3xl font-black text-blue-900">{salesOrderAnalytics.completed.count.toLocaleString()}</div>
-                        <div className="text-xs text-blue-700 font-bold uppercase tracking-wider">COMPLETED SOs</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-blue-600">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                        Last updated: {salesOrderAnalytics.completed.lastUpdated}
-                      </div>
-                      </div>
-                  </div>
-                  
-                  {/* Cancelled - Premium Card */}
-                    <div 
-                      onClick={() => navigateToSOFolder('Cancelled')}
-                    className="group relative bg-gradient-to-br from-red-50 via-pink-50 to-rose-50 rounded-2xl p-8 border border-red-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer overflow-hidden"
-                    >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-200/30 to-pink-200/30 rounded-full -translate-y-16 translate-x-16"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <div className="text-2xl">❌</div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-red-900 text-lg">Cancelled</div>
-                          <div className="text-sm text-red-700 font-medium">Cancelled orders</div>
-                    </div>
-                  </div>
-                      <div className="bg-gradient-to-r from-red-100 to-pink-100 rounded-xl p-4 mb-4 border border-red-200">
-                        <div className="text-3xl font-black text-red-900">{salesOrderAnalytics.cancelled.count}</div>
-                        <div className="text-xs text-red-700 font-bold uppercase tracking-wider">CANCELLED SOs</div>
-                </div>
-                      <div className="flex items-center gap-2 text-xs text-red-600">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                        Last updated: {salesOrderAnalytics.cancelled.lastUpdated}
-              </div>
-                    </div>
                   </div>
                   
                 </div>
