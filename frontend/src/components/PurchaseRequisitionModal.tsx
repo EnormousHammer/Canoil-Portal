@@ -84,7 +84,6 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
         setSelectedItems([]);
       }
     }
-    }
   }, [isOpen, preFilledItems]);
   
   // Loading state
