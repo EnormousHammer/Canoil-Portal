@@ -808,7 +808,7 @@ def load_json_file(file_path):
 # Global cache for data - MEMORY OPTIMIZED
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 3600  # 1 hour cache (for 24/7 operation - data doesn't change that often)
+_cache_duration = 7200  # 2 hour cache (increased for faster loads - data doesn't change that often)
 
 # Sales Order folder cache - stores folder contents by path
 _so_folder_cache = {}
@@ -820,67 +820,376 @@ _MAX_CACHE_SIZE_MB = 1500  # Maximum cache size in MB (2GB instance - safe limit
 # Persistent cache directory (Cloud Run /tmp persists during container lifetime)
 CACHE_DIR = "/tmp/canoil_cache"
 CACHE_FILE = os.path.join(CACHE_DIR, "data_cache.pkl")
+CACHE_TEMP_FILE = os.path.join(CACHE_DIR, "data_cache.pkl.tmp")
 CACHE_METADATA_FILE = os.path.join(CACHE_DIR, "cache_metadata.json")
+CACHE_METADATA_TEMP_FILE = os.path.join(CACHE_DIR, "cache_metadata.json.tmp")
+CACHE_VERSION = 2  # Increment when cache format changes
+CACHE_LOCK_FILE = os.path.join(CACHE_DIR, ".cache_lock")
+
+import hashlib
+
+# File locking for cache operations (Unix only - Windows will skip locking)
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False  # Windows doesn't have fcntl
 
 def ensure_cache_dir():
-    """Ensure cache directory exists"""
+    """Ensure cache directory exists - NEVER FAILS"""
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
+        return True
     except Exception as e:
         print(f"⚠️ Failed to create cache directory: {e}")
+        # Don't fail - cache will just use memory
+        return False
 
-def save_cache_to_disk(data, folder_info=None):
-    """Save cache to disk for persistence (survives container restarts)"""
+def _calculate_data_hash(data):
+    """Calculate hash of data for corruption detection"""
+    try:
+        # Create a simple hash of data structure
+        data_str = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.md5(data_str.encode()).hexdigest()
+    except Exception:
+        return None
+
+def _validate_cache_data(cache_data):
+    """Validate cache data structure - NEVER FAILS, returns True if valid"""
+    try:
+        if not isinstance(cache_data, dict):
+            print("⚠️ Cache validation failed: not a dict")
+            return False
+        
+        required_keys = ['data', 'timestamp', 'version']
+        for key in required_keys:
+            if key not in cache_data:
+                print(f"⚠️ Cache validation failed: missing key '{key}'")
+                return False
+        
+        # Check version compatibility
+        cache_version = cache_data.get('version', 0)
+        if cache_version != CACHE_VERSION:
+            print(f"⚠️ Cache version mismatch: {cache_version} != {CACHE_VERSION}")
+            return False
+        
+        # Check timestamp is valid
+        timestamp = cache_data.get('timestamp')
+        if not isinstance(timestamp, (int, float)) or timestamp <= 0:
+            print("⚠️ Cache validation failed: invalid timestamp")
+            return False
+        
+        # Check data exists and is a dict
+        data = cache_data.get('data')
+        if not isinstance(data, dict):
+            print("⚠️ Cache validation failed: data is not a dict")
+            return False
+        
+        # Check data has content
+        has_content = any(
+            len(v) > 0 
+            for v in data.values() 
+            if isinstance(v, list)
+        )
+        if not has_content:
+            print("⚠️ Cache validation failed: data has no content")
+            return False
+        
+        # Verify hash if present (optional check)
+        if 'data_hash' in cache_data:
+            calculated_hash = _calculate_data_hash(data)
+            if calculated_hash and cache_data['data_hash'] != calculated_hash:
+                print("⚠️ Cache validation failed: data hash mismatch (corruption detected)")
+                return False
+        
+        return True
+    except Exception as e:
+        print(f"⚠️ Cache validation error: {e}")
+        return False
+
+def _acquire_cache_lock():
+    """Acquire lock for cache operations - returns lock file handle or None"""
+    if not HAS_FCNTL:
+        # Windows - skip locking (not critical, atomic writes still work)
+        return None
+    
     try:
         ensure_cache_dir()
+        lock_file = open(CACHE_LOCK_FILE, 'w')
+        try:
+            # Try to acquire exclusive lock (non-blocking)
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_file
+        except (IOError, OSError):
+            # Lock already held - return None
+            lock_file.close()
+            return None
+    except Exception:
+        # Lock failed - continue without lock (not critical)
+        return None
+
+def _release_cache_lock(lock_file):
+    """Release cache lock"""
+    if not lock_file or not HAS_FCNTL:
+        return
+    
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+        try:
+            os.remove(CACHE_LOCK_FILE)
+        except:
+            pass
+    except Exception:
+        pass
+
+def save_cache_to_disk(data, folder_info=None):
+    """Save cache to disk with atomic write and validation - NEVER FAILS"""
+    if not ensure_cache_dir():
+        print("⚠️ Cache directory not available - skipping disk save")
+        return False
+    
+    lock_file = None
+    try:
+        # Acquire lock to prevent concurrent writes
+        lock_file = _acquire_cache_lock()
+        if not lock_file:
+            print("⚠️ Cache lock held - skipping disk save (will retry next time)")
+            return False
+        
+        # Validate data before saving
+        if not should_cache_data(data):
+            print("⚠️ Data validation failed - not saving to disk")
+            return False
+        
+        # Prepare cache data with version and hash
+        data_hash = _calculate_data_hash(data)
         cache_data = {
             'data': data,
             'timestamp': time.time(),
-            'folder_info': folder_info
+            'folder_info': folder_info,
+            'version': CACHE_VERSION,
+            'data_hash': data_hash
         }
-        with open(CACHE_FILE, 'wb') as f:
-            pickle.dump(cache_data, f)
-        print(f"💾 Cache saved to disk: {CACHE_FILE}")
-        return True
+        
+        # Atomic write: write to temp file first, then rename
+        try:
+            # Write to temp file
+            with open(CACHE_TEMP_FILE, 'wb') as f:
+                pickle.dump(cache_data, f)
+            
+            # Verify temp file was written correctly
+            if not os.path.exists(CACHE_TEMP_FILE) or os.path.getsize(CACHE_TEMP_FILE) == 0:
+                print("⚠️ Temp cache file invalid - not saving")
+                try:
+                    os.remove(CACHE_TEMP_FILE)
+                except:
+                    pass
+                return False
+            
+            # Verify we can read it back (corruption check)
+            try:
+                with open(CACHE_TEMP_FILE, 'rb') as f:
+                    test_data = pickle.load(f)
+                if not _validate_cache_data(test_data):
+                    print("⚠️ Cache validation failed after write - not saving")
+                    try:
+                        os.remove(CACHE_TEMP_FILE)
+                    except:
+                        pass
+                    return False
+            except Exception as e:
+                print(f"⚠️ Cache verification failed: {e} - not saving")
+                try:
+                    os.remove(CACHE_TEMP_FILE)
+                except:
+                    pass
+                return False
+            
+            # Atomic rename (replaces old file)
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)  # Remove old file first
+            os.rename(CACHE_TEMP_FILE, CACHE_FILE)
+            
+            print(f"💾 Cache saved to disk: {CACHE_FILE} (validated)")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Failed to save cache to disk: {e}")
+            # Clean up temp file
+            try:
+                if os.path.exists(CACHE_TEMP_FILE):
+                    os.remove(CACHE_TEMP_FILE)
+            except:
+                pass
+            return False
+            
     except Exception as e:
-        print(f"⚠️ Failed to save cache to disk: {e}")
+        print(f"⚠️ Cache save error: {e}")
         return False
+    finally:
+        _release_cache_lock(lock_file)
 
 def load_cache_from_disk():
-    """Load cache from disk if available and fresh"""
+    """Load cache from disk with validation and corruption handling - NEVER FAILS"""
     try:
-        if os.path.exists(CACHE_FILE):
+        if not os.path.exists(CACHE_FILE):
+            return None, None, None
+        
+        # Check file size (empty file = corrupted)
+        file_size = os.path.getsize(CACHE_FILE)
+        if file_size == 0:
+            print("⚠️ Cache file is empty - removing corrupted cache")
+            try:
+                os.remove(CACHE_FILE)
+            except:
+                pass
+            return None, None, None
+        
+        # Load cache data
+        try:
             with open(CACHE_FILE, 'rb') as f:
                 cache_data = pickle.load(f)
-            cache_age = time.time() - cache_data['timestamp']
-            if cache_age < _cache_duration:
-                print(f"✅ Loaded cache from disk (age: {cache_age:.1f}s)")
-                return cache_data['data'], cache_data.get('folder_info'), cache_data['timestamp']
-            else:
-                print(f"⚠️ Disk cache expired (age: {cache_age:.1f}s)")
+        except (pickle.UnpicklingError, EOFError, ValueError) as e:
+            print(f"⚠️ Cache file corrupted (unpickle error): {e} - removing")
+            try:
+                os.remove(CACHE_FILE)
+            except:
+                pass
+            return None, None, None
+        except Exception as e:
+            print(f"⚠️ Failed to load cache file: {e}")
+            return None, None, None
+        
+        # Validate cache data structure
+        if not _validate_cache_data(cache_data):
+            print("⚠️ Cache validation failed - removing corrupted cache")
+            try:
+                os.remove(CACHE_FILE)
+            except:
+                pass
+            return None, None, None
+        
+        # Check cache age
+        cache_age = time.time() - cache_data['timestamp']
+        if cache_age >= _cache_duration:
+            print(f"⚠️ Disk cache expired (age: {cache_age:.1f}s)")
+            # Don't remove - let it expire naturally
+            return None, None, None
+        
+        # Success - return validated cache
+        print(f"✅ Loaded cache from disk (age: {cache_age:.1f}s, validated)")
+        return cache_data['data'], cache_data.get('folder_info'), cache_data['timestamp']
+        
     except Exception as e:
         print(f"⚠️ Failed to load cache from disk: {e}")
-    return None, None, None
+        # Never fail - return None and continue
+        return None, None, None
 
 def load_file_times_from_metadata():
-    """Load file modification times from metadata for incremental sync"""
+    """Load file modification times from metadata for incremental sync - NEVER FAILS"""
     try:
-        if os.path.exists(CACHE_METADATA_FILE):
-            with open(CACHE_METADATA_FILE, 'r') as f:
-                metadata = json.load(f)
-                return metadata.get('file_times', {})
+        if not os.path.exists(CACHE_METADATA_FILE):
+            return {}
+        
+        # Check file size
+        if os.path.getsize(CACHE_METADATA_FILE) == 0:
+            print("⚠️ Metadata file is empty - removing")
+            try:
+                os.remove(CACHE_METADATA_FILE)
+            except:
+                pass
+            return {}
+        
+        with open(CACHE_METADATA_FILE, 'r') as f:
+            metadata = json.load(f)
+        
+        # Validate structure
+        if not isinstance(metadata, dict):
+            print("⚠️ Metadata file invalid structure - removing")
+            try:
+                os.remove(CACHE_METADATA_FILE)
+            except:
+                pass
+            return {}
+        
+        file_times = metadata.get('file_times', {})
+        if not isinstance(file_times, dict):
+            return {}
+        
+        return file_times
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"⚠️ Metadata file corrupted (JSON error): {e} - removing")
+        try:
+            os.remove(CACHE_METADATA_FILE)
+        except:
+            pass
+        return {}
     except Exception as e:
         print(f"⚠️ Failed to load file times metadata: {e}")
-    return {}
+        return {}
 
 def save_file_times_to_metadata(file_times):
-    """Save file modification times to metadata for incremental sync"""
+    """Save file modification times to metadata with atomic write - NEVER FAILS"""
+    if not ensure_cache_dir():
+        return False
+    
     try:
-        ensure_cache_dir()
-        with open(CACHE_METADATA_FILE, 'w') as f:
-            json.dump({'file_times': file_times}, f)
+        # Validate input
+        if not isinstance(file_times, dict):
+            print("⚠️ Invalid file_times format - not saving")
+            return False
+        
+        # Prepare metadata
+        metadata = {
+            'file_times': file_times,
+            'version': 1,
+            'timestamp': time.time()
+        }
+        
+        # Atomic write: write to temp file first, then rename
+        try:
+            with open(CACHE_METADATA_TEMP_FILE, 'w') as f:
+                json.dump(metadata, f)
+            
+            # Verify temp file
+            if not os.path.exists(CACHE_METADATA_TEMP_FILE) or os.path.getsize(CACHE_METADATA_TEMP_FILE) == 0:
+                print("⚠️ Temp metadata file invalid - not saving")
+                try:
+                    os.remove(CACHE_METADATA_TEMP_FILE)
+                except:
+                    pass
+                return False
+            
+            # Verify we can read it back
+            try:
+                with open(CACHE_METADATA_TEMP_FILE, 'r') as f:
+                    json.load(f)  # Verify JSON is valid
+            except json.JSONDecodeError:
+                print("⚠️ Metadata verification failed - not saving")
+                try:
+                    os.remove(CACHE_METADATA_TEMP_FILE)
+                except:
+                    pass
+                return False
+            
+            # Atomic rename
+            if os.path.exists(CACHE_METADATA_FILE):
+                os.remove(CACHE_METADATA_FILE)
+            os.rename(CACHE_METADATA_TEMP_FILE, CACHE_METADATA_FILE)
+            
+            return True
+        except Exception as e:
+            print(f"⚠️ Failed to save metadata: {e}")
+            try:
+                if os.path.exists(CACHE_METADATA_TEMP_FILE):
+                    os.remove(CACHE_METADATA_TEMP_FILE)
+            except:
+                pass
+            return False
     except Exception as e:
-        print(f"⚠️ Failed to save file times metadata: {e}")
+        print(f"⚠️ Metadata save error: {e}")
+        return False
 
 def estimate_data_size_mb(data):
     """Estimate data size in MB (rough approximation) - MEMORY EFFICIENT"""
@@ -910,31 +1219,146 @@ def estimate_data_size_mb(data):
         return 200  # Return high value to prevent caching
 
 def should_cache_data(data):
-    """Check if data should be cached based on size and content"""
-    if data is None:
-        print("⚠️ Cannot cache: data is None")
+    """Check if data should be cached based on size and content - NEVER FAILS"""
+    try:
+        if data is None:
+            print("⚠️ Cannot cache: data is None")
+            return False
+        
+        # CRITICAL: Check if data has actual content
+        has_content = False
+        if isinstance(data, dict):
+            has_content = any(
+                len(v) > 0 
+                for v in data.values() 
+                if isinstance(v, list)
+            )
+        
+        if not has_content:
+            print("🚨 CACHE VALIDATION FAILED: Data has no content - refusing to cache empty data!")
+            return False
+        
+        size_mb = estimate_data_size_mb(data)
+        if size_mb > _MAX_CACHE_SIZE_MB:
+            print(f"⚠️ Data too large to cache: {size_mb:.1f}MB > {_MAX_CACHE_SIZE_MB}MB limit")
+            return False
+        
+        print(f"✅ Cache validation passed: data has content ({size_mb:.1f}MB)")
+        return True
+    except Exception as e:
+        print(f"⚠️ Cache validation error: {e} - not caching")
         return False
-    
-    # CRITICAL: Check if data has actual content
-    has_content = False
-    if isinstance(data, dict):
-        has_content = any(
-            len(v) > 0 
-            for v in data.values() 
-            if isinstance(v, list)
-        )
-    
-    if not has_content:
-        print("🚨 CACHE VALIDATION FAILED: Data has no content - refusing to cache empty data!")
+
+def clear_corrupted_cache():
+    """Clear corrupted cache files - NEVER FAILS"""
+    try:
+        corrupted = False
+        
+        # Check and remove corrupted cache file
+        if os.path.exists(CACHE_FILE):
+            try:
+                # Try to load and validate
+                with open(CACHE_FILE, 'rb') as f:
+                    cache_data = pickle.load(f)
+                if not _validate_cache_data(cache_data):
+                    print("🧹 Removing corrupted cache file")
+                    os.remove(CACHE_FILE)
+                    corrupted = True
+            except Exception:
+                print("🧹 Removing corrupted cache file (unreadable)")
+                try:
+                    os.remove(CACHE_FILE)
+                    corrupted = True
+                except:
+                    pass
+        
+        # Check and remove corrupted temp files
+        for temp_file in [CACHE_TEMP_FILE, CACHE_METADATA_TEMP_FILE]:
+            if os.path.exists(temp_file):
+                print(f"🧹 Removing stale temp file: {temp_file}")
+                try:
+                    os.remove(temp_file)
+                    corrupted = True
+                except:
+                    pass
+        
+        # Check and remove corrupted metadata file
+        if os.path.exists(CACHE_METADATA_FILE):
+            try:
+                with open(CACHE_METADATA_FILE, 'r') as f:
+                    metadata = json.load(f)
+                if not isinstance(metadata, dict):
+                    print("🧹 Removing corrupted metadata file")
+                    os.remove(CACHE_METADATA_FILE)
+                    corrupted = True
+            except Exception:
+                print("🧹 Removing corrupted metadata file (unreadable)")
+                try:
+                    os.remove(CACHE_METADATA_FILE)
+                    corrupted = True
+                except:
+                    pass
+        
+        if corrupted:
+            print("✅ Corrupted cache files cleared")
+        return corrupted
+    except Exception as e:
+        print(f"⚠️ Error clearing corrupted cache: {e}")
         return False
-    
-    size_mb = estimate_data_size_mb(data)
-    if size_mb > _MAX_CACHE_SIZE_MB:
-        print(f"⚠️ Data too large to cache: {size_mb:.1f}MB > {_MAX_CACHE_SIZE_MB}MB limit")
-        return False
-    
-    print(f"✅ Cache validation passed: data has content ({size_mb:.1f}MB)")
-    return True
+
+def get_cache_status():
+    """Get cache status for debugging - NEVER FAILS"""
+    try:
+        status = {
+            'memory_cache': {
+                'exists': _data_cache is not None,
+                'age_seconds': None,
+                'size_mb': None
+            },
+            'disk_cache': {
+                'exists': os.path.exists(CACHE_FILE),
+                'age_seconds': None,
+                'size_mb': None,
+                'valid': False
+            },
+            'metadata_cache': {
+                'exists': os.path.exists(CACHE_METADATA_FILE),
+                'file_count': 0
+            }
+        }
+        
+        # Memory cache info
+        if _data_cache and _cache_timestamp:
+            status['memory_cache']['age_seconds'] = time.time() - _cache_timestamp
+            status['memory_cache']['size_mb'] = estimate_data_size_mb(_data_cache)
+        
+        # Disk cache info
+        if os.path.exists(CACHE_FILE):
+            file_size = os.path.getsize(CACHE_FILE)
+            status['disk_cache']['size_mb'] = file_size / (1024 * 1024)
+            try:
+                with open(CACHE_FILE, 'rb') as f:
+                    cache_data = pickle.load(f)
+                if _validate_cache_data(cache_data):
+                    status['disk_cache']['valid'] = True
+                    status['disk_cache']['age_seconds'] = time.time() - cache_data['timestamp']
+            except:
+                status['disk_cache']['valid'] = False
+        
+        # Metadata cache info
+        if os.path.exists(CACHE_METADATA_FILE):
+            try:
+                with open(CACHE_METADATA_FILE, 'r') as f:
+                    metadata = json.load(f)
+                file_times = metadata.get('file_times', {})
+                status['metadata_cache']['file_count'] = len(file_times)
+            except:
+                pass
+        
+        return status
+    except Exception as e:
+        print(f"⚠️ Error getting cache status: {e}")
+        return {'error': str(e)}
 
 @app.route('/api/data', methods=['GET', 'HEAD', 'OPTIONS'])
 def get_all_data():
@@ -1097,13 +1521,13 @@ def get_all_data():
                             except Exception as e:
                                 sales_data_error[0] = e
                         
-                        # Start loading in thread with 10 second timeout
+                        # Start loading in thread with 30 second timeout (increased for reliability)
                         thread = threading.Thread(target=load_sales_orders_thread, daemon=True)
                         thread.start()
-                        thread.join(timeout=10)  # 10 second max wait
+                        thread.join(timeout=30)  # 30 second max wait (increased from 10s)
                         
                         if thread.is_alive():
-                            print("⚠️ Sales Orders loading timed out after 10s - returning without Sales Orders")
+                            print("⚠️ Sales Orders loading timed out after 30s - returning without Sales Orders")
                             print("⚠️ Use /api/sales-orders endpoint for full Sales Orders data")
                         elif sales_data_error[0]:
                             print(f"⚠️ Error loading Sales Orders: {sales_data_error[0]}")
@@ -1272,11 +1696,13 @@ def get_all_data():
             print(f"✅ Loaded {raw_data['TotalOrders']} Sales Orders from {len(raw_data['SalesOrdersByStatus'])} folders")
         except Exception as e:
             print(f"⚠️ Error loading Sales Orders: {e}")
-            # Don't fail the entire request if Sales Orders fail
-        raw_data['SalesOrders.json'] = []
-        raw_data['SalesOrdersByStatus'] = {}
-        raw_data['TotalOrders'] = 0
-        raw_data['StatusFolders'] = []
+            import traceback
+            traceback.print_exc()
+            # Don't fail the entire request if Sales Orders fail - set empty defaults
+            raw_data['SalesOrders.json'] = []
+            raw_data['SalesOrdersByStatus'] = {}
+            raw_data['TotalOrders'] = 0
+            raw_data['StatusFolders'] = []
         
         # Enterprise SO Service integration
         try:
@@ -1742,12 +2168,44 @@ def get_mps_data():
 
 @app.route('/api/data/clear-cache', methods=['POST'])
 def clear_data_cache():
-    """Clear the data cache to force fresh reload"""
+    """Clear the data cache - both memory and disk"""
     global _data_cache, _cache_timestamp
     _data_cache = None
     _cache_timestamp = None
-    print("Data cache cleared - next request will load fresh data")
-    return jsonify({"message": "Cache cleared successfully"})
+    
+    # Also clear disk cache
+    try:
+        if os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+        if os.path.exists(CACHE_METADATA_FILE):
+            os.remove(CACHE_METADATA_FILE)
+        if os.path.exists(CACHE_TEMP_FILE):
+            os.remove(CACHE_TEMP_FILE)
+        if os.path.exists(CACHE_METADATA_TEMP_FILE):
+            os.remove(CACHE_METADATA_TEMP_FILE)
+        print("✅ Cache cleared (memory + disk)")
+    except Exception as e:
+        print(f"⚠️ Error clearing disk cache: {e}")
+    
+    return jsonify({"status": "Cache cleared", "memory": True, "disk": True})
+
+@app.route('/api/data/cache-status', methods=['GET'])
+def get_cache_status_endpoint():
+    """Get cache status for debugging"""
+    status = get_cache_status()
+    return jsonify(status)
+
+@app.route('/api/data/fix-cache', methods=['POST'])
+def fix_cache_endpoint():
+    """Fix corrupted cache by clearing it"""
+    cleared = clear_corrupted_cache()
+    global _data_cache, _cache_timestamp
+    _data_cache = None
+    _cache_timestamp = None
+    return jsonify({
+        "status": "Cache fixed" if cleared else "Cache already clean",
+        "corrupted_files_removed": cleared
+    })
 
 @app.route('/api/data/lazy-load', methods=['POST'])
 def lazy_load_additional_data():
@@ -5395,16 +5853,95 @@ def preload_backend_data():
         if USE_GOOGLE_DRIVE_API and google_drive_service:
             print("📡 Using Google Drive API for data...")
             try:
-                data, folder_info = google_drive_service.get_all_data()
+                # Use incremental sync for faster preload
+                cached_file_times = {}
+                try:
+                    ensure_cache_dir()
+                    if os.path.exists(CACHE_METADATA_FILE):
+                        with open(CACHE_METADATA_FILE, 'r') as f:
+                            metadata = json.load(f)
+                            cached_file_times = metadata.get('file_times', {})
+                        print(f"✅ Loaded {len(cached_file_times)} file times from disk for incremental sync")
+                except Exception as e:
+                    print(f"⚠️ Failed to load cache metadata for incremental sync: {e}")
+                
+                # Use incremental sync to only download changed files
+                data, folder_info, new_file_times = google_drive_service.get_all_data_incremental(cached_file_times)
+                
                 if data and isinstance(data, dict) and len(data) > 0:
-                    _data_cache = data
-                    _cache_timestamp = time.time()
-                    save_cache_to_disk(data, None)  # Save to disk for persistence
-                    print(f"✅ Preloaded {len(data)} data files from Google Drive API")
-                    return True
+                    # Load Sales Orders from important folders - WITH TIMEOUT
+                    print("📦 LOADING: Sales Orders (In Production, New and Revised) for preload...")
+                    so_filter_folders = ['In Production', 'New and Revised']
+                    
+                    # Set empty defaults first
+                    data['SalesOrders.json'] = []
+                    data['SalesOrdersByStatus'] = {}
+                    data['TotalOrders'] = 0
+                    data['StatusFolders'] = []
+                    
+                    try:
+                        import threading
+                        
+                        # Use threading with timeout to prevent blocking
+                        sales_data_result = [None]
+                        sales_data_error = [None]
+                        
+                        def load_sales_orders_thread():
+                            try:
+                                if google_drive_service and google_drive_service.authenticated:
+                                    print("[INFO] Using Google Drive API for Sales Orders (preload)")
+                                    sales_data_result[0] = google_drive_service.load_sales_orders_data(None, filter_folders=so_filter_folders)
+                            except Exception as e:
+                                sales_data_error[0] = e
+                        
+                        # Start loading in thread with 30 second timeout
+                        thread = threading.Thread(target=load_sales_orders_thread, daemon=True)
+                        thread.start()
+                        thread.join(timeout=30)  # 30 second max wait
+                        
+                        if thread.is_alive():
+                            print("⚠️ Sales Orders preload timed out after 30s - will load on first request")
+                        elif sales_data_error[0]:
+                            print(f"⚠️ Error loading Sales Orders during preload: {sales_data_error[0]}")
+                        elif sales_data_result[0]:
+                            sales_data = sales_data_result[0]
+                            # Add Sales Orders to data
+                            data['SalesOrders.json'] = sales_data.get('SalesOrders.json', [])
+                            data['SalesOrdersByStatus'] = sales_data.get('SalesOrdersByStatus', {})
+                            data['TotalOrders'] = sales_data.get('TotalOrders', 0)
+                            data['StatusFolders'] = sales_data.get('StatusFolders', [])
+                            data['ScanMethod'] = sales_data.get('ScanMethod', 'Google Drive API')
+                            
+                            print(f"✅ Preloaded {data['TotalOrders']} Sales Orders from {len(data['SalesOrdersByStatus'])} folders")
+                    except Exception as e:
+                        print(f"⚠️ Error in Sales Orders preload thread: {e}")
+                    
+                    # Save new file times for next incremental sync
+                    try:
+                        ensure_cache_dir()
+                        with open(CACHE_METADATA_FILE, 'w') as f:
+                            json.dump({'file_times': new_file_times}, f)
+                        print(f"💾 Saved {len(new_file_times)} file times to disk for next incremental sync")
+                    except Exception as e:
+                        print(f"⚠️ Failed to save cache metadata to disk: {e}")
+                    
+                    # Cache the data
+                    if should_cache_data(data):
+                        _data_cache = data
+                        _cache_timestamp = time.time()
+                        save_cache_to_disk(data, folder_info)  # Save to disk for persistence
+                        cache_size_mb = estimate_data_size_mb(data)
+                        print(f"✅ Preloaded {len(data)} data files from Google Drive API ({cache_size_mb:.1f}MB)")
+                        print("✅ Backend data preloaded - ready for users!")
+                        return True
+                    else:
+                        print("⚠️ Data too large to cache during preload")
+                        return False
             except Exception as e:
                 print(f"⚠️ Google Drive API preload failed: {e}")
-                print("   Falling back to local G: drive...")
+                import traceback
+                traceback.print_exc()
+                print("   Backend will load data on first request")
         
         # Check if local G: Drive is accessible
         if not os.path.exists(GDRIVE_BASE):
@@ -5496,8 +6033,14 @@ if __name__ == '__main__':
         print("❌ Gmail Email Assistant service not available")
     
     # PRELOAD DATA BEFORE STARTING SERVER
-    # DISABLED: Slows down startup, data loads on-demand instead
-    # preload_backend_data()
+    # Enabled: Preloads data on startup so first user request is fast
+    print("🔄 Preloading backend data on startup...")
+    
+    # Clear any corrupted cache files first
+    clear_corrupted_cache()
+    
+    # Preload data
+    preload_backend_data()
     
     # Get port from environment variable (for deployment) or use default
     port = int(os.environ.get('PORT', 5002))

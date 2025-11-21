@@ -2663,7 +2663,7 @@ def generate_all_documents():
             
         except Exception as e:
             print(f"❌ BOL generation error: {e}")
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"BOL generation failed: {str(e)}")
             results['bol'] = {'success': False, 'error': str(e)}
         
@@ -2687,7 +2687,7 @@ def generate_all_documents():
             
         except Exception as e:
             print(f"❌ Packing Slip generation error: {e}")
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"Packing Slip generation failed: {str(e)}")
             results['packing_slip'] = {'success': False, 'error': str(e)}
         
@@ -2765,8 +2765,7 @@ def generate_all_documents():
             
         except Exception as e:
             print(f"❌ Commercial Invoice generation error: {e}")
-            import traceback
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"Commercial Invoice generation failed: {str(e)}")
             results['commercial_invoice'] = {'success': False, 'error': str(e)}
         
@@ -2819,8 +2818,7 @@ def generate_all_documents():
                         print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
                     except Exception as dg_err:
                         print(f"❌ Failed to process DG form {dg_original_filename}: {dg_err}")
-                        import traceback
-                        traceback.print_exc()
+                        traceback.print_exc()  # Use module-level traceback
                         errors.append(f"DG form {dg_original_filename}: {str(dg_err)}")
                         # Continue to next DG form
                 
@@ -2894,8 +2892,7 @@ def generate_all_documents():
                 
         except Exception as e:
             print(f"❌ Dangerous Goods generation error: {e}")
-            import traceback
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"Dangerous Goods generation failed: {str(e)}")
             results['dangerous_goods'] = {'success': False, 'error': str(e)}
         
@@ -2932,8 +2929,7 @@ def generate_all_documents():
                 
         except Exception as e:
             print(f"❌ TSCA generation error: {e}")
-            import traceback
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"TSCA generation failed: {str(e)}")
             results['tsca_certification'] = {'success': False, 'error': str(e)}
         
@@ -3021,7 +3017,7 @@ def generate_all_documents():
                 
         except Exception as e:
             print(f"❌ USMCA generation error: {e}")
-            traceback.print_exc()
+            traceback.print_exc()  # Use module-level traceback
             errors.append(f"USMCA generation failed: {str(e)}")
             results['usmca_certificate'] = {'success': False, 'error': str(e)}
         
@@ -3158,8 +3154,7 @@ def generate_all_documents():
         print(f"❌ ERROR: Error in generate_all_documents: {e}")
         print(f"ERROR TYPE: {type(e).__name__}")
         print(f"ERROR DETAILS: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        traceback.print_exc()  # Use module-level traceback (imported at top of file)
         
         # Return more specific error information
         error_details = {
