@@ -828,103 +828,59 @@ const LogisticsAutomation: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-white to-blue-50/50 rounded-2xl shadow-xl border border-blue-100/50 p-8 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-5">
-              <div className="bg-white p-3 rounded-xl shadow-md border border-gray-100">
-                <img 
-                  src="/logo.png" 
-                  alt="Canoil Logo" 
-                  className="w-14 h-14 object-contain"
-                />
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                  Shipping & Logistics Management
-                </h1>
-                <p className="text-gray-600 mt-1 text-sm font-medium">Streamlined document processing and shipment management</p>
-              </div>
-            </div>
-            
-            {/* Show "Start New Shipment" button if there's existing data */}
-            {(result || documents.length > 0) && (
-              <button
-                onClick={startNewShipment}
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
-                title="Clear all data and start a new shipment"
-              >
-                <Send className="w-5 h-5" />
-                Start New Shipment
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Processing Mode Selection */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-blue-100 p-2 rounded-lg">
+        {/* Compact Header with Mode Toggle */}
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <Truck className="w-6 h-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">Logistics</h1>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">Processing Mode</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className={`relative flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-              processingMode === 'auto' 
-                ? 'border-blue-500 bg-blue-50 shadow-md' 
-                : 'border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50'
-            }`}>
-              <input
-                type="radio"
-                name="processingMode"
-                value="auto"
-                checked={processingMode === 'auto'}
-                onChange={(e) => setProcessingMode(e.target.value as 'auto' | 'manual')}
-                className="mt-1 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-2xl">🤖</span>
-                  <span className="font-bold text-gray-900">Automatic</span>
-                  <span className="bg-blue-100 text-blue-600 text-xs font-semibold px-2 py-0.5 rounded-full">Recommended</span>
-                </div>
-                <p className="text-sm text-gray-600">Auto-detect SO number and find file</p>
-              </div>
-            </label>
             
-            <label className={`relative flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-              processingMode === 'manual' 
-                ? 'border-blue-500 bg-blue-50 shadow-md' 
-                : 'border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50'
-            }`}>
-              <input
-                type="radio"
-                name="processingMode"
-                value="manual"
-                checked={processingMode === 'manual'}
-                onChange={(e) => setProcessingMode(e.target.value as 'auto' | 'manual')}
-                className="mt-1 w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-2xl">📁</span>
-                  <span className="font-bold text-gray-900">Manual</span>
-                </div>
-                <p className="text-sm text-gray-600">Upload SO file manually</p>
+            <div className="flex items-center gap-3">
+              {/* Compact Mode Toggle */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setProcessingMode('auto')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    processingMode === 'auto'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  🤖 Auto
+                </button>
+                <button
+                  onClick={() => setProcessingMode('manual')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    processingMode === 'manual'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  📁 Manual
+                </button>
               </div>
-            </label>
+              
+              {/* Start New Shipment button */}
+              {(result || documents.length > 0) && (
+                <button
+                  onClick={startNewShipment}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all text-sm font-semibold"
+                  title="Clear all data and start a new shipment"
+                >
+                  <Send className="w-4 h-4" />
+                  New
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Email Input Section */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Mail className="w-6 h-6 text-blue-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">Email Content</h2>
+        {/* Compact Email Input - Prominently at Top */}
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Mail className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Paste Email</h2>
           </div>
           
           <textarea
@@ -949,45 +905,69 @@ const LogisticsAutomation: React.FC = () => {
                 }
               }
             }}
-            placeholder="Paste the logistics email content here... (e.g., 'SO 3015 for Fastenal...') Press Enter to process (Shift+Enter for new line)"
-            className="w-full p-5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all duration-200 text-gray-700 placeholder-gray-400 font-mono text-sm"
-            rows={8}
+            placeholder="Paste email here and press Enter to process..."
+            className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all text-gray-700 placeholder-gray-400 text-sm"
+            rows={6}
+            autoFocus
           />
+          
+          {/* Process Button */}
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
+              disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
+              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  {processingMode === 'auto' ? 'Processing...' : 'Processing...'}
+                </>
+              ) : (
+                <>
+                  <Truck className="w-4 h-4" />
+                  {processingMode === 'auto' ? '🤖 Auto Process' : 'Process'}
+                </>
+              )}
+            </button>
+            
+            {processingMode === 'auto' && (
+              <span className="text-xs text-gray-500">Auto-detects SO number from email</span>
+            )}
+          </div>
         </div>
                 
-        {/* SO File Upload Section - Only show in manual mode */}
+        {/* Compact SO File Upload - Only show in manual mode */}
         {processingMode === 'manual' && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <FileText className="w-6 h-6 text-blue-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">SO PDF File</h2>
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">SO PDF File</h2>
             </div>
             
-            <div className="relative">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setSoFile(e.target.files?.[0] || null)}
-                className="w-full p-5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
-            </div>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => setSoFile(e.target.files?.[0] || null)}
+              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 text-sm"
+            />
           </div>
         )}
                 
-        {/* Auto-Detection Results */}
+        {/* Compact Auto-Detection Results */}
         {autoDetection && (
-          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl shadow-lg p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-blue-600" />
-                </div>
-                <span className="text-xl font-bold text-blue-900">Auto-Detection Results</span>
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl shadow-md p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-blue-600" />
+                <span className="text-lg font-bold text-blue-900">Auto-Detected</span>
               </div>
               {autoDetection.file_path && (
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button 
                     onClick={() => {
                       const pdfPath = autoDetection.file_path;
@@ -998,73 +978,26 @@ const LogisticsAutomation: React.FC = () => {
                         window.open(url, '_blank');
                       }
                     }}
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5"
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    View SO
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const pdfPath = autoDetection.file_path;
-                      if (pdfPath) {
-                        window.open(`file:///${pdfPath.replace(/\\/g, '/')}`, '_blank');
-                      }
-                    }}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Open File
+                    <ExternalLink className="w-3 h-3" />
+                    View
                   </button>
                 </div>
               )}
             </div>
-            <div className="bg-white/70 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-bold text-blue-900 min-w-[100px]">SO Number:</span>
-                <span className="text-blue-700 font-semibold">{autoDetection.so_number}</span>
+            <div className="bg-white/70 rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-blue-900 min-w-[70px]">SO:</span>
+                <span className="text-blue-700 font-bold">{autoDetection.so_number}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-bold text-blue-900 min-w-[100px]">File Found:</span>
-                <span className="text-blue-700">{autoDetection.filename}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-bold text-blue-900 min-w-[100px]">Status:</span>
-                <span className="text-green-600 font-semibold flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" />
-                  Ready for processing
-                </span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-blue-900 min-w-[70px]">File:</span>
+                <span className="text-blue-700 truncate">{autoDetection.filename}</span>
               </div>
             </div>
           </div>
         )}
-                
-        {/* Process Button */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-6">
-          <button
-            onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
-            disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold py-5 px-8 rounded-xl flex items-center justify-center gap-3 transition-all duration-200 shadow-lg hover:shadow-xl text-lg"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                {processingMode === 'auto' ? 'Auto-detecting SO and processing...' : 'Processing logistics...'}
-              </>
-            ) : (
-              <>
-                <Send className="w-6 h-6" />
-                {processingMode === 'auto' ? '🤖 Auto Process Logistics' : 'Process Logistics'}
-              </>
-            )}
-          </button>
-          {processingMode === 'auto' && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-              <p className="text-sm text-blue-800 text-center">
-                <strong className="font-semibold">Auto Mode:</strong> Works with or without SO PDF files - perfect for sample shipments!
-              </p>
-            </div>
-          )}
-        </div>
 
         {/* Error Display */}
         {error && (
