@@ -53,21 +53,27 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   
   // Effect to populate selectedItems when preFilledItems are provided
   useEffect(() => {
-    console.log('PR Modal - preFilledItems received:', preFilledItems);
+    // Only log when modal is open (not during initial loading)
+    if (isOpen) {
+      console.log('PR Modal - preFilledItems received:', preFilledItems);
+    }
     if (preFilledItems && preFilledItems.length > 0) {
-      console.log('PR Modal - Setting selectedItems to:', preFilledItems);
+      if (isOpen) {
+        console.log('PR Modal - Setting selectedItems to:', preFilledItems);
+      }
       setSelectedItems(preFilledItems);
       
       // Also clear search when pre-filled items are provided
       setSearchQuery('');
       setSearchResults([]);
     }
-  }, [preFilledItems]);
-  
+  }, [preFilledItems, isOpen]);
+
   // Reset modal when opened
   useEffect(() => {
-    console.log('PR Modal - isOpen changed to:', isOpen);
+    // Only log when modal is actually opened (not during initial render)
     if (isOpen) {
+      console.log('PR Modal - isOpen changed to:', isOpen);
       console.log('PR Modal - Modal opened, clearing search');
       // Clear search when modal opens
       setSearchQuery('');
@@ -77,6 +83,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       if (!preFilledItems || preFilledItems.length === 0) {
         setSelectedItems([]);
       }
+    }
     }
   }, [isOpen, preFilledItems]);
   
@@ -140,8 +147,24 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   }, [poData]);
 
   // Get all items from data - try ALL possible sources (MEMOIZED to prevent repeated calls)
+  // Only check when modal is open AND data is loaded (not during initial loading)
   const getAllItems = useMemo(() => {
+    // Don't do anything if modal is not open (saves computation during loading)
+    if (!isOpen) return [];
+    
     if (!allData) return [];
+    
+    // Check if data is actually loaded (not just empty arrays from initial state)
+    const dataLoaded = allData.loaded === true || 
+      (allData['CustomAlert5.json'] && Array.isArray(allData['CustomAlert5.json']) && allData['CustomAlert5.json'].length > 0) ||
+      (allData['MIITEM.json'] && Array.isArray(allData['MIITEM.json']) && allData['MIITEM.json'].length > 0) ||
+      (allData['Items.json'] && Array.isArray(allData['Items.json']) && allData['Items.json'].length > 0);
+    
+    // If data is not loaded yet (still in loading phase), return empty array silently
+    // This prevents error messages during the loading screen
+    if (!dataLoaded) {
+      return [];
+    }
     
     // Try ALL possible item sources and return first non-empty array
     const sources = [
@@ -162,9 +185,12 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       }
     }
     
-    console.error('❌ No items found in any source!');
+    // Only log error if modal is open, data is loaded, but still no items found (actual problem)
+    if (dataLoaded && isOpen) {
+      console.error('❌ No items found in any source!');
+    }
     return [];
-  }, [allData]); // Only recalculate when allData changes
+  }, [allData, isOpen]); // Only recalculate when allData or isOpen changes
 
   // allItems is now directly memoized (getAllItems is already memoized above)
   const allItems = getAllItems;
