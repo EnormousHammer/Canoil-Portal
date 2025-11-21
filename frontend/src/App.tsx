@@ -83,11 +83,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array = run immediately on mount
 
-  // Premium 7-second loading screen with progress
+  // Premium 14-second loading screen with progress
   useEffect(() => {
     if (showLoadingScreen) {
       const startTime = Date.now();
-      const duration = 7000; // 7 seconds
+      const duration = 14000; // 14 seconds
       
       const interval = setInterval(() => {
         const elapsed = Date.now() - startTime;
@@ -96,7 +96,7 @@ function App() {
         
         if (progress >= 100) {
           clearInterval(interval);
-          // Hide loading screen after 7 seconds (or when data is loaded, whichever comes first)
+          // Hide loading screen after 14 seconds (or when data is loaded, whichever comes first)
           setTimeout(() => {
             setShowLoadingScreen(false);
           }, 500);
@@ -107,7 +107,7 @@ function App() {
     }
   }, [showLoadingScreen]);
 
-  // Hide loading screen when data is loaded (if before 7 seconds)
+  // Hide loading screen when data is loaded (if before 14 seconds)
   useEffect(() => {
     if (dataLoaded && showLoadingScreen) {
       // Wait a moment to ensure smooth transition
