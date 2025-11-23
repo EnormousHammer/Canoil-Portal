@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
 } else {
   // ===== SSR/BUILD TIME =====
   // Use Cloud Run for production builds, localhost for dev builds
-  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4n1pxclyta-uc.a.run.app' : 'http://localhost:5002');
+  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4nlpxclyta-uc.a.run.app' : 'http://localhost:5002');
 }
 
 export const API_BASE_URL = apiBaseUrl;
