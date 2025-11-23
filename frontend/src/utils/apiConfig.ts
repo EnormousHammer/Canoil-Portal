@@ -26,14 +26,16 @@ if (typeof window !== 'undefined') {
     // Ngrok: use same origin (ngrok forwards to backend)
     apiBaseUrl = window.location.origin;
   }
-  // 4. PRODUCTION/VERCEL/RENDER (same origin)
+  // 4. PRODUCTION/VERCEL/RENDER (use Cloud Run directly)
   else {
-    // Production: backend and frontend on same domain (Vercel rewrites, Render proxy)
-    apiBaseUrl = window.location.origin;
+    // Production: ALWAYS use Cloud Run backend (never localhost!)
+    // Use VITE_API_URL if set, otherwise use Cloud Run URL directly
+    apiBaseUrl = envApiUrl || 'https://canoil-backend-4n1pxclyta-uc.a.run.app';
   }
 } else {
   // ===== SSR/BUILD TIME =====
-  apiBaseUrl = envApiUrl || 'http://localhost:5002';
+  // Use Cloud Run for production builds, localhost only for local dev
+  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4n1pxclyta-uc.a.run.app' : 'http://localhost:5002');
 }
 
 export const API_BASE_URL = apiBaseUrl;
