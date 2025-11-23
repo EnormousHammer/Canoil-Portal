@@ -26,16 +26,15 @@ if (typeof window !== 'undefined') {
     // Ngrok: use same origin (ngrok forwards to backend)
     apiBaseUrl = window.location.origin;
   }
-  // 4. PRODUCTION/VERCEL/RENDER (use Cloud Run directly)
+  // 4. PRODUCTION/VERCEL/RENDER (same origin - uses vercel.json rewrite)
   else {
-    // Production: ALWAYS use Cloud Run backend (never localhost!)
-    // Use VITE_API_URL if set, otherwise use Cloud Run URL directly
-    apiBaseUrl = envApiUrl || 'https://canoil-backend-4n1pxclyta-uc.a.run.app';
+    // Production: Use same origin (Vercel rewrites /api/* to Cloud Run via vercel.json)
+    // This works because vercel.json has: { "src": "/api/(.*)", "dest": "https://canoil-backend-4n1pxclyta-uc.a.run.app/api/$1" }
+    apiBaseUrl = window.location.origin;
   }
 } else {
   // ===== SSR/BUILD TIME =====
-  // Use Cloud Run for production builds, localhost only for local dev
-  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4n1pxclyta-uc.a.run.app' : 'http://localhost:5002');
+  apiBaseUrl = envApiUrl || 'http://localhost:5002';
 }
 
 export const API_BASE_URL = apiBaseUrl;
