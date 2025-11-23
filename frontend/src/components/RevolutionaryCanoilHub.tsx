@@ -639,7 +639,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       // Create searchable text from all relevant fields
       const searchableFields = [
         mo['Mfg. Order No.'],
-        mo['Customer'],
+        getCustomerName(mo),
         mo['Build Item No.'],
         mo['Description'],
         mo['Non-Stocked Build Item Description'],
@@ -1132,6 +1132,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     };
   }, [data]);
 
+  // Helper function to get customer name - always returns a value (from MO or Sales Order)
+  const getCustomerName = useMemo(() => {
+    const salesOrders = data['SalesOrderHeaders.json'] || data['SalesOrders.json'] || [];
+    
+    return (mo: any): string => {
+      // First try MO's Customer field
+      if (mo['Customer'] && mo['Customer'].trim()) {
+        return mo['Customer'];
+      }
+      
+      // If no customer in MO, try to find it from Sales Order
+      if (mo['Sales Order No.'] || mo['Sales Order Number'] || mo['Sales Order']) {
+        const soNumber = mo['Sales Order No.'] || mo['Sales Order Number'] || mo['Sales Order'];
+        const relatedSO = salesOrders.find((so: any) => 
+          so['Order No.'] === soNumber || 
+          so['Order Number'] === soNumber ||
+          so['SO Number'] === soNumber ||
+          so['Sales Order No.'] === soNumber
+        );
+        
+        if (relatedSO) {
+          return relatedSO['Customer'] || 
+                 relatedSO['Customer Name'] || 
+                 relatedSO['customer_name'] || 
+                 'Internal';
+        }
+      }
+      
+      // Fallback
+      return 'Internal';
+    };
+  }, [data['SalesOrderHeaders.json'], data['SalesOrders.json']]);
+
   // ENHANCED CUSTOMER ANALYSIS - Real business intelligence with smart name combining
   const customerAnalytics = useMemo(() => {
     const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
@@ -1160,8 +1193,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
     // Process all MOs to build comprehensive customer profiles
     moHeaders.forEach((mo: any) => {
-      const customerName = mo["Customer"];
-      if (!customerName || !customerName.trim()) return;
+      const customerName = getCustomerName(mo);
+      if (!customerName || customerName.trim() === '' || customerName === 'Internal') return;
       
       const normalizedName = normalizeCompanyName(customerName);
       if (!customers[normalizedName]) {
@@ -1370,7 +1403,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     // Gather all data for this customer
     const customerMOs = (data['ManufacturingOrderHeaders.json'] || [])
-      .filter((mo: any) => mo["Customer"] === customerName);
+      .filter((mo: any) => getCustomerName(mo) === customerName);
     
     const customerData = {
       name: customerName,
@@ -1795,7 +1828,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             }
                             if (moCustomerFilter !== 'all') {
                               filteredMOs = filteredMOs.filter((mo: any) => 
-                                mo['Customer'] === moCustomerFilter
+                                getCustomerName(mo) === moCustomerFilter
                               );
                             }
                             
@@ -1892,8 +1925,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               {(() => {
                                 const uniqueCustomers = Array.from(new Set(
                                   (data['ManufacturingOrderHeaders.json'] || [])
-                                    .filter((mo: any) => mo['Customer'])
-                                    .map((mo: any) => mo['Customer'])
+                                    .map((mo: any) => getCustomerName(mo))
+                                    .filter((name: string) => name && name !== 'Internal')
                                 )).sort();
                                 
                                 return uniqueCustomers.map((customer: string) => (
@@ -1993,7 +2026,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             // Apply customer filter
                             if (moCustomerFilter !== 'all') {
                               filteredMOs = filteredMOs.filter((mo: any) => 
-                                mo['Customer'] === moCustomerFilter
+                                getCustomerName(mo) === moCustomerFilter
                               );
                             }
                             
@@ -2045,6 +2078,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             // Get real location data
                             const location = mo['Location No.'] || mo['Sales Location'] || mo['Work Center'] || '';
                             
+                            // Get customer name - always from MO or SO
+                            const customerName = getCustomerName(mo);
+                            
                             return (
                               <tr 
                                 key={index} 
@@ -2060,7 +2096,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   {mo['Mfg. Order No.']}
                                 </td>
                                 <td className="p-2 text-gray-900 font-medium max-w-[150px] truncate">
-                                  {mo['Customer'] || '—'}
+                                  {customerName}
                                 </td>
                                 <td className="p-2 font-mono text-gray-900">
                                   {mo['Build Item No.']}
@@ -2074,7 +2110,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   {mo['Ordered'] > 0 ? mo['Ordered'].toLocaleString() : '—'}
                                 </td>
                                 <td className="p-2 text-right font-mono text-blue-600">
-                                  {mo['Completed'] > 0 ? mo['Completed'].toLocaleString() : '—'}
+                                  {(mo['Completed'] || 0).toLocaleString()}
                                 </td>
                                 <td className="p-2 text-center">
                                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
@@ -2191,7 +2227,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }
                       if (moCustomerFilter !== 'all') {
                         filteredMOs = filteredMOs.filter((mo: any) => 
-                          mo['Customer'] === moCustomerFilter
+                          getCustomerName(mo) === moCustomerFilter
                         );
                       }
                       
@@ -2266,8 +2302,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           {(() => {
                             const uniqueCustomers = new Set(
                               (data?.['ManufacturingOrderHeaders.json'] || [])
-                                .filter((mo: any) => mo['Released By'] && mo['Customer'])
-                                .map((mo: any) => mo['Customer'])
+                                .filter((mo: any) => mo['Released By'] && getCustomerName(mo) !== 'Internal')
+                                .map((mo: any) => getCustomerName(mo))
                             );
                             return uniqueCustomers.size;
                           })()}
@@ -4514,170 +4550,55 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       Browse & Search Items
                     </span>
                   </h3>
-                  <div className="text-sm text-slate-600">
+                  <div className="text-sm text-slate-600 font-medium">
                     {filteredInventory.length} items found
                   </div>
-                </div>
-                
-                {/* Premium Enterprise Filter Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  
-                  {/* ALL ITEMS - Premium Card */}
-                  <button 
-                    onClick={() => setInventoryFilter('all')}
-                    className={`group relative rounded-2xl p-6 transition-all duration-300 overflow-hidden ${
-                      inventoryFilter === 'all' 
-                        ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-2xl scale-105' 
-                        : 'bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-700 hover:shadow-xl hover:scale-105 border border-blue-200'
-                    }`}
-                  >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -translate-y-10 translate-x-10"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${
-                          inventoryFilter === 'all' ? 'bg-white/20' : 'bg-blue-500 text-white'
-                        }`}>
-                          <div className="text-xl">📊</div>
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-lg">ALL ITEMS</div>
-                          <div className="text-sm opacity-80">Complete Inventory</div>
-                        </div>
-                      </div>
-                      <div className={`text-3xl font-black ${
-                        inventoryFilter === 'all' ? 'text-white' : 'text-blue-600'
-                      }`}>
-                        {(data['CustomAlert5.json'] || []).length.toLocaleString()}
-                      </div>
-                      <div className={`text-xs font-medium uppercase tracking-wider ${
-                        inventoryFilter === 'all' ? 'text-white/80' : 'text-blue-500'
-                      }`}>
-                        Total Items
-                      </div>
-                    </div>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Compact Filter Badges - Aligned Right */}
+                    <button 
+                      onClick={() => setInventoryFilter('all')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
+                        inventoryFilter === 'all' 
+                          ? 'bg-blue-600 text-white shadow-md' 
+                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                      }`}
+                    >
+                      <span className="text-sm">📊</span>
+                      <span className="font-semibold">All:</span>
+                      <span className="font-bold">{(data['CustomAlert5.json'] || []).length.toLocaleString()}</span>
+                    </button>
 
-                  {/* LOW STOCK - Premium Card */}
-                  <button 
-                    onClick={() => setInventoryFilter('low-stock')}
-                    className={`group relative rounded-2xl p-6 transition-all duration-300 overflow-hidden ${
-                      inventoryFilter === 'low-stock' 
-                        ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-2xl scale-105' 
-                        : 'bg-gradient-to-br from-amber-50 to-orange-100 text-amber-700 hover:shadow-xl hover:scale-105 border border-amber-200'
-                    }`}
-                  >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -translate-y-10 translate-x-10"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${
-                          inventoryFilter === 'low-stock' ? 'bg-white/20' : 'bg-amber-500 text-white'
-                        }`}>
-                          <div className="text-xl">⚠️</div>
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-lg">LOW STOCK</div>
-                          <div className="text-sm opacity-80">Attention Needed</div>
-                        </div>
-                      </div>
-                      <div className={`text-3xl font-black ${
-                        inventoryFilter === 'low-stock' ? 'text-white' : 'text-amber-600'
-                      }`}>
-                        {inventoryMetrics.lowStockCount.toLocaleString()}
-                      </div>
-                      <div className={`text-xs font-medium uppercase tracking-wider ${
-                        inventoryFilter === 'low-stock' ? 'text-white/80' : 'text-amber-500'
-                      }`}>
-                        Items Low
-                      </div>
-                    </div>
-                  </button>
+                    <button 
+                      onClick={() => setInventoryFilter('low-stock')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
+                        inventoryFilter === 'low-stock' 
+                          ? 'bg-amber-500 text-white shadow-md' 
+                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                      }`}
+                    >
+                      <span className="text-sm">⚠️</span>
+                      <span className="font-semibold">Low:</span>
+                      <span className="font-bold">{inventoryMetrics.lowStockCount.toLocaleString()}</span>
+                    </button>
 
-                  {/* OUT OF STOCK - Premium Card */}
-                  <button 
-                    onClick={() => setInventoryFilter('out-of-stock')}
-                    className={`group relative rounded-2xl p-6 transition-all duration-300 overflow-hidden ${
-                      inventoryFilter === 'out-of-stock' 
-                        ? 'bg-gradient-to-br from-red-500 to-pink-600 text-white shadow-2xl scale-105' 
-                        : 'bg-gradient-to-br from-red-50 to-pink-100 text-red-700 hover:shadow-xl hover:scale-105 border border-red-200'
-                    }`}
-                  >
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -translate-y-10 translate-x-10"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${
-                          inventoryFilter === 'out-of-stock' ? 'bg-white/20' : 'bg-red-500 text-white'
-                        }`}>
-                          <div className="text-xl">🚨</div>
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-lg">OUT OF STOCK</div>
-                          <div className="text-sm opacity-80">Critical Alert</div>
-                        </div>
-                      </div>
-                      <div className={`text-3xl font-black ${
-                        inventoryFilter === 'out-of-stock' ? 'text-white' : 'text-red-600'
-                      }`}>
-                        {inventoryMetrics.outOfStock.toLocaleString()}
-                      </div>
-                      <div className={`text-xs font-medium uppercase tracking-wider ${
-                        inventoryFilter === 'out-of-stock' ? 'text-white/80' : 'text-red-500'
-                      }`}>
-                        Items Empty
-                      </div>
-                    </div>
-                  </button>
-                </div>
-                
-                {/* Sorting Controls */}
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-gray-700">Sort by:</span>
-                    <select 
-                      value={sortBy} 
-                      onChange={(e) => setSortBy(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    <button 
+                      onClick={() => setInventoryFilter('out-of-stock')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
+                        inventoryFilter === 'out-of-stock' 
+                          ? 'bg-red-500 text-white shadow-md' 
+                          : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                      }`}
                     >
-                      <option value="name">Name (A-Z)</option>
-                      <option value="name-desc">Name (Z-A)</option>
-                      <option value="description">Description (A-Z)</option>
-                      <option value="description-desc">Description (Z-A)</option>
-                      <option value="quantity">Stock Quantity (High-Low)</option>
-                      <option value="quantity-asc">Stock Quantity (Low-High)</option>
-                      <option value="status">Status</option>
-                    </select>
-                    <select 
-                      value={filterStatus} 
-                      onChange={(e) => setFilterStatus(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="all">All Items</option>
-                      <option value="ready">In Stock Only</option>
-                      <option value="short">Low/Out of Stock</option>
-                    </select>
-                    <select 
-                      value={itemsPerPage} 
-                      onChange={(e) => {
-                        setItemsPerPage(parseInt(e.target.value));
-                        setCurrentPage(1); // Reset to first page when changing items per page
-                      }}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value={20}>20 per page</option>
-                      <option value={50}>50 per page</option>
-                      <option value={100}>100 per page</option>
-                      <option value={999999}>Show All</option>
-                    </select>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {searchQuery && `Filtered by: "${searchQuery}"`}
+                      <span className="text-sm">🚨</span>
+                      <span className="font-semibold">Out:</span>
+                      <span className="font-bold">{inventoryMetrics.outOfStock.toLocaleString()}</span>
+                    </button>
                   </div>
                 </div>
+                
                 
 
                 <div className="mt-4 flex justify-between items-center">
-                  <div className="text-lg font-bold text-gray-800">
-                    📦 {filteredInventory.length.toLocaleString()} items found
-                  </div>
                   {inventorySearchQuery && (
                     <div className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                       💡 Smart search: finds "{inventorySearchQuery}" anywhere in item details
@@ -5101,6 +5022,46 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-600">
                       Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredInventory.length)} to {Math.min(currentPage * itemsPerPage, filteredInventory.length)} of {filteredInventory.length} items
+                    </div>
+                    
+                    {/* Sorting Controls - Moved to center */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-gray-700">Sort by:</span>
+                      <select 
+                        value={sortBy} 
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="name">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="description">Description (A-Z)</option>
+                        <option value="description-desc">Description (Z-A)</option>
+                        <option value="quantity">Stock Quantity (High-Low)</option>
+                        <option value="quantity-asc">Stock Quantity (Low-High)</option>
+                        <option value="status">Status</option>
+                      </select>
+                      <select 
+                        value={filterStatus} 
+                        onChange={(e) => setFilterStatus(e.target.value as any)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="all">All Items</option>
+                        <option value="ready">In Stock Only</option>
+                        <option value="short">Low/Out of Stock</option>
+                      </select>
+                      <select 
+                        value={itemsPerPage} 
+                        onChange={(e) => {
+                          setItemsPerPage(parseInt(e.target.value));
+                          setCurrentPage(1); // Reset to first page when changing items per page
+                        }}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={20}>20 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                        <option value={999999}>Show All</option>
+                      </select>
                     </div>
                     
                     <div className="flex items-center gap-2">
