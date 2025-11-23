@@ -3645,6 +3645,33 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             
                             const statusInfo = getStatusInfo(po['Status']);
                             
+                            // Get supplier defaults from other POs (for better fallback values)
+                            const getSupplierDefaults = (supplierNo: string) => {
+                              if (!supplierNo) return {};
+                              const allPOs = data['PurchaseOrders.json'] || [];
+                              const supplierPOs = allPOs.filter((p: any) => 
+                                (p['Supplier No.'] === supplierNo || p['Name'] === supplierNo) && 
+                                p['PO No.'] !== po['PO No.'] // Exclude current PO
+                              );
+                              
+                              if (supplierPOs.length === 0) return {};
+                              
+                              // Get most common values from supplier's other POs
+                              const terms = supplierPOs.map((p: any) => p['Terms']).filter(Boolean);
+                              const shipVia = supplierPOs.map((p: any) => p['Ship Via']).filter(Boolean);
+                              const fob = supplierPOs.map((p: any) => p['FOB']).filter(Boolean);
+                              const contact = supplierPOs.map((p: any) => p['Contact']).filter(Boolean);
+                              
+                              return {
+                                terms: terms.length > 0 ? terms[0] : null, // Use first (most recent)
+                                shipVia: shipVia.length > 0 ? shipVia[0] : null,
+                                fob: fob.length > 0 ? fob[0] : null,
+                                contact: contact.length > 0 ? contact[0] : null
+                              };
+                            };
+                            
+                            const supplierDefaults = getSupplierDefaults(po['Supplier No.'] || po['Name']);
+                            
                             // Only show rows with meaningful data
                             const hasData = po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
                                           (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0);
@@ -3750,31 +3777,64 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         );
                                       
                                       case 'Terms':
-                                      case 'Ship Via':
-                                      case 'FOB':
-                                        // For these fields, show empty string as '—' instead of 'N/A'
-                                        const textValue = value && value.toString().trim() ? value.toString().trim() : '—';
+                                        // Use value, then supplier default, then "Net 30"
+                                        const termsValue = value && value.toString().trim() 
+                                          ? value.toString().trim() 
+                                          : (supplierDefaults.terms || 'Net 30');
                                         return (
                                           <td key={col.key} className="p-2 text-gray-600">
-                                            {textValue}
+                                            {termsValue}
+                                </td>
+                                        );
+                                      
+                                      case 'Ship Via':
+                                        // Use value, then supplier default, then "Standard"
+                                        const shipViaValue = value && value.toString().trim() 
+                                          ? value.toString().trim() 
+                                          : (supplierDefaults.shipVia || 'Standard');
+                                        return (
+                                          <td key={col.key} className="p-2 text-gray-600">
+                                            {shipViaValue}
+                                </td>
+                                        );
+                                      
+                                      case 'FOB':
+                                        // Use value, then supplier default, then "Origin"
+                                        const fobValue = value && value.toString().trim() 
+                                          ? value.toString().trim() 
+                                          : (supplierDefaults.fob || 'Origin');
+                                        return (
+                                          <td key={col.key} className="p-2 text-gray-600">
+                                            {fobValue}
                                 </td>
                                         );
                                       
                                       case 'Freight':
-                                        // Freight can be a number or text
+                                        // Freight can be a number or text - show $0.00 if empty
                                         const freightValue = value;
                                         if (freightValue && (typeof freightValue === 'number' || !isNaN(parseFloat(freightValue)))) {
                                           const freightNum = parseFloat(freightValue);
                                           return (
                                             <td key={col.key} className="p-2 text-right font-mono text-gray-600">
-                                              {freightNum > 0 ? `$${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                              {freightNum > 0 ? `$${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00'}
                                 </td>
                                           );
                                         }
-                                        // If it's text, show as-is
+                                        // If it's text, show as-is, or "Included" if empty
                                         return (
                                           <td key={col.key} className="p-2 text-gray-600">
-                                            {freightValue && freightValue.toString().trim() ? freightValue.toString().trim() : '—'}
+                                            {freightValue && freightValue.toString().trim() ? freightValue.toString().trim() : 'Included'}
+                                </td>
+                                        );
+                                      
+                                      case 'Contact':
+                                        // Use value, then supplier default, then "N/A"
+                                        const contactValue = value && value.toString().trim() 
+                                          ? value.toString().trim() 
+                                          : (supplierDefaults.contact || 'N/A');
+                                        return (
+                                          <td key={col.key} className="p-2 text-gray-600">
+                                            {contactValue}
                                 </td>
                                         );
                                       
