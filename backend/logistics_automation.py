@@ -6,6 +6,73 @@ import json
 from datetime import datetime
 import traceback
 
+def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.html') -> str:
+    """
+    Generate consistent filename format: "DOC_TYPE SO# | PO# | Date"
+    
+    Args:
+        doc_type: Document type (e.g., "BOL", "PackingSlip", "CommercialInvoice")
+        so_data: Sales order data dictionary
+        file_ext: File extension (default: '.html')
+    
+    Returns:
+        Formatted filename (e.g., "BOL SO3039 | PO4500684127 | 2025-11-23.html")
+    """
+    so_number = so_data.get('so_number', 'Unknown')
+    po_number = so_data.get('po_number', '') or so_data.get('order_details', {}).get('po_number', '')
+    
+    # Get date - prefer order_date, then ship_date, then current date
+    date_str = ''
+    if so_data.get('order_date'):
+        try:
+            # Try to parse and format date
+            order_date = so_data.get('order_date')
+            if isinstance(order_date, str):
+                # Try common date formats
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
+                    try:
+                        parsed = datetime.strptime(order_date, fmt)
+                        date_str = parsed.strftime('%Y-%m-%d')
+                        break
+                    except:
+                        continue
+                if not date_str:
+                    date_str = order_date[:10] if len(order_date) >= 10 else order_date
+            else:
+                date_str = str(order_date)[:10]
+        except:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+    elif so_data.get('ship_date'):
+        try:
+            ship_date = so_data.get('ship_date')
+            if isinstance(ship_date, str):
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
+                    try:
+                        parsed = datetime.strptime(ship_date, fmt)
+                        date_str = parsed.strftime('%Y-%m-%d')
+                        break
+                    except:
+                        continue
+                if not date_str:
+                    date_str = ship_date[:10] if len(ship_date) >= 10 else ship_date
+            else:
+                date_str = str(ship_date)[:10]
+        except:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+    else:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+    
+    # Build filename: "DOC_TYPE SO# | PO# | Date.ext"
+    if po_number:
+        filename = f"{doc_type} SO{so_number} | PO{po_number} | {date_str}{file_ext}"
+    else:
+        filename = f"{doc_type} SO{so_number} | {date_str}{file_ext}"
+    
+    # Clean filename (remove invalid characters for file system)
+    filename = filename.replace('/', '-').replace('\\', '-').replace(':', '-')
+    
+    return filename
+
 def get_uploads_dir():
     """Get the correct uploads directory path, handling nested directory structure"""
     # Get the directory containing this file
@@ -2012,12 +2079,37 @@ def process_email():
                         so_item = so_items_to_check[i]  # Get the actual SO item object
                         # Debug: Show what we're comparing
                         print(f"   🔍 COMPARING: Email='{item_desc}' vs SO='{so_desc}'")
-                        # Exact match
+                        
+                        # Exact match check
                         exact_match_1 = item_desc in so_desc
                         exact_match_2 = so_desc in item_desc
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
+                        
                         if exact_match_1 or exact_match_2:
+                            # CRITICAL: When descriptions match, we MUST also check quantity
+                            # This prevents matching 240 qty email item with 115 qty SO item when descriptions are identical
+                            if item_qty:
+                                try:
+                                    email_qty_num = float(item_qty) if item_qty else 0
+                                    so_qty = so_item.get('quantity', 0)
+                                    if isinstance(so_qty, str):
+                                        import re
+                                        qty_match = re.search(r'(\d+\.?\d*)', str(so_qty))
+                                        so_qty_num = float(qty_match.group(1)) if qty_match else float(so_qty)
+                                    else:
+                                        so_qty_num = float(so_qty)
+                                    
+                                    # If quantities don't match, skip this SO item and try the next one
+                                    if abs(email_qty_num - so_qty_num) > 0.01:
+                                        print(f"      ⏭️  DESCRIPTION MATCHES but QTY MISMATCH: Email={email_qty_num}, SO={so_qty_num} - skipping to find correct item")
+                                        continue  # Skip this SO item, continue searching for one with matching quantity
+                                    else:
+                                        print(f"      ✅ DESCRIPTION AND QTY MATCH: Email={email_qty_num}, SO={so_qty_num}")
+                                except Exception as qty_err:
+                                    print(f"      ⚠️  QTY CHECK ERROR: {qty_err} - proceeding with description match only")
+                            
+                            # Only accept match if we got here (either qty matches or qty check failed/not available)
                             matched = True
                             matched_so_item = so_item  # Store the matched item
                             match_details = f"Matched with SO item: {so_desc}"
@@ -2683,10 +2775,8 @@ def generate_bol():
         
         html_content = populate_new_bol_html(so_data, email_analysis)
         
-        # Save the generated HTML
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        so_number = so_data.get('so_number', 'Unknown')
-        html_filename = f"BOL_SO{so_number}_{timestamp}.html"
+        # Save the generated HTML with new naming format
+        html_filename = generate_document_filename("BOL", so_data, '.html')
         uploads_dir = get_uploads_dir()
         html_filepath = os.path.join(uploads_dir, html_filename)
         
@@ -2786,8 +2876,7 @@ def generate_packing_slip():
         
         html_content = generate_packing_slip_html(so_data, email_shipping, items)
         
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"PackingSlip_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
+        filename = generate_document_filename("PackingSlip", so_data, '.html')
         uploads_dir = get_uploads_dir()
         filepath = os.path.join(uploads_dir, filename)
         
@@ -2839,8 +2928,7 @@ def generate_commercial_invoice():
             email_analysis
         )
         
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"CommercialInvoice_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
+        filename = generate_document_filename("CommercialInvoice", so_data, '.html')
         uploads_dir = get_uploads_dir()
         filepath = os.path.join(uploads_dir, filename)
         
@@ -2933,7 +3021,7 @@ def generate_dangerous_goods_only():
             for dg_filepath, dg_original_filename in dg_result['dg_forms']:
                 try:
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    new_dg_filename = f"DangerousGoods_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.docx"
+                    new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
                     uploads_dir = get_uploads_dir()
                     new_dg_path = os.path.join(uploads_dir, new_dg_filename)
                     
@@ -3082,7 +3170,7 @@ def generate_all_documents():
             print(f"DEBUG BOL: pallet_count = {bol_email_data.get('pallet_count')}")
             print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
             bol_html = populate_new_bol_html(so_data, bol_email_data)
-            bol_filename = f"BOL_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
+            bol_filename = generate_document_filename("BOL", so_data, '.html')
             uploads_dir = get_uploads_dir()
             bol_filepath = os.path.join(uploads_dir, bol_filename)
             
@@ -3109,7 +3197,7 @@ def generate_all_documents():
         try:
             from packing_slip_html_generator import generate_packing_slip_html
             ps_html = generate_packing_slip_html(so_data, email_shipping, items)
-            ps_filename = f"PackingSlip_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
+            ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
             uploads_dir = get_uploads_dir()
             ps_filepath = os.path.join(uploads_dir, ps_filename)
             
@@ -3179,7 +3267,7 @@ def generate_all_documents():
                     items, 
                     email_analysis
                 )
-                ci_filename = f"CommercialInvoice_SO{so_data.get('so_number', 'Unknown')}_{timestamp}.html"
+                ci_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
                 uploads_dir = get_uploads_dir()
                 ci_filepath = os.path.join(uploads_dir, ci_filename)
                 
@@ -3232,9 +3320,8 @@ def generate_all_documents():
                         print(f"   Source path: {dg_filepath}")
                         print(f"   Source exists: {os.path.exists(dg_filepath)}")
                         
-                        # Create new filename with timestamp
-                        timestamp_dg = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        new_dg_filename = f"DangerousGoods_SO{so_data.get('so_number', 'Unknown')}_{timestamp_dg}.docx"
+                        # Create new filename with new format
+                        new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
                         # Use absolute path to avoid nested directory issues
                         uploads_dir = get_uploads_dir()
                         new_dg_path = os.path.join(uploads_dir, new_dg_filename)
@@ -3421,8 +3508,7 @@ def generate_all_documents():
                 if os.path.exists(usmca_source):
                     # Copy to uploads folder with timestamped name
                     import shutil
-                    timestamp_usmca = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    usmca_filename = f"USMCA_Certificate_SO{so_data.get('so_number', 'Unknown')}_{timestamp_usmca}.pdf"
+                    usmca_filename = generate_document_filename("USMCA_Certificate", so_data, '.pdf')
                     uploads_dir = get_uploads_dir()
                     usmca_path = os.path.join(uploads_dir, usmca_filename)
                     
