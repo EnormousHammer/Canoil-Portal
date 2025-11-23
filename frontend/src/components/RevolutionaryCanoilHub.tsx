@@ -151,6 +151,8 @@ type PoHeader = {
   requiredDate?: string;  // header-level if present
   terms?: string;
   fob?: string;
+  shipVia?: string;       // Ship Via method
+  freight?: string;       // Freight amount/terms
   currency?: string;
   printStatus?: string;
   billTo?: AddressBlock;  // from Extensions
@@ -328,6 +330,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         requiredDate: po['Required Date'] || '',
         terms: po['Terms'] || '',
         fob: po['FOB'] || '',
+        shipVia: po['Ship Via'] || '',
+        freight: po['Freight'] || '',
         currency: po['Home Currency'] || po['Source Currency'] || 'CAD',
         printStatus: po['Print Status'] || '',
         totalAmount: parseCostValue(po['Total Amount'] || 0),
@@ -3742,6 +3746,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         return (
                                           <td key={col.key} className="p-2 text-right font-medium text-green-600">
                                             {totalReceived > 0 ? totalReceived.toLocaleString() : '—'}
+                                </td>
+                                        );
+                                      
+                                      case 'Terms':
+                                      case 'Ship Via':
+                                      case 'FOB':
+                                        // For these fields, show empty string as '—' instead of 'N/A'
+                                        const textValue = value && value.toString().trim() ? value.toString().trim() : '—';
+                                        return (
+                                          <td key={col.key} className="p-2 text-gray-600">
+                                            {textValue}
+                                </td>
+                                        );
+                                      
+                                      case 'Freight':
+                                        // Freight can be a number or text
+                                        const freightValue = value;
+                                        if (freightValue && (typeof freightValue === 'number' || !isNaN(parseFloat(freightValue)))) {
+                                          const freightNum = parseFloat(freightValue);
+                                          return (
+                                            <td key={col.key} className="p-2 text-right font-mono text-gray-600">
+                                              {freightNum > 0 ? `$${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                </td>
+                                          );
+                                        }
+                                        // If it's text, show as-is
+                                        return (
+                                          <td key={col.key} className="p-2 text-gray-600">
+                                            {freightValue && freightValue.toString().trim() ? freightValue.toString().trim() : '—'}
                                 </td>
                                         );
                                       
