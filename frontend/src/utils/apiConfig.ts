@@ -12,13 +12,13 @@ let apiBaseUrl: string;
 if (typeof window !== 'undefined') {
   // ===== BROWSER ENVIRONMENT =====
   
-  // 1. EXPLICIT ENV VARIABLE (highest priority)
+  // 1. EXPLICIT ENV VARIABLE (highest priority - set in Vercel)
   if (envApiUrl) {
     apiBaseUrl = envApiUrl;
   }
   // 2. LOCAL DEVELOPMENT (localhost frontend)
   else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    // Local development: backend runs on port 5002
+    // Local development: backend runs on port 5002 (Docker)
     apiBaseUrl = 'http://localhost:5002';
   }
   // 3. NGROK (tunnel to local backend)
@@ -26,15 +26,16 @@ if (typeof window !== 'undefined') {
     // Ngrok: use same origin (ngrok forwards to backend)
     apiBaseUrl = window.location.origin;
   }
-  // 4. PRODUCTION/VERCEL/RENDER (same origin - uses vercel.json rewrite)
+  // 4. PRODUCTION/VERCEL (use Cloud Run directly - works when computer is off)
   else {
-    // Production: Use same origin (Vercel rewrites /api/* to Cloud Run via vercel.json)
-    // This works because vercel.json has: { "src": "/api/(.*)", "dest": "https://canoil-backend-4n1pxclyta-uc.a.run.app/api/$1" }
-    apiBaseUrl = window.location.origin;
+    // Production: Use Cloud Run backend directly (doesn't need local computer)
+    // This ensures it works on Vercel even when local Docker is off
+    apiBaseUrl = 'https://canoil-backend-4n1pxclyta-uc.a.run.app';
   }
 } else {
   // ===== SSR/BUILD TIME =====
-  apiBaseUrl = envApiUrl || 'http://localhost:5002';
+  // Use Cloud Run for production builds, localhost for dev builds
+  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4n1pxclyta-uc.a.run.app' : 'http://localhost:5002');
 }
 
 export const API_BASE_URL = apiBaseUrl;
