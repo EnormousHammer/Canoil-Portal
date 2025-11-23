@@ -30,7 +30,7 @@ if (typeof window !== 'undefined') {
   else {
     // Production: Use Cloud Run backend directly (doesn't need local computer)
     // This ensures it works on Vercel even when local Docker is off
-    apiBaseUrl = 'https://canoil-backend-4n1pxclyta-uc.a.run.app';
+    apiBaseUrl = 'https://canoil-backend-4nlpxclyta-uc.a.run.app';
   }
 } else {
   // ===== SSR/BUILD TIME =====
