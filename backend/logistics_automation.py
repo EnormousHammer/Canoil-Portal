@@ -3506,9 +3506,10 @@ def generate_all_documents():
                 usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
                 
                 if os.path.exists(usmca_source):
-                    # Copy to uploads folder with timestamped name
+                    # Copy to uploads folder - USMCA is a blank template, use simple name
                     import shutil
-                    usmca_filename = generate_document_filename("USMCA_Certificate", so_data, '.pdf')
+                    so_number = so_data.get('so_number', 'Unknown')
+                    usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
                     uploads_dir = get_uploads_dir()
                     usmca_path = os.path.join(uploads_dir, usmca_filename)
                     
