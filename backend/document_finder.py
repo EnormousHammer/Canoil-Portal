@@ -9,6 +9,12 @@ import re
 from typing import Optional, Dict
 from datetime import datetime
 import tempfile
+import time
+
+# Cache for folder scans (to avoid re-scanning same folders repeatedly)
+_folder_scan_cache = {}
+_cache_timestamps = {}
+_CACHE_DURATION = 300  # 5 minutes cache
 
 
 # Paths to document folders (for local/fallback)
@@ -100,8 +106,31 @@ def find_latest_sds(product_name: str, google_drive_service=None) -> Optional[st
                 if sds_folder_id:
                     normalized_product = normalize_product_name(product_name)
                     
-                    # Search for matching SDS files
-                    files_by_folder = google_drive_service._scan_folder_recursively(sds_folder_id, "SDS Sheets", rnd_drive_id, depth=0, max_depth=2)
+                    # Use cached folder scan if available (much faster)
+                    cache_key = f"sds_{sds_folder_id}"
+                    if cache_key in _folder_scan_cache:
+                        cache_age = time.time() - _cache_timestamps.get(cache_key, 0)
+                        if cache_age < _CACHE_DURATION:
+                            print(f"   [CACHE] Using cached folder scan (age: {cache_age:.1f}s)")
+                            files_by_folder = _folder_scan_cache[cache_key]
+                        else:
+                            # Cache expired
+                            del _folder_scan_cache[cache_key]
+                            del _cache_timestamps[cache_key]
+                            files_by_folder = None
+                    else:
+                        files_by_folder = None
+                    
+                    # Scan only if not cached (optimized: max_depth=1, max_scan_time=15s)
+                    if files_by_folder is None:
+                        print(f"   [SCAN] Scanning SDS Sheets folder (optimized: depth=1, timeout=15s)...")
+                        files_by_folder = google_drive_service._scan_folder_recursively(
+                            sds_folder_id, "SDS Sheets", rnd_drive_id, 
+                            depth=0, max_depth=1, max_scan_time=15
+                        )
+                        # Cache the result
+                        _folder_scan_cache[cache_key] = files_by_folder
+                        _cache_timestamps[cache_key] = time.time()
                     
                     matching_files = []
                     for folder_path, files in files_by_folder.items():
@@ -218,8 +247,31 @@ def find_latest_cofa(product_name: str, batch_number: str, google_drive_service=
                 if cofa_folder_id:
                     clean_batch = batch_number.replace(' ', '').replace('-', '').strip().upper()
                     
-                    # Search for matching COFA files
-                    files_by_folder = google_drive_service._scan_folder_recursively(cofa_folder_id, "Certificates of Analysis", prod_drive_id, depth=0, max_depth=2)
+                    # Use cached folder scan if available (much faster)
+                    cache_key = f"cofa_{cofa_folder_id}"
+                    if cache_key in _folder_scan_cache:
+                        cache_age = time.time() - _cache_timestamps.get(cache_key, 0)
+                        if cache_age < _CACHE_DURATION:
+                            print(f"   [CACHE] Using cached folder scan (age: {cache_age:.1f}s)")
+                            files_by_folder = _folder_scan_cache[cache_key]
+                        else:
+                            # Cache expired
+                            del _folder_scan_cache[cache_key]
+                            del _cache_timestamps[cache_key]
+                            files_by_folder = None
+                    else:
+                        files_by_folder = None
+                    
+                    # Scan only if not cached (optimized: max_depth=1, max_scan_time=15s)
+                    if files_by_folder is None:
+                        print(f"   [SCAN] Scanning COFA folder (optimized: depth=1, timeout=15s)...")
+                        files_by_folder = google_drive_service._scan_folder_recursively(
+                            cofa_folder_id, "Certificates of Analysis", prod_drive_id, 
+                            depth=0, max_depth=1, max_scan_time=15
+                        )
+                        # Cache the result
+                        _folder_scan_cache[cache_key] = files_by_folder
+                        _cache_timestamps[cache_key] = time.time()
                     
                     matching_files = []
                     for folder_path, files in files_by_folder.items():
