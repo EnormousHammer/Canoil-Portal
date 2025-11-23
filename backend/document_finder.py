@@ -128,6 +128,9 @@ def find_latest_sds(product_name: str, google_drive_service=None) -> Optional[st
                             sds_folder_id, "SDS Sheets", rnd_drive_id, 
                             depth=0, max_depth=1, max_scan_time=15
                         )
+                        # Ensure we have a dict (scan might return None on error)
+                        if files_by_folder is None:
+                            files_by_folder = {}
                         # Cache the result
                         _folder_scan_cache[cache_key] = files_by_folder
                         _cache_timestamps[cache_key] = time.time()
@@ -269,6 +272,9 @@ def find_latest_cofa(product_name: str, batch_number: str, google_drive_service=
                             cofa_folder_id, "Certificates of Analysis", prod_drive_id, 
                             depth=0, max_depth=1, max_scan_time=15
                         )
+                        # Ensure we have a dict (scan might return None on error)
+                        if files_by_folder is None:
+                            files_by_folder = {}
                         # Cache the result
                         _folder_scan_cache[cache_key] = files_by_folder
                         _cache_timestamps[cache_key] = time.time()
