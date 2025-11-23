@@ -3786,7 +3786,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       case 'Contact':
                                         // Only show if there's actual data - no fake defaults
                                         const textValue = value && value.toString().trim() ? value.toString().trim() : null;
-                                        if (!textValue) return null; // Don't render cell if empty
+                                        if (!textValue) {
+                                          // Return empty cell to maintain table structure
+                                          return <td key={col.key} className="p-2"></td>;
+                                        }
                                         return (
                                           <td key={col.key} className="p-2 text-gray-600">
                                             {textValue}
@@ -3812,8 +3815,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </td>
                                           );
                                         }
-                                        // Don't show if empty
-                                        return null;
+                                        // Return empty cell to maintain table structure
+                                        return <td key={col.key} className="p-2"></td>;
                                       
                                       default:
                                         const displayValue = value && value.toString().trim() ? value : 
