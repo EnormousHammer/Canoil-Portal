@@ -404,16 +404,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       { key: 'Total Amount', label: 'Total Amount' },
       { key: 'Invoiced Amount', label: 'Total Amount Paid' },
       { key: 'Source Currency', label: 'Currency', fallback: 'Home Currency' },
-      { key: 'Terms', label: 'Terms', showAlways: true },
-      { key: 'Ship Via', label: 'Ship Via', showAlways: true },
-      { key: 'FOB', label: 'FOB', showAlways: true },
-      { key: 'Freight', label: 'Freight', showAlways: true },
-      { key: 'Contact', label: 'Contact', showAlways: true },
+      { key: 'Terms', label: 'Terms' },
+      { key: 'Ship Via', label: 'Ship Via' },
+      { key: 'FOB', label: 'FOB' },
+      { key: 'Freight', label: 'Freight' },
+      { key: 'Contact', label: 'Contact' },
       { key: 'Close Date', label: 'Close Date' }
     ];
 
     return columns.filter(col => {
-      if (col.required || col.showAlways) return true;
+      if (col.required) return true;
+      if (col.calculated) return true; // Always show calculated fields
       
       // For calculated fields, check if we actually have the underlying data
       if (col.calculated) {
@@ -3696,6 +3697,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   const renderCell = () => {
                                     const value = getValue(po, col.key, col.fallback);
                                     
+                                    // Skip rendering if value is empty/null for optional fields
+                                    const isOptionalField = !col.required && !col.calculated;
+                                    
                                     switch (col.key) {
                                       case 'PO No.':
                                         return (
@@ -3777,66 +3781,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         );
                                       
                                       case 'Terms':
-                                        // Use value, then supplier default, then "Net 30"
-                                        const termsValue = value && value.toString().trim() 
-                                          ? value.toString().trim() 
-                                          : (supplierDefaults.terms || 'Net 30');
-                                        return (
-                                          <td key={col.key} className="p-2 text-gray-600">
-                                            {termsValue}
-                                </td>
-                                        );
-                                      
                                       case 'Ship Via':
-                                        // Use value, then supplier default, then "Standard"
-                                        const shipViaValue = value && value.toString().trim() 
-                                          ? value.toString().trim() 
-                                          : (supplierDefaults.shipVia || 'Standard');
-                                        return (
-                                          <td key={col.key} className="p-2 text-gray-600">
-                                            {shipViaValue}
-                                </td>
-                                        );
-                                      
                                       case 'FOB':
-                                        // Use value, then supplier default, then "Origin"
-                                        const fobValue = value && value.toString().trim() 
-                                          ? value.toString().trim() 
-                                          : (supplierDefaults.fob || 'Origin');
+                                      case 'Contact':
+                                        // Only show if there's actual data - no fake defaults
+                                        const textValue = value && value.toString().trim() ? value.toString().trim() : null;
+                                        if (!textValue) return null; // Don't render cell if empty
                                         return (
                                           <td key={col.key} className="p-2 text-gray-600">
-                                            {fobValue}
+                                            {textValue}
                                 </td>
                                         );
                                       
                                       case 'Freight':
-                                        // Freight can be a number or text - show $0.00 if empty
+                                        // Only show if there's actual data
                                         const freightValue = value;
                                         if (freightValue && (typeof freightValue === 'number' || !isNaN(parseFloat(freightValue)))) {
                                           const freightNum = parseFloat(freightValue);
+                                          if (freightNum > 0) {
+                                            return (
+                                              <td key={col.key} className="p-2 text-right font-mono text-gray-600">
+                                                ${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                            );
+                                          }
+                                        } else if (freightValue && freightValue.toString().trim()) {
                                           return (
-                                            <td key={col.key} className="p-2 text-right font-mono text-gray-600">
-                                              {freightNum > 0 ? `$${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00'}
+                                            <td key={col.key} className="p-2 text-gray-600">
+                                              {freightValue.toString().trim()}
                                 </td>
                                           );
                                         }
-                                        // If it's text, show as-is, or "Included" if empty
-                                        return (
-                                          <td key={col.key} className="p-2 text-gray-600">
-                                            {freightValue && freightValue.toString().trim() ? freightValue.toString().trim() : 'Included'}
-                                </td>
-                                        );
-                                      
-                                      case 'Contact':
-                                        // Use value, then supplier default, then "N/A"
-                                        const contactValue = value && value.toString().trim() 
-                                          ? value.toString().trim() 
-                                          : (supplierDefaults.contact || 'N/A');
-                                        return (
-                                          <td key={col.key} className="p-2 text-gray-600">
-                                            {contactValue}
-                                </td>
-                                        );
+                                        // Don't show if empty
+                                        return null;
                                       
                                       default:
                                         const displayValue = value && value.toString().trim() ? value : 
