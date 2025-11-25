@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
+// Trigger Vercel deployment
 
 interface PurchaseRequisitionModalProps {
   isOpen: boolean;
@@ -244,14 +245,14 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
         
         // Check if matches
         if (itemNo.includes(queryLower) || description.includes(queryLower)) {
-          // Get the most accurate recent cost
-          const recentCost = parseFloat(
+        // Get the most accurate recent cost
+        const recentCost = parseFloat(
             String(item['Recent Cost'] || 
-            item['RECENT_COST'] || 
-            item['Last Cost'] ||
-            item['LAST_COST'] ||
-            item['Standard Cost'] || 
-            item['STANDARD_COST'] || 
+          item['RECENT_COST'] || 
+          item['Last Cost'] ||
+          item['LAST_COST'] ||
+          item['Standard Cost'] || 
+          item['STANDARD_COST'] || 
             0).replace(/[$,]/g, '')
           );
           
@@ -270,19 +271,19 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             item['WIP Qty'] || 
             item['Work In Process'] || 
             0).replace(/,/g, '')
-          );
-          
-          return {
+        );
+        
+        return {
             score,
-            item_no: item['Item No.'] || item['ITEM_NO'] || item['Item_No'],
-            description: item['Description'] || item['DESCRIPTION'] || 'No description',
-            unit_price: recentCost,
-            unit: item['Purchasing Units'] || item['PURCHASING_UNITS'] || item['Purchase_Unit'] || 'EA',
+          item_no: item['Item No.'] || item['ITEM_NO'] || item['Item_No'],
+          description: item['Description'] || item['DESCRIPTION'] || 'No description',
+          unit_price: recentCost,
+          unit: item['Purchasing Units'] || item['PURCHASING_UNITS'] || item['Purchase_Unit'] || 'EA',
             current_stock: stock.toLocaleString(),
             wip: wip.toLocaleString(),
-            reorder_quantity: parseInt(item['Reorder Quantity'] || item['REORDER_QTY'] || 1),
-            preferred_supplier: item['Preferred Supplier Number'] || item['PREFERRED_SUPPLIER'] || ''
-          };
+          reorder_quantity: parseInt(item['Reorder Quantity'] || item['REORDER_QTY'] || 1),
+          preferred_supplier: item['Preferred Supplier Number'] || item['PREFERRED_SUPPLIER'] || ''
+        };
         }
         return null;
       })
