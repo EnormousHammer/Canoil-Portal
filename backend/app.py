@@ -1485,7 +1485,17 @@ def get_all_data():
                 else:
                     print("[INFO] Loading all data from Google Drive API (full sync)...")
                     # Google Drive version uses SAME extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
-                    data, folder_info = google_drive_service.get_all_data()
+                    result = google_drive_service.get_all_data()
+                    if result and len(result) >= 2:
+                        data, folder_info = result[0], result[1]
+                        if data is None:
+                            print(f"[ERROR] Google Drive API returned None for data. Error: {folder_info}")
+                            data = {}
+                            folder_info = {"error": folder_info or "Unknown error"}
+                    else:
+                        print(f"[ERROR] get_all_data returned invalid result: {result}")
+                        data = {}
+                        folder_info = {"error": "Invalid response from Google Drive API"}
                     
                     # Save file times for next incremental sync
                     # Get file modification times from Google Drive
@@ -1981,20 +1991,37 @@ def load_sales_orders(filter_folders=None):
             print(f"RETRY: Scanning {status}...")
             
             # Recursively scan this status folder
-            orders = scan_folder_recursively(folder_path, status)
+            try:
+                orders = scan_folder_recursively(folder_path, status)
+            except Exception as e:
+                print(f"ERROR: Failed to scan folder {status}: {e}")
+                import traceback
+                traceback.print_exc()
+                orders = []
             
             # Separate Scheduled orders from In Production
             scheduled_orders = []
             production_orders = []
             
-            for order in orders:
-                # Check if order is in Scheduled subfolder
-                folder_path_str = order.get('Folder Path', '') or order.get('Full Path', '')
-                if 'scheduled' in folder_path_str.lower() or 'scheduled' in order.get('Level_1', '').lower():
-                    scheduled_orders.append(order)
-                    order['Status'] = 'Scheduled'  # Override status for Scheduled orders
-                else:
-                    production_orders.append(order)
+            try:
+                for order in orders:
+                    if not isinstance(order, dict):
+                        continue
+                    # Check if order is in Scheduled subfolder
+                    folder_path_str = str(order.get('Folder Path', '') or order.get('Full Path', ''))
+                    level_1 = str(order.get('Level_1', ''))
+                    if 'scheduled' in folder_path_str.lower() or 'scheduled' in level_1.lower():
+                        scheduled_orders.append(order)
+                        order['Status'] = 'Scheduled'  # Override status for Scheduled orders
+                    else:
+                        production_orders.append(order)
+            except Exception as e:
+                print(f"ERROR: Failed to separate Scheduled orders: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback: just use all orders as production orders
+                production_orders = orders
+                scheduled_orders = []
             
             # Store orders by their actual status
             if scheduled_orders:

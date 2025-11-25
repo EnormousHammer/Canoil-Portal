@@ -819,7 +819,13 @@ class GoogleDriveService:
                         # Add orders to SalesOrdersByStatus - separate Scheduled from In Production
                         if 'Sales' in folder_name or 'sales' in folder_name.lower():
                             # Determine status key - use "Scheduled" if in Scheduled subfolder
-                            status_key = 'Scheduled' if 'scheduled' in subfolder_path.lower() or 'scheduled' in subfolder_name.lower() else subfolder_name
+                            is_scheduled = False
+                            if subfolder_path and isinstance(subfolder_path, str):
+                                is_scheduled = 'scheduled' in subfolder_path.lower()
+                            if not is_scheduled and subfolder_name and isinstance(subfolder_name, str):
+                                is_scheduled = 'scheduled' in subfolder_name.lower()
+                            
+                            status_key = 'Scheduled' if is_scheduled else (subfolder_name or folder_name)
                             
                             if status_key not in sales_orders_data['SalesOrdersByStatus']:
                                 sales_orders_data['SalesOrdersByStatus'][status_key] = []
