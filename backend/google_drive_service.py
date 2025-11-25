@@ -818,38 +818,50 @@ class GoogleDriveService:
                         
                         # Add orders to SalesOrdersByStatus - separate Scheduled from In Production
                         if 'Sales' in folder_name or 'sales' in folder_name.lower():
-                            # Determine status key - use "Scheduled" if in Scheduled subfolder
-                            is_scheduled = False
-                            if subfolder_path and isinstance(subfolder_path, str):
-                                is_scheduled = 'scheduled' in subfolder_path.lower()
-                            if not is_scheduled and subfolder_name and isinstance(subfolder_name, str):
-                                is_scheduled = 'scheduled' in subfolder_name.lower()
-                            
-                            # For "In Production", add orders to BOTH "In Production" (total) AND "Scheduled" (subset)
-                            if folder_name == 'In Production' and is_scheduled:
-                                # Add to Scheduled category
-                                if 'Scheduled' not in sales_orders_data['SalesOrdersByStatus']:
-                                    sales_orders_data['SalesOrdersByStatus']['Scheduled'] = []
-                                sales_orders_data['SalesOrdersByStatus']['Scheduled'].extend(orders_in_folder)
-                                print(f"[INFO] Found {len(orders_in_folder)} Scheduled orders in {folder_name}/Scheduled")
+                            try:
+                                # Determine status key - use "Scheduled" if in Scheduled subfolder
+                                is_scheduled = False
+                                if subfolder_path and isinstance(subfolder_path, str):
+                                    is_scheduled = 'scheduled' in subfolder_path.lower()
+                                if not is_scheduled and subfolder_name and isinstance(subfolder_name, str):
+                                    is_scheduled = 'scheduled' in subfolder_name.lower()
                                 
-                                # ALSO add to In Production (so it shows total count including Scheduled)
+                                # For "In Production", add orders to BOTH "In Production" (total) AND "Scheduled" (subset)
+                                # Use case-insensitive check for folder name
+                                is_in_production = folder_name and 'production' in folder_name.lower()
+                                if is_in_production and is_scheduled:
+                                    # Add to Scheduled category
+                                    if 'Scheduled' not in sales_orders_data['SalesOrdersByStatus']:
+                                        sales_orders_data['SalesOrdersByStatus']['Scheduled'] = []
+                                    sales_orders_data['SalesOrdersByStatus']['Scheduled'].extend(orders_in_folder)
+                                    print(f"[INFO] Found {len(orders_in_folder)} Scheduled orders in {folder_name}/Scheduled")
+                                    
+                                    # ALSO add to In Production (so it shows total count including Scheduled)
+                                    if folder_name not in sales_orders_data['SalesOrdersByStatus']:
+                                        sales_orders_data['SalesOrdersByStatus'][folder_name] = []
+                                    sales_orders_data['SalesOrdersByStatus'][folder_name].extend(orders_in_folder)
+                                elif is_in_production and not is_scheduled:
+                                    # Direct In Production orders (not in Scheduled subfolder)
+                                    if folder_name not in sales_orders_data['SalesOrdersByStatus']:
+                                        sales_orders_data['SalesOrdersByStatus'][folder_name] = []
+                                    sales_orders_data['SalesOrdersByStatus'][folder_name].extend(orders_in_folder)
+                                else:
+                                    # For other folders, use normal logic
+                                    status_key = 'Scheduled' if is_scheduled else (subfolder_name or folder_name)
+                                    if status_key not in sales_orders_data['SalesOrdersByStatus']:
+                                        sales_orders_data['SalesOrdersByStatus'][status_key] = []
+                                    sales_orders_data['SalesOrdersByStatus'][status_key].extend(orders_in_folder)
+                                
+                                sales_orders_data['TotalSalesOrders'] += len(orders_in_folder)
+                            except Exception as e:
+                                print(f"[ERROR] Error processing sales orders in {folder_name}: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                # Fallback: add to folder name directly
                                 if folder_name not in sales_orders_data['SalesOrdersByStatus']:
                                     sales_orders_data['SalesOrdersByStatus'][folder_name] = []
                                 sales_orders_data['SalesOrdersByStatus'][folder_name].extend(orders_in_folder)
-                            elif folder_name == 'In Production' and not is_scheduled:
-                                # Direct In Production orders (not in Scheduled subfolder)
-                                if folder_name not in sales_orders_data['SalesOrdersByStatus']:
-                                    sales_orders_data['SalesOrdersByStatus'][folder_name] = []
-                                sales_orders_data['SalesOrdersByStatus'][folder_name].extend(orders_in_folder)
-                            else:
-                                # For other folders, use normal logic
-                                status_key = 'Scheduled' if is_scheduled else (subfolder_name or folder_name)
-                                if status_key not in sales_orders_data['SalesOrdersByStatus']:
-                                    sales_orders_data['SalesOrdersByStatus'][status_key] = []
-                                sales_orders_data['SalesOrdersByStatus'][status_key].extend(orders_in_folder)
-                            
-                            sales_orders_data['TotalSalesOrders'] += len(orders_in_folder)
+                                sales_orders_data['TotalSalesOrders'] += len(orders_in_folder)
                         elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
                             if subfolder_name not in sales_orders_data['PurchaseOrdersByStatus']:
                                 sales_orders_data['PurchaseOrdersByStatus'][subfolder_name] = []
