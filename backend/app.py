@@ -1468,20 +1468,44 @@ def get_all_data():
                 # Use incremental sync if we have cached data, otherwise full load
                 if _data_cache and cached_file_times:
                     print("[INFO] Using incremental sync (only changed files)...")
-                    data, folder_info, new_file_times = google_drive_service.get_all_data_incremental(cached_file_times)
+                    try:
+                        result = google_drive_service.get_all_data_incremental(cached_file_times)
+                        if result and len(result) >= 3:
+                            data, folder_info, new_file_times = result[0], result[1], result[2]
+                        else:
+                            print("[WARN] Incremental sync returned invalid result, falling back to full load")
+                            result = google_drive_service.get_all_data()
+                            if result and len(result) >= 2:
+                                data, folder_info = result[0], result[1]
+                            else:
+                                data, folder_info = None, None
+                            new_file_times = {}
+                    except Exception as e:
+                        print(f"[ERROR] Incremental sync failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        print("[WARN] Falling back to full load")
+                        result = google_drive_service.get_all_data()
+                        if result and len(result) >= 2:
+                            data, folder_info = result[0], result[1]
+                        else:
+                            data, folder_info = None, None
+                        new_file_times = {}
                     
                     # Merge with existing cache (for unchanged files)
-                    for filename, file_data in _data_cache.items():
-                        if filename not in data:  # File unchanged
-                            data[filename] = file_data
+                    if data and isinstance(data, dict):
+                        for filename, file_data in _data_cache.items():
+                            if filename not in data:  # File unchanged
+                                data[filename] = file_data
                     
                     # Update file times for next sync
-                    # Merge new times with existing (keep unchanged file times)
-                    for filename, file_time in cached_file_times.items():
-                        if filename not in new_file_times:  # File unchanged
-                            new_file_times[filename] = file_time
-                    
-                    save_file_times_to_metadata(new_file_times)
+                    if new_file_times:
+                        # Merge new times with existing (keep unchanged file times)
+                        for filename, file_time in cached_file_times.items():
+                            if filename not in new_file_times:  # File unchanged
+                                new_file_times[filename] = file_time
+                        
+                        save_file_times_to_metadata(new_file_times)
                 else:
                     print("[INFO] Loading all data from Google Drive API (full sync)...")
                     # Google Drive version uses SAME extraction functions (extract_so_data_from_pdf, extract_so_data_from_docx)
