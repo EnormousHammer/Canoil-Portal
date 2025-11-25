@@ -3726,7 +3726,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       
                                       case 'Total Amount':
                                       case 'Invoiced Amount':
-                                      case 'Freight':
                                         const amount = parseFloat(value || 0);
                                         const colorClass = col.key === 'Total Amount' ? 'text-green-600' :
                                                          col.key === 'Invoiced Amount' ? 'text-blue-600' : 'text-gray-600';
