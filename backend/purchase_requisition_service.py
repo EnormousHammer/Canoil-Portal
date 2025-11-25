@@ -14,18 +14,45 @@ import io
 
 pr_service = Blueprint('pr_service', __name__)
 
-GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
+# Use environment variable for path (works for both local and Cloud Run)
+# Default to Windows path for local, but can be overridden via environment variable
+GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions")
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
 def get_latest_folder():
-    """Get latest data folder"""
-    if not os.path.exists(GDRIVE_BASE):
+    """
+    Get latest MISys API extraction folder
+    Always returns the most recent folder by date (YYYY-MM-DD format)
+    Works for both local and Google Cloud Run environments
+    """
+    try:
+        if not os.path.exists(GDRIVE_BASE):
+            print(f"⚠️ GDRIVE_BASE path not accessible: {GDRIVE_BASE}")
+            return None
+        
+        # Get all folders
+        folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]
+        
+        if not folders:
+            print(f"⚠️ No folders found in: {GDRIVE_BASE}")
+            return None
+        
+        # Sort by folder name (assuming YYYY-MM-DD format) - most recent first
+        # This ensures we always get the latest API extraction
+        folders.sort(reverse=True)  # Most recent first (e.g., 2025-01-15 > 2025-01-14)
+        latest_folder = folders[0]
+        
+        print(f"✅ Latest MISys API extraction folder: {latest_folder}")
+        return latest_folder
+        
+    except Exception as e:
+        print(f"❌ Error getting latest folder: {e}")
+        import traceback
+        traceback.print_exc()
         return None
-    folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]
-    return max(folders) if folders else None
 
 
 def load_items():
@@ -164,6 +191,7 @@ def get_recent_purchase_price(item_no, limit=5):
 def get_supplier_info(supplier_no):
     """
     Get supplier information from most recent PO
+    First tries merged PO data (more complete), then falls back to PurchaseOrders.json
     """
     try:
         latest = get_latest_folder()
@@ -171,6 +199,54 @@ def get_supplier_info(supplier_no):
             return None
         
         folder_path = os.path.join(GDRIVE_BASE, latest)
+        
+        # FIRST: Try to get supplier info from merged PO data (more complete)
+        merged_folder = os.path.join(folder_path, 'MERGED_POS', 'individual_pos')
+        if os.path.exists(merged_folder):
+            # Find all merged PO files for this supplier
+            merged_pos = []
+            for filename in os.listdir(merged_folder):
+                if filename.startswith('PO_') and filename.endswith('.json'):
+                    try:
+                        po_file = os.path.join(merged_folder, filename)
+                        with open(po_file, 'r', encoding='utf-8') as f:
+                            merged_po = json.load(f)
+                        
+                        # Check if this PO is for the supplier we're looking for
+                        supplier = merged_po.get('Supplier', {})
+                        if supplier.get('Supplier_No') == supplier_no:
+                            merged_pos.append(merged_po)
+                    except Exception as e:
+                        print(f"Error reading merged PO file {filename}: {e}")
+                        continue
+            
+            if merged_pos:
+                # Sort by Order Date (most recent first)
+                merged_pos.sort(key=lambda x: x.get('Order_Info', {}).get('Order_Date', ''), reverse=True)
+                most_recent_po = merged_pos[0]
+                
+                supplier = most_recent_po.get('Supplier', {})
+                order_info = most_recent_po.get('Order_Info', {})
+                financial = most_recent_po.get('Financial', {})
+                
+                print(f"✅ Found supplier info from merged PO data: {supplier.get('Name', '')}")
+                
+                return {
+                    'supplier_no': supplier_no,
+                    'name': supplier.get('Name', ''),
+                    'contact': supplier.get('Contact', ''),
+                    'phone': supplier.get('Phone', '') or supplier.get('Phone_No', '') or supplier.get('Telephone', ''),
+                    'email': supplier.get('Email', ''),
+                    'terms': order_info.get('Terms', ''),
+                    'po_count': len(merged_pos),
+                    'last_order_date': order_info.get('Order_Date', ''),
+                    'last_po_no': most_recent_po.get('PO_Number', ''),
+                    'buyer': order_info.get('Buyer', ''),
+                    'currency': financial.get('Currency', {}).get('Home_Currency', ''),
+                    'total_amount': financial.get('Total_Amount', 0)
+                }
+        
+        # FALLBACK: Use PurchaseOrders.json if merged data not available
         po_file = os.path.join(folder_path, 'PurchaseOrders.json')
         
         if not os.path.exists(po_file):
@@ -189,6 +265,8 @@ def get_supplier_info(supplier_no):
         supplier_pos.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
         most_recent_po = supplier_pos[0]
         
+        print(f"✅ Found supplier info from PurchaseOrders.json: {most_recent_po.get('Name', '')}")
+        
         return {
             'supplier_no': supplier_no,
             'name': most_recent_po.get('Name', ''),
@@ -206,6 +284,8 @@ def get_supplier_info(supplier_no):
         
     except Exception as e:
         print(f"Error getting supplier info for {supplier_no}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -387,21 +467,19 @@ def generate_requisition():
         if not os.path.exists(PR_TEMPLATE):
             return jsonify({"error": "Template not found"}), 404
         
-        wb = openpyxl.load_workbook(PR_TEMPLATE)
+        # Load template with all formatting preserved
+        # Try to preserve VBA if available, but don't fail if it's not supported
+        try:
+            wb = openpyxl.load_workbook(PR_TEMPLATE, keep_vba=True, data_only=False)
+        except TypeError:
+            # Fallback if keep_vba parameter not supported in this openpyxl version
+            wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
+        
         sheet = wb['Purchase Requisition']
         
-        # Clear any existing item data from template (rows 16-25)
-        for row in range(16, 26):
-            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']:
-                sheet[f'{col}{row}'] = None
-        
-        # Clear supplier info that might be pre-filled
-        sheet['B9'] = None  # Vendor Name
-        sheet['B10'] = None  # Contact
-        sheet['B11'] = None  # Email
-        sheet['C9'] = None   # Address Line 1
-        sheet['C10'] = None  # City, State, Zip
-        sheet['C11'] = None  # Country
+        # DO NOT CLEAR CELLS - This breaks merged cells and form structure
+        # Only fill the specific cells needed, preserving all formatting and structure
+        # For item rows we're not using, we'll leave them as-is (template may have formulas/formatting)
         
         # Fill user info (CORRECT CELLS FROM TEMPLATE)
         sheet['I7'] = user_info.get('name', 'Haron Alhakimi')  # I7: REQUESTED BY
@@ -548,6 +626,10 @@ def generate_requisition():
             
             row = start_row + idx
             
+            # Clear only this specific row's data cells before filling (preserves form structure)
+            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                sheet[f'{col}{row}'].value = ''  # Clear only data cells for this row
+            
             item_no = item.get('item_no', '')
             description = item.get('description', '')
             current_stock = item.get('current_stock', '')
@@ -601,37 +683,29 @@ def generate_requisition():
         print(f"[PR] Completed filling {min(len(items), 10)} items")
         print("="*60 + "\n")
         
-        # Fix formulas for item rows (should be =G16*H16, etc.) and set row heights
+        # Fix formulas for item rows (should be =G16*H16, etc.)
+        # DO NOT modify row heights - preserve original form structure
         num_items = len(items[:10])
         for idx in range(num_items):
             row = 16 + idx
             sheet[f'I{row}'] = f'=G{row}*H{row}'
-            # Set comfortable row height for item rows
-            sheet.row_dimensions[row].height = 18
+            # DO NOT modify row heights - this can break signature areas and form structure
+        
+        # Clear unused item rows (rows beyond what we filled) - only clear data cells for those specific rows
+        # Use empty strings instead of None to preserve cell structure and merged cells
+        for row in range(16 + num_items, 26):
+            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                # Set to empty string - this preserves merged cell structures better than None
+                sheet[f'{col}{row}'].value = ''
         
         # Update TOTAL row formula to sum all item totals (I30 = SUM of I16:I25 or however many items)
         last_item_row = 16 + num_items - 1
         sheet['I30'] = f'=SUM(I16:I{last_item_row})'
         print(f"[PR] Total formula set: =SUM(I16:I{last_item_row})")
         
-        # Enable text wrapping and calculate row heights for vendor cells
-        for row in [9, 10, 11]:
-            max_height = 15  # Start with minimum
-            for col in ['B', 'C']:
-                cell = sheet[f'{col}{row}']
-                if cell.value:
-                    cell.alignment = Alignment(wrap_text=True, vertical='top', horizontal='left')
-                    # Estimate height based on text length and column width
-                    text_length = len(str(cell.value))
-                    # Column B and C are roughly 30-40 characters wide
-                    estimated_lines = max(1, text_length // 35)
-                    needed_height = estimated_lines * 15
-                    max_height = max(max_height, needed_height)
-            
-            # Set row height to accommodate text
-            sheet.row_dimensions[row].height = max_height
-        
-        print("[PR] Text wrapping enabled and row heights adjusted to fit content")
+        # DO NOT modify alignment, row heights, or formatting
+        # This preserves the original form structure including signature areas
+        # The template already has proper formatting - we only fill values
         
         # Save to memory
         output = io.BytesIO()
@@ -666,12 +740,26 @@ def generate_from_po(po_number):
         if not po:
             return jsonify({"error": f"PO {po_number} not found"}), 404
         
-        # Prepare supplier info from PO
+        # Prepare supplier info from PO (merged PO data structure)
         supplier = {
-            'name': po['Supplier']['Name'],
-            'contact': po['Supplier']['Contact'],
-            'address': po['Shipping_Billing'].get('Ship_To_Address', {})
+            'name': po.get('Supplier', {}).get('Name', ''),
+            'contact': po.get('Supplier', {}).get('Contact', ''),
+            'email': po.get('Supplier', {}).get('Email', ''),
+            'phone': po.get('Supplier', {}).get('Phone', '') or po.get('Supplier', {}).get('Phone_No', '') or po.get('Supplier', {}).get('Telephone', ''),
+            'address': po.get('Shipping_Billing', {}).get('Ship_To_Address', {}) or po.get('Shipping_Billing', {}).get('Bill_To_Address', {})
         }
+        
+        # Also try to get supplier info from merged PO data using supplier number
+        supplier_no = po.get('Supplier', {}).get('Supplier_No', '')
+        if supplier_no:
+            supplier_info = get_supplier_info(supplier_no)
+            if supplier_info:
+                # Enhance supplier info with data from get_supplier_info
+                supplier['email'] = supplier.get('email') or supplier_info.get('email', '')
+                supplier['phone'] = supplier.get('phone') or supplier_info.get('phone', '')
+                supplier['terms'] = supplier_info.get('terms', '')
+        
+        print(f"[PR FROM PO] Supplier: {supplier.get('name')} | Contact: {supplier.get('contact')}")
         
         # Prepare items - use user-selected items or all from PO
         items_to_add = []
@@ -713,61 +801,196 @@ def generate_from_po(po_number):
 
 
 def generate_requisition_internal(user_info, items, supplier):
-    """Internal function to generate requisition"""
-    # Load template
-    if not os.path.exists(PR_TEMPLATE):
-        return jsonify({"error": "Template not found"}), 404
-    
-    wb = openpyxl.load_workbook(PR_TEMPLATE)
-    sheet = wb['Purchase Requisition']
-    
-    # Fill user info
-    sheet['I6'] = user_info.get('name', '')
-    sheet['I8'] = user_info.get('department', '')
-    sheet['B4'] = user_info.get('justification', '')
-    sheet['B12'] = user_info.get('lead_time', '4 weeks')
-    
-    # Fill dates
-    today = datetime.now()
-    sheet['I10'] = today.strftime('%Y-%m-%d')
-    
-    # Calculate date needed
-    lead_time_weeks = int(user_info.get('lead_time', '4').split()[0])
-    date_needed = today + timedelta(weeks=lead_time_weeks)
-    sheet['I12'] = date_needed.strftime('%Y-%m-%d')
-    
-    # Fill supplier
-    sheet['B8'] = f"{supplier.get('name', '')} - Contact: {supplier.get('contact', '')}"
-    
-    address = supplier.get('address', {})
-    addr_line = f"{address.get('Line_1', '')}, {address.get('City', '')}, {address.get('State', '')} {address.get('Postal_Code', '')}"
-    sheet['C8'] = addr_line
-    
-    # Fill items
-    start_row = 17
-    for idx, item in enumerate(items[:13]):  # Max 13 rows
-        row = start_row + idx
-        sheet[f'B{row}'] = item.get('item_no', '')
-        sheet[f'C{row}'] = item.get('description', '')
-        sheet[f'D{row}'] = item.get('inventory_turnover', '')
-        sheet[f'E{row}'] = item.get('current_stock', '')
-        sheet[f'F{row}'] = item.get('unit', 'EA')
-        sheet[f'G{row}'] = item.get('quantity', 0)
-        sheet[f'H{row}'] = item.get('unit_price', 0)
-    
-    # Save to memory
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
-    filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
-    
-    return send_file(
-        output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=filename
-    )
+    """
+    Internal function to generate requisition
+    Uses the same logic as generate_requisition() but accepts pre-prepared data
+    """
+    try:
+        # Load template with all formatting preserved
+        if not os.path.exists(PR_TEMPLATE):
+            return jsonify({"error": "Template not found"}), 404
+        
+        try:
+            wb = openpyxl.load_workbook(PR_TEMPLATE, keep_vba=True, data_only=False)
+        except TypeError:
+            wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
+        except Exception as e:
+            print(f"Error loading template: {e}")
+            return jsonify({"error": f"Failed to load template: {str(e)}"}), 500
+        
+        sheet = wb['Purchase Requisition']
+        
+        # Fill user info (CORRECT CELLS FROM TEMPLATE - same as main function)
+        sheet['I7'] = user_info.get('name', 'Haron Alhakimi')  # I7: REQUESTED BY
+        sheet['I9'] = user_info.get('department', 'Sales')  # I9: DEPARTMENT
+        sheet['B5'] = user_info.get('justification', 'Low Stock')  # B5: JUSTIFICATION
+        sheet['B13'] = user_info.get('lead_time', '4 weeks')  # B13: LEAD TIME
+        
+        # Fill dates
+        today = datetime.now()
+        sheet['I11'] = today.strftime('%Y-%m-%d')  # I11: DATE REQUESTED
+        
+        # Calculate date needed (add lead time weeks)
+        try:
+            lead_time_weeks = int(user_info.get('lead_time', '4').split()[0])
+        except:
+            lead_time_weeks = 4
+        date_needed = today + timedelta(weeks=lead_time_weeks)
+        sheet['I13'] = date_needed.strftime('%Y-%m-%d')  # I13: DATE NEEDED
+        
+        # Fill supplier info (CORRECT CELLS FROM TEMPLATE)
+        supplier_name = supplier.get('name', '')
+        supplier_contact = supplier.get('contact', '')
+        supplier_email = supplier.get('email', '')
+        supplier_phone = supplier.get('phone', '')
+        
+        # B9: Vendor Name
+        if supplier_name:
+            sheet['B9'] = supplier_name
+        
+        # B10: Contact Person + Phone
+        contact_line = []
+        if supplier_contact:
+            contact_line.append(f"Contact: {supplier_contact}")
+        if supplier_phone:
+            contact_line.append(f"Phone: {supplier_phone}")
+        if contact_line:
+            sheet['B10'] = ' | '.join(contact_line)
+        
+        # B11: Email
+        if supplier_email:
+            sheet['B11'] = f"Email: {supplier_email}"
+        
+        # Fill vendor address
+        address = supplier.get('address', {})
+        if address:
+            address_line_1 = address.get('Line_1', '') or address.get('Address', '')
+            city = address.get('City', '')
+            state = address.get('State', '') or address.get('Province', '')
+            postal_code = address.get('Postal_Code', '') or address.get('PostalCode', '')
+            country = address.get('Country', '')
+            
+            # C9: Address Line 1
+            if address_line_1:
+                sheet['C9'] = address_line_1
+            
+            # C10: City, State, Postal Code
+            city_state_zip = []
+            if city:
+                city_state_zip.append(city)
+            if state:
+                city_state_zip.append(state)
+            if postal_code:
+                city_state_zip.append(postal_code)
+            if city_state_zip:
+                sheet['C10'] = ', '.join(city_state_zip)
+            
+            # C11: Country
+            if country:
+                sheet['C11'] = country
+        
+        # Fill line items - starting at row 16 (same as main function)
+        start_row = 16
+        for idx, item in enumerate(items):
+            if idx >= 10:  # Limit to 10 items
+                break
+            
+            row = start_row + idx
+            
+            # Clear only this specific row's data cells before filling
+            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                sheet[f'{col}{row}'].value = ''
+            
+            item_no = item.get('item_no', '')
+            description = item.get('description', '')
+            current_stock = item.get('current_stock', '')
+            unit = item.get('unit', 'EA')
+            quantity = item.get('quantity', 0)
+            unit_price = item.get('unit_price', 0)
+            
+            # Get real pricing and inventory data if item_no is available
+            item_pricing_data = None
+            inventory_data = None
+            if item_no:
+                recent_prices = get_recent_purchase_price(item_no, limit=1)
+                if recent_prices:
+                    item_pricing_data = recent_prices[0]
+                    if not unit_price or unit_price == 0:
+                        unit_price = item_pricing_data.get('unit_price', 0)
+                    if not unit or unit == 'EA':
+                        unit = item_pricing_data.get('purchase_unit', unit)
+                
+                inventory_data = get_inventory_data(item_no)
+                if inventory_data:
+                    current_stock = inventory_data.get('stock', 0)
+                    if not unit_price or unit_price == 0:
+                        unit_price = inventory_data.get('recent_cost', 0)
+                    if not unit or unit == 'EA':
+                        unit = inventory_data.get('purchasing_units', unit)
+            
+            sheet[f'B{row}'] = item_no
+            sheet[f'C{row}'] = description
+            
+            # D: Add supplier item number if available
+            if item_pricing_data and item_pricing_data.get('supplier_item_no'):
+                sheet[f'D{row}'] = item_pricing_data.get('supplier_item_no', '')
+            
+            sheet[f'E{row}'] = current_stock
+            sheet[f'F{row}'] = unit
+            sheet[f'G{row}'] = int(quantity) if quantity else 0
+            sheet[f'H{row}'] = round(float(unit_price), 2) if unit_price else 0.0
+        
+        # Fix formulas for item rows
+        num_items = len(items[:10])
+        for idx in range(num_items):
+            row = 16 + idx
+            sheet[f'I{row}'] = f'=G{row}*H{row}'
+        
+        # Clear unused item rows
+        for row in range(16 + num_items, 26):
+            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                sheet[f'{col}{row}'].value = ''
+        
+        # Update TOTAL row formula
+        last_item_row = 16 + num_items - 1
+        if num_items > 0:
+            sheet['I30'] = f'=SUM(I16:I{last_item_row})'
+        
+        # Save to memory
+        output = io.BytesIO()
+        try:
+            wb.save(output)
+            output.seek(0)
+            
+            # Verify the file was saved correctly
+            if output.getvalue() is None or len(output.getvalue()) == 0:
+                raise Exception("Workbook save resulted in empty file")
+            
+            filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
+            
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=filename
+            )
+        except Exception as e:
+            print(f"Error saving workbook: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to save Excel file: {str(e)}"}), 500
+        finally:
+            # Ensure workbook is closed
+            try:
+                wb.close()
+            except:
+                pass
+                
+    except Exception as e:
+        print(f"Error in generate_requisition_internal: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to generate requisition: {str(e)}"}), 500
 
 
 @pr_service.route('/api/pr/supplier/<supplier_no>', methods=['GET'])
