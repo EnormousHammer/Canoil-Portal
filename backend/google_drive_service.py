@@ -788,19 +788,25 @@ class GoogleDriveService:
                                     except:
                                         pass
                                 
+                                # Determine actual status - check if in Scheduled subfolder
+                                actual_status = folder_name  # Default to parent folder
+                                if 'scheduled' in subfolder_path.lower() or 'scheduled' in subfolder_name.lower():
+                                    actual_status = 'Scheduled'
+                                
                                 # Build metadata (for SalesOrders.json) - METADATA ONLY
                                 path_info = {
                                     'Order No.': order_num,
                                     'Customer': '',  # Will be populated when user views the order
                                     'Order Date': order_date,
                                     'Ship Date': ship_date,
-                                    'Status': subfolder_name,
+                                    'Status': actual_status,  # Use actual status (Scheduled if in Scheduled subfolder)
                                     'File': file_name,
                                     'File Path': f"Google Drive: {subfolder_path}/{file_name}",
                                     'File Type': file_name.split('.')[-1].upper(),
                                     'Last Modified': modified_time,
                                     'Folder Path': subfolder_path,
                                     'Full Path': f"{folder_name}/{subfolder_path}" if subfolder_path != folder_name else folder_name,
+                                    'Parent Status': folder_name,  # Keep original parent folder status for reference
                                     'file_id': file_id  # Store file_id for on-demand parsing
                                 }
                                 orders_in_folder.append(path_info)
@@ -810,12 +816,19 @@ class GoogleDriveService:
                                 print(f"[ERROR] Error processing {file_name}: {e}")
                                 continue
                         
-                        # Add orders to SalesOrdersByStatus
+                        # Add orders to SalesOrdersByStatus - separate Scheduled from In Production
                         if 'Sales' in folder_name or 'sales' in folder_name.lower():
-                            if subfolder_name not in sales_orders_data['SalesOrdersByStatus']:
-                                sales_orders_data['SalesOrdersByStatus'][subfolder_name] = []
-                            sales_orders_data['SalesOrdersByStatus'][subfolder_name].extend(orders_in_folder)
+                            # Determine status key - use "Scheduled" if in Scheduled subfolder
+                            status_key = 'Scheduled' if 'scheduled' in subfolder_path.lower() or 'scheduled' in subfolder_name.lower() else subfolder_name
+                            
+                            if status_key not in sales_orders_data['SalesOrdersByStatus']:
+                                sales_orders_data['SalesOrdersByStatus'][status_key] = []
+                            sales_orders_data['SalesOrdersByStatus'][status_key].extend(orders_in_folder)
                             sales_orders_data['TotalSalesOrders'] += len(orders_in_folder)
+                            
+                            # Also track parent folder if different (e.g., "In Production" -> "Scheduled")
+                            if status_key == 'Scheduled' and folder_name != 'Scheduled':
+                                print(f"[INFO] Found {len(orders_in_folder)} Scheduled orders in {folder_name}/Scheduled")
                         elif 'Purchase' in folder_name or 'purchase' in folder_name.lower():
                             if subfolder_name not in sales_orders_data['PurchaseOrdersByStatus']:
                                 sales_orders_data['PurchaseOrdersByStatus'][subfolder_name] = []

@@ -16,6 +16,7 @@ interface SearchResult {
   unit_price: number;
   unit: string;
   current_stock: string;
+  wip: string;
   reorder_quantity: number;
   preferred_supplier?: string;
 }
@@ -165,11 +166,12 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       return [];
     }
     
-    // Try ALL possible item sources and return first non-empty array
+    // Prioritize CustomAlert5.json (same as BOM) - PRIMARY SOURCE
+    // Then try other sources as fallback
     const sources = [
+      'CustomAlert5.json',  // PRIMARY - Same as BOM/Items
       'MIITEM.json',
       'Items.json', 
-      'CustomAlert5.json',
       'Items_with_stock.json',
       'Items_default_keys.json',
       'Items_union_keys.json'
@@ -212,7 +214,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   // Track if items are loaded (use memoized value)
   const itemsLoaded = allItems.length > 0;
 
-  // Handle search input change - Smart search like inventory
+  // Handle search input change - Smart search like inventory with real-time Stock & WIP
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -228,38 +230,67 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     
     const queryLower = query.toLowerCase();
 
-    // Smart filter - check item number and description
-    const matches = items
-      .filter((item: any) => {
+    // Smart filter with scoring - check item number and description
+    const scoredMatches = items
+      .map((item: any) => {
         const itemNo = String(item['Item No.'] || item['ITEM_NO'] || item['Item_No'] || '').toLowerCase();
         const description = String(item['Description'] || item['DESCRIPTION'] || '').toLowerCase();
-        return itemNo.includes(queryLower) || description.includes(queryLower);
-      })
-      .slice(0, 20) // Top 20 results
-      .map((item: any) => {
-        // Get the most accurate recent cost
-        const recentCost = parseFloat(
-          item['Recent Cost'] || 
-          item['RECENT_COST'] || 
-          item['Last Cost'] ||
-          item['LAST_COST'] ||
-          item['Standard Cost'] || 
-          item['STANDARD_COST'] || 
-          0
-        );
         
-        return {
-          item_no: item['Item No.'] || item['ITEM_NO'] || item['Item_No'],
-          description: item['Description'] || item['DESCRIPTION'] || 'No description',
-          unit_price: recentCost,
-          unit: item['Purchasing Units'] || item['PURCHASING_UNITS'] || item['Purchase_Unit'] || 'EA',
-          current_stock: String(item['Quantity On Hand'] || item['QTY_ON_HAND'] || item['On_Hand'] || '0'),
-          reorder_quantity: parseInt(item['Reorder Quantity'] || item['REORDER_QTY'] || 1),
-          preferred_supplier: item['Preferred Supplier Number'] || item['PREFERRED_SUPPLIER'] || ''
-        };
-      });
+        // Calculate match score for better sorting
+        let score = 0;
+        if (itemNo.startsWith(queryLower)) score += 100; // Exact start match
+        else if (itemNo.includes(queryLower)) score += 50; // Contains match
+        if (description.includes(queryLower)) score += 25; // Description match
+        
+        // Check if matches
+        if (itemNo.includes(queryLower) || description.includes(queryLower)) {
+          // Get the most accurate recent cost
+          const recentCost = parseFloat(
+            String(item['Recent Cost'] || 
+            item['RECENT_COST'] || 
+            item['Last Cost'] ||
+            item['LAST_COST'] ||
+            item['Standard Cost'] || 
+            item['STANDARD_COST'] || 
+            0).replace(/[$,]/g, '')
+          );
+          
+          // Get Stock - prioritize CustomAlert5.json field names
+          const stock = parseFloat(
+            String(item['Stock'] || 
+            item['Quantity On Hand'] || 
+            item['QTY_ON_HAND'] || 
+            item['On_Hand'] || 
+            0).replace(/,/g, '')
+          );
+          
+          // Get WIP - from CustomAlert5.json
+          const wip = parseFloat(
+            String(item['WIP'] || 
+            item['WIP Qty'] || 
+            item['Work In Process'] || 
+            0).replace(/,/g, '')
+          );
+          
+          return {
+            score,
+            item_no: item['Item No.'] || item['ITEM_NO'] || item['Item_No'],
+            description: item['Description'] || item['DESCRIPTION'] || 'No description',
+            unit_price: recentCost,
+            unit: item['Purchasing Units'] || item['PURCHASING_UNITS'] || item['Purchase_Unit'] || 'EA',
+            current_stock: stock.toLocaleString(),
+            wip: wip.toLocaleString(),
+            reorder_quantity: parseInt(item['Reorder Quantity'] || item['REORDER_QTY'] || 1),
+            preferred_supplier: item['Preferred Supplier Number'] || item['PREFERRED_SUPPLIER'] || ''
+          };
+        }
+        return null;
+      })
+      .filter((match: any) => match !== null)
+      .sort((a: any, b: any) => b.score - a.score) // Sort by score
+      .slice(0, 20); // Top 20 results
 
-    setSearchResults(matches);
+    setSearchResults(scoredMatches);
   };
 
   // Add item to selected list
@@ -337,6 +368,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     console.log('userName:', userName);
     console.log('department:', department);
     console.log('selectedItems:', selectedItems);
+    console.log('poNumber:', poNumber);
+    console.log('poData:', poData);
     
     if (!userName || !department || selectedItems.length === 0) {
       alert('Please fill in all required fields and add at least one item');
@@ -347,8 +380,6 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     console.log('⏳ Starting generation...');
     
     try {
-      // Simple approach - just generate one PR with all items
-      // The backend will handle supplier grouping if needed
       const requestData = {
         user_info: {
           name: userName,
@@ -362,7 +393,15 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
 
       console.log('📤 Sending request:', requestData);
 
-      const response = await fetch(getApiUrl('/api/pr/generate'), {
+      // Use /api/pr/from-po endpoint if poNumber is provided (from PO page)
+      // Otherwise use /api/pr/generate (from BOM or manual entry)
+      const endpoint = poNumber 
+        ? `/api/pr/from-po/${poNumber}`
+        : '/api/pr/generate';
+
+      console.log(`📡 Using endpoint: ${endpoint}`);
+
+      const response = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -466,13 +505,16 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Justification</label>
-                <input
-                  type="text"
+                <select
                   value={justification}
                   onChange={(e) => setJustification(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Stock replenishment"
-                />
+                >
+                  <option value="">Select justification...</option>
+                  <option>Stock Replishment</option>
+                  <option>Fulfilling Order</option>
+                  <option>Future Order Stock</option>
+                </select>
               </div>
             </div>
           </div>
@@ -514,7 +556,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
                     ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500' 
                     : 'border-gray-200 bg-gray-50 cursor-not-allowed'
                 }`}
-                placeholder={itemsLoaded ? "Type to search items... (e.g. 'oil', 'engine', 'can')" : "⏳ Loading items data..."}
+                placeholder={itemsLoaded ? "🔍 Smart search items with real-time Stock & WIP... (e.g. 'oil', 'engine', 'can')" : "⏳ Loading items data..."}
               />
               <svg className={`w-5 h-5 absolute left-3 top-3.5 ${itemsLoaded ? 'text-gray-400' : 'text-gray-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -574,11 +616,14 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
                           </button>
                         </div>
                       </div>
-                      {item.current_stock && (
-                        <div className="text-xs text-gray-500 mt-1 bg-gray-50 px-2 py-1 rounded inline-block">
-                          Stock: {item.current_stock}
+                      <div className="flex gap-2 mt-2">
+                        <div className="text-xs text-gray-600 bg-blue-50 px-2 py-1 rounded inline-block border border-blue-200">
+                          <span className="font-semibold text-blue-700">Stock:</span> {item.current_stock || '0'}
                         </div>
-                      )}
+                        <div className="text-xs text-gray-600 bg-yellow-50 px-2 py-1 rounded inline-block border border-yellow-200">
+                          <span className="font-semibold text-yellow-700">WIP:</span> {item.wip || '0'}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

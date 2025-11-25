@@ -1848,19 +1848,25 @@ def scan_folder_recursively(folder_path, status, path_parts=[]):
                     file_path = os.path.join(folder_path, file)
                     file_stat = os.stat(file_path)
                     
+                    # Determine actual status - check if in Scheduled subfolder
+                    actual_status = status
+                    if path_parts and 'scheduled' in '/'.join(path_parts).lower():
+                        actual_status = 'Scheduled'
+                    
                     # Build comprehensive path hierarchy
                     path_info = {
                         'Order No.': order_num,
                         'Customer': 'Customer Data',
                         'Order Date': datetime.fromtimestamp(file_stat.st_ctime).strftime('%Y-%m-%d'),
                         'Ship Date': datetime.fromtimestamp(file_stat.st_mtime).strftime('%Y-%m-%d'),
-                        'Status': status,
+                        'Status': actual_status,  # Use actual status (Scheduled if in Scheduled subfolder)
                         'File': file,
                         'File Path': file_path,
                         'File Type': file.split('.')[-1].upper(),
                         'Last Modified': datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
                         'Folder Path': '/'.join(path_parts) if path_parts else 'Root',
-                        'Full Path': '/'.join([status] + path_parts) if path_parts else status
+                        'Full Path': '/'.join([status] + path_parts) if path_parts else status,
+                        'Parent Status': status  # Keep original parent folder status for reference
                     }
                     
                     # Add dynamic path levels
@@ -1976,10 +1982,32 @@ def load_sales_orders(filter_folders=None):
             
             # Recursively scan this status folder
             orders = scan_folder_recursively(folder_path, status)
-            sales_data[status] = orders
-            all_orders.extend(orders)
             
-            print(f"SUCCESS: Total loaded {len(orders)} orders from {status}")
+            # Separate Scheduled orders from In Production
+            scheduled_orders = []
+            production_orders = []
+            
+            for order in orders:
+                # Check if order is in Scheduled subfolder
+                folder_path_str = order.get('Folder Path', '') or order.get('Full Path', '')
+                if 'scheduled' in folder_path_str.lower() or 'scheduled' in order.get('Level_1', '').lower():
+                    scheduled_orders.append(order)
+                    order['Status'] = 'Scheduled'  # Override status for Scheduled orders
+                else:
+                    production_orders.append(order)
+            
+            # Store orders by their actual status
+            if scheduled_orders:
+                if 'Scheduled' not in sales_data:
+                    sales_data['Scheduled'] = []
+                sales_data['Scheduled'].extend(scheduled_orders)
+                print(f"SUCCESS: Found {len(scheduled_orders)} Scheduled orders in {status}/Scheduled")
+            
+            if production_orders:
+                sales_data[status] = production_orders
+                print(f"SUCCESS: Found {len(production_orders)} orders in {status} (excluding Scheduled)")
+            
+            all_orders.extend(orders)
         
         # Smart sorting by order number
         def smart_sort(order):
@@ -1993,14 +2021,21 @@ def load_sales_orders(filter_folders=None):
         
         all_orders.sort(key=smart_sort, reverse=True)
         
-        print(f"🎉 Smart scan complete! Found {len(all_orders)} total sales orders across {len(status_folders)} status folders")
+        # Update status folders list to include Scheduled if it exists
+        final_status_folders = list(status_folders)
+        if 'Scheduled' in sales_data and 'Scheduled' not in final_status_folders:
+            final_status_folders.append('Scheduled')
+        
+        print(f"🎉 Smart scan complete! Found {len(all_orders)} total sales orders across {len(final_status_folders)} status folders")
+        if 'Scheduled' in sales_data:
+            print(f"📅 Found {len(sales_data['Scheduled'])} Scheduled orders in In Production/Scheduled")
         
         return {
             'SalesOrders.json': all_orders,
             'SalesOrdersByStatus': sales_data,
             'LoadTimestamp': datetime.now().isoformat(),
             'TotalOrders': len(all_orders),
-            'StatusFolders': status_folders,
+            'StatusFolders': final_status_folders,
             'ScanMethod': 'Smart Recursive Discovery'
         }
         
