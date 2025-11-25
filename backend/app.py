@@ -514,7 +514,7 @@ app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
 # Handle 404 Not Found errors specifically
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, MethodNotAllowed
 
 @app.errorhandler(NotFound)
 def handle_not_found(e):
@@ -527,6 +527,30 @@ def handle_not_found(e):
             'type': 'NotFound'
         }
     }), 404
+
+# Handle MethodNotAllowed - especially for OPTIONS preflight requests
+@app.errorhandler(MethodNotAllowed)
+def handle_method_not_allowed(e):
+    """Handle 405 Method Not Allowed - especially OPTIONS preflight requests"""
+    # If it's an OPTIONS request (CORS preflight), return proper CORS response
+    if request.method == 'OPTIONS':
+        print(f"✅ Handling OPTIONS preflight for {request.path}")
+        response = jsonify({"status": "ok"})
+        # Add CORS headers manually if Flask-CORS didn't handle it
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response, 200
+    else:
+        print(f"⚠️ Method {request.method} not allowed for {request.path}")
+        return jsonify({
+            'error': {
+                'code': '405',
+                'message': f'Method {request.method} not allowed for {request.path}',
+                'type': 'MethodNotAllowed'
+            }
+        }), 405
 
 # Global error handler to catch all other exceptions
 @app.errorhandler(Exception)
@@ -597,9 +621,13 @@ def catch_all(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 # Comprehensive health check endpoint
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health_check():
     """Comprehensive system health check"""
+    # Handle OPTIONS preflight requests quickly
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+    
     health_status = {
         "timestamp": datetime.now().isoformat(),
         "status": "healthy",
@@ -2284,9 +2312,13 @@ def load_mps_data():
         print(f"ERROR: Error parsing Google Sheets data: {e}")
         return {"error": f"Error parsing data: {str(e)}"}
 
-@app.route('/api/mps', methods=['GET'])
+@app.route('/api/mps', methods=['GET', 'OPTIONS'])
 def get_mps_data():
     """Get MPS data only - without Unicode issues"""
+    # Handle OPTIONS preflight requests quickly
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+    
     try:
         import requests
         mps_data = load_mps_data()
