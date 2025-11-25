@@ -2024,15 +2024,23 @@ def load_sales_orders(filter_folders=None):
                 scheduled_orders = []
             
             # Store orders by their actual status
+            # IMPORTANT: Scheduled orders are part of "In Production" - count them in both places
             if scheduled_orders:
                 if 'Scheduled' not in sales_data:
                     sales_data['Scheduled'] = []
                 sales_data['Scheduled'].extend(scheduled_orders)
                 print(f"SUCCESS: Found {len(scheduled_orders)} Scheduled orders in {status}/Scheduled")
             
-            if production_orders:
+            # For "In Production", include ALL orders (both production and scheduled) in the main count
+            # This way "In Production" shows the total, and "Scheduled" shows the subset
+            if status == 'In Production':
+                # Include all orders (both production and scheduled) in In Production
+                sales_data[status] = orders  # Use original orders list which includes both
+                print(f"SUCCESS: Found {len(orders)} total orders in {status} (including {len(scheduled_orders)} Scheduled)")
+            elif production_orders:
+                # For other statuses, only show production orders
                 sales_data[status] = production_orders
-                print(f"SUCCESS: Found {len(production_orders)} orders in {status} (excluding Scheduled)")
+                print(f"SUCCESS: Found {len(production_orders)} orders in {status}")
             
             all_orders.extend(orders)
         
