@@ -44,8 +44,7 @@ ENV PYTHONIOENCODING=utf-8
 # Expose port
 EXPOSE 10000
 
-# Start the application  
-# Use 1 worker so cache persists in memory between requests
-# Timeout 900s (15 min) to allow Google Drive initial scan to complete
-CMD ["sh", "-c", "echo 'Starting Gunicorn on port' $PORT && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 900 --workers 1 --log-level debug"]
+# Start the application with Hypercorn (supports HTTP/2)
+# Use Hypercorn for HTTP/2 support on Cloud Run
+CMD ["sh", "-c", "cd /app/backend && python start_hypercorn.py"]
 

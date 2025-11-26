@@ -1078,6 +1078,25 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     // Get counts directly from folder structure (instant!)
     const getFolderCount = (folderName: string): number => {
+      // Special case: For "In Production", use "Scheduled" subfolder count (not 0 in production folder)
+      if (folderName.toLowerCase() === 'in production') {
+        // Try to find "Scheduled" subfolder within "In Production"
+        const scheduledKey = Object.keys(salesOrdersByStatus).find(
+          key => key.toLowerCase().includes('scheduled') || 
+                 (key.toLowerCase().includes('production') && key.toLowerCase().includes('scheduled'))
+        );
+        if (scheduledKey && Array.isArray(salesOrdersByStatus[scheduledKey])) {
+          return salesOrdersByStatus[scheduledKey].length;
+        }
+        // Fallback: try "In Production/Scheduled" or just "Scheduled"
+        const inProdScheduled = Object.keys(salesOrdersByStatus).find(
+          key => key.toLowerCase() === 'scheduled' || key.toLowerCase().includes('in production/scheduled')
+        );
+        if (inProdScheduled && Array.isArray(salesOrdersByStatus[inProdScheduled])) {
+          return salesOrdersByStatus[inProdScheduled].length;
+        }
+      }
+      
       const folderKey = Object.keys(salesOrdersByStatus).find(
         key => key.toLowerCase() === folderName.toLowerCase()
       );
@@ -1087,6 +1106,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     };
     
     const getFolderData = (folderName: string): any[] => {
+      // Special case: For "In Production", use "Scheduled" subfolder data
+      if (folderName.toLowerCase() === 'in production') {
+        const scheduledKey = Object.keys(salesOrdersByStatus).find(
+          key => key.toLowerCase().includes('scheduled') || 
+                 (key.toLowerCase().includes('production') && key.toLowerCase().includes('scheduled'))
+        );
+        if (scheduledKey && Array.isArray(salesOrdersByStatus[scheduledKey])) {
+          return salesOrdersByStatus[scheduledKey];
+        }
+        const inProdScheduled = Object.keys(salesOrdersByStatus).find(
+          key => key.toLowerCase() === 'scheduled' || key.toLowerCase().includes('in production/scheduled')
+        );
+        if (inProdScheduled && Array.isArray(salesOrdersByStatus[inProdScheduled])) {
+          return salesOrdersByStatus[inProdScheduled];
+        }
+      }
+      
       const folderKey = Object.keys(salesOrdersByStatus).find(
         key => key.toLowerCase() === folderName.toLowerCase()
       );
