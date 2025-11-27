@@ -468,8 +468,7 @@ class GoogleDriveService:
             return {}
     
     def load_folder_data(self, folder_id, drive_id=None):
-        """Load all JSON files from a folder - PARALLEL DOWNLOADS for speed"""
-        import concurrent.futures
+        """Load all JSON files from a folder - SEQUENTIAL (httplib2 is not thread-safe)"""
         import time
         
         try:
@@ -492,32 +491,22 @@ class GoogleDriveService:
             results = self.service.files().list(**list_params).execute()
             files = results.get('files', [])
             
-            print(f"[INFO] Found {len(files)} files to download - using PARALLEL downloads...")
+            print(f"[INFO] Found {len(files)} files to download (sequential - httplib2 not thread-safe)...")
             
             data = {}
             
-            def download_single_file(file_info):
-                """Download a single file - for parallel execution"""
+            for file_info in files:
                 file_id = file_info['id']
                 file_name = file_info['name']
-                try:
-                    file_data = self.download_file(file_id, file_name)
-                    return file_name, file_data if file_data is not None else []
-                except Exception as e:
-                    print(f"[WARN] Failed to download {file_name}: {e}")
-                    return file_name, []
-            
-            # PARALLEL DOWNLOADS - 10 concurrent threads (fast!)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                future_to_file = {executor.submit(download_single_file, f): f for f in files}
-                
-                for future in concurrent.futures.as_completed(future_to_file):
-                    file_name, file_data = future.result()
+                print(f"[INFO] Downloading: {file_name}")
+                file_data = self.download_file(file_id, file_name)
+                if file_data is not None:
                     data[file_name] = file_data
-                    print(f"[OK] Downloaded: {file_name} ({len(file_data) if isinstance(file_data, list) else 'dict'} items)")
+                else:
+                    data[file_name] = []
             
             elapsed = time.time() - start_time
-            print(f"[OK] PARALLEL download complete: {len(data)} files in {elapsed:.1f}s")
+            print(f"[OK] Download complete: {len(data)} files in {elapsed:.1f}s")
             
             return data
         except HttpError as error:
