@@ -223,23 +223,11 @@ def extract_so_data_from_pdf(pdf_path):
             }
         }
         
-        # Find the Sold To: Ship To: line (try multiple patterns)
+        # Find the Sold To: Ship To: line
         sold_to_ship_to_line = -1
         for i, line in enumerate(lines):
-            if ('Sold To:' in line and 'Ship To:' in line) or ('Sold To' in line and 'Ship To' in line):
+            if 'Sold To:' in line and 'Ship To:' in line:
                 sold_to_ship_to_line = i
-                break
-        
-        # Also look for email addresses which often appear near addresses
-        email_line = -1
-        for i, line in enumerate(lines):
-            if 'E-mail' in line or 'invoices to:' in line.lower() or '@' in line:
-                email_line = i
-                # Extract email if found
-                email_match = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', line)
-                if email_match:
-                    so_data['sold_to']['email'] = email_match.group(1)
-                    so_data['ship_to']['email'] = email_match.group(1)
                 break
         
         if sold_to_ship_to_line >= 0:
