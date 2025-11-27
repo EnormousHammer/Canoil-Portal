@@ -681,6 +681,28 @@ except Exception as e:
     client = None
     openai_available = False
 
+# Initialize Google Drive service if enabled (for Cloud Run / remote deployments)
+USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+google_drive_service = None
+
+if USE_GOOGLE_DRIVE_API:
+    try:
+        print("🔄 Attempting to initialize Google Drive API service...")
+        from google_drive_service import GoogleDriveService
+        google_drive_service = GoogleDriveService()
+        if google_drive_service.authenticate():
+            print("✅ Google Drive API service initialized successfully")
+        else:
+            print("⚠️ Google Drive API authentication failed - will fall back to G: Drive if available")
+            google_drive_service = None
+    except Exception as e:
+        print(f"⚠️ Failed to initialize Google Drive service: {e}")
+        import traceback
+        traceback.print_exc()
+        google_drive_service = None
+else:
+    print("ℹ️ Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
+
 # G: Drive base paths - EXACT paths where data is located
 GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
 SALES_ORDERS_BASE = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
