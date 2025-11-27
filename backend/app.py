@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from werkzeug.exceptions import NotFound, MethodNotAllowed
 import os
 import json
 import base64
@@ -12,8 +11,7 @@ from dotenv import load_dotenv
 import PyPDF2
 import pdfplumber
 from docx import Document
-# Lazy import EnterpriseAnalytics - only import when needed to avoid blocking startup
-# from enterprise_analytics import EnterpriseAnalytics
+from enterprise_analytics import EnterpriseAnalytics
 
 # Load environment variables
 load_dotenv()
@@ -634,165 +632,8 @@ def load_json_file(file_path):
 _data_cache = None
 _cache_timestamp = None
 _cache_duration = 300  # 5 minutes cache
-
-
-# Add missing function alias for logistics module compatibility
-def parse_sales_order_pdf(pdf_path):
-    """Alias for extract_so_data_from_pdf - maintains compatibility with logistics module"""
-    return extract_so_data_from_pdf(pdf_path)
-
-# OLD PARSER - DEPRECATED (2025-01-03) - Use extract_so_data_from_pdf instead
-def extract_so_data_from_pdf_old(pdf_path):
-    """OLD SO PARSER - DEPRECATED 2025-01-03 - Use extract_so_data_from_pdf instead"""
-    return extract_so_data_from_pdf(pdf_path)
-
-def load_real_so_data():
-    """Load real Sales Order data from ALL folders and subfolders recursively - OPTIMIZED"""
-    so_data = []
-    base_directory = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
-    
-    print(f"SEARCH: OPTIMIZED SO SCAN: Starting efficient recursive scan from {base_directory}")
-    
-    if not os.path.exists(base_directory):
-        print(f"ERROR: Base SO directory not found: {base_directory}")
-        return so_data
-    
-    # Priority folders for faster scanning
-    priority_folders = [
-        "Completed and Closed",
-        "In Production",
-        "New and Revised"
-    ]
-    
-    total_files_found = 0
-    total_files_processed = 0
-    max_files_per_folder = None  # Process ALL files for complete analysis
-    
-    # Scan priority folders first
-    for priority_folder in priority_folders:
-        folder_path = os.path.join(base_directory, priority_folder)
-        if os.path.exists(folder_path):
-            print(f"RETRY: Scanning priority folder: {priority_folder}")
-            folder_files_processed = 0
-            
-            for root, dirs, files in os.walk(folder_path):
-                # Skip system folders
-                dirs[:] = [d for d in dirs if d.lower() not in ['desktop.ini', 'thumbs.db']]
-                
-                for filename in files:
-                    # Process all files - no limit
-                    # if folder_files_processed >= max_files_per_folder:
-                    #     break
-                        
-                    if filename.lower().endswith(('.pdf', '.docx', '.doc')):
-                        total_files_found += 1
-                        file_path = os.path.join(root, filename)
-                        relative_path = os.path.relpath(root, base_directory)
-                        
-                        so_info = None
-                        
-                        # Handle Word documents (MUCH FASTER!)
-                        if filename.lower().endswith(('.docx', '.doc')):
-                            so_info = extract_so_data_from_docx(file_path)
-                            if so_info:
-                                so_info['folder_path'] = relative_path
-                                so_info['file_type'] = 'Word'
-                                total_files_processed += 1
-                                folder_files_processed += 1
-                                print(f"SUCCESS: Word SO: {so_info['so_number']} - {so_info['customer_name']} ({relative_path})")
-                        
-                        # Handle PDF files (slower, so limit these)
-                        elif filename.lower().endswith('.pdf'):
-                            so_info = extract_so_data_from_pdf(file_path)
-                            if so_info:
-                                so_info['folder_path'] = relative_path
-                                so_info['file_type'] = 'PDF'
-                                total_files_processed += 1
-                                folder_files_processed += 1
-                                print(f"SUCCESS: PDF SO: {so_info['so_number']} - {so_info['customer_name']} ({relative_path})")
-                        
-                        if so_info:
-                            so_data.append(so_info)
-                
-                # Process all files - no folder limit
-                # if folder_files_processed >= max_files_per_folder:
-                #     break
-    
-    print(f"🎉 OPTIMIZED SO SCAN COMPLETE:")
-    print(f"   📁 Files Found: {total_files_found}")
-    print(f"   SUCCESS: Files Processed: {total_files_processed}")
-    print(f"   📊 SO Records Loaded: {len(so_data)}")
-    print(f"   SEARCH: Folders Scanned: Priority folders with depth limit")
-    print(f"   ⚡ Processing: ALL files found (no limits for complete analysis)")
-    
-    return so_data
-
 app = Flask(__name__)
 CORS(app)
-
-# CRITICAL: Define health routes IMMEDIATELY so Cloud Run can check health during module loading
-@app.route('/', methods=['GET'])
-def root():
-    """Root endpoint for Cloud Run health checks - responds immediately"""
-    print("✅ ROOT ENDPOINT CALLED - Returning 200 OK")
-    try:
-        response = jsonify({"status": "ok"})
-        print(f"✅ Response created: {response}")
-        return response, 200
-    except Exception as e:
-        print(f"❌ ERROR in root(): {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "error": str(e)}), 500
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint - responds immediately without dependencies"""
-    return jsonify({
-        "status": "healthy",
-        "message": "Backend is running",
-        "timestamp": datetime.now().isoformat()
-    }), 200
-
-# Handle 404 Not Found errors
-@app.errorhandler(NotFound)
-def handle_not_found(e):
-    """Handle 404 Not Found errors - special case for Cloud Run health checks"""
-    # Cloud Run sends /* for health checks - return 200 for root paths
-    if request.path in ['/', '/*', '/health', '/healthz']:
-        return jsonify({"status": "ok"}), 200
-    print(f"⚠️ Route not found: {request.path}")
-    return jsonify({
-        'error': {
-            'code': '404',
-            'message': f'Route not found: {request.path}',
-            'type': 'NotFound'
-        }
-    }), 404
-
-# Handle MethodNotAllowed - especially for OPTIONS preflight requests
-@app.errorhandler(MethodNotAllowed)
-def handle_method_not_allowed(e):
-    """Handle 405 Method Not Allowed - especially OPTIONS preflight requests"""
-    # If it's an OPTIONS request (CORS preflight), return proper CORS response
-    if request.method == 'OPTIONS':
-        print(f"✅ Handling OPTIONS preflight for {request.path}")
-        response = jsonify({"status": "ok"})
-        # Add CORS headers manually if Flask-CORS didn't handle it
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
-        response.headers.add('Access-Control-Max-Age', '3600')
-        return response, 200
-    else:
-        print(f"⚠️ Method {request.method} not allowed for {request.path}")
-        return jsonify({
-            'error': {
-                'code': '405',
-                'message': f'Method {request.method} not allowed for {request.path}',
-                'type': 'MethodNotAllowed'
-            }
-        }), 405
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
@@ -838,6 +679,33 @@ except Exception as e:
     print(f"ERROR: OpenAI initialization failed: {e}")
     client = None
     openai_available = False
+
+# Initialize Google Drive service if enabled (for Cloud Run / remote deployments)
+USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+google_drive_service = None
+
+if USE_GOOGLE_DRIVE_API:
+    try:
+        print("🔄 Attempting to initialize Google Drive API service...")
+        from google_drive_service import GoogleDriveService
+        google_drive_service = GoogleDriveService()
+        if google_drive_service.authenticate():
+            print("✅ Google Drive API service initialized successfully")
+        else:
+            print("⚠️ Google Drive API authentication failed - will fall back to G: Drive if available")
+            google_drive_service = None
+    except ImportError as e:
+        print(f"⚠️ Google Drive service module not available: {e}")
+        print("   Continuing without Google Drive API support")
+        google_drive_service = None
+    except Exception as e:
+        print(f"⚠️ Failed to initialize Google Drive service: {e}")
+        import traceback
+        traceback.print_exc()
+        print("   Continuing without Google Drive API support")
+        google_drive_service = None
+else:
+    print("ℹ️ Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
 
 # G: Drive base paths - EXACT paths where data is located
 GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
@@ -931,6 +799,36 @@ def get_all_data():
         # Check if G: Drive is accessible
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive not accessible at: {GDRIVE_BASE}")
+            
+            # Try to use Google Drive API as fallback
+            if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+                print("🔄 G: Drive not accessible, falling back to Google Drive API...")
+                try:
+                    gdrive_data, gdrive_folder_info = google_drive_service.get_all_data()
+                    if gdrive_data and gdrive_folder_info:
+                        print(f"✅ Successfully loaded data from Google Drive API")
+                        # Cache the data
+                        import time
+                        _data_cache = gdrive_data
+                        _cache_timestamp = time.time()
+                        print(f"💾 Data cached for {_cache_duration} seconds")
+                        
+                        return jsonify({
+                            "data": gdrive_data,
+                            "folderInfo": gdrive_folder_info,
+                            "LoadTimestamp": datetime.now().isoformat(),
+                            "cached": False,
+                            "source": "Google Drive API"
+                        })
+                    else:
+                        print("⚠️ Google Drive API returned empty data")
+                except Exception as e:
+                    print(f"❌ Error loading data from Google Drive API: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # If Google Drive API also failed or not available, return empty data structure
+            print("⚠️ Both G: Drive and Google Drive API unavailable - returning empty data")
             # Return empty data structure using REAL G: Drive file names that frontend expects
             empty_data = {
                 # PRIMARY DATA FILES - EXACT FILE NAMES FROM G: DRIVE
@@ -1159,6 +1057,27 @@ def get_all_data():
     except Exception as e:
         print(f"ERROR: Error in get_all_data: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    try:
+        latest_folder, error = get_latest_folder()
+        status = "healthy" if latest_folder else "unhealthy"
+        message = f"Latest folder: {latest_folder}" if latest_folder else f"Error: {error}"
+        
+        return jsonify({
+            "status": status,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+            "gdrive_path": GDRIVE_BASE
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 def scan_folder_recursively(folder_path, status, path_parts=[]):
     """Recursively scan any folder structure and find all PDF files"""
@@ -3296,8 +3215,7 @@ def enterprise_analytics():
             if cached_pdf_data:
                 raw_data['RealSalesOrders'] = cached_pdf_data
         
-        # Initialize analytics engine (lazy import to avoid blocking startup)
-        from enterprise_analytics import EnterpriseAnalytics
+        # Initialize analytics engine
         analytics_engine = EnterpriseAnalytics()
         
         # Generate comprehensive analytics
@@ -3354,8 +3272,7 @@ def enterprise_analytics_ai():
         if cached_pdf_data:
             raw_data['RealSalesOrders'] = cached_pdf_data
         
-        # Initialize analytics engine (lazy import to avoid blocking startup)
-        from enterprise_analytics import EnterpriseAnalytics
+        # Initialize analytics engine
         analytics_engine = EnterpriseAnalytics()
         
         # Generate fast analytics first

@@ -15,10 +15,36 @@ if backend_dir not in sys.path:
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # Import after encoding setup
-from asgiref.wsgi import WsgiToAsgi
-from app import app
-import hypercorn.asyncio
-import asyncio
+try:
+    from asgiref.wsgi import WsgiToAsgi
+    print("✅ asgiref.wsgi imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import asgiref.wsgi: {e}")
+    print("   Run: pip install asgiref")
+    sys.exit(1)
+
+try:
+    from app import app
+    print("✅ Flask app imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import Flask app: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+except Exception as e:
+    print(f"❌ Error initializing Flask app: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+try:
+    import hypercorn.asyncio
+    import asyncio
+    print("✅ Hypercorn imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import hypercorn: {e}")
+    print("   Run: pip install hypercorn")
+    sys.exit(1)
 
 # Get port from environment (Cloud Run sets PORT=8080)
 port = int(os.environ.get('PORT', 8080))
