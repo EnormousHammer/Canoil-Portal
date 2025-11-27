@@ -1211,15 +1211,14 @@ def load_cached_so_data():
 def load_sales_orders():
     """Smart Sales Orders loader - discovers ANY folder structure dynamically"""
     try:
-        print(f"SEARCH: Smart scanning Sales Orders from: {SALES_ORDERS_BASE}")
+        # Detect if we're on Cloud Run (can't access local G: Drive)
+        is_cloud_run = os.getenv('K_SERVICE') is not None
         
-        if not os.path.exists(SALES_ORDERS_BASE):
-            print(f"ERROR: Sales Orders path not accessible: {SALES_ORDERS_BASE}")
-            
-            # Try to use Google Drive API as fallback
+        if is_cloud_run:
+            # Cloud Run: Use Google Drive API directly (G: Drive doesn't exist in cloud)
+            print("☁️ Cloud Run detected - using Google Drive API for Sales Orders")
             gdrive_service = get_google_drive_service()
             if gdrive_service and gdrive_service.authenticated:
-                print("🔄 G: Drive not accessible, falling back to Google Drive API for Sales Orders...")
                 try:
                     # load_sales_orders_data() finds Sales_CSR drive automatically (ignores drive_id parameter)
                     # Only load active folders (In Production, New and Revised) to reduce response size
@@ -1233,9 +1232,37 @@ def load_sales_orders():
                     print(f"❌ Error loading sales orders from Google Drive API: {e}")
                     import traceback
                     traceback.print_exc()
+            else:
+                print("⚠️ Google Drive API not available on Cloud Run")
+                return {
+                    'SalesOrders.json': [],
+                    'SalesOrdersByStatus': {},
+                    'TotalOrders': 0,
+                    'StatusFolders': [],
+                    'ScanMethod': 'Cloud Run - Google Drive API unavailable',
+                    'LoadTimestamp': datetime.now().isoformat()
+                }
+        
+        # Local development: Try G: Drive first, fallback to Google Drive API
+        print(f"💻 Local development - checking G: Drive: {SALES_ORDERS_BASE}")
+        
+        if not os.path.exists(SALES_ORDERS_BASE):
+            print(f"⚠️ G: Drive not accessible: {SALES_ORDERS_BASE}")
             
-            # If Google Drive API also failed or not available, return empty structure
-            print("⚠️ Both G: Drive and Google Drive API unavailable for Sales Orders - returning empty data")
+            # Try Google Drive API as fallback (for local dev when G: Drive is disconnected)
+            gdrive_service = get_google_drive_service()
+            if gdrive_service and gdrive_service.authenticated:
+                print("🔄 Falling back to Google Drive API for Sales Orders...")
+                try:
+                    so_data = gdrive_service.load_sales_orders_data(None, filter_folders=['In Production', 'New and Revised'])
+                    if so_data and so_data.get('TotalOrders', 0) > 0:
+                        print(f"✅ Successfully loaded {so_data.get('TotalOrders', 0)} sales orders from Google Drive API")
+                        return so_data
+                except Exception as e:
+                    print(f"❌ Error loading sales orders from Google Drive API: {e}")
+            
+            # Both failed
+            print("⚠️ Both G: Drive and Google Drive API unavailable - returning empty data")
             return {
                 'SalesOrders.json': [],
                 'SalesOrdersByStatus': {},
