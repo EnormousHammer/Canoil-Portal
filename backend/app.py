@@ -764,8 +764,15 @@ except Exception as e:
 
 # Google Drive API - LAZY INITIALIZATION (only when needed, not on startup)
 # This prevents startup failures if Google Drive API has issues
-USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+# CRITICAL: On Cloud Run, ALWAYS use Google Drive API (G: Drive is NEVER accessible)
+IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
+USE_GOOGLE_DRIVE_API = IS_CLOUD_RUN or os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
 google_drive_service = None
+
+if IS_CLOUD_RUN:
+    print("☁️ Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
+else:
+    print("💻 Running locally - G: Drive will be used if accessible")
 
 def get_google_drive_service():
     """Lazy initialization of Google Drive service - only when actually needed"""
