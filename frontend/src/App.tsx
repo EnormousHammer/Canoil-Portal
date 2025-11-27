@@ -312,17 +312,34 @@ function App() {
       let result;
       try {
         result = await gdriveLoader.loadAllData();
-        console.log('✅ Data loaded successfully from G: Drive');
+        
+        // Verify data actually has content
+        const hasActualData = result.data && Object.keys(result.data).some(fileName => {
+          const fileData = result.data[fileName];
+          return Array.isArray(fileData) && fileData.length > 0;
+        });
+        
+        if (!hasActualData) {
+          throw new Error('Backend returned empty data structure. G: Drive may not be accessible from Cloud Run.');
+        }
+        
+        // Show correct data source from backend
+        const dataSource = responseData.source || (responseData.cached ? 'Cache' : 'G: Drive');
+        console.log(`✅ Data loaded successfully from ${dataSource}`);
         setLoadingStatus('Data loaded! Finalizing...');
       } catch (error) {
-        // GDriveDataLoader now returns empty structure instead of throwing for connection errors
-        console.warn('⚠️ Error loading data, retrying...', error);
-        // Retry once more
-        try {
-          result = await gdriveLoader.loadAllData();
-          console.log('✅ Data loaded successfully on retry');
-        } catch (retryError) {
-          console.warn('⚠️ Failed to load data after retry, using empty data structure');
+        console.error('❌ Error loading data:', error);
+        // Check if it's an empty data error
+        const isEmptyDataError = error instanceof Error && error.message.includes('empty data');
+        
+        if (isEmptyDataError) {
+          // Don't retry if backend explicitly returned empty data
+          console.error('❌ Backend returned empty data - G: Drive not accessible from Cloud Run');
+          setError({
+            title: 'No Data Available',
+            message: 'Backend returned empty data. G: Drive is not accessible from Cloud Run.',
+            details: 'Cloud Run cannot access the G: Drive path. Data must be loaded from a location accessible to Cloud Run.'
+          });
           result = { 
             data: {
               'CustomAlert5.json': [],
@@ -332,6 +349,40 @@ function App() {
             }, 
             folderInfo: { folderName: 'Backend Not Connected', syncDate: new Date().toISOString() } 
           };
+        } else {
+          // Retry for connection errors
+          console.warn('⚠️ Error loading data, retrying...', error);
+          try {
+            result = await gdriveLoader.loadAllData();
+            
+            // Verify retry also has data
+            const hasActualData = result.data && Object.keys(result.data).some(fileName => {
+              const fileData = result.data[fileName];
+              return Array.isArray(fileData) && fileData.length > 0;
+            });
+            
+            if (!hasActualData) {
+              throw new Error('Backend returned empty data structure.');
+            }
+            
+            console.log('✅ Data loaded successfully on retry');
+          } catch (retryError) {
+            console.error('❌ Failed to load data after retry:', retryError);
+            setError({
+              title: 'Data Loading Failed',
+              message: 'Failed to load data from backend after retry.',
+              details: retryError instanceof Error ? retryError.message : 'Unknown error'
+            });
+            result = { 
+              data: {
+                'CustomAlert5.json': [],
+                'SalesOrderHeaders.json': [],
+                'ManufacturingOrderHeaders.json': [],
+                'PurchaseOrders.json': []
+              }, 
+              folderInfo: { folderName: 'Backend Not Connected', syncDate: new Date().toISOString() } 
+            };
+          }
         }
       }
       const gdriveData = result.data;

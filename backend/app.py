@@ -885,7 +885,8 @@ def get_all_data():
                         "fileCount": len([k for k, v in _data_cache.items() if v])
                     },
                     "LoadTimestamp": "Cached",
-                    "cached": True
+                    "cached": True,
+                    "source": "Cache (from previous load)"
                 })
         
         print("RETRY: Cache expired or missing, loading fresh data...")
@@ -983,7 +984,8 @@ def get_all_data():
                     "fileCount": 0
                 },
                 "LoadTimestamp": datetime.now().isoformat(),
-                "warning": "G: Drive not accessible - returning empty data"
+                "warning": "G: Drive not accessible - returning empty data",
+                "source": "None (G: Drive not accessible)"
             })
         
         latest_folder, error = get_latest_folder()
@@ -1142,11 +1144,16 @@ def get_all_data():
         _cache_timestamp = time.time()
         print(f"💾 Data cached for {_cache_duration} seconds")
         
+        # Detect if running on Cloud Run (no G: Drive access) vs local (has G: Drive)
+        is_cloud_run = os.getenv('K_SERVICE') is not None
+        data_source = "Google Drive API" if is_cloud_run else "Local G: Drive"
+        
         return jsonify({
             "data": raw_data,
             "folderInfo": folder_info,
             "LoadTimestamp": datetime.now().isoformat(),
-            "cached": False  # Indicate this was fresh data
+            "cached": False,  # Indicate this was fresh data
+            "source": data_source
         })
         
     except Exception as e:
