@@ -1,4 +1,4 @@
-ÿþ"""
+"""
 Google Drive API Service
 Connects directly to Google Drive to access shared drive data
 """
@@ -130,7 +130,7 @@ class GoogleDriveService:
                 try:
                     print("[INFO] Token expired, attempting to refresh...")
                     creds.refresh(Request())
-                    print("[OK] “£à Successfully refreshed expired Google Drive token")
+                    print("[OK]  Successfully refreshed expired Google Drive token")
                     
                     # Save refreshed token immediately
                     try:
@@ -141,7 +141,7 @@ class GoogleDriveService:
                         print(f"[WARN] Could not save refreshed token: {save_error}")
                         
                 except Exception as e:
-                    print(f"[ERROR] “¥î Failed to refresh token: {e}")
+                    print(f"[ERROR]  Failed to refresh token: {e}")
                     print(f"[ERROR] Token refresh failed - deleting invalid token file")
                     
                     # Delete invalid token file to force re-authentication
