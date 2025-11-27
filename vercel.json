@@ -4,7 +4,7 @@
   "framework": "vite",
   "installCommand": "cd frontend && npm install",
   "routes": [
-    { "src": "/api/(.*)", "dest": "https://canoil-backend-4nlpxclyta-uc.a.run.app/api/$1" },
+    { "src": "/api/(.*)", "dest": "https://canoil-backend-711358371169.us-central1.run.app/api/$1" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

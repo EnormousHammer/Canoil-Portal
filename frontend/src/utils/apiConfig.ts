@@ -30,12 +30,12 @@ if (typeof window !== 'undefined') {
   else {
     // Production: Use Cloud Run backend directly (doesn't need local computer)
     // This ensures it works on Vercel even when local Docker is off
-    apiBaseUrl = 'https://canoil-backend-4nlpxclyta-uc.a.run.app';
+    apiBaseUrl = 'https://canoil-backend-711358371169.us-central1.run.app';
   }
 } else {
   // ===== SSR/BUILD TIME =====
   // Use Cloud Run for production builds, localhost for dev builds
-  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-4nlpxclyta-uc.a.run.app' : 'http://localhost:5002');
+  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-backend-711358371169.us-central1.run.app' : 'http://localhost:5002');
 }
 
 export const API_BASE_URL = apiBaseUrl;
