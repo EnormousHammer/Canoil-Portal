@@ -628,12 +628,17 @@ def load_json_file(file_path):
         print(f"ERROR: Error loading {file_path}: {e}")
         return []
 
-# Global cache variables
+# Global cache variables - INCREASED CACHE DURATION for better performance
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 300  # 5 minutes cache
+_cache_duration = 3600  # 1 hour cache (was 5 minutes) - reduces API calls significantly
 app = Flask(__name__)
 CORS(app)
+
+# Enable GZIP compression to reduce response size (70MB -> ~10-15MB)
+from flask_compress import Compress
+Compress(app)
+print("✅ GZIP compression enabled - responses will be compressed")
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
