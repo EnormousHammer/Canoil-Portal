@@ -6,6 +6,8 @@ Connects directly to Google Drive to access shared drive data
 import os
 import json
 import pickle
+import time
+import functools
 from datetime import datetime
 from pathlib import Path
 from google.oauth2.credentials import Credentials
@@ -14,6 +16,32 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+
+def retry_on_error(max_retries=3, delay=1, backoff=2):
+    """Decorator to retry functions on network/SSL errors"""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_error = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+                    # Only retry on network/SSL errors, not auth or permission errors
+                    if any(x in error_str for x in ['ssl', 'timeout', 'connection', 'network', 'reset', 'broken pipe']):
+                        wait_time = delay * (backoff ** attempt)
+                        print(f"[WARN] {func.__name__} failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        print(f"[INFO] Retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        # Non-retryable error, raise immediately
+                        raise
+            print(f"[ERROR] {func.__name__} failed after {max_retries} attempts")
+            raise last_error
+        return wrapper
+    return decorator
 
 # Google Drive API scopes
 SCOPES = [
@@ -216,6 +244,7 @@ class GoogleDriveService:
         print("[OK] Google Drive API authenticated successfully")
         return True
     
+    @retry_on_error(max_retries=3, delay=1, backoff=2)
     def find_shared_drive(self, drive_name):
         """Find a shared drive by name"""
         import time
@@ -269,6 +298,7 @@ class GoogleDriveService:
             print(f"[ERROR] Error finding shared drive: {error}")
             return None
     
+    @retry_on_error(max_retries=3, delay=1, backoff=2)
     def find_folder_by_path(self, drive_id, folder_path):
         """Find a folder by path within a shared drive"""
         path_parts = [p for p in folder_path.split('/') if p]  # Remove empty parts
@@ -299,6 +329,7 @@ class GoogleDriveService:
         
         return current_id
     
+    @retry_on_error(max_retries=3, delay=1, backoff=2)
     def get_latest_folder(self, parent_folder_id, drive_id=None):
         """Get the latest folder (by name/date) from parent folder"""
         try:
@@ -356,6 +387,7 @@ class GoogleDriveService:
             print(f"[ERROR] Error finding latest API extractions folder: {error}")
             return None, None
     
+    @retry_on_error(max_retries=3, delay=1, backoff=2)
     def download_file(self, file_id, file_name):
         """Download a file from Google Drive with retry logic for SSL errors"""
         max_retries = 3
