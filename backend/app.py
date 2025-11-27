@@ -1215,7 +1215,44 @@ def load_sales_orders():
         
         if not os.path.exists(SALES_ORDERS_BASE):
             print(f"ERROR: Sales Orders path not accessible: {SALES_ORDERS_BASE}")
-            return {}
+            
+            # Try to use Google Drive API as fallback
+            gdrive_service = get_google_drive_service()
+            if gdrive_service and gdrive_service.authenticated:
+                print("🔄 G: Drive not accessible, falling back to Google Drive API for Sales Orders...")
+                try:
+                    # Get shared drive ID first
+                    drive_id = gdrive_service.shared_drive_id
+                    if not drive_id:
+                        # Find IT_Automation drive
+                        drive_id = gdrive_service.find_shared_drive("IT_Automation")
+                    
+                    if drive_id:
+                        # Load sales orders from Google Drive API
+                        # Only load active folders (In Production, New and Revised) to reduce response size
+                        so_data = gdrive_service.load_sales_orders_data(drive_id, filter_folders=['In Production', 'New and Revised'])
+                        if so_data:
+                            print(f"✅ Successfully loaded sales orders from Google Drive API")
+                            return so_data
+                        else:
+                            print("⚠️ Google Drive API returned empty sales orders data")
+                    else:
+                        print("⚠️ Could not find shared drive for sales orders")
+                except Exception as e:
+                    print(f"❌ Error loading sales orders from Google Drive API: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # If Google Drive API also failed or not available, return empty structure
+            print("⚠️ Both G: Drive and Google Drive API unavailable for Sales Orders - returning empty data")
+            return {
+                'SalesOrders.json': [],
+                'SalesOrdersByStatus': {},
+                'TotalOrders': 0,
+                'StatusFolders': [],
+                'ScanMethod': 'No G: Drive Access',
+                'LoadTimestamp': datetime.now().isoformat()
+            }
         
         # Discover all status folders dynamically
         base_items = os.listdir(SALES_ORDERS_BASE)
