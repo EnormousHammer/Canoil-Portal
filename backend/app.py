@@ -1065,18 +1065,16 @@ def get_all_data():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint - FAST, doesn't check G: Drive (Cloud Run can't access it)"""
     try:
-        latest_folder, error = get_latest_folder()
-        status = "healthy" if latest_folder else "unhealthy"
-        message = f"Latest folder: {latest_folder}" if latest_folder else f"Error: {error}"
-        
+        # Always return healthy - we have Google Drive API fallback
+        # Don't check G: Drive here as it will always fail on Cloud Run
         return jsonify({
-            "status": status,
-            "message": message,
+            "status": "ready",  # Changed from "healthy" to "ready" for frontend compatibility
+            "message": "Backend is ready",
             "timestamp": datetime.now().isoformat(),
-            "gdrive_path": GDRIVE_BASE
-        })
+            "google_drive_api_enabled": USE_GOOGLE_DRIVE_API and google_drive_service is not None
+        }), 200
     except Exception as e:
         return jsonify({
             "status": "error",

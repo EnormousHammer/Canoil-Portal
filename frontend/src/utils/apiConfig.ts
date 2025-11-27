@@ -84,11 +84,14 @@ export function getApiUrl(endpoint: string): string {
  */
 export async function checkBackendHealth(): Promise<boolean> {
   try {
-    const response = await fetch(getApiUrl('/api/data'), {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(2000) // 2 second timeout
+    // Use /api/health endpoint - FAST and doesn't load data
+    const response = await fetch(getApiUrl('/api/health'), {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000) // 3 second timeout
     });
-    return response.ok;
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.status === 'healthy' || data.status === 'ready';
   } catch (error) {
     console.log('Backend not ready yet, continuing with loading...');
     return false;
