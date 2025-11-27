@@ -335,13 +335,31 @@ def extract_so_data_from_pdf(pdf_path):
                     
                     description = ' '.join(parts[desc_start:desc_end])
                     
-                    # Find prices
-                    price_match = re.search(r'(\d+\.\d+)\s+(\d+\.\d+)', line)
+                    # Find prices - handle commas, currency symbols, and various formats
+                    # Pattern 1: Two numbers with commas (e.g., "8,865.00 US$17,730.00" or "8,865.00 17,730.00")
+                    price_match = re.search(r'([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', line)
                     unit_price = 0.0
                     amount = 0.0
                     if price_match:
-                        unit_price = float(price_match.group(1))
-                        amount = float(price_match.group(2))
+                        unit_price = float(price_match.group(1).replace(',', ''))
+                        amount = float(price_match.group(2).replace(',', ''))
+                    else:
+                        # Pattern 2: Look for any two numbers at the end of the line
+                        # Extract all numbers with commas/decimals from the line
+                        all_numbers = re.findall(r'([\d,]+\.\d+)', line)
+                        if len(all_numbers) >= 2:
+                            # Last two numbers are usually unit price and total
+                            unit_price = float(all_numbers[-2].replace(',', ''))
+                            amount = float(all_numbers[-1].replace(',', ''))
+                        elif len(all_numbers) == 1:
+                            # Only one number - might be total, calculate unit price from quantity
+                            amount = float(all_numbers[0].replace(',', ''))
+                            try:
+                                qty = int(quantity)
+                                if qty > 0:
+                                    unit_price = amount / qty
+                            except:
+                                pass
                     
                     try:
                         item = {
