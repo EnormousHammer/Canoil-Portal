@@ -715,7 +715,19 @@ _cache_timestamp = None
 _cache_duration = 3600  # 1 hour cache (was 5 minutes - too short, causing frequent reloads)
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS Configuration - Allow all origins for Cloud Run
+# Cloud Run uses different URLs for each deployment
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+        "expose_headers": ["Content-Type", "Content-Length"],
+        "supports_credentials": False,
+        "max_age": 3600
+    }
+})
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
