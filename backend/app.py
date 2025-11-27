@@ -306,22 +306,9 @@ def extract_so_data_from_pdf(pdf_path):
                 
                 so_data['ship_to']['address'] = ', '.join(ship_to_lines)
                 so_data['sold_to']['address'] = ', '.join(sold_to_lines)
-        else:
-            # Fallback: Try to find company names in other common locations
-            for i, line in enumerate(lines):
-                # Look for company names in lines before "Business No." or "Item No."
-                if i < len(lines) - 5:  # Only check early lines
-                    # Common patterns for company names
-                    if any(keyword in line for keyword in ['Inc', 'Ltd', 'LLC', 'Corp', 'Company', 'Co']):
-                        if not so_data['sold_to']['company_name']:
-                            so_data['sold_to']['company_name'] = line.strip()
-                            so_data['ship_to']['company_name'] = line.strip()
-                            so_data['customer_name'] = line.strip()
-                            break
         
-        # Set customer name (use sold_to if available, otherwise keep default)
-        if so_data['sold_to']['company_name']:
-            so_data['customer_name'] = so_data['sold_to']['company_name']
+        # Set customer name
+        so_data['customer_name'] = so_data['sold_to']['company_name']
         
         # Parse other fields
         for line in lines:
