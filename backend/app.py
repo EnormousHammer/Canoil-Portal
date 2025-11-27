@@ -350,7 +350,9 @@ def extract_so_data_from_pdf(pdf_path):
                             'quantity': int(quantity),
                             'unit': unit,
                             'unit_price': unit_price,
-                            'amount': amount
+                            'amount': amount,
+                            'total_price': amount,  # Frontend expects total_price
+                            'price': unit_price  # Alias for compatibility
                         }
                     except ValueError:
                         # Skip items that don't parse correctly
@@ -362,6 +364,12 @@ def extract_so_data_from_pdf(pdf_path):
                 subtotal_match = re.search(r'Subtotal:\s+([\d,]+\.?\d*)', line)
                 if subtotal_match:
                     so_data['subtotal'] = float(subtotal_match.group(1).replace(',', ''))
+            
+            # Tax (HST)
+            elif 'HST' in line and re.search(r'(\d+\.?\d*)', line):
+                tax_match = re.search(r'HST\s+(\d+\.?\d*)', line)
+                if tax_match:
+                    so_data['tax'] = float(tax_match.group(1).replace(',', ''))
                     
             # Total Amount
             elif 'Total Amount' in line:
