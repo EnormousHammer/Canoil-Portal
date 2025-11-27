@@ -1221,23 +1221,14 @@ def load_sales_orders():
             if gdrive_service and gdrive_service.authenticated:
                 print("🔄 G: Drive not accessible, falling back to Google Drive API for Sales Orders...")
                 try:
-                    # Get shared drive ID first
-                    drive_id = gdrive_service.shared_drive_id
-                    if not drive_id:
-                        # Find IT_Automation drive
-                        drive_id = gdrive_service.find_shared_drive("IT_Automation")
-                    
-                    if drive_id:
-                        # Load sales orders from Google Drive API
-                        # Only load active folders (In Production, New and Revised) to reduce response size
-                        so_data = gdrive_service.load_sales_orders_data(drive_id, filter_folders=['In Production', 'New and Revised'])
-                        if so_data:
-                            print(f"✅ Successfully loaded sales orders from Google Drive API")
-                            return so_data
-                        else:
-                            print("⚠️ Google Drive API returned empty sales orders data")
+                    # load_sales_orders_data() finds Sales_CSR drive automatically (ignores drive_id parameter)
+                    # Only load active folders (In Production, New and Revised) to reduce response size
+                    so_data = gdrive_service.load_sales_orders_data(None, filter_folders=['In Production', 'New and Revised'])
+                    if so_data and so_data.get('TotalOrders', 0) > 0:
+                        print(f"✅ Successfully loaded {so_data.get('TotalOrders', 0)} sales orders from Google Drive API")
+                        return so_data
                     else:
-                        print("⚠️ Could not find shared drive for sales orders")
+                        print("⚠️ Google Drive API returned empty sales orders data")
                 except Exception as e:
                     print(f"❌ Error loading sales orders from Google Drive API: {e}")
                     import traceback
