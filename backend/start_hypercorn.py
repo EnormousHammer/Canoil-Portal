@@ -37,14 +37,28 @@ try:
                 import time
                 time.sleep(2)  # Wait for app to fully initialize
                 print("📥 Starting background data preload...")
-                # Trigger data load by calling the endpoint internally
+                # Directly call the data loading function (faster than HTTP)
                 with app.test_request_context('/api/data'):
                     from app import get_all_data
                     response = get_all_data()
-                    if response and response.status_code == 200:
-                        print("✅ Data preloaded successfully - cache is warm!")
+                    if response:
+                        # Check if it's a Flask Response object
+                        status = getattr(response, 'status_code', None)
+                        if status == 200 or status is None:
+                            print("✅ Data preloaded successfully - cache is warm!")
+                            # Try to get data size
+                            try:
+                                import json
+                                data = json.loads(response.get_data(as_text=True))
+                                if 'data' in data:
+                                    file_count = len([k for k, v in data['data'].items() if v])
+                                    print(f"   Preloaded {file_count} data files")
+                            except:
+                                pass
+                        else:
+                            print(f"⚠️ Data preload returned status {status}")
                     else:
-                        print("⚠️ Data preload returned non-200 status")
+                        print("⚠️ Data preload returned None")
             except Exception as e:
                 print(f"⚠️ Background preload failed (non-critical): {e}")
         
