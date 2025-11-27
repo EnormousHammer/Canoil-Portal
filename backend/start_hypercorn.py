@@ -26,6 +26,35 @@ except ImportError as e:
 try:
     from app import app
     print("✅ Flask app imported successfully")
+    
+    # PRELOAD DATA ON STARTUP - Warm up cache immediately
+    print("🔄 Preloading data cache on startup...")
+    try:
+        import threading
+        def preload_data():
+            """Preload data in background thread to warm up cache"""
+            try:
+                import time
+                time.sleep(2)  # Wait for app to fully initialize
+                print("📥 Starting background data preload...")
+                # Trigger data load by calling the endpoint internally
+                with app.test_request_context('/api/data'):
+                    from app import get_all_data
+                    response = get_all_data()
+                    if response and response.status_code == 200:
+                        print("✅ Data preloaded successfully - cache is warm!")
+                    else:
+                        print("⚠️ Data preload returned non-200 status")
+            except Exception as e:
+                print(f"⚠️ Background preload failed (non-critical): {e}")
+        
+        # Start preload in background thread (non-blocking)
+        preload_thread = threading.Thread(target=preload_data, daemon=True)
+        preload_thread.start()
+        print("✅ Background data preload started")
+    except Exception as e:
+        print(f"⚠️ Could not start preload thread (non-critical): {e}")
+        
 except ImportError as e:
     print(f"❌ Failed to import Flask app: {e}")
     import traceback

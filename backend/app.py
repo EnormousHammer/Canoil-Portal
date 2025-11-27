@@ -406,10 +406,58 @@ def extract_so_data_from_pdf(pdf_path):
                     so_data['po_number'] = po_match.group(1)
         
         # Create billing and shipping addresses for compatibility
+        # Parse address string into components for frontend
+        def parse_address(address_str):
+            """Parse address string into city, province, postal_code, country"""
+            if not address_str:
+                return {'street': '', 'city': '', 'province': '', 'postal_code': '', 'country': 'Canada'}
+            
+            parts = [p.strip() for p in address_str.split(',')]
+            result = {'street': '', 'city': '', 'province': '', 'postal_code': '', 'country': 'Canada'}
+            
+            # Last part is usually country or postal code
+            if parts:
+                # Look for postal code pattern (Canadian: A1A 1A1 or US: 12345)
+                postal_match = re.search(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(-\d{4})?)', parts[-1].upper())
+                if postal_match:
+                    result['postal_code'] = postal_match.group(1)
+                    # Remove postal code from the part
+                    parts[-1] = re.sub(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(-\d{4})?)', '', parts[-1], flags=re.IGNORECASE).strip()
+                
+                # Look for province/state (2-letter code)
+                province_match = re.search(r'\b([A-Z]{2})\b', parts[-1])
+                if province_match:
+                    result['province'] = province_match.group(1)
+                    # Remove province from the part
+                    parts[-1] = re.sub(r'\b([A-Z]{2})\b', '', parts[-1]).strip()
+                
+                # City is usually the last part after removing postal/province
+                if parts[-1]:
+                    result['city'] = parts[-1]
+                
+                # Street is everything before city
+                if len(parts) > 1:
+                    result['street'] = ', '.join(parts[:-1])
+                elif len(parts) == 1 and not result['city']:
+                    result['street'] = parts[0]
+            
+            return result
+        
+        # Parse addresses
+        billing_addr = parse_address(so_data['sold_to']['address'])
+        shipping_addr = parse_address(so_data['ship_to']['address'])
+        
         so_data['billing_address'] = {
             'company': so_data['sold_to']['company_name'],
             'contact_person': so_data['sold_to']['contact_person'],
-            'address': so_data['sold_to']['address'],
+            'contact': so_data['sold_to']['contact_person'],  # Alias for frontend
+            'address': so_data['sold_to']['address'],  # Keep full address
+            'street': billing_addr['street'],  # Parsed street
+            'city': billing_addr['city'],
+            'province': billing_addr['province'],
+            'postal': billing_addr['postal_code'],  # Frontend uses 'postal'
+            'postal_code': billing_addr['postal_code'],
+            'country': billing_addr['country'],
             'phone': so_data['sold_to']['phone'],
             'email': so_data['sold_to']['email']
         }
@@ -417,7 +465,14 @@ def extract_so_data_from_pdf(pdf_path):
         so_data['shipping_address'] = {
             'company': so_data['ship_to']['company_name'],
             'contact_person': so_data['ship_to']['contact_person'],
-            'address': so_data['ship_to']['address'],
+            'contact': so_data['ship_to']['contact_person'],  # Alias for frontend
+            'address': so_data['ship_to']['address'],  # Keep full address
+            'street': shipping_addr['street'],  # Parsed street
+            'city': shipping_addr['city'],
+            'province': shipping_addr['province'],
+            'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
+            'postal_code': shipping_addr['postal_code'],
+            'country': shipping_addr['country'],
             'phone': so_data['ship_to']['phone'],
             'email': so_data['ship_to']['email']
         }
@@ -657,7 +712,7 @@ def load_json_file(file_path):
 # Global cache variables
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 300  # 5 minutes cache
+_cache_duration = 3600  # 1 hour cache (was 5 minutes - too short, causing frequent reloads)
 
 app = Flask(__name__)
 CORS(app)
@@ -801,7 +856,7 @@ def load_json_file(file_path):
 # Global cache for data
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 300  # 5 minutes cache
+_cache_duration = 3600  # 1 hour cache (was 5 minutes - too short)
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
