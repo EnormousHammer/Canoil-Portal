@@ -681,25 +681,42 @@ except Exception as e:
     client = None
     openai_available = False
 
-# Initialize Google Drive service if enabled (for Cloud Run / remote deployments)
+# Google Drive API - LAZY INITIALIZATION (only when needed, not on startup)
+# This prevents startup failures if Google Drive API has issues
 USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
 google_drive_service = None
 
-if USE_GOOGLE_DRIVE_API:
+def get_google_drive_service():
+    """Lazy initialization of Google Drive service - only when actually needed"""
+    global google_drive_service
+    
+    if not USE_GOOGLE_DRIVE_API:
+        return None
+    
+    if google_drive_service is not None:
+        return google_drive_service
+    
+    # Initialize only when first needed
     try:
-        print("🔄 Attempting to initialize Google Drive API service...")
+        print("🔄 Initializing Google Drive API service (lazy load)...")
         from google_drive_service import GoogleDriveService
         google_drive_service = GoogleDriveService()
         if google_drive_service.authenticate():
             print("✅ Google Drive API service initialized successfully")
+            return google_drive_service
         else:
             print("⚠️ Google Drive API authentication failed - will fall back to G: Drive if available")
             google_drive_service = None
+            return None
     except Exception as e:
         print(f"⚠️ Failed to initialize Google Drive service: {e}")
         import traceback
         traceback.print_exc()
         google_drive_service = None
+        return None
+
+if USE_GOOGLE_DRIVE_API:
+    print("ℹ️ Google Drive API enabled - will initialize when needed")
 else:
     print("ℹ️ Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
 
@@ -796,11 +813,12 @@ def get_all_data():
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive not accessible at: {GDRIVE_BASE}")
             
-            # Try to use Google Drive API as fallback
-            if USE_GOOGLE_DRIVE_API and google_drive_service and google_drive_service.authenticated:
+            # Try to use Google Drive API as fallback (lazy initialization)
+            gdrive_service = get_google_drive_service()
+            if gdrive_service and gdrive_service.authenticated:
                 print("🔄 G: Drive not accessible, falling back to Google Drive API...")
                 try:
-                    gdrive_data, gdrive_folder_info = google_drive_service.get_all_data()
+                    gdrive_data, gdrive_folder_info = gdrive_service.get_all_data()
                     if gdrive_data and gdrive_folder_info:
                         print(f"✅ Successfully loaded data from Google Drive API")
                         # Cache the data
@@ -1064,7 +1082,7 @@ def health_check():
             "status": "ready",  # Changed from "healthy" to "ready" for frontend compatibility
             "message": "Backend is ready",
             "timestamp": datetime.now().isoformat(),
-            "google_drive_api_enabled": USE_GOOGLE_DRIVE_API and google_drive_service is not None
+            "google_drive_api_enabled": USE_GOOGLE_DRIVE_API and get_google_drive_service() is not None
         }), 200
     except Exception as e:
         return jsonify({
