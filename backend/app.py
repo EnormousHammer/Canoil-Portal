@@ -628,17 +628,13 @@ def load_json_file(file_path):
         print(f"ERROR: Error loading {file_path}: {e}")
         return []
 
-# Global cache variables - INCREASED CACHE DURATION for better performance
+# Global cache variables
 _data_cache = None
 _cache_timestamp = None
-_cache_duration = 3600  # 1 hour cache (was 5 minutes) - reduces API calls significantly
+_cache_duration = 300  # 5 minutes cache
+
 app = Flask(__name__)
 CORS(app)
-
-# Enable GZIP compression to reduce response size (70MB -> ~10-15MB)
-from flask_compress import Compress
-Compress(app)
-print("✅ GZIP compression enabled - responses will be compressed")
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
@@ -684,33 +680,6 @@ except Exception as e:
     print(f"ERROR: OpenAI initialization failed: {e}")
     client = None
     openai_available = False
-
-# Initialize Google Drive service if enabled (for Cloud Run / remote deployments)
-USE_GOOGLE_DRIVE_API = os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
-google_drive_service = None
-
-if USE_GOOGLE_DRIVE_API:
-    try:
-        print("🔄 Attempting to initialize Google Drive API service...")
-        from google_drive_service import GoogleDriveService
-        google_drive_service = GoogleDriveService()
-        if google_drive_service.authenticate():
-            print("✅ Google Drive API service initialized successfully")
-        else:
-            print("⚠️ Google Drive API authentication failed - will fall back to G: Drive if available")
-            google_drive_service = None
-    except ImportError as e:
-        print(f"⚠️ Google Drive service module not available: {e}")
-        print("   Continuing without Google Drive API support")
-        google_drive_service = None
-    except Exception as e:
-        print(f"⚠️ Failed to initialize Google Drive service: {e}")
-        import traceback
-        traceback.print_exc()
-        print("   Continuing without Google Drive API support")
-        google_drive_service = None
-else:
-    print("ℹ️ Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
 
 # G: Drive base paths - EXACT paths where data is located
 GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
@@ -1067,7 +1036,7 @@ def get_all_data():
 def health_check():
     """Health check endpoint - FAST, doesn't check G: Drive (Cloud Run can't access it)"""
     try:
-        # Always return healthy - we have Google Drive API fallback
+        # Always return ready - we have Google Drive API fallback
         # Don't check G: Drive here as it will always fail on Cloud Run
         return jsonify({
             "status": "ready",  # Changed from "healthy" to "ready" for frontend compatibility
