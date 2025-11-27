@@ -305,28 +305,26 @@ class GoogleDriveService:
         current_id = drive_id
         
         for folder_name in path_parts:
-            try:
-                query = f"name='{folder_name}' and '{current_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-                results = self.service.files().list(
-                    q=query,
-                    corpora='drive',
-                    driveId=drive_id,
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    fields="files(id, name)"
-                ).execute()
-                
-                folders = results.get('files', [])
-                if folders:
-                    current_id = folders[0]['id']
-                    print(f"[OK] Found folder: {folder_name} (ID: {current_id})")
-                else:
-                    print(f"[ERROR] Folder not found: {folder_name}")
-                    return None
-            except HttpError as error:
-                print(f"[ERROR] Error finding folder {folder_name}: {error}")
+            # Let exceptions bubble up to retry decorator
+            query = f"name='{folder_name}' and '{current_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            results = self.service.files().list(
+                q=query,
+                corpora='drive',
+                driveId=drive_id,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)"
+            ).execute()
+            
+            folders = results.get('files', [])
+            if folders:
+                current_id = folders[0]['id']
+                print(f"[OK] Found folder: {folder_name} (ID: {current_id})")
+            else:
+                print(f"[ERROR] Folder not found: {folder_name}")
                 return None
         
+        print(f"[OK] Found base folder '{folder_path}' (ID: {current_id})")
         return current_id
     
     @retry_on_error(max_retries=3, delay=1, backoff=2)
