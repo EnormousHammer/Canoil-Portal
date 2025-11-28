@@ -256,19 +256,22 @@ def extract_so_data_from_pdf(pdf_path):
                 """Remove phone numbers, batch info, and other non-address data from text"""
                 if not text:
                     return ''
-                # Remove phone numbers (various formats)
-                text = re.sub(r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', '', text)
-                # Remove batch/lot numbers
-                text = re.sub(r'batch\s*#?\s*\w+', '', text, flags=re.IGNORECASE)
-                text = re.sub(r'lot\s*#?\s*\w+', '', text, flags=re.IGNORECASE)
+                # Remove phone numbers (various formats including spaces: "609 695 5300")
+                text = re.sub(r'\b\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', text)
+                text = re.sub(r'\b\d{10}\b', '', text)  # Also remove 10-digit numbers
+                # Remove batch/lot numbers (more aggressive)
+                text = re.sub(r'batch\s*#?\s*[\w\d]+', '', text, flags=re.IGNORECASE)
+                text = re.sub(r'lot\s*#?\s*[\w\d]+', '', text, flags=re.IGNORECASE)
                 # Remove "Pull from stock" etc.
                 text = re.sub(r'pull\s+from\s+\w+', '', text, flags=re.IGNORECASE)
                 # Remove N/A
-                text = re.sub(r'\bN/A\b', '', text, flags=re.IGNORECASE)
-                # Remove "USA" duplicates and standalone country mentions that aren't part of address
+                text = re.sub(r'\bN/?A\b', '', text, flags=re.IGNORECASE)
+                # Remove standalone "USA" that's not part of address (keep at end)
                 text = re.sub(r',\s*USA\s*,', ',', text)
+                # Remove country names from middle of address (they should only be at end)
+                text = re.sub(r',\s*Canada\s*,', ',', text, flags=re.IGNORECASE)
                 # Clean up multiple commas/spaces
-                text = re.sub(r',\s*,', ',', text)
+                text = re.sub(r',\s*,+', ',', text)
                 text = re.sub(r'\s{2,}', ' ', text)
                 text = text.strip().strip(',').strip()
                 return text
@@ -446,23 +449,29 @@ def extract_so_data_from_pdf(pdf_path):
             if not address_str:
                 return ''
             
-            # List of patterns to remove
-            garbage_patterns = [
-                r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}',  # Phone numbers
-                r'batch\s*#?\s*\w+',  # Batch numbers
-                r'Pull from stock',  # Pull from stock
-                r'N/A',  # N/A placeholders
-                r'Attn:?\s*',  # Attn: prefix
-                r'USA',  # Will add country separately
-                r'Canada',  # Will add country separately
-            ]
-            
             cleaned = address_str
-            for pattern in garbage_patterns:
-                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+            
+            # Remove phone numbers (various formats including "609 695 5300")
+            cleaned = re.sub(r'\b\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', cleaned)
+            cleaned = re.sub(r'\b\d{10}\b', '', cleaned)
+            # Remove batch/lot numbers
+            cleaned = re.sub(r'batch\s*#?\s*[\w\d]+', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'lot\s*#?\s*[\w\d]+', '', cleaned, flags=re.IGNORECASE)
+            # Remove "Pull from stock" etc.
+            cleaned = re.sub(r'pull\s+from\s+\w+', '', cleaned, flags=re.IGNORECASE)
+            # Remove N/A variations
+            cleaned = re.sub(r'\bN/?A\b', '', cleaned, flags=re.IGNORECASE)
+            # Remove Attn prefix
+            cleaned = re.sub(r'Attn:?\s*', '', cleaned, flags=re.IGNORECASE)
+            # Remove standalone country names (will add at end if needed)
+            cleaned = re.sub(r',\s*\bUSA\b\s*,', ',', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',\s*\bCanada\b\s*,', ',', cleaned, flags=re.IGNORECASE)
+            # Clean trailing USA/Canada (will be added properly later)
+            cleaned = re.sub(r',\s*\bUSA\b\s*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',\s*\bCanada\b\s*$', '', cleaned, flags=re.IGNORECASE)
             
             # Clean up multiple commas, spaces
-            cleaned = re.sub(r',\s*,', ',', cleaned)  # Multiple commas
+            cleaned = re.sub(r',\s*,+', ',', cleaned)  # Multiple commas
             cleaned = re.sub(r'\s+', ' ', cleaned)  # Multiple spaces
             cleaned = re.sub(r',\s*$', '', cleaned)  # Trailing comma
             cleaned = re.sub(r'^\s*,', '', cleaned)  # Leading comma
@@ -548,12 +557,16 @@ def extract_so_data_from_pdf(pdf_path):
         billing_addr = parse_address(so_data['sold_to']['address'], sold_to_contact)
         shipping_addr = parse_address(so_data['ship_to']['address'], ship_to_contact)
         
+        # Clean the raw addresses before storing
+        cleaned_billing_address = clean_address_string(so_data['sold_to']['address'])
+        cleaned_shipping_address = clean_address_string(so_data['ship_to']['address'])
+        
         so_data['billing_address'] = {
             'company': so_data['sold_to']['company_name'],
             'contact_person': so_data['sold_to']['contact_person'],
             'contact': so_data['sold_to']['contact_person'],  # Alias for frontend
-            'address': so_data['sold_to']['address'],  # Keep full address
-            'street': billing_addr['street'],  # Parsed street
+            'address': cleaned_billing_address,  # CLEANED address
+            'street': billing_addr['street'] or cleaned_billing_address,  # Use cleaned if parsing fails
             'city': billing_addr['city'],
             'province': billing_addr['province'],
             'postal': billing_addr['postal_code'],  # Frontend uses 'postal'
@@ -567,8 +580,8 @@ def extract_so_data_from_pdf(pdf_path):
             'company': so_data['ship_to']['company_name'],
             'contact_person': so_data['ship_to']['contact_person'],
             'contact': so_data['ship_to']['contact_person'],  # Alias for frontend
-            'address': so_data['ship_to']['address'],  # Keep full address
-            'street': shipping_addr['street'],  # Parsed street
+            'address': cleaned_shipping_address,  # CLEANED address
+            'street': shipping_addr['street'] or cleaned_shipping_address,  # Use cleaned if parsing fails
             'city': shipping_addr['city'],
             'province': shipping_addr['province'],
             'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
