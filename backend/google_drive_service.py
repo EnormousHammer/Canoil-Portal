@@ -16,6 +16,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+import google_auth_httplib2
+import httplib2
 
 def retry_on_error(max_retries=5, delay=2, backoff=2):
     """Decorator to retry functions on network/SSL errors"""
@@ -92,8 +94,9 @@ class GoogleDriveService:
                 try:
                     sa_info = json.loads(sa_json_env)
                     creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
-                    # cache_discovery=False prevents SSL issues with cached HTTP connections
-                    self.service = build('drive', 'v3', credentials=creds, cache_discovery=False)
+                    # Use fresh httplib2.Http() for each build to avoid SSL connection reuse issues
+                    http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http())
+                    self.service = build('drive', 'v3', http=http, cache_discovery=False)
                     self.authenticated = True
                     print("[OK] Google Drive API authenticated successfully using Service Account (env)")
                     return True
@@ -105,8 +108,9 @@ class GoogleDriveService:
                     with open(sa_json_path, 'r', encoding='utf-8') as f:
                         sa_info = json.load(f)
                     creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
-                    # cache_discovery=False prevents SSL issues with cached HTTP connections
-                    self.service = build('drive', 'v3', credentials=creds, cache_discovery=False)
+                    # Use fresh httplib2.Http() for each build to avoid SSL connection reuse issues
+                    http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http())
+                    self.service = build('drive', 'v3', http=http, cache_discovery=False)
                     self.authenticated = True
                     print("[OK] Google Drive API authenticated successfully using Service Account (file)")
                     return True
