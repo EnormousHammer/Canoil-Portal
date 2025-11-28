@@ -256,24 +256,35 @@ def extract_so_data_from_pdf(pdf_path):
                 """Remove phone numbers, batch info, and other non-address data from text"""
                 if not text:
                     return ''
-                # Remove phone numbers (various formats including spaces: "609 695 5300")
-                text = re.sub(r'\b\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', text)
-                text = re.sub(r'\b\d{10}\b', '', text)  # Also remove 10-digit numbers
-                # Remove batch/lot numbers (more aggressive)
-                text = re.sub(r'batch\s*#?\s*[\w\d]+', '', text, flags=re.IGNORECASE)
-                text = re.sub(r'lot\s*#?\s*[\w\d]+', '', text, flags=re.IGNORECASE)
-                # Remove "Pull from stock" etc.
-                text = re.sub(r'pull\s+from\s+\w+', '', text, flags=re.IGNORECASE)
-                # Remove N/A
-                text = re.sub(r'\bN/?A\b', '', text, flags=re.IGNORECASE)
-                # Remove standalone "USA" that's not part of address (keep at end)
-                text = re.sub(r',\s*USA\s*,', ',', text)
-                # Remove country names from middle of address (they should only be at end)
+                
+                # STEP 1: Remove everything AFTER certain keywords (they indicate end of address)
+                # These patterns mark the end of address data
+                cutoff_patterns = [
+                    r',?\s*pull\s+from.*$',  # "Pull from stock" and everything after
+                    r',?\s*batch\s*#?\s*\S+.*$',  # "batch # NT5E19T018" and everything after
+                    r',?\s*lot\s*#?\s*\S+.*$',  # "lot #" and everything after
+                ]
+                for pattern in cutoff_patterns:
+                    text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+                
+                # STEP 2: Remove phone numbers (various formats)
+                text = re.sub(r',?\s*\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', text)  # 609-695-5300 or 609 695 5300
+                text = re.sub(r',?\s*\(\d{3}\)\s*\d{3}[-.\s]?\d{4}', '', text)  # (609) 695-5300
+                text = re.sub(r',?\s*\b\d{10}\b', '', text)  # 6096955300
+                
+                # STEP 3: Remove N/A values
+                text = re.sub(r',?\s*N/?A\s*N/?A', '', text, flags=re.IGNORECASE)  # N/A N/A
+                text = re.sub(r',?\s*\bN/?A\b', '', text, flags=re.IGNORECASE)  # Single N/A
+                
+                # STEP 4: Remove duplicate country names (keep only at end)
+                text = re.sub(r',\s*USA\s*,', ',', text, flags=re.IGNORECASE)
                 text = re.sub(r',\s*Canada\s*,', ',', text, flags=re.IGNORECASE)
-                # Clean up multiple commas/spaces
-                text = re.sub(r',\s*,+', ',', text)
-                text = re.sub(r'\s{2,}', ' ', text)
+                
+                # STEP 5: Final cleanup
+                text = re.sub(r',\s*,+', ',', text)  # Multiple commas
+                text = re.sub(r'\s{2,}', ' ', text)  # Multiple spaces
                 text = text.strip().strip(',').strip()
+                
                 return text
             
             def extract_phone(text):
@@ -451,26 +462,30 @@ def extract_so_data_from_pdf(pdf_path):
             
             cleaned = address_str
             
-            # Remove phone numbers (various formats including "609 695 5300")
-            cleaned = re.sub(r'\b\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', cleaned)
-            cleaned = re.sub(r'\b\d{10}\b', '', cleaned)
-            # Remove batch/lot numbers
-            cleaned = re.sub(r'batch\s*#?\s*[\w\d]+', '', cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r'lot\s*#?\s*[\w\d]+', '', cleaned, flags=re.IGNORECASE)
-            # Remove "Pull from stock" etc.
-            cleaned = re.sub(r'pull\s+from\s+\w+', '', cleaned, flags=re.IGNORECASE)
-            # Remove N/A variations
-            cleaned = re.sub(r'\bN/?A\b', '', cleaned, flags=re.IGNORECASE)
-            # Remove Attn prefix
+            # STEP 1: Remove everything AFTER certain keywords (they indicate end of address)
+            cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*lot\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            
+            # STEP 2: Remove phone numbers (various formats)
+            cleaned = re.sub(r',?\s*\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', cleaned)
+            cleaned = re.sub(r',?\s*\(\d{3}\)\s*\d{3}[-.\s]?\d{4}', '', cleaned)
+            cleaned = re.sub(r',?\s*\b\d{10}\b', '', cleaned)
+            
+            # STEP 3: Remove N/A values
+            cleaned = re.sub(r',?\s*N/?A\s*N/?A', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*\bN/?A\b', '', cleaned, flags=re.IGNORECASE)
+            
+            # STEP 4: Remove Attn prefix (but keep the name)
             cleaned = re.sub(r'Attn:?\s*', '', cleaned, flags=re.IGNORECASE)
-            # Remove standalone country names (will add at end if needed)
+            
+            # STEP 5: Handle country names - only keep at end, remove from middle
             cleaned = re.sub(r',\s*\bUSA\b\s*,', ',', cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(r',\s*\bCanada\b\s*,', ',', cleaned, flags=re.IGNORECASE)
-            # Clean trailing USA/Canada (will be added properly later)
             cleaned = re.sub(r',\s*\bUSA\b\s*$', '', cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(r',\s*\bCanada\b\s*$', '', cleaned, flags=re.IGNORECASE)
             
-            # Clean up multiple commas, spaces
+            # STEP 6: Final cleanup
             cleaned = re.sub(r',\s*,+', ',', cleaned)  # Multiple commas
             cleaned = re.sub(r'\s+', ' ', cleaned)  # Multiple spaces
             cleaned = re.sub(r',\s*$', '', cleaned)  # Trailing comma
