@@ -1770,21 +1770,28 @@ const LogisticsAutomation: React.FC = () => {
                         <span className="text-sm font-medium text-gray-600">Subtotal</span>
                         <span className="text-base font-semibold text-gray-900">
                           {(() => {
-                            // Calculate subtotal from items if not provided
-                            const subtotal = result.so_data?.subtotal ?? 
-                              (result.so_data?.items?.reduce((sum: number, item: any) => sum + (item.amount || item.total_price || 0), 0) || 0);
-                            return typeof subtotal === 'number' || !isNaN(parseFloat(subtotal))
-                              ? `$${parseFloat(subtotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : 'N/A';
+                            // Calculate subtotal from items if not provided or is 0
+                            let subtotal = result.so_data?.subtotal;
+                            // If subtotal is 0, null, or undefined, calculate from items
+                            if (!subtotal || subtotal === 0) {
+                              const items = result.so_data?.items || [];
+                              subtotal = items.reduce((sum: number, item: any) => {
+                                const itemTotal = parseFloat(item.amount) || parseFloat(item.total_price) || 0;
+                                return sum + itemTotal;
+                              }, 0);
+                            }
+                            return subtotal > 0
+                              ? `$${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : '$0.00';
                           })()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-gray-200">
                         <span className="text-sm font-medium text-gray-600">Tax</span>
                         <span className="text-base font-semibold text-gray-900">
-                          {typeof result.so_data?.tax === 'number' || (result.so_data?.tax && !isNaN(parseFloat(result.so_data.tax)))
+                          {result.so_data?.tax && result.so_data.tax > 0
                             ? `$${parseFloat(result.so_data.tax).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : 'N/A'}
+                            : '$0.00'}
                         </span>
                       </div>
                       {result.so_data?.business_number && (
@@ -1799,14 +1806,22 @@ const LogisticsAutomation: React.FC = () => {
                             <span className="text-xs text-emerald-100 font-semibold uppercase tracking-wide">TOTAL</span>
                             <span className="text-3xl font-bold text-white">
                               {(() => {
-                                // Calculate total from subtotal + tax, or from items if not provided
-                                const subtotal = result.so_data?.subtotal ?? 
-                                  (result.so_data?.items?.reduce((sum: number, item: any) => sum + (item.amount || item.total_price || 0), 0) || 0);
-                                const tax = result.so_data?.tax || 0;
-                                const total = result.so_data?.total_amount || (parseFloat(subtotal) + parseFloat(tax));
-                                return typeof total === 'number' || !isNaN(parseFloat(total))
-                                  ? `$${parseFloat(total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                  : 'N/A';
+                                // Calculate total from items
+                                let subtotal = result.so_data?.subtotal;
+                                if (!subtotal || subtotal === 0) {
+                                  const items = result.so_data?.items || [];
+                                  subtotal = items.reduce((sum: number, item: any) => {
+                                    const itemTotal = parseFloat(item.amount) || parseFloat(item.total_price) || 0;
+                                    return sum + itemTotal;
+                                  }, 0);
+                                }
+                                const tax = parseFloat(result.so_data?.tax) || 0;
+                                const total = result.so_data?.total_amount && result.so_data.total_amount > 0 
+                                  ? result.so_data.total_amount 
+                                  : (subtotal + tax);
+                                return total > 0
+                                  ? `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : '$0.00';
                               })()}
                             </span>
                           </div>

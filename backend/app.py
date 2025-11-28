@@ -232,69 +232,84 @@ def extract_so_data_from_pdf(pdf_path):
                 break
         
         if sold_to_ship_to_line >= 0:
-            # Get the next few lines after "Sold To: Ship To:"
+            # Get lines after "Sold To: Ship To:" - STOP at known boundaries
             address_lines = []
-            for i in range(sold_to_ship_to_line + 1, min(sold_to_ship_to_line + 15, len(lines))):
-                line = lines[i].strip()
-                if line and not line.startswith('Business No.:') and not line.startswith('Item No.'):
-                    address_lines.append(line)
-                elif line.startswith('Business No.:') or line.startswith('Item No.'):
-                    break
+            stop_keywords = ['Business No.:', 'Item No.', 'Date:', 'Order No.:', 'Ship Date:', 
+                           'Subtotal', 'HST', 'Total Amount', 'Terms:', 'PO ', 'DRUM', 'PAIL', 
+                           'GALLON', 'CASE', 'batch', 'Pull from', 'N/A']
             
-            # Split the first line - this contains both Sold To and Ship To info
+            for i in range(sold_to_ship_to_line + 1, min(sold_to_ship_to_line + 10, len(lines))):
+                line = lines[i].strip()
+                # Stop if we hit a known boundary
+                if any(keyword in line for keyword in stop_keywords):
+                    break
+                if line:
+                    address_lines.append(line)
+            
+            # Parse the address block - typically:
+            # Line 1: Company Name (Sold To)  Company Name (Ship To) OR Contact Person  Phone
+            # Line 2: Address part 1
+            # Line 3: Address part 2 (City, State, ZIP)
+            # Line 4+: More address info
+            
             if address_lines:
+                # First line usually has company name(s) and possibly contact/phone
                 first_line = address_lines[0]
                 
-                # Look for phone number pattern to split
-                phone_match = re.search(r'(\d+-\d+-\d+)', first_line)
+                # Extract phone number (formats: 609-695-5300, 609 695 5300, etc.)
+                phone_match = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', first_line)
+                phone = ''
                 if phone_match:
-                    # Split at phone number
                     phone = phone_match.group(1)
-                    before_phone = first_line[:phone_match.start()].strip()
-                    after_phone = first_line[phone_match.end():].strip()
-                    
-                    # Split the before_phone part
-                    parts = before_phone.split()
-                    
-                    # Find where contact name starts (look for common names)
-                    contact_start = 0
-                    for j, word in enumerate(parts):
-                        if word in ['Steve', 'McLean', 'Ross', 'Deryk', 'K.', 'Noda', 'Linda', 'Robert', 'Trish']:
-                            contact_start = j
-                            break
-                    
-                    if contact_start > 0:
-                        # Different people
-                        so_data['sold_to']['company_name'] = ' '.join(parts[:contact_start])
-                        so_data['ship_to']['company_name'] = ' '.join(parts[:contact_start])
-                        so_data['ship_to']['contact_person'] = ' '.join(parts[contact_start:])
-                        so_data['ship_to']['phone'] = phone
+                    first_line = first_line[:phone_match.start()] + first_line[phone_match.end():]
+                    first_line = first_line.strip().rstrip(',').strip()
+                
+                # Split company names if there are two (separated by multiple spaces)
+                if '  ' in first_line:
+                    parts = [p.strip() for p in re.split(r'\s{2,}', first_line) if p.strip()]
+                    if len(parts) >= 2:
+                        so_data['sold_to']['company_name'] = parts[0]
+                        # Second part might be contact person or ship_to company
+                        if any(name in parts[1] for name in ['Inc', 'Ltd', 'LLC', 'Corp', 'Co.', 'Company']):
+                            so_data['ship_to']['company_name'] = parts[1]
+                        else:
+                            so_data['ship_to']['company_name'] = parts[0]  # Same company
+                            so_data['ship_to']['contact_person'] = parts[1]
                     else:
-                        # Same company
-                        so_data['sold_to']['company_name'] = before_phone
-                        so_data['ship_to']['company_name'] = before_phone
-                        so_data['ship_to']['phone'] = phone
-                else:
-                    # No phone number, just company names
-                    if '  ' in first_line:
-                        # Two companies separated by spaces
-                        parts = first_line.split('  ')
-                        so_data['sold_to']['company_name'] = parts[0].strip()
-                        so_data['ship_to']['company_name'] = parts[1].strip()
-                    else:
-                        # Same company
                         so_data['sold_to']['company_name'] = first_line
                         so_data['ship_to']['company_name'] = first_line
+                else:
+                    so_data['sold_to']['company_name'] = first_line
+                    so_data['ship_to']['company_name'] = first_line
                 
-                # Get the rest of the address lines
+                if phone:
+                    so_data['ship_to']['phone'] = phone
+                    so_data['sold_to']['phone'] = phone
+                
+                # Process remaining lines as address components
                 remaining_lines = address_lines[1:] if len(address_lines) > 1 else []
                 
-                # Simple approach: first few lines are ship_to, rest are sold_to
-                ship_to_lines = remaining_lines[:3] if len(remaining_lines) >= 3 else remaining_lines
-                sold_to_lines = remaining_lines[3:] if len(remaining_lines) > 3 else []
+                # Clean address lines - remove phone numbers and other non-address data
+                clean_address_lines = []
+                for addr_line in remaining_lines:
+                    # Skip lines that look like phone numbers only
+                    if re.match(r'^[\d\s\-\(\)]+$', addr_line.strip()):
+                        continue
+                    # Extract and remove phone if embedded
+                    phone_in_line = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', addr_line)
+                    if phone_in_line:
+                        if not phone:
+                            phone = phone_in_line.group(1)
+                            so_data['ship_to']['phone'] = phone
+                        addr_line = addr_line[:phone_in_line.start()] + addr_line[phone_in_line.end():]
+                    addr_line = addr_line.strip().rstrip(',').strip()
+                    if addr_line:
+                        clean_address_lines.append(addr_line)
                 
-                so_data['ship_to']['address'] = ', '.join(ship_to_lines)
-                so_data['sold_to']['address'] = ', '.join(sold_to_lines)
+                # Build clean address string
+                if clean_address_lines:
+                    so_data['ship_to']['address'] = ', '.join(clean_address_lines)
+                    so_data['sold_to']['address'] = ', '.join(clean_address_lines)
         
         # Set customer name
         so_data['customer_name'] = so_data['sold_to']['company_name']
