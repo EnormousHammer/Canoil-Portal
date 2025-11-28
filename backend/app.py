@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_compress import Compress
 import os
 import json
 import base64
@@ -728,6 +729,10 @@ CORS(app, resources={
         "max_age": 3600
     }
 })
+
+# Enable GZIP compression - reduces 70MB → ~10MB
+Compress(app)
+print("✅ GZIP compression enabled")
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
