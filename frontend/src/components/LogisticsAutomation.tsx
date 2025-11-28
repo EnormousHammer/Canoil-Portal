@@ -1770,28 +1770,35 @@ const LogisticsAutomation: React.FC = () => {
                         <span className="text-sm font-medium text-gray-600">Subtotal</span>
                         <span className="text-base font-semibold text-gray-900">
                           {(() => {
-                            // Calculate subtotal from items if not provided or is 0
-                            let subtotal = result.so_data?.subtotal;
-                            // If subtotal is 0, null, or undefined, calculate from items
-                            if (!subtotal || subtotal === 0) {
-                              const items = result.so_data?.items || [];
-                              subtotal = items.reduce((sum: number, item: any) => {
-                                const itemTotal = parseFloat(item.amount) || parseFloat(item.total_price) || 0;
-                                return sum + itemTotal;
-                              }, 0);
+                            // ROBUST: Calculate subtotal from items - works with any data format
+                            const items = result.so_data?.items || [];
+                            let calculatedSubtotal = 0;
+                            
+                            for (const item of items) {
+                              // Try multiple fields and handle strings/numbers
+                              let itemValue = 0;
+                              if (typeof item.amount === 'number') itemValue = item.amount;
+                              else if (typeof item.total_price === 'number') itemValue = item.total_price;
+                              else if (item.amount) itemValue = Number(String(item.amount).replace(/[^0-9.-]/g, '')) || 0;
+                              else if (item.total_price) itemValue = Number(String(item.total_price).replace(/[^0-9.-]/g, '')) || 0;
+                              calculatedSubtotal += itemValue;
                             }
-                            return subtotal > 0
-                              ? `$${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '$0.00';
+                            
+                            // Use backend subtotal if valid, otherwise use calculated
+                            const backendSubtotal = typeof result.so_data?.subtotal === 'number' ? result.so_data.subtotal : 0;
+                            const subtotal = backendSubtotal > 0 ? backendSubtotal : calculatedSubtotal;
+                            
+                            return `$${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                           })()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-gray-200">
                         <span className="text-sm font-medium text-gray-600">Tax</span>
                         <span className="text-base font-semibold text-gray-900">
-                          {result.so_data?.tax && result.so_data.tax > 0
-                            ? `$${parseFloat(result.so_data.tax).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : '$0.00'}
+                          {(() => {
+                            const tax = typeof result.so_data?.tax === 'number' ? result.so_data.tax : 0;
+                            return `$${tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          })()}
                         </span>
                       </div>
                       {result.so_data?.business_number && (
@@ -1806,22 +1813,26 @@ const LogisticsAutomation: React.FC = () => {
                             <span className="text-xs text-emerald-100 font-semibold uppercase tracking-wide">TOTAL</span>
                             <span className="text-3xl font-bold text-white">
                               {(() => {
-                                // Calculate total from items
-                                let subtotal = result.so_data?.subtotal;
-                                if (!subtotal || subtotal === 0) {
-                                  const items = result.so_data?.items || [];
-                                  subtotal = items.reduce((sum: number, item: any) => {
-                                    const itemTotal = parseFloat(item.amount) || parseFloat(item.total_price) || 0;
-                                    return sum + itemTotal;
-                                  }, 0);
+                                // ROBUST: Calculate total from items
+                                const items = result.so_data?.items || [];
+                                let calculatedSubtotal = 0;
+                                
+                                for (const item of items) {
+                                  let itemValue = 0;
+                                  if (typeof item.amount === 'number') itemValue = item.amount;
+                                  else if (typeof item.total_price === 'number') itemValue = item.total_price;
+                                  else if (item.amount) itemValue = Number(String(item.amount).replace(/[^0-9.-]/g, '')) || 0;
+                                  else if (item.total_price) itemValue = Number(String(item.total_price).replace(/[^0-9.-]/g, '')) || 0;
+                                  calculatedSubtotal += itemValue;
                                 }
-                                const tax = parseFloat(result.so_data?.tax) || 0;
-                                const total = result.so_data?.total_amount && result.so_data.total_amount > 0 
-                                  ? result.so_data.total_amount 
-                                  : (subtotal + tax);
-                                return total > 0
-                                  ? `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                  : '$0.00';
+                                
+                                const backendSubtotal = typeof result.so_data?.subtotal === 'number' ? result.so_data.subtotal : 0;
+                                const subtotal = backendSubtotal > 0 ? backendSubtotal : calculatedSubtotal;
+                                const tax = typeof result.so_data?.tax === 'number' ? result.so_data.tax : 0;
+                                const backendTotal = typeof result.so_data?.total_amount === 'number' ? result.so_data.total_amount : 0;
+                                const total = backendTotal > 0 ? backendTotal : (subtotal + tax);
+                                
+                                return `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                               })()}
                             </span>
                           </div>
