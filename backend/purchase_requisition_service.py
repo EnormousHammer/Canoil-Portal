@@ -29,6 +29,24 @@ def get_latest_folder():
     Works for both local and Google Cloud Run environments
     """
     try:
+        # Check if we should use Google Drive API (from app configuration)
+        # Import dynamically to avoid circular imports
+        import sys
+        if 'app' in sys.modules:
+            app_module = sys.modules['app']
+            use_google_drive_api = getattr(app_module, 'USE_GOOGLE_DRIVE_API', False)
+            get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
+            
+            if use_google_drive_api and get_google_drive_service:
+                print("SEARCH: Using Google Drive API to find latest folder (from PR service)...")
+                service = get_google_drive_service()
+                if service:
+                    latest_id, latest_name = service.find_latest_api_extractions_folder()
+                    if latest_name:
+                        print(f"✅ Latest MISys API extraction folder (via API): {latest_name}")
+                        return latest_name
+        
+        # Fallback to local
         if not os.path.exists(GDRIVE_BASE):
             print(f"⚠️ GDRIVE_BASE path not accessible: {GDRIVE_BASE}")
             return None
@@ -654,16 +672,16 @@ def generate_requisition():
                 # Get real inventory data
                 inventory_data = get_inventory_data(item_no)
                 if inventory_data:
-                    # Use real stock data - override the input current_stock
+                    # Use real stock data (Quantity On Hand) - override the input current_stock
                     current_stock = inventory_data.get('stock', 0)
-                    print(f"[PR] Using real inventory data: Stock = {current_stock}")
+                    print(f"[PR] Using real inventory data (Qty On Hand): Stock = {current_stock}")
                     # Use inventory pricing if no PO pricing available
                     if not unit_price or unit_price == 0:
                         unit_price = inventory_data.get('recent_cost', 0)
                     if not unit or unit == 'EA':
                         unit = inventory_data.get('purchasing_units', unit)
                 else:
-                    print(f"[PR] No inventory data found for {item_no}")
+                    print(f"[PR] No inventory data found for {item_no} - using provided stock: {current_stock}")
             
             print(f"[PR] Row {row}: {item_no} | Desc: {description[:30]} | Qty: {quantity} | Price: ${unit_price} | Unit: {unit} | Stock: {current_stock}")
             
@@ -923,6 +941,7 @@ def generate_requisition_internal(user_info, items, supplier):
                 inventory_data = get_inventory_data(item_no)
                 if inventory_data:
                     current_stock = inventory_data.get('stock', 0)
+                    print(f"[PR INTERNAL] Using real inventory data (Qty On Hand): Stock = {current_stock}")
                     if not unit_price or unit_price == 0:
                         unit_price = inventory_data.get('recent_cost', 0)
                     if not unit or unit == 'EA':
@@ -997,47 +1016,20 @@ def generate_requisition_internal(user_info, items, supplier):
 def get_supplier_details(supplier_no):
     """Get full supplier details from most recent PO"""
     try:
-        latest = get_latest_folder()
-        if not latest:
-            return jsonify({"error": "No data folder found"}), 404
+        # Use helper function to get robust supplier info
+        supplier_info = get_supplier_info(supplier_no)
         
-        folder_path = os.path.join(GDRIVE_BASE, latest)
-        
-        # Load PurchaseOrders.json to get supplier info
-        po_file = os.path.join(folder_path, 'PurchaseOrders.json')
-        if not os.path.exists(po_file):
-            return jsonify({"error": "PurchaseOrders.json not found"}), 404
-        
-        with open(po_file, 'r', encoding='utf-8') as f:
-            all_pos = json.load(f)
-        
-        # Find most recent PO for this supplier
-        supplier_pos = [po for po in all_pos if po.get('Supplier No.') == supplier_no]
-        
-        if not supplier_pos:
-            return jsonify({"error": f"No POs found for supplier {supplier_no}"}), 404
-        
-        # Sort by Order Date (most recent first)
-        supplier_pos.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
-        most_recent_po = supplier_pos[0]
-        
-        # NOTE: PO data does NOT contain supplier addresses
-        # "Ship to Address" is where WE receive shipments (Canoil's address)
-        # "Bill to Address" is where WE get billed (Canoil's address)
-        # Supplier addresses are not stored in the PO system
-        
-        # Build supplier info
-        supplier_info = {
-            'supplier_no': supplier_no,
-            'name': most_recent_po.get('Name', ''),
-            'contact': most_recent_po.get('Contact', ''),
-            'email': most_recent_po.get('Email', ''),  # May not exist in PO data
-            'phone': most_recent_po.get('Phone', ''),  # May not exist in PO data
-            'address': {},  # Not available in PO data - user must enter manually
-            'terms': most_recent_po.get('Terms', ''),
-            'po_count': len(supplier_pos),
-            'note': 'Supplier address not available in system - please enter manually'
-        }
+        if not supplier_info:
+            # Fallback if helper fails (e.g. invalid supplier number)
+            return jsonify({
+                'supplier_no': supplier_no,
+                'error': 'Supplier not found in PO history',
+                'note': 'Please enter supplier details manually'
+            }), 404
+            
+        # Add note about address availability
+        supplier_info['note'] = 'Supplier address not available in system - please enter manually'
+        supplier_info['address'] = {} # Explicitly set empty address so frontend knows to prompt
         
         return jsonify(supplier_info)
         

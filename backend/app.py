@@ -811,13 +811,38 @@ MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extra
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
 def get_latest_folder():
-    """Get the latest folder from G: Drive - OPTIMIZED for speed"""
+    """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
     try:
+        # Check if we should use Google Drive API (Cloud Run or explicit setting)
+        if USE_GOOGLE_DRIVE_API:
+            print("SEARCH: Using Google Drive API to find latest folder...")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+                else:
+                    return None, "Could not find latest folder via API"
+            else:
+                # If API init failed, try falling back to local if path exists
+                if not os.path.exists(GDRIVE_BASE):
+                    return None, "Google Drive API failed and local G: Drive not found"
+        
         print(f"SEARCH: Checking G: Drive path: {GDRIVE_BASE}")
         
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive path not accessible: {GDRIVE_BASE}")
-            return None, f"G: Drive path not accessible: {GDRIVE_BASE}"
+            # Try to initialize Google Drive API as fallback
+            print("RETRY: Attempting to use Google Drive API as fallback...")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
+                    return latest_name, None
+            
+            return None, f"G: Drive path not accessible and API fallback failed: {GDRIVE_BASE}"
         
         # FAST: Get folders and sort by name (assuming date format YYYY-MM-DD)
         folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]
@@ -976,13 +1001,38 @@ MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extra
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
 def get_latest_folder():
-    """Get the latest folder from G: Drive - OPTIMIZED for speed"""
+    """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
     try:
+        # Check if we should use Google Drive API (Cloud Run or explicit setting)
+        if USE_GOOGLE_DRIVE_API:
+            print("SEARCH: Using Google Drive API to find latest folder...")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+                else:
+                    return None, "Could not find latest folder via API"
+            else:
+                # If API init failed, try falling back to local if path exists
+                if not os.path.exists(GDRIVE_BASE):
+                    return None, "Google Drive API failed and local G: Drive not found"
+        
         print(f"SEARCH: Checking G: Drive path: {GDRIVE_BASE}")
         
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive path not accessible: {GDRIVE_BASE}")
-            return None, f"G: Drive path not accessible: {GDRIVE_BASE}"
+            # Try to initialize Google Drive API as fallback
+            print("RETRY: Attempting to use Google Drive API as fallback...")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
+                    return latest_name, None
+            
+            return None, f"G: Drive path not accessible and API fallback failed: {GDRIVE_BASE}"
         
         # FAST: Get folders and sort by name (assuming date format YYYY-MM-DD)
         folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]

@@ -1492,11 +1492,31 @@ def get_so_data_from_system(so_number):
                                 # Download file content
                                 so_file_content = google_drive_service.download_file_content(file_id)
                                 if so_file_content:
-                                    # Save to temp file for parsing
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                                        tmp_file.write(so_file_content)
-                                        so_file_path = tmp_file.name
-                                    print(f"[OK] LOGISTICS: Downloaded SO file to temp location: {so_file_path}")
+                                    # Save to PERSISTENT CACHE for frontend viewing
+                                    # Create cache directory if not exists
+                                    try:
+                                        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'so_pdfs')
+                                        os.makedirs(cache_dir, exist_ok=True)
+                                        
+                                        # Create safe filename
+                                        safe_filename = "".join([c for c in file_name if c.isalpha() or c.isdigit() or c in (' ', '.', '_', '-')]).strip()
+                                        if not safe_filename.endswith('.pdf'):
+                                            safe_filename += '.pdf'
+                                            
+                                        cached_path = os.path.join(cache_dir, safe_filename)
+                                        
+                                        with open(cached_path, 'wb') as f:
+                                            f.write(so_file_content)
+                                            
+                                        so_file_path = cached_path
+                                        print(f"[OK] LOGISTICS: Downloaded SO file to CACHE location: {so_file_path}")
+                                    except Exception as cache_error:
+                                        print(f"[WARN] LOGISTICS: Could not save to cache, falling back to temp: {cache_error}")
+                                        # Fallback to temp file if cache fails
+                                        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                                            tmp_file.write(so_file_content)
+                                            so_file_path = tmp_file.name
+                                        print(f"[OK] LOGISTICS: Downloaded SO file to temp location: {so_file_path}")
             except Exception as e:
                 print(f"[WARN] LOGISTICS: Google Drive API search failed: {e}, falling back to local")
         
