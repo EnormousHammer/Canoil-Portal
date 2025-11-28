@@ -489,12 +489,28 @@ def extract_so_data_from_pdf(pdf_path):
         else:
             so_data['status'] = 'Unknown'
         
+        # FALLBACK: Calculate subtotal from items if not extracted from PDF
+        if so_data['subtotal'] == 0 and so_data['items']:
+            calculated_subtotal = sum(item.get('amount', 0) or item.get('total_price', 0) or 0 for item in so_data['items'])
+            if calculated_subtotal > 0:
+                so_data['subtotal'] = calculated_subtotal
+                print(f"  📊 Calculated subtotal from items: ${calculated_subtotal:.2f}")
+        
+        # FALLBACK: Calculate total_amount if not extracted from PDF
+        if so_data['total_amount'] == 0:
+            # Total = subtotal + tax
+            if so_data['subtotal'] > 0:
+                so_data['total_amount'] = so_data['subtotal'] + so_data['tax']
+                print(f"  📊 Calculated total from subtotal + tax: ${so_data['total_amount']:.2f}")
+        
         print(f"  SO Number: {so_data['so_number']}")
         print(f"  Customer: {so_data['customer_name']}")
         print(f"  Sold To: {so_data['sold_to']['company_name']}")
         print(f"  Ship To: {so_data['ship_to']['company_name']} - {so_data['ship_to']['contact_person']}")
         print(f"  Items: {len(so_data['items'])}")
-        print(f"  Total: ${so_data['total_amount']}")
+        print(f"  Subtotal: ${so_data['subtotal']:.2f}")
+        print(f"  Tax: ${so_data['tax']:.2f}")
+        print(f"  Total: ${so_data['total_amount']:.2f}")
         
         return so_data
         
