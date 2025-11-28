@@ -422,46 +422,113 @@ def extract_so_data_from_pdf(pdf_path):
                     so_data['po_number'] = po_match.group(1)
         
         # Create billing and shipping addresses for compatibility
-        # Parse address string into components for frontend
-        def parse_address(address_str):
-            """Parse address string into city, province, postal_code, country"""
+        # First, CLEAN the raw address string by removing garbage
+        def clean_address_string(address_str):
+            """Remove garbage from address string - phone numbers, batch info, N/A, etc."""
             if not address_str:
-                return {'street': '', 'city': '', 'province': '', 'postal_code': '', 'country': 'Canada'}
+                return ''
             
-            parts = [p.strip() for p in address_str.split(',')]
+            # List of patterns to remove
+            garbage_patterns = [
+                r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}',  # Phone numbers
+                r'batch\s*#?\s*\w+',  # Batch numbers
+                r'Pull from stock',  # Pull from stock
+                r'N/A',  # N/A placeholders
+                r'Attn:?\s*',  # Attn: prefix
+                r'USA',  # Will add country separately
+                r'Canada',  # Will add country separately
+            ]
+            
+            cleaned = address_str
+            for pattern in garbage_patterns:
+                cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+            
+            # Clean up multiple commas, spaces
+            cleaned = re.sub(r',\s*,', ',', cleaned)  # Multiple commas
+            cleaned = re.sub(r'\s+', ' ', cleaned)  # Multiple spaces
+            cleaned = re.sub(r',\s*$', '', cleaned)  # Trailing comma
+            cleaned = re.sub(r'^\s*,', '', cleaned)  # Leading comma
+            cleaned = cleaned.strip().strip(',').strip()
+            
+            return cleaned
+        
+        def parse_address(address_str, contact_person=''):
+            """Parse address string into street, city, province, postal_code, country"""
             result = {'street': '', 'city': '', 'province': '', 'postal_code': '', 'country': 'Canada'}
             
-            # Last part is usually country or postal code
+            if not address_str:
+                return result
+            
+            # First clean the address
+            cleaned = clean_address_string(address_str)
+            
+            if not cleaned:
+                return result
+            
+            # Determine country from original string
+            if 'USA' in address_str.upper() or 'US' in address_str.upper():
+                result['country'] = 'USA'
+            
+            # Extract postal code first
+            # Canadian: A1A 1A1, US: 12345 or 12345-6789
+            postal_match = re.search(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d)', cleaned, re.IGNORECASE)
+            if postal_match:
+                result['postal_code'] = postal_match.group(1).upper()
+                cleaned = cleaned.replace(postal_match.group(0), '').strip()
+            else:
+                # Try US zip
+                us_postal_match = re.search(r'\b(\d{5})(-\d{4})?\b', cleaned)
+                if us_postal_match:
+                    result['postal_code'] = us_postal_match.group(0)
+                    cleaned = cleaned.replace(us_postal_match.group(0), '').strip()
+            
+            # Split by comma and clean up
+            parts = [p.strip() for p in cleaned.split(',') if p.strip()]
+            
+            if not parts:
+                return result
+            
+            # Extract province/state (2-letter code at end of a part, or standalone)
+            for i, part in enumerate(reversed(parts)):
+                idx = len(parts) - 1 - i
+                # Look for 2-letter state/province code
+                state_match = re.search(r'\b([A-Z]{2})\b', part.upper())
+                if state_match:
+                    # Verify it looks like a state (not random letters)
+                    potential_state = state_match.group(1)
+                    valid_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',  # US
+                                   'AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT']  # Canada
+                    if potential_state in valid_states:
+                        result['province'] = potential_state
+                        # Remove state from part
+                        parts[idx] = re.sub(r'\b' + potential_state + r'\b', '', part).strip()
+                        break
+            
+            # Clean up empty parts
+            parts = [p.strip() for p in parts if p.strip()]
+            
+            # Last part is usually city
             if parts:
-                # Look for postal code pattern (Canadian: A1A 1A1 or US: 12345)
-                postal_match = re.search(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(-\d{4})?)', parts[-1].upper())
-                if postal_match:
-                    result['postal_code'] = postal_match.group(1)
-                    # Remove postal code from the part
-                    parts[-1] = re.sub(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(-\d{4})?)', '', parts[-1], flags=re.IGNORECASE).strip()
-                
-                # Look for province/state (2-letter code)
-                province_match = re.search(r'\b([A-Z]{2})\b', parts[-1])
-                if province_match:
-                    result['province'] = province_match.group(1)
-                    # Remove province from the part
-                    parts[-1] = re.sub(r'\b([A-Z]{2})\b', '', parts[-1]).strip()
-                
-                # City is usually the last part after removing postal/province
-                if parts[-1]:
-                    result['city'] = parts[-1]
-                
-                # Street is everything before city
-                if len(parts) > 1:
-                    result['street'] = ', '.join(parts[:-1])
-                elif len(parts) == 1 and not result['city']:
-                    result['street'] = parts[0]
+                result['city'] = parts[-1]
+                parts = parts[:-1]
+            
+            # Remaining parts are street
+            if parts:
+                # Remove contact person name if it's in the street
+                street = ', '.join(parts)
+                if contact_person and contact_person in street:
+                    street = street.replace(contact_person, '').strip().strip(',').strip()
+                result['street'] = street
             
             return result
         
-        # Parse addresses
-        billing_addr = parse_address(so_data['sold_to']['address'])
-        shipping_addr = parse_address(so_data['ship_to']['address'])
+        # Get contact person for filtering
+        sold_to_contact = so_data['sold_to'].get('contact_person', '')
+        ship_to_contact = so_data['ship_to'].get('contact_person', '')
+        
+        # Parse addresses with contact person filtering
+        billing_addr = parse_address(so_data['sold_to']['address'], sold_to_contact)
+        shipping_addr = parse_address(so_data['ship_to']['address'], ship_to_contact)
         
         so_data['billing_address'] = {
             'company': so_data['sold_to']['company_name'],
