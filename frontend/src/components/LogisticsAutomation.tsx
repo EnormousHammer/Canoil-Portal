@@ -400,15 +400,15 @@ const LogisticsAutomation: React.FC = () => {
     ];
     
     // USMCA 3-Part Check (matches backend validation):
-    // 1. Destination must be USA or Mexico
+    // 1. Destination must be USA (not Mexico or other countries)
     // 2. Items must have HTS codes ON THE APPROVED LIST
     // 3. Items must have North American COO (CA/US/MX)
     
-    // Part 1: Check destination
+    // Part 1: Check destination - ONLY USA
     const destination = (result.so_data.ship_to?.country || 
                         result.so_data.shipping_address?.country || '').toUpperCase();
     
-    if (!['USA', 'US', 'UNITED STATES', 'MEXICO', 'MX'].includes(destination)) {
+    if (!['USA', 'US', 'UNITED STATES'].includes(destination)) {
       return false;
     }
     
@@ -1769,13 +1769,22 @@ const LogisticsAutomation: React.FC = () => {
                       <div className="flex justify-between items-center py-3 border-b border-gray-200">
                         <span className="text-sm font-medium text-gray-600">Subtotal</span>
                         <span className="text-base font-semibold text-gray-900">
-                          {result.so_data?.subtotal ? `$${result.so_data.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
+                          {(() => {
+                            // Calculate subtotal from items if not provided
+                            const subtotal = result.so_data?.subtotal ?? 
+                              (result.so_data?.items?.reduce((sum: number, item: any) => sum + (item.amount || item.total_price || 0), 0) || 0);
+                            return typeof subtotal === 'number' || !isNaN(parseFloat(subtotal))
+                              ? `$${parseFloat(subtotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : 'N/A';
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-gray-200">
                         <span className="text-sm font-medium text-gray-600">Tax</span>
                         <span className="text-base font-semibold text-gray-900">
-                          {result.so_data?.tax ? `$${result.so_data.tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
+                          {typeof result.so_data?.tax === 'number' || (result.so_data?.tax && !isNaN(parseFloat(result.so_data.tax)))
+                            ? `$${parseFloat(result.so_data.tax).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : 'N/A'}
                         </span>
                       </div>
                       {result.so_data?.business_number && (
@@ -1789,9 +1798,16 @@ const LogisticsAutomation: React.FC = () => {
                           <div className="flex justify-between items-center">
                             <span className="text-xs text-emerald-100 font-semibold uppercase tracking-wide">TOTAL</span>
                             <span className="text-3xl font-bold text-white">
-                              {result.so_data?.total_amount 
-                                ? `$${result.so_data.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                                : 'N/A'}
+                              {(() => {
+                                // Calculate total from subtotal + tax, or from items if not provided
+                                const subtotal = result.so_data?.subtotal ?? 
+                                  (result.so_data?.items?.reduce((sum: number, item: any) => sum + (item.amount || item.total_price || 0), 0) || 0);
+                                const tax = result.so_data?.tax || 0;
+                                const total = result.so_data?.total_amount || (parseFloat(subtotal) + parseFloat(tax));
+                                return typeof total === 'number' || !isNaN(parseFloat(total))
+                                  ? `$${parseFloat(total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : 'N/A';
+                              })()}
                             </span>
                           </div>
                         </div>
