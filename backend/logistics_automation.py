@@ -3421,15 +3421,17 @@ def generate_all_documents():
             errors.append(f"Dangerous Goods generation failed: {str(e)}")
             results['dangerous_goods'] = {'success': False, 'error': str(e)}
         
-        # TSCA CERTIFICATION - Generate for cross-border shipments
+        # TSCA CERTIFICATION - Generate ONLY for USA shipments
         try:
             from tsca_generator import generate_tsca_certification
             
             print("\n📋 Checking if TSCA Certification is needed...")
             
-            # TSCA is needed for cross-border shipments (determined earlier)
-            if is_cross_border:
-                print(f"   Cross-border shipment to {destination_country} - TSCA required")
+            # TSCA is ONLY needed for USA shipments (not other cross-border shipments)
+            is_usa_shipment = destination_country and destination_country in ['USA', 'US', 'UNITED STATES']
+            
+            if is_usa_shipment:
+                print(f"   USA shipment to {destination_country} - TSCA required")
                 
                 tsca_result = generate_tsca_certification(so_data, items, email_analysis)
                 
@@ -3445,11 +3447,11 @@ def generate_all_documents():
                 else:
                     print(f"   ⏭️  TSCA skipped (no products to certify)")
             else:
-                print(f"   ⏭️  TSCA Certification skipped (domestic shipment within Canada)")
+                print(f"   ⏭️  TSCA Certification skipped (not a USA shipment - destination: {destination_country or 'Unknown'})")
                 results['tsca_certification'] = {
                     'success': False,
                     'skipped': True,
-                    'reason': 'Domestic shipment - TSCA not required'
+                    'reason': f'TSCA not required for non-USA shipments (destination: {destination_country or "Unknown"})'
                 }
                 
         except Exception as e:

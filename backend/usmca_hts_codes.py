@@ -134,19 +134,19 @@ def check_items_for_usmca(items: list, destination: str = None, so_data: dict = 
     
     Args:
         items: List of item dictionaries with 'hts_code' field
-        destination: Destination country (USA/Mexico required for USMCA)
+        destination: Destination country (USA only - USMCA not for Mexico or other countries)
         so_data: Sales order data (for additional context)
         
     Returns:
         Dictionary with USMCA eligibility information
     """
-    # USMCA Rule 1: Destination must be USA or Mexico
+    # USMCA Rule 1: Destination must be USA (not Mexico or other countries)
     if destination:
         dest_upper = destination.upper().strip()
-        if dest_upper not in ['USA', 'US', 'UNITED STATES', 'MEXICO', 'MX']:
+        if dest_upper not in ['USA', 'US', 'UNITED STATES']:
             return {
                 'requires_usmca': False,
-                'reason': f'USMCA not applicable for destination: {destination}',
+                'reason': f'USMCA not applicable for destination: {destination} (USMCA only for USA shipments)',
                 'matching_items': [],
                 'non_matching_items': [],
                 'blocked_items': [],

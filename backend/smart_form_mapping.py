@@ -238,8 +238,9 @@ class SmartFormMapper:
             
             # Declaration
             'declaration_date': datetime.now().strftime('%Y-%m-%d'),
-            'shipper_signature': 'Zuri Arthur',
+            'shipper_signature': 'Haron Alhakimi',
             'shipper_title': 'Logistics Supervisor',
+            'shipper_email': 'Haron@canoilcanadaltd.com',
         }
         
         print(f"✅ DANGEROUS GOODS: Mapped {len(mapping)} fields successfully")
@@ -264,8 +265,9 @@ class SmartFormMapper:
             'certification_text': 'I CERTIFY THAT ALL CHEMICAL SUBSTANCES IN THIS SHIPMENT COMPLY WITH ALL APPLICABLE RULES OR ORDERS UNDER TSCA AND THAT I AM NOT OFFERING FOR SHIPMENT A CHEMICAL SUBSTANCE WHICH REQUIRES A NOTICE OF COMMENCEMENT OR PREMANUFACTURE NOTIFICATION UNDER TSCA.',
             
             # Signatory information
-            'name': 'Zuri Arthur',
+            'name': 'Haron Alhakimi',
             'title': 'Logistics Supervisor',
+            'email': 'Haron@canoilcanadaltd.com',
             'date': datetime.now().strftime('%B %d, %Y'),
             
             # Delivery information

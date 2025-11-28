@@ -299,10 +299,13 @@ def fill_dangerous_goods_declaration(
                     run1.font.name = 'Times New Roman'
                     run1.font.size = Pt(11)
                     # Add address text (not bold, Times New Roman)
+                    # If address is more than 4 lines, use size 9 to prevent layout issues
+                    consignee_lines = consignee_text.split('\n')
+                    address_font_size = Pt(9) if len(consignee_lines) > 4 else Pt(11)
                     run2 = paragraph.add_run(consignee_text)
                     run2.bold = False
                     run2.font.name = 'Times New Roman'
-                    run2.font.size = Pt(11)
+                    run2.font.size = address_font_size
                     break
             
             # Row 1: Buyer - Only fill if DIFFERENT from consignee
@@ -388,10 +391,13 @@ def fill_dangerous_goods_declaration(
                         run1.bold = False
                         run1.font.name = 'Times New Roman'
                         run1.font.size = Pt(11)
+                        # If address is more than 4 lines, use size 9 to prevent layout issues
+                        buyer_lines = buyer_text.split('\n')
+                        address_font_size = Pt(9) if len(buyer_lines) > 4 else Pt(11)
                         run2 = paragraph.add_run(buyer_text)
                         run2.bold = False
                         run2.font.name = 'Times New Roman'
-                        run2.font.size = Pt(11)
+                        run2.font.size = address_font_size
                         break
                 print(f"   ✅ Buyer is DIFFERENT - filled separately")
             else:

@@ -80,6 +80,17 @@ class GoogleDriveService:
         self.service = None
         self.authenticated = False
         self.shared_drive_id = None  # Will be set when shared drive is found
+        self._credentials = None  # Store credentials for fresh service creation
+    
+    def _get_fresh_service(self):
+        """Create a fresh Drive service with new HTTP connection to avoid SSL issues"""
+        if not self._credentials:
+            return self.service
+        # Disable persistent connections to avoid SSL stale connection issues
+        http = httplib2.Http(disable_ssl_certificate_validation=False)
+        http.follow_redirects = True
+        authorized_http = google_auth_httplib2.AuthorizedHttp(self._credentials, http=http)
+        return build('drive', 'v3', http=authorized_http, cache_discovery=False)
         
     def authenticate(self):
         """Authenticate and build Google Drive API service"""
@@ -94,6 +105,7 @@ class GoogleDriveService:
                 try:
                     sa_info = json.loads(sa_json_env)
                     creds = ServiceAccountCredentials.from_service_account_info(sa_info, scopes=SCOPES)
+                    self._credentials = creds  # Store for fresh service creation
                     # Use fresh httplib2.Http() for each build to avoid SSL connection reuse issues
                     http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http())
                     self.service = build('drive', 'v3', http=http, cache_discovery=False)
@@ -256,10 +268,11 @@ class GoogleDriveService:
         """Find a shared drive by name"""
         import time
         max_retries = 3
+        service = self._get_fresh_service()  # Fresh connection
         for attempt in range(max_retries):
             try:
                 print(f"[INFO] Attempt {attempt + 1}/{max_retries} to list shared drives")
-                drives = self.service.drives().list().execute()
+                drives = service.drives().list().execute()
                 all_drives = drives.get('drives', [])
                 break  # Success - exit retry loop
             except Exception as e:
@@ -310,11 +323,12 @@ class GoogleDriveService:
         """Find a folder by path within a shared drive"""
         path_parts = [p for p in folder_path.split('/') if p]  # Remove empty parts
         current_id = drive_id
+        service = self._get_fresh_service()  # Fresh connection for each call
         
         for folder_name in path_parts:
             # Let exceptions bubble up to retry decorator
             query = f"name='{folder_name}' and '{current_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-            results = self.service.files().list(
+            results = service.files().list(
                 q=query,
                 corpora='drive',
                 driveId=drive_id,
@@ -396,9 +410,10 @@ class GoogleDriveService:
     def download_file(self, file_id, file_name):
         """Download a file from Google Drive with retry logic for SSL errors"""
         max_retries = 3
+        service = self._get_fresh_service()  # Fresh connection for each download
         for attempt in range(max_retries):
             try:
-                request = self.service.files().get_media(fileId=file_id)
+                request = service.files().get_media(fileId=file_id)
                 file_content = request.execute()
                 
                 # Parse JSON if it's a JSON file
