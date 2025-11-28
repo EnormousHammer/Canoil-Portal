@@ -877,41 +877,30 @@ def load_json_file(file_path):
 
 
 
-# Global cache for data
-_data_cache = None
+# Global cache for data - store PRE-SERIALIZED JSON to avoid 35s serialization time
+_data_cache = None  # Stores raw data dict (for internal use)
+_response_cache = None  # Stores pre-serialized JSON bytes
 _cache_timestamp = None
 _cache_duration = 3600  # 1 hour cache (was 5 minutes - too short)
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
     """Get all data from latest G: Drive folder - with caching"""
-    global _data_cache, _cache_timestamp
+    global _data_cache, _response_cache, _cache_timestamp
     
     try:
         print("/api/data endpoint called")
         
-        # Check if we have valid cached data
-        if _data_cache and _cache_timestamp:
+        # Check if we have valid cached response (pre-serialized)
+        if _response_cache and _cache_timestamp:
             import time
             cache_age = time.time() - _cache_timestamp
             print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}")
             if cache_age < _cache_duration:
-                print("SUCCESS: Returning cached data (no G: Drive access needed)")
-                return jsonify({
-                    "data": _data_cache,
-                    "folderInfo": {
-                        "folderName": "Cached Data",
-                        "syncDate": "Cached",
-                        "lastModified": "Cached",
-                        "folder": "Cached",
-                        "created": "Cached",
-                        "size": "Cached",
-                        "fileCount": len([k for k, v in _data_cache.items() if v])
-                    },
-                    "LoadTimestamp": "Cached",
-                    "cached": True,
-                    "source": "Cache (from previous load)"
-                })
+                print("SUCCESS: Returning PRE-SERIALIZED cached response (instant!)")
+                # Return pre-serialized response directly - no jsonify() overhead
+                from flask import Response
+                return Response(_response_cache, mimetype='application/json')
         
         print("RETRY: Cache expired or missing, loading fresh data...")
         
@@ -927,19 +916,25 @@ def get_all_data():
                     gdrive_data, gdrive_folder_info = gdrive_service.get_all_data()
                     if gdrive_data and gdrive_folder_info:
                         print(f"✅ Successfully loaded data from Google Drive API")
-                        # Cache the data
+                        # Cache the data AND pre-serialize the response
                         import time
+                        import json as json_module
                         _data_cache = gdrive_data
                         _cache_timestamp = time.time()
-                        print(f"💾 Data cached for {_cache_duration} seconds")
                         
-                        return jsonify({
+                        # Pre-serialize the response to avoid 35s jsonify overhead on cache hits
+                        response_dict = {
                             "data": gdrive_data,
                             "folderInfo": gdrive_folder_info,
                             "LoadTimestamp": datetime.now().isoformat(),
                             "cached": False,
                             "source": "Google Drive API"
-                        })
+                        }
+                        _response_cache = json_module.dumps(response_dict)
+                        print(f"💾 Data + Response cached for {_cache_duration} seconds (pre-serialized: {len(_response_cache)/1024/1024:.1f}MB)")
+                        
+                        from flask import Response
+                        return Response(_response_cache, mimetype='application/json')
                     else:
                         print("⚠️ Google Drive API returned empty data")
                 except Exception as e:
@@ -1163,22 +1158,28 @@ def get_all_data():
         
         print(f"📊 Data summary: {safe_summary}")
         
-        # Cache the data for future requests
+        # Cache the data AND pre-serialize the response for future requests
         _data_cache = raw_data
         _cache_timestamp = time.time()
-        print(f"💾 Data cached for {_cache_duration} seconds")
         
         # Detect if running on Cloud Run (no G: Drive access) vs local (has G: Drive)
         is_cloud_run = os.getenv('K_SERVICE') is not None
         data_source = "Google Drive API" if is_cloud_run else "Local G: Drive"
         
-        return jsonify({
+        # Pre-serialize the response to avoid 35s jsonify overhead on cache hits
+        import json as json_module
+        response_dict = {
             "data": raw_data,
             "folderInfo": folder_info,
             "LoadTimestamp": datetime.now().isoformat(),
-            "cached": False,  # Indicate this was fresh data
+            "cached": False,
             "source": data_source
-        })
+        }
+        _response_cache = json_module.dumps(response_dict)
+        print(f"💾 Data + Response cached for {_cache_duration} seconds (pre-serialized: {len(_response_cache)/1024/1024:.1f}MB)")
+        
+        from flask import Response
+        return Response(_response_cache, mimetype='application/json')
         
     except Exception as e:
         print(f"ERROR: Error in get_all_data: {e}")
