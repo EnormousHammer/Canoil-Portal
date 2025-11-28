@@ -17,7 +17,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
-def retry_on_error(max_retries=3, delay=1, backoff=2):
+def retry_on_error(max_retries=5, delay=2, backoff=2):
     """Decorator to retry functions on network/SSL errors"""
     def decorator(func):
         @functools.wraps(func)
@@ -30,11 +30,12 @@ def retry_on_error(max_retries=3, delay=1, backoff=2):
                     last_error = e
                     error_str = str(e).lower()
                     # Only retry on network/SSL errors, not auth or permission errors
-                    if any(x in error_str for x in ['ssl', 'timeout', 'connection', 'network', 'reset', 'broken pipe']):
+                    if any(x in error_str for x in ['ssl', 'timeout', 'connection', 'network', 'reset', 'broken pipe', 'record layer']):
                         wait_time = delay * (backoff ** attempt)
                         print(f"[WARN] {func.__name__} failed (attempt {attempt + 1}/{max_retries}): {e}")
-                        print(f"[INFO] Retrying in {wait_time}s...")
-                        time.sleep(wait_time)
+                        if attempt < max_retries - 1:
+                            print(f"[INFO] Retrying in {wait_time}s...")
+                            time.sleep(wait_time)
                     else:
                         # Non-retryable error, raise immediately
                         raise
