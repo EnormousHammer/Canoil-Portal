@@ -607,41 +607,39 @@ def generate_requisition():
             supplier_phone = supplier.get('phone', '')
             supplier_terms = supplier.get('terms', '')
         
+        # === VENDOR INFO (Based on actual template layout) ===
         # B9: Vendor Name
         if supplier_name:
             sheet['B9'] = supplier_name
         
-        # B10: Contact Person + Phone
-        contact_line = []
+        # B11: Contact Name (with phone if available)
         if supplier_contact:
-            contact_line.append(f"Contact: {supplier_contact}")
-        if supplier_phone:
-            contact_line.append(f"Phone: {supplier_phone}")
-        if contact_line:
-            sheet['B10'] = ' | '.join(contact_line)
+            contact_with_phone = supplier_contact
+            if supplier_phone:
+                contact_with_phone += f" | {supplier_phone}"
+            sheet['B11'] = contact_with_phone
+        elif supplier_phone:
+            sheet['B11'] = supplier_phone
         
-        # B11: Email and Terms
-        if supplier_email:
-            sheet['B11'] = f"Email: {supplier_email}"
-        elif supplier_terms:
-            sheet['B11'] = f"Terms: {supplier_terms}"
-        
-        # Fill vendor address across multiple rows - provide fallback since PO data doesn't have addresses
+        # === VENDOR ADDRESS (Column C) ===
         address = supplier.get('address', {})
+        
+        # Build full address string
+        address_parts = []
+        address_line_1 = ''
+        full_address = ''
+        
         if address:
-            address_line_1 = address.get('Line_1', '')
+            address_line_1 = address.get('Line_1', '') or address.get('Address', '')
             city = address.get('City', '')
             state = address.get('State', '')
             postal_code = address.get('Postal_Code', '')
             country = address.get('Country', '')
             
-            # C9: Address Line 1
             if address_line_1:
-                sheet['C9'] = address_line_1
-            elif supplier_name:
-                sheet['C9'] = supplier_name  # Fallback to company name
+                address_parts.append(address_line_1)
             
-            # C10: City, State, Postal Code
+            # City, State, Postal
             city_state_zip = []
             if city:
                 city_state_zip.append(city)
@@ -650,20 +648,24 @@ def generate_requisition():
             if postal_code:
                 city_state_zip.append(postal_code)
             if city_state_zip:
-                sheet['C10'] = ', '.join(city_state_zip)
-            elif supplier_name:
-                sheet['C10'] = 'Address not available in PO data'
+                address_parts.append(', '.join(city_state_zip))
             
-            # C11: Country
             if country:
-                sheet['C11'] = country
-            elif supplier_name:
-                sheet['C11'] = 'Canada'  # Default to Canada for Canoil suppliers
-        else:
-            # No address data available - provide fallback information
-            sheet['C9'] = supplier_name or 'Address not available'
-            sheet['C10'] = 'Address not available in PO data'
-            sheet['C11'] = 'Canada'  # Default to Canada for Canoil suppliers
+                address_parts.append(country)
+            
+            full_address = '\n'.join(address_parts) if address_parts else ''
+        
+        # C9: Full Address (multi-line)
+        if full_address:
+            sheet['C9'] = full_address
+        elif supplier_name:
+            sheet['C9'] = 'Address not available'
+        
+        # C11: Email
+        if supplier_email:
+            sheet['C11'] = supplier_email
+        elif supplier_terms:
+            sheet['C11'] = f"Terms: {supplier_terms}"
         
         print("\n" + "="*60)
         print(f"[PR] Filling {len(items)} items into Excel...")
@@ -895,26 +897,28 @@ def generate_requisition_internal(user_info, items, supplier):
         supplier_contact = supplier.get('contact', '')
         supplier_email = supplier.get('email', '')
         supplier_phone = supplier.get('phone', '')
+        supplier_terms = supplier.get('terms', '')
         
+        # === VENDOR INFO (Based on actual template layout) ===
         # B9: Vendor Name
         if supplier_name:
             sheet['B9'] = supplier_name
         
-        # B10: Contact Person + Phone
-        contact_line = []
+        # B11: Contact Name (with phone if available)
         if supplier_contact:
-            contact_line.append(f"Contact: {supplier_contact}")
-        if supplier_phone:
-            contact_line.append(f"Phone: {supplier_phone}")
-        if contact_line:
-            sheet['B10'] = ' | '.join(contact_line)
+            contact_with_phone = supplier_contact
+            if supplier_phone:
+                contact_with_phone += f" | {supplier_phone}"
+            sheet['B11'] = contact_with_phone
+        elif supplier_phone:
+            sheet['B11'] = supplier_phone
         
-        # B11: Email
-        if supplier_email:
-            sheet['B11'] = f"Email: {supplier_email}"
-        
-        # Fill vendor address
+        # === VENDOR ADDRESS (Column C) ===
         address = supplier.get('address', {})
+        
+        # Build full address string
+        address_parts = []
+        
         if address:
             address_line_1 = address.get('Line_1', '') or address.get('Address', '')
             city = address.get('City', '')
@@ -922,11 +926,10 @@ def generate_requisition_internal(user_info, items, supplier):
             postal_code = address.get('Postal_Code', '') or address.get('PostalCode', '')
             country = address.get('Country', '')
             
-            # C9: Address Line 1
             if address_line_1:
-                sheet['C9'] = address_line_1
+                address_parts.append(address_line_1)
             
-            # C10: City, State, Postal Code
+            # City, State, Postal
             city_state_zip = []
             if city:
                 city_state_zip.append(city)
@@ -935,11 +938,22 @@ def generate_requisition_internal(user_info, items, supplier):
             if postal_code:
                 city_state_zip.append(postal_code)
             if city_state_zip:
-                sheet['C10'] = ', '.join(city_state_zip)
+                address_parts.append(', '.join(city_state_zip))
             
-            # C11: Country
             if country:
-                sheet['C11'] = country
+                address_parts.append(country)
+        
+        # C9: Full Address (multi-line)
+        if address_parts:
+            sheet['C9'] = '\n'.join(address_parts)
+        elif supplier_name:
+            sheet['C9'] = 'Address not available'
+        
+        # C11: Email
+        if supplier_email:
+            sheet['C11'] = supplier_email
+        elif supplier_terms:
+            sheet['C11'] = f"Terms: {supplier_terms}"
         
         # Fill line items - starting at row 16 (same as main function)
         start_row = 16
