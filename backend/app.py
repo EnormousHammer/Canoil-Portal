@@ -232,162 +232,236 @@ def extract_so_data_from_pdf(pdf_path):
                 break
         
         if sold_to_ship_to_line >= 0:
-            # CLEAN ADDRESS PARSING - Remove ALL non-address data
+            # CLEAN ADDRESS PARSING - Handle TWO-COLUMN PDF layout
+            # PDFs have Sold To on left, Ship To on right - pdfplumber extracts them in various ways:
+            # 1. Same line with space between: "Company A Company B" 
+            # 2. Consecutive duplicate lines: "26 Wooley Road" appears twice
+            # 3. Two-column with double-space: "Address1  Address2"
+            
             # Stop keywords (case-insensitive) - anything after these is NOT address
             stop_patterns = [
-                r'batch\s*#?', r'pull\s+from', r'n/a', r'business\s+no', r'item\s+no',
-                r'date:', r'order\s+no', r'ship\s+date', r'subtotal', r'hst', r'total\s+amount',
-                r'terms:', r'po\s+', r'\d+\s+drum', r'\d+\s+pail', r'\d+\s+gallon', r'\d+\s+case'
+                r'business\s+no', r'item\s+no',
+                r'subtotal', r'hst', r'total\s+amount',
+                r'terms:', r'\d+\s+drum', r'\d+\s+pail', r'\d+\s+gallon', r'\d+\s+case', r'\d+\s+keg'
             ]
             stop_regex = re.compile('|'.join(stop_patterns), re.IGNORECASE)
             
-            # Collect raw address lines
+            # Collect raw address lines - but SKIP consecutive duplicates
             raw_address_lines = []
-            for i in range(sold_to_ship_to_line + 1, min(sold_to_ship_to_line + 15, len(lines))):
+            prev_line = None
+            for i in range(sold_to_ship_to_line + 1, min(sold_to_ship_to_line + 20, len(lines))):
                 line = lines[i].strip()
                 if not line:
                     continue
                 # Stop if entire line matches stop pattern
                 if stop_regex.search(line):
                     break
+                # Skip consecutive duplicates (two-column PDF artifact)
+                if line == prev_line:
+                    prev_line = line
+                    continue
                 raw_address_lines.append(line)
+                prev_line = line
             
-            def clean_address_text(text):
-                """Remove phone numbers, batch info, and other non-address data from text"""
+            def deduplicate_merged_text(text):
+                """
+                Handle PDF two-column merging that causes duplicates on same line.
+                E.g., "ECO Undercoating LLC ECO Undercoating LLC" -> "ECO Undercoating LLC"
+                E.g., "Georgia Western Inc. Georgia Western Inc." -> "Georgia Western Inc."
+                E.g., "Mil-Comm Products Company Inc Pflaumer·warehouse" -> split into two companies
+                """
                 if not text:
-                    return ''
+                    return text, text
                 
-                # STEP 1: Remove everything AFTER certain keywords (they indicate end of address)
-                # These patterns mark the end of address data
-                cutoff_patterns = [
-                    r',?\s*pull\s+from.*$',  # "Pull from stock" and everything after
-                    r',?\s*batch\s*#?\s*\S+.*$',  # "batch # NT5E19T018" and everything after
-                    r',?\s*lot\s*#?\s*\S+.*$',  # "lot #" and everything after
-                ]
-                for pattern in cutoff_patterns:
-                    text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+                # Method 1: Check for double-space separation (two different values)
+                if '  ' in text:
+                    parts = [p.strip() for p in re.split(r'\s{2,}', text) if p.strip()]
+                    if len(parts) == 2:
+                        if parts[0] == parts[1]:
+                            # Same value duplicated
+                            return parts[0], parts[0]
+                        else:
+                            # Two different values (Sold To / Ship To)
+                            return parts[0], parts[1]
                 
-                # STEP 2: Remove phone numbers (various formats)
-                text = re.sub(r',?\s*\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', text)  # 609-695-5300 or 609 695 5300
-                text = re.sub(r',?\s*\(\d{3}\)\s*\d{3}[-.\s]?\d{4}', '', text)  # (609) 695-5300
-                text = re.sub(r',?\s*\b\d{10}\b', '', text)  # 6096955300
+                # Method 2: Check if the text is the same phrase repeated with single space
+                # E.g., "ECO Undercoating LLC ECO Undercoating LLC"
+                words = text.split()
+                if len(words) >= 2 and len(words) % 2 == 0:
+                    half = len(words) // 2
+                    first_half = ' '.join(words[:half])
+                    second_half = ' '.join(words[half:])
+                    if first_half == second_half:
+                        return first_half, first_half
+                    # Check if they're different (Sold To vs Ship To company)
+                    # Look for company suffixes to validate
+                    company_suffixes = ['Inc', 'LLC', 'Ltd', 'Corp', 'Co', 'Company', 'Limited']
+                    first_is_company = any(s.lower() in first_half.lower() for s in company_suffixes)
+                    second_is_company = any(s.lower() in second_half.lower() for s in company_suffixes)
+                    if first_is_company and second_is_company:
+                        return first_half, second_half
                 
-                # STEP 3: Remove N/A values
-                text = re.sub(r',?\s*N/?A\s*N/?A', '', text, flags=re.IGNORECASE)  # N/A N/A
-                text = re.sub(r',?\s*\bN/?A\b', '', text, flags=re.IGNORECASE)  # Single N/A
+                # Method 3: Check for special separator like · (middle dot) or known patterns
+                # E.g., "Mil-Comm Products Company Inc Pflaumer·warehouse"
+                if '·' in text:
+                    # Split at the middle dot
+                    parts = text.split('·')
+                    if len(parts) == 2:
+                        # The part before · might have the company name concatenated
+                        # Look for company suffix to find the split point
+                        before_dot = parts[0].strip()
+                        after_dot = parts[1].strip()
+                        
+                        # Find company suffix in before_dot
+                        company_suffixes = ['Inc', 'LLC', 'Ltd', 'Corp', 'Co', 'Company', 'Limited']
+                        for suffix in company_suffixes:
+                            if suffix in before_dot:
+                                # Find where the suffix ends
+                                suffix_idx = before_dot.rfind(suffix)
+                                if suffix_idx > 0:
+                                    sold_to = before_dot[:suffix_idx + len(suffix)].strip()
+                                    ship_to_prefix = before_dot[suffix_idx + len(suffix):].strip()
+                                    ship_to = (ship_to_prefix + ' ' + after_dot).strip()
+                                    return sold_to, ship_to
+                        
+                        # Fallback: just split at ·
+                        return before_dot, after_dot
                 
-                # STEP 4: Remove duplicate country names (keep only at end)
-                text = re.sub(r',\s*USA\s*,', ',', text, flags=re.IGNORECASE)
-                text = re.sub(r',\s*Canada\s*,', ',', text, flags=re.IGNORECASE)
-                
-                # STEP 5: Final cleanup
-                text = re.sub(r',\s*,+', ',', text)  # Multiple commas
-                text = re.sub(r'\s{2,}', ' ', text)  # Multiple spaces
-                text = text.strip().strip(',').strip()
-                
-                return text
+                # No duplication detected
+                return text, text
             
             def extract_phone(text):
                 """Extract phone number from text"""
                 match = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', text)
                 return match.group(1) if match else ''
             
-            if raw_address_lines:
-                # Determine if columns are separated by a large gap
-                # We'll analyze the first line to detect column structure
-                first_line = raw_address_lines[0]
+            def clean_line(text):
+                """Remove phone numbers, batch info, and other non-address data"""
+                if not text:
+                    return ''
+                # Remove phone numbers
+                text = re.sub(r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', '', text)
+                # Remove batch/pull info
+                text = re.sub(r',?\s*pull\s+from.*$', '', text, flags=re.IGNORECASE)
+                text = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', text, flags=re.IGNORECASE)
+                # Remove N/A
+                text = re.sub(r'\bN/?A\b', '', text, flags=re.IGNORECASE)
+                # Clean up
+                text = re.sub(r'\s+', ' ', text).strip()
+                return text
+            
+            # Detect if we have alternating lines (different Sold To and Ship To addresses)
+            # vs duplicated lines (same address for both)
+            # Pattern 1: Duplicated - lines repeat consecutively (already filtered out above)
+            # Pattern 2: Alternating - Sold To and Ship To on alternating lines
+            
+            # Check if addresses are different by looking at the structure
+            # If we have an odd number of address lines after company, it's likely alternating
+            is_alternating = False
+            if len(raw_address_lines) > 3:
+                # Check if lines look like they alternate (different content)
+                # Heuristic: if line 2 and line 3 are very different (one is name, one is address)
+                if len(raw_address_lines) >= 3:
+                    line1 = raw_address_lines[1] if len(raw_address_lines) > 1 else ''
+                    line2 = raw_address_lines[2] if len(raw_address_lines) > 2 else ''
+                    # If one looks like a street address and the other looks like a name
+                    is_street1 = bool(re.search(r'\d+\s+\w+', line1))  # Has street number
+                    is_street2 = bool(re.search(r'\d+\s+\w+', line2))  # Has street number
+                    is_name1 = bool(re.match(r'^[A-Z][a-z]+\s+[A-Z][a-z]+$', line1))  # Looks like a name
+                    is_name2 = bool(re.match(r'^[A-Z][a-z]+\s+[A-Z][a-z]+$', line2))  # Looks like a name
+                    
+                    # If one is street and other is name, or both are streets but different
+                    if (is_street1 and is_name2) or (is_name1 and is_street2):
+                        is_alternating = True
+                    elif is_street1 and is_street2 and line1 != line2:
+                        # Both are streets but different - could be alternating
+                        is_alternating = True
+            
+            # Parse addresses
+            sold_to_parts = []
+            ship_to_parts = []
+            phone = ''
+            sold_to_company = ''
+            ship_to_company = ''
+            ship_to_contact = ''
+            
+            for idx, line in enumerate(raw_address_lines):
+                # Extract phone first
+                line_phone = extract_phone(line)
+                if line_phone and not phone:
+                    phone = line_phone
                 
-                # Default: Assume single column until proven otherwise
-                has_two_columns = False
-                col_split_index = -1
+                # Clean the line
+                clean = clean_line(line)
+                if not clean:
+                    continue
                 
-                # If we have a large gap (more than 10 spaces), it's likely two columns
-                # "Georgia Western Inc.                        Georgia Western Inc."
-                gap_match = re.search(r'(\s{10,})', first_line)
-                if gap_match:
-                    has_two_columns = True
-                    col_split_index = gap_match.start() + len(gap_match.group(1)) // 2
-                    print(f"DEBUG: Detected two columns split at index {col_split_index}")
+                # Deduplicate merged text
+                sold_part, ship_part = deduplicate_merged_text(clean)
                 
-                sold_to_parts = []
-                ship_to_parts = []
-                
-                for line in raw_address_lines:
-                    if not line.strip():
+                if idx == 0:
+                    # First line is company name(s)
+                    sold_to_company = sold_part
+                    # Check if ship_part is a contact person (no company suffix) or a company
+                    company_suffixes = ['Inc', 'LLC', 'Ltd', 'Corp', 'Co.', 'Company', 'Limited', 'warehouse', 'Warehouse']
+                    if sold_part != ship_part:
+                        if any(s.lower() in ship_part.lower() for s in company_suffixes):
+                            ship_to_company = ship_part.replace('·', ' ').strip()
+                        else:
+                            # It's a contact person for Ship To
+                            ship_to_company = sold_part
+                            ship_to_contact = ship_part
+                    else:
+                        ship_to_company = sold_part
+                else:
+                    # Address lines - skip country and phone-only lines
+                    if clean.lower() in ['usa', 'canada', 'u.s.a.', 'u.s.', 'us']:
                         continue
+                    
+                    if is_alternating and sold_part == ship_part:
+                        # Alternating pattern: odd lines (1, 3, 5...) go to Sold To
+                        # Even lines (2, 4, 6...) go to Ship To
+                        # But first check if this looks like a contact name
+                        is_contact_name = bool(re.match(r'^[A-Z][a-z]+\s+[A-Z][a-z]+$', clean))
                         
-                    if has_two_columns and len(line) > col_split_index:
-                        # Split line into left (Sold To) and right (Ship To)
-                        # Be careful not to cut in middle of words if alignment is messy
-                        # Use the gap detection logic on each line if possible, or fixed width
-                        
-                        # Better approach: Find the large gap in THIS line
-                        line_gap = re.search(r'(\s{8,})', line)
-                        if line_gap:
-                            # Split by gap
-                            left_part = line[:line_gap.start()].strip()
-                            right_part = line[line_gap.end():].strip()
-                            
-                            if left_part: sold_to_parts.append(left_part)
-                            if right_part: ship_to_parts.append(right_part)
-                        else:
-                            # No clear gap, try fixed split or heuristic
-                            # If line is short, it might belong to left column only
-                            # If line starts with spaces, it might belong to right column only
-                            if line.startswith(' ' * 10):
-                                if line.strip(): ship_to_parts.append(line.strip())
-                            else:
-                                # Assign to left if no gap found and starts at 0
-                                if line.strip(): sold_to_parts.append(line.strip())
+                        if is_contact_name and not ship_to_contact:
+                            ship_to_contact = clean
+                        elif idx % 2 == 1:  # Odd index (1, 3, 5...)
+                            sold_to_parts.append(clean)
+                        else:  # Even index (2, 4, 6...)
+                            ship_to_parts.append(clean)
                     else:
-                        # Single column or short line - assume it belongs to the "Sold To" unless it's indented
-                        # Check indentation
-                        if line.startswith(' ' * 20):
-                             if line.strip(): ship_to_parts.append(line.strip())
-                        else:
-                             if line.strip(): sold_to_parts.append(line.strip())
-
-                # Clean extracted parts
-                sold_to_parts = [clean_address_text(p) for p in sold_to_parts if clean_address_text(p)]
-                ship_to_parts = [clean_address_text(p) for p in ship_to_parts if clean_address_text(p)]
-                
-                # Extract company names (first non-empty line of each)
-                if sold_to_parts:
-                    so_data['sold_to']['company_name'] = sold_to_parts[0]
-                    so_data['sold_to']['address'] = ', '.join(sold_to_parts[1:])
-                    
-                    # Extract phone
-                    for p in sold_to_parts:
-                        ph = extract_phone(p)
-                        if ph: so_data['sold_to']['phone'] = ph
-                
-                if ship_to_parts:
-                    # Check if first line is company or contact
-                    first = ship_to_parts[0]
-                    if any(x in first for x in ['Inc', 'Ltd', 'LLC', 'Corp', 'Co.', 'Company', 'Limited']):
-                        so_data['ship_to']['company_name'] = first
-                    else:
-                        # Heuristic: if SoldTo company is same as ShipTo first line, it's company
-                        # Otherwise it might be a contact person
-                        if so_data['sold_to']['company_name'] == first:
-                             so_data['ship_to']['company_name'] = first
-                        else:
-                             so_data['ship_to']['contact_person'] = first
-                             # If it's a contact, maybe the company name is implicit or missing? 
-                             # Or maybe next line is address.
-                    
-                    so_data['ship_to']['address'] = ', '.join(ship_to_parts[1:])
-                    
-                    for p in ship_to_parts:
-                        ph = extract_phone(p)
-                        if ph: so_data['ship_to']['phone'] = ph
-                        
-                # Final cleanup of address strings
-                if so_data['sold_to']['address']:
-                     so_data['sold_to']['address'] = so_data['sold_to']['address'].strip(', ')
-                if so_data['ship_to']['address']:
-                     so_data['ship_to']['address'] = so_data['ship_to']['address'].strip(', ')
-
+                        # Same address for both (duplicated pattern)
+                        if sold_part not in sold_to_parts:
+                            sold_to_parts.append(sold_part)
+                        if ship_part != sold_part and ship_part not in ship_to_parts:
+                            ship_to_parts.append(ship_part)
+            
+            # Set company names
+            so_data['sold_to']['company_name'] = sold_to_company
+            so_data['ship_to']['company_name'] = ship_to_company or sold_to_company
+            so_data['ship_to']['contact_person'] = ship_to_contact
+            
+            # Set phones
+            if phone:
+                so_data['sold_to']['phone'] = phone
+                so_data['ship_to']['phone'] = phone
+            
+            # Build clean addresses - deduplicate parts
+            def build_address(parts):
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_parts = []
+                for p in parts:
+                    p_clean = p.strip()
+                    if p_clean and p_clean.lower() not in seen:
+                        seen.add(p_clean.lower())
+                        unique_parts.append(p_clean)
+                return ', '.join(unique_parts)
+            
+            so_data['sold_to']['address'] = build_address(sold_to_parts)
+            so_data['ship_to']['address'] = build_address(ship_to_parts) or build_address(sold_to_parts)
+        
         # Set customer name
         so_data['customer_name'] = so_data['sold_to']['company_name']
         
@@ -398,9 +472,6 @@ def extract_so_data_from_pdf(pdf_path):
             # SO Number
             if line.startswith('Order No.:'):
                 so_data['so_number'] = line.split('Order No.:')[1].strip()
-            elif 'Sales Order' in line and not so_data['so_number']:
-                 m = re.search(r'Sales Order\s*[:#]?\s*(\d+)', line, re.IGNORECASE)
-                 if m: so_data['so_number'] = m.group(1)
                 
             # Dates
             elif line.startswith('Date:'):
@@ -409,32 +480,142 @@ def extract_so_data_from_pdf(pdf_path):
                 so_data['ship_date'] = line.split('Ship Date:')[1].strip()
                 so_data['due_date'] = so_data['ship_date']  # For compatibility
                 
-            # Business Number / PO Parsing
-            # Look for PO identifiers
-            elif 'Business No.:' in line:
+            # Business Number
+            elif line.startswith('Business No.:'):
                 so_data['business_number'] = line.split('Business No.:')[1].strip()
+                
+            # Items - detect product lines (DRUM, PAIL, GALLON, CASE, KEG, etc.)
+            # Skip header line and charge lines (Pallet, Freight, Brokerage)
+            # Use regex to find unit types that may be concatenated with numbers (e.g., CASE30)
+            elif (re.search(r'\b(DRUM|PAIL|GALLON|CASE|KEG)\d*\b', line.upper())
+                  and not line.startswith('Item No.')
+                  and not line.startswith('Pallet')
+                  and not line.startswith('Freight')
+                  and not line.startswith('Brokerage')):
+                parts = line.split()
+                if len(parts) >= 4:
+                    # Find the unit type position (DRUM, PAIL, KEG, etc.) - may be concatenated with numbers
+                    unit_types = ['DRUM', 'PAIL', 'GALLON', 'CASE', 'KEG']
+                    unit_idx = -1
+                    unit = ''
+                    for i, part in enumerate(parts):
+                        part_upper = part.upper()
+                        # Check for exact match or starts with unit type
+                        for ut in unit_types:
+                            if part_upper == ut or part_upper.startswith(ut):
+                                unit_idx = i
+                                unit = ut  # Normalize to just the unit type
+                                break
+                        if unit_idx >= 0:
+                            break
+                    
+                    if unit_idx < 1:
+                        # Unit is too early or not found, skip this line
+                        continue
+                    
+                    # Quantity is the number just before the unit
+                    quantity_idx = unit_idx - 1
+                    quantity = parts[quantity_idx]
+                    
+                    # Validate quantity is a number
+                    if not quantity.isdigit():
+                        continue
+                    
+                    # Item code is everything before quantity
+                    item_code = ' '.join(parts[:quantity_idx])
+                    
+                    # Description is everything after unit until prices
+                    desc_start = unit_idx + 1
+                    desc_end = len(parts)
+                    for j, part in enumerate(parts[desc_start:], desc_start):
+                        # Stop at price patterns
+                        if re.match(r'^[\d,]+\.\d+$', part) or re.match(r'^(?:US|CDN)?\$[\d,]+', part):
+                            desc_end = j
+                            break
+                    
+                    description = ' '.join(parts[desc_start:desc_end])
+                    
+                    # Find prices - handle commas, currency symbols, and various formats
+                    # Pattern 1: Two numbers with commas (e.g., "8,865.00 US$17,730.00" or "8,865.00 17,730.00")
+                    price_match = re.search(r'([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', line)
+                    unit_price = 0.0
+                    amount = 0.0
+                    if price_match:
+                        unit_price = float(price_match.group(1).replace(',', ''))
+                        amount = float(price_match.group(2).replace(',', ''))
+                    else:
+                        # Pattern 2: Look for any numbers with decimals
+                        all_numbers = re.findall(r'([\d,]+\.\d+)', line)
+                        if len(all_numbers) >= 2:
+                            # Last two numbers are usually unit price and total
+                            unit_price = float(all_numbers[-2].replace(',', ''))
+                            amount = float(all_numbers[-1].replace(',', ''))
+                        elif len(all_numbers) == 1:
+                            # Only one number - might be total, calculate unit price from quantity
+                            amount = float(all_numbers[0].replace(',', ''))
+                            try:
+                                qty = int(quantity)
+                                if qty > 0:
+                                    unit_price = amount / qty
+                            except:
+                                pass
+                    
+                    try:
+                        item = {
+                            'item_code': item_code,
+                            'description': description,
+                            'quantity': int(quantity),
+                            'unit': unit,
+                            'unit_price': unit_price,
+                            'amount': amount,
+                            'total_price': amount,  # Frontend expects total_price
+                            'price': unit_price  # Alias for compatibility
+                        }
+                        # Only add real product items, not charges
+                        if item_code not in ['Pallet', 'Freight', 'Brokerage']:
+                            so_data['items'].append(item)
+                    except ValueError:
+                        # Skip items that don't parse correctly
+                        continue
+                    
+            # Subtotal
+            elif line.startswith('Subtotal:'):
+                subtotal_match = re.search(r'Subtotal:\s+([\d,]+\.?\d*)', line)
+                if subtotal_match:
+                    so_data['subtotal'] = float(subtotal_match.group(1).replace(',', ''))
             
-            # IMPROVED PO PARSING
-            # Look for common PO patterns anywhere in line
-            # P.O. No.: 12345
-            # PO #: 12345
-            # Purchase Order: 12345
-            po_patterns = [
-                r'P\.?O\.?\s*No\.?:\s*([A-Z0-9\-\s]+)',
-                r'P\.?O\.?\s*#\s*([A-Z0-9\-\s]+)',
-                r'Purchase\s*Order\s*[:#]?\s*([A-Z0-9\-\s]+)',
-                r'PO\s+([\d-]+)\s+Total' # The old fallback
-            ]
-            
-            if not so_data['po_number']:
-                for pat in po_patterns:
-                    m = re.search(pat, line, re.IGNORECASE)
-                    if m:
-                        candidate = m.group(1).strip()
-                        # validate candidate isn't garbage
-                        if len(candidate) > 2 and not 'Total' in candidate:
-                             so_data['po_number'] = candidate
-                             break
+            # Tax (HST)
+            elif 'HST' in line and re.search(r'(\d+\.?\d*)', line):
+                tax_match = re.search(r'HST\s+(\d+\.?\d*)', line)
+                if tax_match:
+                    so_data['tax'] = float(tax_match.group(1).replace(',', ''))
+                    
+            # Total Amount
+            elif 'Total Amount' in line:
+                total_match = re.search(r'Total Amount\s+([\d,]+\.?\d*)', line)
+                if total_match:
+                    so_data['total_amount'] = float(total_match.group(1).replace(',', ''))
+                    
+            # Terms
+            elif line.startswith('Terms:'):
+                so_data['terms'] = line.split('Terms:')[1].strip()
+                
+            # PO Number - check multiple patterns
+            # Pattern 1: "Comment: PO 67559 Total Amount..."
+            # Pattern 2: "PO: 12345" or "P.O.: 12345" or "P.O. 12345"
+            # Pattern 3: "PO 12345" anywhere in line
+            elif 'Comment:' in line and not so_data['po_number']:
+                # Extract PO from Comment line - "Comment: PO 67559 Total Amount..."
+                po_match = re.search(r'\bPO\s*[:#]?\s*(\d+[-\d]*)', line, re.IGNORECASE)
+                if po_match:
+                    so_data['po_number'] = po_match.group(1)
+                    print(f"  📋 Found PO in Comment: {so_data['po_number']}")
+            elif re.search(r'\bP\.?O\.?\s*[:#]?\s*\d', line, re.IGNORECASE) and not so_data['po_number']:
+                # Generic PO pattern
+                po_match = re.search(r'\bP\.?O\.?\s*[:#]?\s*(\d+[-\d]*)', line, re.IGNORECASE)
+                if po_match:
+                    so_data['po_number'] = po_match.group(1)
+                    print(f"  📋 Found PO: {so_data['po_number']}")
         
         # Create billing and shipping addresses for compatibility
         # First, CLEAN the raw address string by removing garbage
