@@ -22,31 +22,50 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
+# Cache for latest folder to avoid repeated API calls
+_latest_folder_cache = None
+_latest_folder_cache_time = None
+
 def get_latest_folder():
     """
     Get latest MISys API extraction folder
     Always returns the most recent folder by date (YYYY-MM-DD format)
     Works for both local and Google Cloud Run environments
+    
+    Caches result for 5 minutes to avoid repeated slow API calls
     """
+    global _latest_folder_cache, _latest_folder_cache_time
+    
+    # Check cache (valid for 5 minutes)
+    if _latest_folder_cache and _latest_folder_cache_time:
+        cache_age = (datetime.now() - _latest_folder_cache_time).total_seconds()
+        if cache_age < 300:  # 5 minutes
+            return _latest_folder_cache
+    
     try:
-        # Check if we should use Google Drive API (from app configuration)
-        # Import dynamically to avoid circular imports
-        import sys
-        if 'app' in sys.modules:
-            app_module = sys.modules['app']
-            use_google_drive_api = getattr(app_module, 'USE_GOOGLE_DRIVE_API', False)
-            get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
-            
-            if use_google_drive_api and get_google_drive_service:
-                print("SEARCH: Using Google Drive API to find latest folder (from PR service)...")
-                service = get_google_drive_service()
-                if service:
-                    latest_id, latest_name = service.find_latest_api_extractions_folder()
-                    if latest_name:
-                        print(f"✅ Latest MISys API extraction folder (via API): {latest_name}")
-                        return latest_name
+        # On Cloud Run, use Google Drive API
+        is_cloud_run = os.getenv('K_SERVICE') is not None
         
-        # Fallback to local
+        if is_cloud_run:
+            # Import dynamically to avoid circular imports
+            import sys
+            if 'app' in sys.modules:
+                app_module = sys.modules['app']
+                get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
+                
+                if get_google_drive_service:
+                    print("SEARCH: Using Google Drive API to find latest folder (from PR service)...")
+                    service = get_google_drive_service()
+                    if service:
+                        latest_id, latest_name = service.find_latest_api_extractions_folder()
+                        if latest_name:
+                            print(f"✅ Latest MISys API extraction folder (via API): {latest_name}")
+                            _latest_folder_cache = latest_name
+                            _latest_folder_cache_time = datetime.now()
+                            return latest_name
+            return None
+        
+        # Local environment - read from G: drive
         if not os.path.exists(GDRIVE_BASE):
             print(f"⚠️ GDRIVE_BASE path not accessible: {GDRIVE_BASE}")
             return None
@@ -59,11 +78,12 @@ def get_latest_folder():
             return None
         
         # Sort by folder name (assuming YYYY-MM-DD format) - most recent first
-        # This ensures we always get the latest API extraction
-        folders.sort(reverse=True)  # Most recent first (e.g., 2025-01-15 > 2025-01-14)
+        folders.sort(reverse=True)
         latest_folder = folders[0]
         
         print(f"✅ Latest MISys API extraction folder: {latest_folder}")
+        _latest_folder_cache = latest_folder
+        _latest_folder_cache_time = datetime.now()
         return latest_folder
         
     except Exception as e:
@@ -102,11 +122,31 @@ def load_po_data(po_number):
 
 
 def get_inventory_data(item_no):
-    """Get current inventory data for an item from CustomAlert5.json"""
+    """Get current inventory data for an item from CustomAlert5.json
+    
+    On Cloud Run, this returns None since local G: drive is not accessible.
+    The frontend passes stock data from the already-loaded inventory data.
+    """
     try:
+        # Check if we're on Cloud Run - local G: drive not accessible
+        is_cloud_run = os.getenv('K_SERVICE') is not None
+        if is_cloud_run:
+            # On Cloud Run, skip local file reads - frontend provides stock data
+            return None
+        
+        # Local environment - read from G: drive
+        if not os.path.exists(GDRIVE_BASE):
+            return None
+            
         latest = get_latest_folder()
+        if not latest:
+            return None
+            
         folder_path = os.path.join(GDRIVE_BASE, latest)
         custom_alert_file = os.path.join(folder_path, 'CustomAlert5.json')
+        
+        if not os.path.exists(custom_alert_file):
+            return None
         
         with open(custom_alert_file, 'r', encoding='utf-8') as f:
             inventory_data = json.load(f)
