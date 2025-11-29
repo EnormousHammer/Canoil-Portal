@@ -29,6 +29,18 @@ except ImportError:
         print(f"Logistics module not available: {e}")
         LOGISTICS_AVAILABLE = False
 
+# Import purchase requisition service
+try:
+    from .purchase_requisition_service import pr_service
+    PR_SERVICE_AVAILABLE = True
+except ImportError:
+    try:
+        from purchase_requisition_service import pr_service
+        PR_SERVICE_AVAILABLE = True
+    except ImportError as e:
+        print(f"Purchase Requisition service not available: {e}")
+        PR_SERVICE_AVAILABLE = False
+
 # BOL HTML module removed - using the one in logistics_automation.py
 BOL_HTML_AVAILABLE = False
 
@@ -1104,6 +1116,13 @@ if LOGISTICS_AVAILABLE:
     print("Logistics automation module loaded")
 else:
     print("Logistics automation module not available")
+
+# Register purchase requisition service blueprint
+if PR_SERVICE_AVAILABLE:
+    app.register_blueprint(pr_service)
+    print("Purchase Requisition service loaded")
+else:
+    print("Purchase Requisition service not available")
 
 # Register BOL HTML blueprint - DISABLED (duplicate endpoint in logistics_automation.py)
 # if BOL_HTML_AVAILABLE:
