@@ -525,13 +525,8 @@ def generate_requisition():
         if not os.path.exists(PR_TEMPLATE):
             return jsonify({"error": "Template not found"}), 404
         
-        # Load template with all formatting preserved
-        # Try to preserve VBA if available, but don't fail if it's not supported
-        try:
-            wb = openpyxl.load_workbook(PR_TEMPLATE, keep_vba=True, data_only=False)
-        except TypeError:
-            # Fallback if keep_vba parameter not supported in this openpyxl version
-            wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
+        # Load template - DO NOT use keep_vba=True as it corrupts non-VBA xlsx files
+        wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
         
         sheet = wb['Purchase Requisition']
         
@@ -869,8 +864,7 @@ def generate_requisition_internal(user_info, items, supplier):
             return jsonify({"error": "Template not found"}), 404
         
         try:
-            wb = openpyxl.load_workbook(PR_TEMPLATE, keep_vba=True, data_only=False)
-        except TypeError:
+            # DO NOT use keep_vba=True as it corrupts non-VBA xlsx files
             wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
         except Exception as e:
             print(f"Error loading template: {e}")
