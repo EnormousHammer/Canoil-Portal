@@ -240,6 +240,8 @@ def extract_so_data_from_pdf(pdf_path):
             
             # Stop keywords (case-insensitive) - anything after these is NOT address
             stop_patterns = [
+                r'^MO\s+\d+',  # Manufacturing Order reference (e.g., "MO 3804" or "MO 3448, Ship with...")
+                r'^Line\s+\d+:',  # Line references (e.g., "Line 1: MO 3656")
                 r'business\s+no', r'item\s+no',
                 r'subtotal', r'hst', r'total\s+amount',
                 r'terms:', r'\d+\s+drum', r'\d+\s+pail', r'\d+\s+gallon', r'\d+\s+case', r'\d+\s+keg'
@@ -384,6 +386,7 @@ def extract_so_data_from_pdf(pdf_path):
             sold_to_company = ''
             ship_to_company = ''
             ship_to_contact = ''
+            detected_country = ''  # Track the country from raw address lines
             
             for idx, line in enumerate(raw_address_lines):
                 # Extract phone first
@@ -414,8 +417,18 @@ def extract_so_data_from_pdf(pdf_path):
                     else:
                         ship_to_company = sold_part
                 else:
-                    # Address lines - skip country and phone-only lines
-                    if clean.lower() in ['usa', 'canada', 'u.s.a.', 'u.s.', 'us']:
+                    # Capture country but don't add to address parts
+                    if clean.lower() in ['usa', 'u.s.a.', 'u.s.', 'us', 'united states']:
+                        detected_country = 'USA'
+                        continue
+                    elif clean.lower() in ['canada', 'ca']:
+                        detected_country = 'Canada'
+                        continue
+                    elif clean.lower() in ['japan', 'jp']:
+                        detected_country = 'Japan'
+                        continue
+                    elif clean.lower() in ['puerto rico', 'pr']:
+                        detected_country = 'Puerto Rico'
                         continue
                     
                     if is_alternating and sold_part == ship_part:
@@ -461,6 +474,10 @@ def extract_so_data_from_pdf(pdf_path):
             
             so_data['sold_to']['address'] = build_address(sold_to_parts)
             so_data['ship_to']['address'] = build_address(ship_to_parts) or build_address(sold_to_parts)
+            
+            # Store detected country for later use
+            if detected_country:
+                so_data['detected_country'] = detected_country
         
         # Set customer name
         so_data['customer_name'] = so_data['sold_to']['company_name']
@@ -578,40 +595,47 @@ def extract_so_data_from_pdf(pdf_path):
                         # Skip items that don't parse correctly
                         continue
                     
-            # Subtotal
+            # Subtotal - handle currency prefixes like "US$" or "CDN$"
             elif line.startswith('Subtotal:'):
-                subtotal_match = re.search(r'Subtotal:\s+([\d,]+\.?\d*)', line)
+                # Pattern: "Subtotal: US$5,570.00" or "Subtotal: 5,570.00"
+                subtotal_match = re.search(r'Subtotal:\s*(?:US\$|CDN\$|\$)?([\d,]+\.?\d*)', line)
                 if subtotal_match:
                     so_data['subtotal'] = float(subtotal_match.group(1).replace(',', ''))
             
-            # Tax (HST)
-            elif 'HST' in line and re.search(r'(\d+\.?\d*)', line):
-                tax_match = re.search(r'HST\s+(\d+\.?\d*)', line)
+            # Tax (HST/GST)
+            elif ('HST' in line or 'GST' in line) and re.search(r'([\d,]+\.?\d*)', line):
+                tax_match = re.search(r'(?:HST|GST)\s*([\d,]+\.?\d*)', line)
                 if tax_match:
                     so_data['tax'] = float(tax_match.group(1).replace(',', ''))
-                    
-            # Total Amount
-            elif 'Total Amount' in line:
-                total_match = re.search(r'Total Amount\s+([\d,]+\.?\d*)', line)
-                if total_match:
-                    so_data['total_amount'] = float(total_match.group(1).replace(',', ''))
                     
             # Terms
             elif line.startswith('Terms:'):
                 so_data['terms'] = line.split('Terms:')[1].strip()
                 
-            # PO Number - check multiple patterns
-            # Pattern 1: "Comment: PO 67559 Total Amount..."
-            # Pattern 2: "PO: 12345" or "P.O.: 12345" or "P.O. 12345"
-            # Pattern 3: "PO 12345" anywhere in line
-            elif 'Comment:' in line and not so_data['po_number']:
-                # Extract PO from Comment line - "Comment: PO 67559 Total Amount..."
-                po_match = re.search(r'\bPO\s*[:#]?\s*(\d+[-\d]*)', line, re.IGNORECASE)
-                if po_match:
-                    so_data['po_number'] = po_match.group(1)
-                    print(f"  📋 Found PO in Comment: {so_data['po_number']}")
+            # Comment line - extract PO AND Total Amount
+            # Pattern: "Comment: PO 329438 Total Amount US$5,570.00"
+            elif 'Comment:' in line:
+                # Extract PO from Comment line
+                if not so_data['po_number']:
+                    po_match = re.search(r'\bPO\s*[:#]?\s*(\d+[-\d]*)', line, re.IGNORECASE)
+                    if po_match:
+                        so_data['po_number'] = po_match.group(1)
+                        print(f"  📋 Found PO in Comment: {so_data['po_number']}")
+                # Also extract Total Amount if present in Comment line
+                if 'Total Amount' in line and so_data['total_amount'] == 0:
+                    total_match = re.search(r'Total Amount\s*(?:US\$|CDN\$|\$)?([\d,]+\.?\d*)', line)
+                    if total_match:
+                        so_data['total_amount'] = float(total_match.group(1).replace(',', ''))
+                        
+            # Total Amount - handle currency prefixes (standalone line)
+            elif 'Total Amount' in line and so_data['total_amount'] == 0:
+                # Pattern: "Total Amount US$5,570.00" or "Total Amount 5,570.00"
+                total_match = re.search(r'Total Amount\s*(?:US\$|CDN\$|\$)?([\d,]+\.?\d*)', line)
+                if total_match:
+                    so_data['total_amount'] = float(total_match.group(1).replace(',', ''))
+                    
+            # Generic PO pattern (for lines without Comment)
             elif re.search(r'\bP\.?O\.?\s*[:#]?\s*\d', line, re.IGNORECASE) and not so_data['po_number']:
-                # Generic PO pattern
                 po_match = re.search(r'\bP\.?O\.?\s*[:#]?\s*(\d+[-\d]*)', line, re.IGNORECASE)
                 if po_match:
                     so_data['po_number'] = po_match.group(1)
@@ -671,22 +695,26 @@ def extract_so_data_from_pdf(pdf_path):
             if not cleaned:
                 return result
             
-            # Determine country from original string
-            if 'USA' in address_str.upper() or 'US' in address_str.upper():
-                result['country'] = 'USA'
-            
-            # Extract postal code first
+            # Extract postal code first and use it to determine country
             # Canadian: A1A 1A1, US: 12345 or 12345-6789
             postal_match = re.search(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d)', cleaned, re.IGNORECASE)
             if postal_match:
                 result['postal_code'] = postal_match.group(1).upper()
+                result['country'] = 'Canada'  # Canadian postal code format
                 cleaned = cleaned.replace(postal_match.group(0), '').strip()
             else:
                 # Try US zip
                 us_postal_match = re.search(r'\b(\d{5})(-\d{4})?\b', cleaned)
                 if us_postal_match:
                     result['postal_code'] = us_postal_match.group(0)
+                    result['country'] = 'USA'  # US zip code format
                     cleaned = cleaned.replace(us_postal_match.group(0), '').strip()
+            
+            # Override country if explicitly mentioned in original string
+            if 'USA' in address_str.upper():
+                result['country'] = 'USA'
+            elif 'CANADA' in address_str.upper():
+                result['country'] = 'Canada'
             
             # Split by comma and clean up
             parts = [p.strip() for p in cleaned.split(',') if p.strip()]
@@ -740,6 +768,9 @@ def extract_so_data_from_pdf(pdf_path):
         cleaned_billing_address = clean_address_string(so_data['sold_to']['address'])
         cleaned_shipping_address = clean_address_string(so_data['ship_to']['address'])
         
+        # Use detected country if available, otherwise use parsed country
+        final_country = so_data.get('detected_country') or billing_addr['country']
+        
         so_data['billing_address'] = {
             'company': so_data['sold_to']['company_name'],
             'contact_person': so_data['sold_to']['contact_person'],
@@ -750,7 +781,7 @@ def extract_so_data_from_pdf(pdf_path):
             'province': billing_addr['province'],
             'postal': billing_addr['postal_code'],  # Frontend uses 'postal'
             'postal_code': billing_addr['postal_code'],
-            'country': billing_addr['country'],
+            'country': final_country,
             'phone': so_data['sold_to']['phone'],
             'email': so_data['sold_to']['email']
         }
@@ -765,7 +796,7 @@ def extract_so_data_from_pdf(pdf_path):
             'province': shipping_addr['province'],
             'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
             'postal_code': shipping_addr['postal_code'],
-            'country': shipping_addr['country'],
+            'country': so_data.get('detected_country') or shipping_addr['country'],
             'phone': so_data['ship_to']['phone'],
             'email': so_data['ship_to']['email']
         }
