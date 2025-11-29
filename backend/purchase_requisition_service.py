@@ -11,6 +11,8 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import io
+import zipfile
+import shutil
 
 pr_service = Blueprint('pr_service', __name__)
 
@@ -20,6 +22,48 @@ GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Mi
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
+
+
+def preserve_vml_drawings(template_path, output_bytes):
+    """
+    openpyxl doesn't preserve VML drawings (used for signature shapes).
+    This function copies VML files from the original template back into the output.
+    """
+    try:
+        output_bytes.seek(0)
+        
+        # Read the template to get VML files
+        vml_files = {}
+        with zipfile.ZipFile(template_path, 'r') as template_zip:
+            for name in template_zip.namelist():
+                if 'vml' in name.lower():
+                    vml_files[name] = template_zip.read(name)
+        
+        if not vml_files:
+            # No VML files to preserve
+            return output_bytes
+        
+        # Create new output with VML files restored
+        new_output = io.BytesIO()
+        
+        with zipfile.ZipFile(output_bytes, 'r') as saved_zip:
+            with zipfile.ZipFile(new_output, 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                # Copy all files from saved output
+                for name in saved_zip.namelist():
+                    new_zip.writestr(name, saved_zip.read(name))
+                
+                # Add VML files from template (overwrite if exists)
+                for name, content in vml_files.items():
+                    if name not in saved_zip.namelist():
+                        new_zip.writestr(name, content)
+        
+        new_output.seek(0)
+        return new_output
+        
+    except Exception as e:
+        print(f"Warning: Could not preserve VML drawings: {e}")
+        output_bytes.seek(0)
+        return output_bytes
 
 
 # Cache for latest folder to avoid repeated API calls
@@ -767,6 +811,9 @@ def generate_requisition():
         wb.save(output)
         output.seek(0)
         
+        # Restore VML drawings (signature shapes) that openpyxl doesn't preserve
+        output = preserve_vml_drawings(PR_TEMPLATE, output)
+        
         # Generate filename
         filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
         
@@ -1032,6 +1079,9 @@ def generate_requisition_internal(user_info, items, supplier):
             # Verify the file was saved correctly
             if output.getvalue() is None or len(output.getvalue()) == 0:
                 raise Exception("Workbook save resulted in empty file")
+            
+            # Restore VML drawings (signature shapes) that openpyxl doesn't preserve
+            output = preserve_vml_drawings(PR_TEMPLATE, output)
             
             filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
             
