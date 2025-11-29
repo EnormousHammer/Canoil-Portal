@@ -419,24 +419,40 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       }
 
       // Download file - ensure proper binary handling
-      const arrayBuffer = await response.arrayBuffer();
-      console.log('📄 Got arrayBuffer, size:', arrayBuffer.byteLength);
+      // Get content type from response
+      const contentType = response.headers.get('content-type') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      console.log('📄 Response content-type:', contentType);
       
-      // Create blob with explicit Excel MIME type
-      const blob = new Blob([arrayBuffer], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-      console.log('📄 Created blob, size:', blob.size);
+      // Read as blob directly (preserves binary data)
+      const blob = await response.blob();
+      console.log('📄 Got blob, size:', blob.size, 'type:', blob.type);
       
+      // Verify blob size matches expected
+      if (blob.size < 1000) {
+        console.error('❌ Blob too small, might be an error response');
+        const text = await blob.text();
+        throw new Error(`Server returned invalid file: ${text}`);
+      }
+      
+      // Create object URL and trigger download
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
       const filename = `Purchase_Requisition_${new Date().toISOString().split('T')[0]}.xlsx`;
-      link.setAttribute('download', filename);
+      
+      // Use anchor element for download
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = filename;
       document.body.appendChild(link);
+      
+      // Trigger click
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup after a delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
 
       console.log('✅ File downloaded:', filename);
       alert('✅ Purchase Requisition generated successfully!');
