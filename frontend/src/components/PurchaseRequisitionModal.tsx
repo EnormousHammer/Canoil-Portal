@@ -418,9 +418,15 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
         throw new Error(`Server returned ${response.status}: ${errorText}`);
       }
 
-      // Download file
-      const blob = await response.blob();
-      console.log('📄 Got blob, size:', blob.size);
+      // Download file - ensure proper binary handling
+      const arrayBuffer = await response.arrayBuffer();
+      console.log('📄 Got arrayBuffer, size:', arrayBuffer.byteLength);
+      
+      // Create blob with explicit Excel MIME type
+      const blob = new Blob([arrayBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      console.log('📄 Created blob, size:', blob.size);
       
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
