@@ -24,48 +24,44 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
-def preserve_template_drawings(template_path, output_bytes):
+def preserve_template_structure(template_path, output_bytes):
     """
-    openpyxl corrupts/loses drawings (VML shapes, images, logos, etc).
-    This function restores ALL drawing and media files from the original template.
+    openpyxl corrupts many parts of xlsx files (VML, EMF images, printer settings, etc).
+    This function rebuilds the output by:
+    1. Starting with the complete original template
+    2. Only replacing the worksheet XML with the modified version from openpyxl
+    
+    This preserves ALL template structure including drawings, signatures, logos, etc.
     """
     try:
         output_bytes.seek(0)
         
-        # Read ALL drawing-related and media files from template
-        template_files = {}
-        with zipfile.ZipFile(template_path, 'r') as template_zip:
-            for name in template_zip.namelist():
-                # Preserve drawings, media (images/logos), and related files
-                if 'drawings/' in name.lower() or 'media/' in name.lower():
-                    template_files[name] = template_zip.read(name)
+        # Files that openpyxl modifies and we WANT to keep from openpyxl output
+        # (the actual cell data changes)
+        files_from_openpyxl = {
+            'xl/worksheets/sheet1.xml',  # Main worksheet with our data
+            'xl/worksheets/sheet2.xml',  # Instructions sheet (if exists)
+        }
         
-        if not template_files:
-            return output_bytes
-        
-        # Create new output with template drawings/media restored
         new_output = io.BytesIO()
         
-        with zipfile.ZipFile(output_bytes, 'r') as saved_zip:
-            with zipfile.ZipFile(new_output, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-                # Copy all files from saved output, but REPLACE drawings/media with template versions
-                for name in saved_zip.namelist():
-                    if ('drawings/' in name.lower() or 'media/' in name.lower()) and name in template_files:
-                        # Use template version instead
-                        new_zip.writestr(name, template_files[name])
-                    else:
-                        new_zip.writestr(name, saved_zip.read(name))
-                
-                # Add any template files that weren't in saved output
-                for name, content in template_files.items():
-                    if name not in saved_zip.namelist():
-                        new_zip.writestr(name, content)
+        with zipfile.ZipFile(template_path, 'r') as template_zip:
+            with zipfile.ZipFile(output_bytes, 'r') as saved_zip:
+                with zipfile.ZipFile(new_output, 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                    # Start with ALL files from original template
+                    for name in template_zip.namelist():
+                        if name in files_from_openpyxl and name in saved_zip.namelist():
+                            # Use openpyxl's version (has our cell changes)
+                            new_zip.writestr(name, saved_zip.read(name))
+                        else:
+                            # Use original template version (preserves drawings, etc.)
+                            new_zip.writestr(name, template_zip.read(name))
         
         new_output.seek(0)
         return new_output
         
     except Exception as e:
-        print(f"Warning: Could not preserve template drawings: {e}")
+        print(f"Warning: Could not preserve template structure: {e}")
         import traceback
         traceback.print_exc()
         output_bytes.seek(0)
@@ -833,8 +829,8 @@ def generate_requisition():
         wb.save(output)
         output.seek(0)
         
-        # Restore ALL drawings from template (openpyxl corrupts them)
-        output = preserve_template_drawings(PR_TEMPLATE, output)
+        # Rebuild file using template structure (openpyxl corrupts drawings/media)
+        output = preserve_template_structure(PR_TEMPLATE, output)
         
         # Generate filename
         filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
