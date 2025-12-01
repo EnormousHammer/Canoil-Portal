@@ -24,36 +24,40 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
-def preserve_vml_drawings(template_path, output_bytes):
+def preserve_template_drawings(template_path, output_bytes):
     """
-    openpyxl doesn't preserve VML drawings (used for signature shapes).
-    This function copies VML files from the original template back into the output.
+    openpyxl corrupts/loses drawings (VML shapes, images, logos, etc).
+    This function restores ALL drawing and media files from the original template.
     """
     try:
         output_bytes.seek(0)
         
-        # Read the template to get VML files
-        vml_files = {}
+        # Read ALL drawing-related and media files from template
+        template_files = {}
         with zipfile.ZipFile(template_path, 'r') as template_zip:
             for name in template_zip.namelist():
-                if 'vml' in name.lower():
-                    vml_files[name] = template_zip.read(name)
+                # Preserve drawings, media (images/logos), and related files
+                if 'drawings/' in name.lower() or 'media/' in name.lower():
+                    template_files[name] = template_zip.read(name)
         
-        if not vml_files:
-            # No VML files to preserve
+        if not template_files:
             return output_bytes
         
-        # Create new output with VML files restored
+        # Create new output with template drawings/media restored
         new_output = io.BytesIO()
         
         with zipfile.ZipFile(output_bytes, 'r') as saved_zip:
             with zipfile.ZipFile(new_output, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-                # Copy all files from saved output
+                # Copy all files from saved output, but REPLACE drawings/media with template versions
                 for name in saved_zip.namelist():
-                    new_zip.writestr(name, saved_zip.read(name))
+                    if ('drawings/' in name.lower() or 'media/' in name.lower()) and name in template_files:
+                        # Use template version instead
+                        new_zip.writestr(name, template_files[name])
+                    else:
+                        new_zip.writestr(name, saved_zip.read(name))
                 
-                # Add VML files from template (overwrite if exists)
-                for name, content in vml_files.items():
+                # Add any template files that weren't in saved output
+                for name, content in template_files.items():
                     if name not in saved_zip.namelist():
                         new_zip.writestr(name, content)
         
@@ -61,7 +65,9 @@ def preserve_vml_drawings(template_path, output_bytes):
         return new_output
         
     except Exception as e:
-        print(f"Warning: Could not preserve VML drawings: {e}")
+        print(f"Warning: Could not preserve template drawings: {e}")
+        import traceback
+        traceback.print_exc()
         output_bytes.seek(0)
         return output_bytes
 
@@ -739,6 +745,7 @@ def generate_requisition():
             # Get real pricing, supplier data, and inventory data for this specific item
             item_pricing_data = None
             inventory_data = None
+            days_since_last_order = None
             if item_no:
                 # Get recent pricing data
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
@@ -749,6 +756,18 @@ def generate_requisition():
                         unit_price = item_pricing_data.get('unit_price', 0)
                     if not unit or unit == 'EA':
                         unit = item_pricing_data.get('purchase_unit', unit)
+                    
+                    # Calculate days since last order
+                    order_date_str = item_pricing_data.get('order_date', '')
+                    if order_date_str:
+                        try:
+                            # Parse date (format: YYYY-MM-DD or similar)
+                            from datetime import datetime
+                            order_date = datetime.strptime(order_date_str[:10], '%Y-%m-%d')
+                            days_since_last_order = (datetime.now() - order_date).days
+                            item_pricing_data['days_since_last_order'] = days_since_last_order
+                        except Exception as e:
+                            print(f"[PR] Could not parse order date '{order_date_str}': {e}")
                 
                 # Get real inventory data
                 inventory_data = get_inventory_data(item_no)
@@ -769,9 +788,12 @@ def generate_requisition():
             sheet[f'B{row}'] = item_no           # B: ITEM № (NOT A!)
             sheet[f'C{row}'] = description       # C: PRODUCT/SERVICE DESCRIPTION
             
-            # D: Add supplier item number if available
-            if item_pricing_data and item_pricing_data.get('supplier_item_no'):
-                sheet[f'D{row}'] = item_pricing_data.get('supplier_item_no', '')  # D: Supplier Item No
+            # D: INVENTORY TURNOVER (IN DAYS) - days since last order
+            inventory_turnover = item.get('inventory_turnover', '')
+            if inventory_turnover:
+                sheet[f'D{row}'] = inventory_turnover
+            elif item_pricing_data and item_pricing_data.get('days_since_last_order'):
+                sheet[f'D{row}'] = item_pricing_data.get('days_since_last_order')
             
             sheet[f'E{row}'] = current_stock     # E: CURRENT STOCK (from real inventory data)
             sheet[f'F{row}'] = unit              # F: PURCHASING UNIT (from real data)
@@ -811,8 +833,8 @@ def generate_requisition():
         wb.save(output)
         output.seek(0)
         
-        # Restore VML drawings (signature shapes) that openpyxl doesn't preserve
-        output = preserve_vml_drawings(PR_TEMPLATE, output)
+        # Restore ALL drawings from template (openpyxl corrupts them)
+        output = preserve_template_drawings(PR_TEMPLATE, output)
         
         # Generate filename
         filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
