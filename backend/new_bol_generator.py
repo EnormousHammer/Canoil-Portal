@@ -437,17 +437,45 @@ def determine_freight_terms(so_data: Dict[str, Any]) -> str:
 
 def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str], 
                       skid_info: str, total_weight_lbs: float, 
-                      po_number: str, so_number: str, total_skids: int = 0) -> List[Dict[str, str]]:
+                      po_number: str, so_number: str, total_skids: int = 0,
+                      email_analysis: Dict[str, Any] = None) -> List[Dict[str, str]]:
     """
     Generate the 8 rows for the BOL table
     Shows ALL items with their batch numbers and skid dimensions
+    Handles TOTE orders: shows 1 piece + "(XXX L filled)" in description
     """
     rows = []
+    
+    # Extract liters info from email for tote orders
+    email_liters_info = {}
+    if email_analysis:
+        email_text = str(email_analysis).lower()
+        is_tote_shipment = 'tote' in email_text
+        
+        # Look for liters in email items
+        for email_item in email_analysis.get('items', []):
+            desc = (email_item.get('description') or '').upper()
+            qty = email_item.get('quantity', '')
+            if qty and desc:
+                email_liters_info[desc] = qty
+        
+        # Also check for liters mentioned in the email body
+        import re
+        liters_match = re.search(r'(\d+[,.]?\d*)\s*liters?', email_text, re.IGNORECASE)
+        if liters_match:
+            email_liters_info['_default_liters'] = liters_match.group(1).replace(',', '')
+    else:
+        is_tote_shipment = False
+    
     total_pieces = sum(int(item.get('quantity', 0)) for item in items)
     
     # Calculate individual item weights (proportional)
     for i, item in enumerate(items):
         item_qty = int(item.get('quantity', 0))
+        
+        # Check if this is a TOTE order (unit LITER/TOTE/IBC with qty 1)
+        unit = (item.get('unit') or '').upper()
+        is_tote_item = (unit in ['LITER', 'LITRE', 'TOTE', 'IBC'] and item_qty == 1) or is_tote_shipment
         
         if total_pieces > 0 and total_weight_lbs > 0:
             item_weight_lbs = (item_qty / total_pieces) * total_weight_lbs
@@ -456,6 +484,26 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         
         # Product description (MUST come before using it in debug print)
         product = item.get('description', '')
+        
+        # For TOTE orders, add liters filled to description
+        if is_tote_item:
+            # Find liters from email matching this product
+            product_upper = product.upper()
+            liters_filled = None
+            
+            # Try to match with email items
+            for email_desc, email_qty in email_liters_info.items():
+                if email_desc != '_default_liters' and (email_desc in product_upper or product_upper in email_desc):
+                    liters_filled = email_qty
+                    break
+            
+            # Fallback to default liters from email body
+            if not liters_filled and '_default_liters' in email_liters_info:
+                liters_filled = email_liters_info['_default_liters']
+            
+            if liters_filled:
+                product = f"{product} ({liters_filled}L filled)"
+                print(f"   📦 TOTE ORDER: Added liters to description: {product}")
         
         # Get batch number from item (preserves full string with quantities)
         batch = item.get('batch_number', '')
@@ -776,8 +824,8 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
         if cb.get('id') == 'w_lb':
             cb['checked'] = 'checked'
     
-    # Generate row data
-    rows = generate_bol_rows(items, batch_numbers, skid_info, total_weight_lbs, po_number, so_number, total_skids)
+    # Generate row data (pass email_analysis for tote order handling)
+    rows = generate_bol_rows(items, batch_numbers, skid_info, total_weight_lbs, po_number, so_number, total_skids, email_analysis)
     
     # Populate table rows
     tbody = soup.find('tbody')

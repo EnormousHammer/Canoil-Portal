@@ -2136,11 +2136,21 @@ def process_email():
                                 print(f"      📦 TOTE ORDER DETECTED - matching on description only")
                             
                             # For tote orders, match on description only (skip qty check)
+                            # Store the liters info from email for BOL formatting: "Product Name (XXX L filled)"
                             if is_tote_order:
                                 matched = True
                                 matched_so_item = so_item
+                                # Store liters from email for BOL description formatting
+                                liters_filled = item_qty if item_qty else ''
                                 match_details = f"TOTE order matched by description: {so_desc}"
-                                print(f"   ✅ TOTE MATCH: '{item_desc}' = '{so_desc}'")
+                                if liters_filled:
+                                    match_details += f" | Liters filled: {liters_filled}L"
+                                    # Update the email item with tote info for BOL generation
+                                    email_item['is_tote_order'] = True
+                                    email_item['liters_filled'] = liters_filled
+                                    email_item['bol_quantity'] = 1  # 1 tote
+                                    email_item['bol_description'] = f"{email_item.get('description', '')} ({liters_filled}L filled)"
+                                print(f"   ✅ TOTE MATCH: '{item_desc}' = '{so_desc}' (Liters: {liters_filled})")
                                 break
                             
                             # For non-tote orders, check quantity
