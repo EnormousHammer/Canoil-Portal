@@ -513,42 +513,52 @@ def extract_so_data_from_pdf(pdf_path):
             elif line.startswith('Business No.:'):
                 so_data['business_number'] = line.split('Business No.:')[1].strip()
                 
-            # Items - detect product lines (DRUM, PAIL, GALLON, CASE, KEG, etc.)
+            # Items - detect product lines with ANY unit type from product catalog
             # Skip header line and charge lines (Pallet, Freight, Brokerage)
-            # Use regex to find unit types that may be concatenated with numbers (e.g., CASE30)
-            elif (re.search(r'\b(DRUM|PAIL|GALLON|CASE|KEG)\d*\b', line.upper())
+            # Comprehensive unit list based on actual item descriptions in catalog
+            elif (re.search(r'\b(DRUM|DRUMS|PAIL|PAILS|GALLON|GAL|CASE|CASES|KEG|KEGS|LITER|LITRE|BOTTLE|BTL|BAG|BAGS|BOX|BOXES|CARTON|CTN|EACH|TOTE|TOTES|TUBE|TUBES|JAR|JARS|TUB|TUBS|CAN|CANS|IBC|ROLL|ROLLS|KG|LB|LBS|BULK)\d*\b', line.upper())
                   and not line.startswith('Item No.')
                   and not line.startswith('Pallet')
                   and not line.startswith('Freight')
                   and not line.startswith('Brokerage')):
                 parts = line.split()
                 if len(parts) >= 4:
-                    # Find the unit type position (DRUM, PAIL, KEG, etc.) - may be concatenated with numbers
-                    unit_types = ['DRUM', 'PAIL', 'GALLON', 'CASE', 'KEG']
+                    # Find the unit type position - comprehensive list from product catalog
+                    # CRITICAL: Order by specificity - longer/more specific units first
+                    unit_types = [
+                        'GALLON', 'CARTON', 'BOTTLE', 'DRUMS', 'PAILS', 'CASES', 'KEGS',
+                        'LITER', 'LITRE', 'DRUM', 'PAIL', 'CASE', 'EACH', 'BAGS', 'TOTE',
+                        'TOTES', 'TUBES', 'BOXES', 'ROLLS', 'JARS', 'TUBS', 'CANS',
+                        'TUBE', 'BAG', 'BOX', 'KEG', 'JAR', 'TUB', 'CAN', 'IBC', 'GAL',
+                        'BTL', 'CTN', 'LBS', 'LB', 'KG', 'BULK', 'ROLL'
+                    ]
                     unit_idx = -1
                     unit = ''
+                    quantity = ''
+                    
+                    # Search through all parts to find a valid unit with a numeric quantity before it
                     for i, part in enumerate(parts):
+                        if i < 1:  # Skip first position - unit needs quantity before it
+                            continue
                         part_upper = part.upper()
                         # Check for exact match or starts with unit type
                         for ut in unit_types:
                             if part_upper == ut or part_upper.startswith(ut):
-                                unit_idx = i
-                                unit = ut  # Normalize to just the unit type
-                                break
+                                # CRITICAL: Only accept if the position before is a number (quantity)
+                                potential_qty = parts[i - 1]
+                                if potential_qty.isdigit():
+                                    unit_idx = i
+                                    unit = ut  # Normalize to just the unit type
+                                    quantity = potential_qty
+                                    break
                         if unit_idx >= 0:
                             break
                     
-                    if unit_idx < 1:
-                        # Unit is too early or not found, skip this line
+                    if unit_idx < 1 or not quantity:
+                        # No valid unit found with numeric quantity before it
                         continue
                     
-                    # Quantity is the number just before the unit
                     quantity_idx = unit_idx - 1
-                    quantity = parts[quantity_idx]
-                    
-                    # Validate quantity is a number
-                    if not quantity.isdigit():
-                        continue
                     
                     # Item code is everything before quantity
                     item_code = ' '.join(parts[:quantity_idx])
