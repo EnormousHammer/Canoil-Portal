@@ -22,7 +22,6 @@ const UserSelectionModal: React.FC<UserSelectionModalProps> = ({
 
   const users = [
     { name: 'Haron Alhakimi', initials: 'HA', color: 'bg-blue-500' },
-    { name: 'Zuri Arthur', initials: 'ZA', color: 'bg-purple-500' }
   ];
 
   useEffect(() => {

@@ -62,6 +62,10 @@ const LogisticsAutomation: React.FC = () => {
   // Auto-detection state
   const [autoDetection, setAutoDetection] = useState<any>(null);
   const [processingMode, setProcessingMode] = useState<'auto' | 'manual'>('auto');
+  
+  // AES Steel Certificate Reminder popup
+  const [showAesSteelReminder, setShowAesSteelReminder] = useState(false);
+  const [pendingGenerateAll, setPendingGenerateAll] = useState(false);
 
   // Check for email data from EmailAssistant on mount
   useEffect(() => {
@@ -586,7 +590,33 @@ const LogisticsAutomation: React.FC = () => {
     }
   };
 
+  // Check if this is an AEC order
+  const isAecOrder = () => {
+    const customerName = (result?.so_data?.customer_name || result?.email_data?.company_name || '').toUpperCase();
+    return customerName.includes('AEC');
+  };
+
+  // Proceed with document generation (called after AEC popup confirmation)
+  const proceedWithGenerateAllDocuments = async () => {
+    setShowAesSteelReminder(false);
+    setPendingGenerateAll(false);
+    await actualGenerateAllDocuments();
+  };
+
   const generateAllDocuments = async () => {
+    if (!result) return;
+
+    // For AEC orders, show steel certificate reminder first
+    if (isAecOrder()) {
+      setShowAesSteelReminder(true);
+      setPendingGenerateAll(true);
+      return;
+    }
+
+    await actualGenerateAllDocuments();
+  };
+
+  const actualGenerateAllDocuments = async () => {
     if (!result) return;
 
     setLoading(true);
@@ -827,6 +857,49 @@ const LogisticsAutomation: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 py-8">
+      {/* AEC Steel Certificate Reminder Popup */}
+      {showAesSteelReminder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4 border-2 border-amber-400">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-amber-100 p-3 rounded-full">
+                <AlertCircle className="w-8 h-8 text-amber-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">AEC Order - Steel Certificate Required</h3>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-800 font-medium mb-2">⚠️ Important Reminder:</p>
+              <p className="text-amber-700">
+                Don't forget to <strong>add the Steel Certificate</strong> for this AEC shipment!
+              </p>
+              <p className="text-amber-600 text-sm mt-2">
+                USMCA form location: <br/>
+                <code className="bg-amber-100 px-1 rounded text-xs">G:\Shared drives\Logistics_Shipping\Logistics\BLANKET CUSMA, USMCA, T-MEC\2026\AEC\</code>
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAesSteelReminder(false);
+                  setPendingGenerateAll(false);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={proceedWithGenerateAllDocuments}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+              >
+                ✓ I'll Add Certificate - Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto px-4">
         {/* Compact Header with Mode Toggle */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">

@@ -69,7 +69,6 @@ export const UltimateEnterpriseLoadingScreen: React.FC<UltimateEnterpriseLoading
     { name: 'Carolina Mejia', email: 'carolina@canoilcanadaltd.com', isAdmin: false },
     { name: 'Murali', email: 'murali@canoilcanadaltd.com', isAdmin: false },
     { name: 'Henry Sapiano', email: 'henry@canoilcanadaltd.com', isAdmin: true },
-    { name: 'Zuri Arthur', email: 'zuri@canoilcanadaltd.com', isAdmin: false },
     { name: 'Kathleen Bevan', email: 'kathleen@canoilcanadaltd.com', isAdmin: false },
     { name: 'Magd Saad', email: 'magd@canoilcanadaltd.com', isAdmin: false },
     { name: 'Jean Sterken', email: 'jean@canoilcanadaltd.com', isAdmin: false },

@@ -183,10 +183,43 @@ export class GDriveDataLoader {
       }
       
       const result = await response.json();
+      
+      // Check if data actually has content (not just empty structure)
+      const hasActualData = result.data && Object.keys(result.data).some(fileName => {
+        const fileData = result.data[fileName];
+        return Array.isArray(fileData) && fileData.length > 0;
+      });
+      
+      const fileCount = Object.keys(result.data || {}).length;
+      const totalRecords = result.data ? Object.values(result.data).reduce((sum: number, fileData: any) => {
+        return sum + (Array.isArray(fileData) ? fileData.length : 0);
+      }, 0) : 0;
+      
+      if (!hasActualData) {
+        console.error('❌ Backend returned empty data structure:', {
+          url: apiUrl,
+          fileCount,
+          totalRecords,
+          hasData: !!result.data,
+          hint: 'G: Drive may not be accessible from Cloud Run, or data files are missing'
+        });
+        // Still set the structure but mark as empty
+        if (result.data) {
+          Object.keys(result.data).forEach(fileName => {
+            if (fileName.endsWith('.json')) {
+              this.loadedData[fileName] = result.data[fileName] || [];
+            }
+          });
+        }
+        this.loadedData.loaded = false; // Mark as not actually loaded
+        throw new Error('Backend returned empty data. G: Drive may not be accessible from Cloud Run.');
+      }
+      
       console.log('✅ Data loaded from backend:', {
         url: apiUrl,
-        fileCount: Object.keys(result.data || {}).length,
-        hasData: !!result.data
+        fileCount,
+        totalRecords,
+        hasData: true
       });
       
       // Update loaded data with ALL files from backend

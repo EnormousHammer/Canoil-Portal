@@ -2125,25 +2125,43 @@ def process_email():
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         
                         if exact_match_1 or exact_match_2:
-                            # CRITICAL: When descriptions match, we MUST also check quantity
-                            # This prevents matching 240 qty email item with 115 qty SO item when descriptions are identical
+                            # Check if this is a TOTE order - totes are treated as single units regardless of volume
+                            is_tote_order = False
+                            email_text_lower = str(email_data).lower()
+                            so_unit = (so_item.get('unit') or '').upper()
+                            
+                            # Detect tote orders: email mentions "tote" OR SO unit is TOTE/LITER with qty 1
+                            if 'tote' in email_text_lower or (so_unit in ['TOTE', 'LITER', 'IBC'] and so_item.get('quantity', 0) == 1):
+                                is_tote_order = True
+                                print(f"      📦 TOTE ORDER DETECTED - matching on description only")
+                            
+                            # For tote orders, match on description only (skip qty check)
+                            if is_tote_order:
+                                matched = True
+                                matched_so_item = so_item
+                                match_details = f"TOTE order matched by description: {so_desc}"
+                                print(f"   ✅ TOTE MATCH: '{item_desc}' = '{so_desc}'")
+                                break
+                            
+                            # For non-tote orders, check quantity
                             if item_qty:
                                 try:
-                                    email_qty_num = float(item_qty) if item_qty else 0
+                                    email_qty_num = float(str(item_qty).replace(',', '')) if item_qty else 0
                                     so_qty = so_item.get('quantity', 0)
                                     if isinstance(so_qty, str):
                                         import re
-                                        qty_match = re.search(r'(\d+\.?\d*)', str(so_qty))
+                                        qty_match = re.search(r'(\d+\.?\d*)', str(so_qty).replace(',', ''))
                                         so_qty_num = float(qty_match.group(1)) if qty_match else float(so_qty)
                                     else:
                                         so_qty_num = float(so_qty)
                                     
-                                    # If quantities don't match, skip this SO item and try the next one
-                                    if abs(email_qty_num - so_qty_num) > 0.01:
-                                        print(f"      ⏭️  DESCRIPTION MATCHES but QTY MISMATCH: Email={email_qty_num}, SO={so_qty_num} - skipping to find correct item")
-                                        continue  # Skip this SO item, continue searching for one with matching quantity
+                                    # Allow email qty <= SO qty (partial shipments are normal)
+                                    # Only reject if email claims MORE than SO has
+                                    if email_qty_num > so_qty_num + 0.01:
+                                        print(f"      ⏭️  DESCRIPTION MATCHES but EMAIL QTY EXCEEDS SO: Email={email_qty_num}, SO={so_qty_num} - skipping")
+                                        continue
                                     else:
-                                        print(f"      ✅ DESCRIPTION AND QTY MATCH: Email={email_qty_num}, SO={so_qty_num}")
+                                        print(f"      ✅ DESCRIPTION MATCH: Email={email_qty_num}, SO={so_qty_num} (partial shipment OK)")
                                 except Exception as qty_err:
                                     print(f"      ⚠️  QTY CHECK ERROR: {qty_err} - proceeding with description match only")
                             
@@ -2274,11 +2292,17 @@ def process_email():
                             
                             print(f"   📊 QUANTITY COMPARISON: Email={email_qty_num}, SO={so_qty_num}, Diff={abs(email_qty_num - so_qty_num)}")
                             
-                            # Check if quantities match (allow small tolerance for rounding)
-                            if abs(email_qty_num - so_qty_num) > 0.01:
+                            # Allow partial shipments (email qty <= SO qty is normal)
+                            # Only flag as mismatch if email claims MORE than SO has
+                            if email_qty_num > so_qty_num + 0.01:
                                 quantity_match = False
-                                quantity_details = f"Quantity mismatch: Email says {email_qty_num}, SO says {so_qty_num}"
-                                print(f"   ❌ QUANTITY MISMATCH: {quantity_details}")
+                                quantity_details = f"Quantity EXCEEDS SO: Email says {email_qty_num}, SO only has {so_qty_num}"
+                                print(f"   ❌ QUANTITY EXCEEDS SO: {quantity_details}")
+                            elif email_qty_num < so_qty_num - 0.01:
+                                # Partial shipment - note it but don't fail
+                                quantity_match = True
+                                quantity_details = f"Partial shipment: Email says {email_qty_num}, SO has {so_qty_num}"
+                                print(f"   📦 PARTIAL SHIPMENT: {quantity_details}")
                             else:
                                 quantity_details = f"Quantity matches: {email_qty_num}"
                                 print(f"   ✅ QUANTITY MATCH: {quantity_details}")

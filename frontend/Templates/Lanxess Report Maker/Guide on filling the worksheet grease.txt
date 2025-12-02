@@ -1,0 +1,260 @@
+1. Overall idea
+
+We do not touch MO qty – it’s already filled on every product sheet.
+
+The user only works in one Lanxess report table in your app.
+
+Each row in the app = one batch line in the Excel template.
+
+From those rows the app will:
+
+Find the correct product sheet.
+
+Fill the correct line (row 13–18) with the batch info.
+
+Let Excel formulas calculate Total, kg, Remaining, Drum/Bin summary, etc.
+
+If Remaining kg is negative, mark that as a stock correction.
+
+The logic below applies to all product sheets (all sheets except Stock Correction and Sheet4) –
+Moly Tech, CCL Keg, all Amsoil, AwSUM, PC OG, Robco, Shell, VIP, etc.
+
+2. What one Lanxess row contains (in your app)
+
+Each row in your app should have these fields:
+
+Product – text or dropdown
+
+Must match a sheet name for that product.
+
+Example values: Moly Tech Fine Pail - Powder, CCL Keg, PC OG0, etc.
+
+Batch Number – text
+
+What production wrote as the batch code.
+
+Source – dropdown:
+
+Drum / Bin (you can allow others, but those are main ones).
+
+Pallets – number
+
+How many pallets used for that batch (can be 0).
+
+Cases – number
+
+For that product this is “cases / pails / kegs / units” as per the sheet layout.
+
+What production physically reported for that batch.
+
+Flush (kg) – number
+
+Kg flushed to waste (0 if none).
+
+System (kg) – number
+
+The MISys or system quantity for that batch number.
+
+The user just adds rows until they’ve entered the whole day’s production.
+
+3. What the app does with each row (step-by-step)
+
+For each row the user enters in the Lanxess report:
+
+Step 1 – Pick the right product sheet
+
+Take the Product from the row.
+
+Find the Excel sheet with the same name.
+
+This will be one of the product sheets (not Stock Correction, not Sheet4).
+
+If no exact match, app should show an error: “Product not found in workbook.”
+
+Step 2 – Find the next free batch line (row 13–18)
+
+On the product sheet:
+
+The batch section is always rows 13–18.
+
+A row is free if Batch numbers (column A) is empty.
+
+Algorithm:
+
+Check A13, A14, …, A18 in order.
+
+Use the first row where A is empty.
+
+If all rows A13–A18 are filled → show error:
+
+“No free batch lines left for this product (max 6).”
+
+Let’s call the chosen row R (between 13 and 18).
+
+Step 3 – Write the user data into that row
+
+On row R, write:
+
+A R (Batch numbers) = Batch Number from the app
+
+B R (Source) = Source from the app (Drum/Bin)
+
+C R (Pallets) = Pallets from the app
+
+D R (Cases) = Cases from the app
+
+H R (Flush kg) = Flush (kg) from the app
+
+I R (System kg) = System (kg) from the app
+
+Do NOT touch E, F, G, J on that row – they contain formulas.
+
+Excel will now automatically calculate for that batch line:
+
+E R – Total
+
+F R – Tubes
+
+G R – Reported kg
+
+J R – Remaining kg
+
+Step 4 – Recalculate and read the results
+
+After writing all the needed rows for that product:
+
+Let Excel recalc (depending on how you integrate, save & reload or force recalc).
+
+Read back:
+
+The new Remaining kg for each filled row: J13:J18.
+
+If needed, totals from row 19 and Drum/Bin summary rows (23–25).
+
+Step 5 – Decide if it’s a stock correction
+
+Rule you gave:
+
+If Remaining kg is minus, it’s a stock correction.
+
+So for each row R:
+
+Look at J R (Remaining kg).
+
+If J R < 0:
+
+Mark this batch as Stock correction.
+
+Write a reason in K R (Stock correction), for example:
+
+Default: "Inventory write-off"
+
+or prompt user to choose from list:
+
+Inventory write-off
+
+Return to stock
+
+Air Seal Broken, sent to Lanxess
+
+Pending for Backorder
+
+Stock correction as per actual
+(these are stored on the Stock Correction sheet)
+
+If J R >= 0, leave K R blank.
+
+Your app can also show a red flag in the UI when Remaining < 0.
+
+4. How it works across ALL products
+
+The exact same logic applies to every product sheet:
+
+Moly Tech Fine Pail - Powder
+
+CCL Keg
+
+All Anderol sheets
+
+All Amsoil greases (GPOR, GPTR, XDP, etc.)
+
+All AwSUM pail and tube sheets
+
+Blue Lith / Comlube / PC OG / PC OG Plus / PC OG1 / OG2 / OG2 Red / XCG Flex
+
+Pro-Lub CHD 400, Purge & Lube
+
+Robco 60-pack / 30-pack
+
+Shell Ext / Shell Moly
+
+TLS EMRO 505 / 500
+
+VIP G-2193-2 / VIP G-2010-2
+
+…basically: every sheet except Stock Correction and Sheet4.
+
+Each sheet already has:
+
+MO qty (F1) set up.
+
+Packaging config at the top (pails per pallet, tubes per unit, kg per tube, etc.).
+
+All formulas to compute:
+
+totals per batch,
+
+total kg,
+
+Remaining kg,
+
+Drum/Bin breakdown.
+
+Your app’s job is ONLY to:
+
+Take the row-style Lanxess data.
+
+Put it into the correct A/B/C/D/H/I cells for the right product sheet.
+
+Read back the calculated numbers and negative Remaining to decide stock corrections.
+
+5. Simple pseudo-flow for your app
+
+You can literally feed this to OpenAI/Copilot:
+
+Get an array of Lanxess rows:
+[ {product, batchNumber, source, pallets, cases, flushKg, systemKg}, ... ]
+
+For each row:
+
+Find the Excel sheet with name = product.
+
+Find first empty Batch numbers row between 13 and 18.
+
+Write:
+
+A[row] = batchNumber
+
+B[row] = source
+
+C[row] = pallets
+
+D[row] = cases
+
+H[row] = flushKg
+
+I[row] = systemKg
+
+Force Excel to recalc.
+
+For each written row:
+
+Read Remaining = J[row].
+
+If Remaining < 0:
+
+Write K[row] = "Inventory write-off" (or chosen reason).
+
+Flag this row as a stock correction in the app output.
+
+Return the final data (including Remaining and any stock corrections) for reporting to accounting / inventory.
