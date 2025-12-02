@@ -194,6 +194,13 @@ def extract_so_data_from_pdf(pdf_path):
         
         lines = full_text.split('\n')
         
+        # DEBUG: Print all lines that might contain items (have unit keywords)
+        print(f"DEBUG SO PARSING: Total lines: {len(lines)}")
+        for i, line in enumerate(lines):
+            line_upper = line.upper()
+            if any(unit in line_upper for unit in ['LITER', 'LITRE', 'DRUM', 'PAIL', 'CASE', 'KEG', 'GALLON', 'TOTE', 'BULK']):
+                print(f"DEBUG LINE {i}: '{line}'")
+        
         # Initialize result
         so_data = {
             'so_number': '',
@@ -545,7 +552,8 @@ def extract_so_data_from_pdf(pdf_path):
                         for ut in unit_types:
                             if part_upper == ut or part_upper.startswith(ut):
                                 # CRITICAL: Only accept if the position before is a number (quantity)
-                                potential_qty = parts[i - 1]
+                                # Handle comma-formatted numbers like "1,187"
+                                potential_qty = parts[i - 1].replace(',', '')
                                 if potential_qty.isdigit():
                                     unit_idx = i
                                     unit = ut  # Normalize to just the unit type
@@ -613,6 +621,7 @@ def extract_so_data_from_pdf(pdf_path):
                         # Only add real product items, not charges
                         if item_code not in ['Pallet', 'Freight', 'Brokerage']:
                             so_data['items'].append(item)
+                            print(f"DEBUG ITEM PARSED: code='{item_code}', desc='{description}', qty={quantity}, unit={unit}")
                     except ValueError:
                         # Skip items that don't parse correctly
                         continue

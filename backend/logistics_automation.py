@@ -1384,7 +1384,11 @@ def get_so_data_from_system(so_number):
         USE_GOOGLE_DRIVE_API = False
         google_drive_service = None
         try:
-            from app import USE_GOOGLE_DRIVE_API, google_drive_service
+            from app import USE_GOOGLE_DRIVE_API, get_google_drive_service
+            # CRITICAL: Call the function to get the lazily-initialized service!
+            if USE_GOOGLE_DRIVE_API:
+                google_drive_service = get_google_drive_service()
+                print(f"[INFO] LOGISTICS: Got Google Drive service: {google_drive_service is not None}, authenticated: {google_drive_service.authenticated if google_drive_service and hasattr(google_drive_service, 'authenticated') else 'N/A'}")
         except ImportError as import_err:
             print(f"INFO: Could not import Google Drive settings: {import_err}")
             # Try alternative import path
@@ -1393,7 +1397,9 @@ def get_so_data_from_system(so_number):
                 if 'app' in sys.modules:
                     app_module = sys.modules['app']
                     USE_GOOGLE_DRIVE_API = getattr(app_module, 'USE_GOOGLE_DRIVE_API', False)
-                    google_drive_service = getattr(app_module, 'google_drive_service', None)
+                    get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
+                    if USE_GOOGLE_DRIVE_API and get_google_drive_service:
+                        google_drive_service = get_google_drive_service()
             except Exception as e:
                 print(f"INFO: Alternative import also failed: {e}")
         
@@ -1489,8 +1495,20 @@ def get_so_data_from_system(so_number):
                                 
                                 print(f"[OK] LOGISTICS: Found SO file in Google Drive: {file_name}")
                                 
-                                # Download file content
-                                so_file_content = google_drive_service.download_file_content(file_id)
+                                # Download file content with retry for SSL errors
+                                so_file_content = None
+                                for download_attempt in range(3):
+                                    try:
+                                        print(f"[INFO] LOGISTICS: Downloading SO file (attempt {download_attempt + 1}/3)...")
+                                        so_file_content = google_drive_service.download_file_content(file_id)
+                                        if so_file_content:
+                                            print(f"[OK] LOGISTICS: Download successful ({len(so_file_content)} bytes)")
+                                            break
+                                    except Exception as download_err:
+                                        print(f"[WARN] LOGISTICS: Download attempt {download_attempt + 1} failed: {download_err}")
+                                        if download_attempt < 2:
+                                            import time
+                                            time.sleep(1 * (download_attempt + 1))  # Exponential backoff
                                 if so_file_content:
                                     # Save to PERSISTENT CACHE for frontend viewing
                                     # Create cache directory if not exists
