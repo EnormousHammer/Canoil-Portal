@@ -2646,6 +2646,46 @@ def process_email():
             
             if unmatched_items:
                 print(f"⚠️ {len(unmatched_items)} SO items without batch numbers: {', '.join(unmatched_items[:3])}...")
+                
+                # SMART FALLBACK: If we have batch numbers from email but matching failed,
+                # assign them to unmatched items (especially useful for single-item orders)
+                all_batch_numbers = []
+                
+                # Collect all batch numbers from email items
+                for item in email_items:
+                    if item.get('batch_number'):
+                        batch = item['batch_number']
+                        # Handle batch strings like "WH5D23G025 (5)"
+                        batch_clean = re.sub(r'\s*\(\d+\)\s*', '', str(batch)).strip()
+                        if batch_clean:
+                            all_batch_numbers.append(batch_clean)
+                
+                # Also check email_data.batch_numbers
+                if email_data.get('batch_numbers'):
+                    batch_str = str(email_data['batch_numbers'])
+                    for batch in re.split(r'[,\+\s]+', batch_str):
+                        batch_clean = batch.strip()
+                        if batch_clean and len(batch_clean) > 4:
+                            all_batch_numbers.append(batch_clean)
+                
+                # Remove duplicates
+                all_batch_numbers = list(dict.fromkeys(all_batch_numbers))
+                
+                if all_batch_numbers:
+                    print(f"🔄 SMART FALLBACK: Found {len(all_batch_numbers)} batch number(s) to assign: {all_batch_numbers}")
+                    
+                    # Assign batch numbers to unmatched SO items
+                    batch_idx = 0
+                    for so_item in so_data['items']:
+                        if not so_item.get('batch_number'):
+                            if batch_idx < len(all_batch_numbers):
+                                so_item['batch_number'] = all_batch_numbers[batch_idx]
+                                print(f"   ✅ Assigned batch '{all_batch_numbers[batch_idx]}' to '{so_item.get('description', 'Unknown')}'")
+                                batch_idx += 1
+                            elif all_batch_numbers:
+                                # If more items than batches, reuse the last batch (common for single batch orders)
+                                so_item['batch_number'] = all_batch_numbers[-1]
+                                print(f"   ✅ Reused batch '{all_batch_numbers[-1]}' for '{so_item.get('description', 'Unknown')}'")
         
         # Add HTS codes to all items
         print("\nMatching HTS codes for items...")
