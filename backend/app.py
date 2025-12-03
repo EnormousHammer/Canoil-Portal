@@ -406,6 +406,27 @@ def extract_so_data_from_pdf(pdf_path):
             ship_to_company = ''
             ship_to_contact = ''
             detected_country = ''  # Track the country from raw address lines
+            is_pickup_order = False  # Track if this is a "PICK UP" order (no shipping needed)
+            
+            # Helper to detect and clean "PICK UP" from text
+            def clean_pickup_instruction(text):
+                """Remove PICK UP instruction from text and return (cleaned_text, is_pickup)"""
+                if not text:
+                    return text, False
+                # Patterns for pickup instructions
+                pickup_patterns = [
+                    r'\s*-\s*PICK\s*UP\s*$',  # "- PICK UP" at end
+                    r'\s*PICK\s*UP\s*-\s*',   # "PICK UP -" in middle
+                    r'^\s*PICK\s*UP\s*$',     # Just "PICK UP"
+                    r'\s*\(\s*PICK\s*UP\s*\)',  # "(PICK UP)"
+                ]
+                is_pickup = False
+                cleaned = text
+                for pattern in pickup_patterns:
+                    if re.search(pattern, text, re.IGNORECASE):
+                        is_pickup = True
+                        cleaned = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
+                return cleaned, is_pickup
             
             for idx, line in enumerate(raw_address_lines):
                 # Extract phone first
@@ -423,18 +444,25 @@ def extract_so_data_from_pdf(pdf_path):
                 
                 if idx == 0:
                     # First line is company name(s)
-                    sold_to_company = sold_part
+                    # Check for and clean "PICK UP" instructions
+                    sold_to_company, sold_pickup = clean_pickup_instruction(sold_part)
+                    ship_to_company_raw, ship_pickup = clean_pickup_instruction(ship_part)
+                    
+                    if ship_pickup:
+                        is_pickup_order = True
+                        print(f"📦 PICK UP ORDER DETECTED - Ship To will be marked as 'CUSTOMER PICKUP'")
+                    
                     # Check if ship_part is a contact person (no company suffix) or a company
                     company_suffixes = ['Inc', 'LLC', 'Ltd', 'Corp', 'Co.', 'Company', 'Limited', 'warehouse', 'Warehouse']
-                    if sold_part != ship_part:
-                        if any(s.lower() in ship_part.lower() for s in company_suffixes):
-                            ship_to_company = ship_part.replace('·', ' ').strip()
+                    if sold_to_company != ship_to_company_raw and ship_to_company_raw:
+                        if any(s.lower() in ship_to_company_raw.lower() for s in company_suffixes):
+                            ship_to_company = ship_to_company_raw.replace('·', ' ').strip()
                         else:
                             # It's a contact person for Ship To
-                            ship_to_company = sold_part
-                            ship_to_contact = ship_part
+                            ship_to_company = sold_to_company
+                            ship_to_contact = ship_to_company_raw
                     else:
-                        ship_to_company = sold_part
+                        ship_to_company = sold_to_company
                 else:
                     # Capture country but don't add to address parts
                     if clean.lower() in ['usa', 'u.s.a.', 'u.s.', 'us', 'united states']:
@@ -492,7 +520,15 @@ def extract_so_data_from_pdf(pdf_path):
                 return ', '.join(unique_parts)
             
             so_data['sold_to']['address'] = build_address(sold_to_parts)
-            so_data['ship_to']['address'] = build_address(ship_to_parts) or build_address(sold_to_parts)
+            
+            # Handle PICK UP orders - don't copy billing address for shipping
+            if is_pickup_order:
+                so_data['ship_to']['address'] = ''  # No shipping address for pickup
+                so_data['is_pickup_order'] = True
+                print(f"📦 Ship To address cleared - this is a PICKUP order")
+            else:
+                so_data['ship_to']['address'] = build_address(ship_to_parts) or build_address(sold_to_parts)
+                so_data['is_pickup_order'] = False
             
             # Store detected country for later use
             if detected_country:
@@ -874,20 +910,40 @@ def extract_so_data_from_pdf(pdf_path):
             'email': so_data['sold_to']['email']
         }
         
-        so_data['shipping_address'] = {
-            'company': so_data['ship_to']['company_name'],
-            'contact_person': so_data['ship_to']['contact_person'],
-            'contact': so_data['ship_to']['contact_person'],  # Alias for frontend
-            'address': cleaned_shipping_address,  # CLEANED address
-            'street': shipping_addr['street'] or cleaned_shipping_address,  # Use cleaned if parsing fails
-            'city': shipping_addr['city'],
-            'province': shipping_addr['province'],
-            'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
-            'postal_code': shipping_addr['postal_code'],
-            'country': so_data.get('detected_country') or shipping_addr['country'],
-            'phone': so_data['ship_to']['phone'],
-            'email': so_data['ship_to']['email']
-        }
+        # Handle PICKUP orders - show "CUSTOMER PICKUP" instead of copying billing address
+        if so_data.get('is_pickup_order'):
+            so_data['shipping_address'] = {
+                'company': so_data['ship_to']['company_name'],
+                'contact_person': so_data['ship_to']['contact_person'],
+                'contact': so_data['ship_to']['contact_person'],
+                'address': 'CUSTOMER PICKUP',
+                'street': 'CUSTOMER PICKUP - No shipping required',
+                'city': '',
+                'province': '',
+                'postal': '',
+                'postal_code': '',
+                'country': '',
+                'phone': so_data['ship_to']['phone'],
+                'email': so_data['ship_to']['email'],
+                'is_pickup': True
+            }
+            print(f"📦 Ship To set to CUSTOMER PICKUP for pickup order")
+        else:
+            so_data['shipping_address'] = {
+                'company': so_data['ship_to']['company_name'],
+                'contact_person': so_data['ship_to']['contact_person'],
+                'contact': so_data['ship_to']['contact_person'],  # Alias for frontend
+                'address': cleaned_shipping_address,  # CLEANED address
+                'street': shipping_addr['street'] or cleaned_shipping_address,  # Use cleaned if parsing fails
+                'city': shipping_addr['city'],
+                'province': shipping_addr['province'],
+                'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
+                'postal_code': shipping_addr['postal_code'],
+                'country': so_data.get('detected_country') or shipping_addr['country'],
+                'phone': so_data['ship_to']['phone'],
+                'email': so_data['ship_to']['email'],
+                'is_pickup': False
+            }
         
         # Set status
         filename = os.path.basename(pdf_path)

@@ -1547,18 +1547,27 @@ const LogisticsAutomation: React.FC = () => {
                       {result.so_data?.shipping_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.shipping_address?.contact}</div>
                       )}
-                      {(result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
-                        <div>{result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address}</div>
-                      )}
-                      <div>
-                        {[
-                          result.so_data?.shipping_address?.city,
-                          result.so_data?.shipping_address?.province,
-                          result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
-                        ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
-                      </div>
-                      {result.so_data?.shipping_address?.country && (
-                        <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
+                      {result.so_data?.shipping_address?.is_pickup ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
+                          <div className="font-semibold text-amber-800">📦 CUSTOMER PICKUP</div>
+                          <div className="text-amber-600 text-xs">No shipping required - customer will pick up</div>
+                        </div>
+                      ) : (
+                        <>
+                          {(result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
+                            <div>{result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address}</div>
+                          )}
+                          <div>
+                            {[
+                              result.so_data?.shipping_address?.city,
+                              result.so_data?.shipping_address?.province,
+                              result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
+                            ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                          </div>
+                          {result.so_data?.shipping_address?.country && (
+                            <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
+                          )}
+                        </>
                       )}
                       {result.so_data?.shipping_address?.phone && (
                         <div className="text-gray-600">Tel: {result.so_data?.shipping_address?.phone}</div>
