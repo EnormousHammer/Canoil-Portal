@@ -444,13 +444,15 @@ def extract_so_data_from_pdf(pdf_path):
                 
                 if idx == 0:
                     # First line is company name(s)
-                    # Check for and clean "PICK UP" instructions
-                    sold_to_company, sold_pickup = clean_pickup_instruction(sold_part)
+                    # ONLY clean PICK UP from Sold To - we want to keep it as a note for Ship To
+                    sold_to_company, _ = clean_pickup_instruction(sold_part)  # Always clean from Sold To
+                    
+                    # For Ship To, check if it has PICK UP and store as instruction
                     ship_to_company_raw, ship_pickup = clean_pickup_instruction(ship_part)
                     
                     if ship_pickup:
                         is_pickup_order = True
-                        print(f"📦 PICK UP ORDER DETECTED - Ship To will be marked as 'CUSTOMER PICKUP'")
+                        print(f"📦 PICK UP ORDER DETECTED - Will show as instruction under Ship To")
                     
                     # Check if ship_part is a contact person (no company suffix) or a company
                     company_suffixes = ['Inc', 'LLC', 'Ltd', 'Corp', 'Co.', 'Company', 'Limited', 'warehouse', 'Warehouse']
@@ -462,7 +464,8 @@ def extract_so_data_from_pdf(pdf_path):
                             ship_to_company = sold_to_company
                             ship_to_contact = ship_to_company_raw
                     else:
-                        ship_to_company = sold_to_company
+                        # Use cleaned company name (without PICK UP) for Ship To company
+                        ship_to_company = ship_to_company_raw if ship_to_company_raw else sold_to_company
                 else:
                     # Capture country but don't add to address parts
                     if clean.lower() in ['usa', 'u.s.a.', 'u.s.', 'us', 'united states']:
@@ -910,24 +913,26 @@ def extract_so_data_from_pdf(pdf_path):
             'email': so_data['sold_to']['email']
         }
         
-        # Handle PICKUP orders - show "CUSTOMER PICKUP" instead of copying billing address
+        # Handle PICKUP orders - use billing address but add PICK UP instruction
         if so_data.get('is_pickup_order'):
+            # For pickup orders, use billing address as base but mark as pickup
             so_data['shipping_address'] = {
                 'company': so_data['ship_to']['company_name'],
-                'contact_person': so_data['ship_to']['contact_person'],
-                'contact': so_data['ship_to']['contact_person'],
-                'address': 'CUSTOMER PICKUP',
-                'street': 'CUSTOMER PICKUP - No shipping required',
-                'city': '',
-                'province': '',
-                'postal': '',
-                'postal_code': '',
-                'country': '',
-                'phone': so_data['ship_to']['phone'],
-                'email': so_data['ship_to']['email'],
-                'is_pickup': True
+                'contact_person': so_data['ship_to']['contact_person'] or billing_addr.get('contact_person', ''),
+                'contact': so_data['ship_to']['contact_person'] or billing_addr.get('contact', ''),
+                'address': cleaned_billing_address,  # Use billing address
+                'street': billing_addr['street'] or cleaned_billing_address,
+                'city': billing_addr['city'],
+                'province': billing_addr['province'],
+                'postal': billing_addr['postal_code'],
+                'postal_code': billing_addr['postal_code'],
+                'country': final_country,
+                'phone': so_data['ship_to']['phone'] or so_data['sold_to']['phone'],
+                'email': so_data['ship_to']['email'] or so_data['sold_to']['email'],
+                'is_pickup': True,
+                'pickup_instruction': 'PICK UP'  # This will be shown as a note
             }
-            print(f"📦 Ship To set to CUSTOMER PICKUP for pickup order")
+            print(f"📦 Ship To marked as PICKUP order - will show instruction note")
         else:
             so_data['shipping_address'] = {
                 'company': so_data['ship_to']['company_name'],
