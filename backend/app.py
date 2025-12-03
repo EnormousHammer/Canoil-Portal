@@ -726,6 +726,33 @@ def extract_so_data_from_pdf(pdf_path):
             if not cleaned:
                 return result
             
+            # Province/State full names to 2-letter codes mapping
+            province_name_to_code = {
+                # Canada
+                'alberta': 'AB', 'british columbia': 'BC', 'manitoba': 'MB', 
+                'new brunswick': 'NB', 'newfoundland': 'NL', 'newfoundland and labrador': 'NL',
+                'nova scotia': 'NS', 'northwest territories': 'NT', 'nunavut': 'NU',
+                'ontario': 'ON', 'prince edward island': 'PE', 'quebec': 'QC', 
+                'saskatchewan': 'SK', 'yukon': 'YT',
+                # US States (common ones)
+                'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
+                'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
+                'florida': 'FL', 'georgia': 'GA', 'hawaii': 'HI', 'idaho': 'ID',
+                'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+                'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+                'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+                'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV',
+                'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+                'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+                'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+                'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
+                'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
+                'wisconsin': 'WI', 'wyoming': 'WY'
+            }
+            
+            valid_codes = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',  # US
+                           'AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT']  # Canada
+            
             # Extract postal code first and use it to determine country
             # Canadian: A1A 1A1, US: 12345 or 12345-6789
             postal_match = re.search(r'([A-Z]\d[A-Z]\s?\d[A-Z]\d)', cleaned, re.IGNORECASE)
@@ -747,27 +774,40 @@ def extract_so_data_from_pdf(pdf_path):
             elif 'CANADA' in address_str.upper():
                 result['country'] = 'Canada'
             
+            # FIRST: Check for full province/state names BEFORE splitting
+            # This handles cases like "Rouyn-Noranda, Quebec" where Quebec is a full name
+            province_found = False
+            for full_name, code in province_name_to_code.items():
+                # Match full province name as a standalone word (case-insensitive)
+                pattern = r'\b' + re.escape(full_name) + r'\b'
+                if re.search(pattern, cleaned, re.IGNORECASE):
+                    result['province'] = code
+                    # Remove the full province name from cleaned string
+                    cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+                    province_found = True
+                    print(f"DEBUG ADDRESS: Found full province name '{full_name}' -> '{code}'")
+                    break
+            
             # Split by comma and clean up
             parts = [p.strip() for p in cleaned.split(',') if p.strip()]
             
             if not parts:
                 return result
             
-            # Extract province/state (2-letter code at end of a part, or standalone)
-            for i, part in enumerate(reversed(parts)):
-                idx = len(parts) - 1 - i
-                # Look for 2-letter state/province code
-                state_match = re.search(r'\b([A-Z]{2})\b', part.upper())
-                if state_match:
-                    # Verify it looks like a state (not random letters)
-                    potential_state = state_match.group(1)
-                    valid_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',  # US
-                                   'AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT']  # Canada
-                    if potential_state in valid_states:
-                        result['province'] = potential_state
-                        # Remove state from part
-                        parts[idx] = re.sub(r'\b' + potential_state + r'\b', '', part).strip()
-                        break
+            # If province not found yet, look for 2-letter codes
+            if not province_found:
+                for i, part in enumerate(reversed(parts)):
+                    idx = len(parts) - 1 - i
+                    # Look for 2-letter state/province code
+                    state_match = re.search(r'\b([A-Z]{2})\b', part.upper())
+                    if state_match:
+                        # Verify it looks like a state (not random letters)
+                        potential_state = state_match.group(1)
+                        if potential_state in valid_codes:
+                            result['province'] = potential_state
+                            # Remove state from part
+                            parts[idx] = re.sub(r'\b' + potential_state + r'\b', '', part).strip()
+                            break
             
             # Clean up empty parts
             parts = [p.strip() for p in parts if p.strip()]
@@ -791,9 +831,26 @@ def extract_so_data_from_pdf(pdf_path):
         sold_to_contact = so_data['sold_to'].get('contact_person', '')
         ship_to_contact = so_data['ship_to'].get('contact_person', '')
         
-        # Parse addresses with contact person filtering
-        billing_addr = parse_address(so_data['sold_to']['address'], sold_to_contact)
-        shipping_addr = parse_address(so_data['ship_to']['address'], ship_to_contact)
+        # TRY GPT FIRST for smart address parsing (handles any format)
+        # Fall back to regex only if GPT fails
+        billing_addr = None
+        shipping_addr = None
+        
+        # Try GPT for billing address
+        if so_data['sold_to']['address']:
+            billing_addr = parse_address_with_gpt(so_data['sold_to']['address'], "billing")
+        
+        # Try GPT for shipping address  
+        if so_data['ship_to']['address']:
+            shipping_addr = parse_address_with_gpt(so_data['ship_to']['address'], "shipping")
+        
+        # Fall back to regex parser if GPT failed
+        if not billing_addr:
+            print("📝 Using regex fallback for billing address")
+            billing_addr = parse_address(so_data['sold_to']['address'], sold_to_contact)
+        if not shipping_addr:
+            print("📝 Using regex fallback for shipping address")
+            shipping_addr = parse_address(so_data['ship_to']['address'], ship_to_contact)
         
         # Clean the raw addresses before storing
         cleaned_billing_address = clean_address_string(so_data['sold_to']['address'])
@@ -1180,6 +1237,71 @@ except Exception as e:
     print(f"ERROR: OpenAI initialization failed: {e}")
     client = None
     openai_available = False
+
+def parse_address_with_gpt(raw_address_string, address_type="billing"):
+    """
+    Use GPT to intelligently parse ANY address format into structured components.
+    This handles international addresses, various formats, and edge cases that regex can't.
+    """
+    global client, openai_available
+    
+    if not openai_available or not client or not raw_address_string:
+        return None  # Fall back to regex parser
+    
+    try:
+        prompt = f"""Parse this {address_type} address into structured components. Handle ANY format.
+
+RAW ADDRESS:
+{raw_address_string}
+
+Return a JSON object with these fields (use empty string if not found, NEVER use "N/A"):
+{{
+    "street": "street address with building number",
+    "city": "city name only",
+    "province": "2-letter province/state code (e.g., QC for Quebec, ON for Ontario, TX for Texas)",
+    "postal_code": "postal/zip code",
+    "country": "Canada or USA or other country name"
+}}
+
+RULES:
+1. "Quebec" → province: "QC", "Ontario" → province: "ON", "Texas" → province: "TX", etc.
+2. Canadian postal codes look like "A1A 1A1", US zip codes are "12345" or "12345-6789"
+3. If province is written as full name (e.g., "Quebec", "British Columbia"), convert to 2-letter code
+4. City is usually before the province/state
+5. For addresses like "Rouyn-Noranda, Quebec J9X 5B5":
+   - city: "Rouyn-Noranda"
+   - province: "QC"
+   - postal_code: "J9X 5B5"
+
+Return ONLY the JSON, no explanations."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert address parser. Parse addresses with 100% accuracy. Always convert province/state names to 2-letter codes. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=300,
+            response_format={"type": "json_object"}
+        )
+        
+        result = response.choices[0].message.content.strip()
+        parsed = json.loads(result)
+        
+        print(f"🤖 GPT Address Parse ({address_type}): {raw_address_string[:50]}... → city='{parsed.get('city')}', province='{parsed.get('province')}', postal='{parsed.get('postal_code')}'")
+        
+        return {
+            'street': parsed.get('street', ''),
+            'city': parsed.get('city', ''),
+            'province': parsed.get('province', ''),
+            'postal_code': parsed.get('postal_code', ''),
+            'country': parsed.get('country', 'Canada')
+        }
+        
+    except Exception as e:
+        print(f"⚠️ GPT address parsing failed, using fallback: {e}")
+        return None  # Fall back to regex parser
 
 # Google Drive API - LAZY INITIALIZATION (only when needed, not on startup)
 # This prevents startup failures if Google Drive API has issues

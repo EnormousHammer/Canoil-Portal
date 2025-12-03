@@ -1515,13 +1515,23 @@ const LogisticsAutomation: React.FC = () => {
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Billing Address</label>
                                   </div>
                     <div className="text-sm text-gray-700 space-y-1">
-                      <div className="font-medium">{result.so_data?.billing_address?.company || 'N/A'}</div>
+                      <div className="font-medium">{result.so_data?.billing_address?.company || 'Unknown Company'}</div>
                       {result.so_data?.billing_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.billing_address?.contact}</div>
                       )}
-                      <div>{result.so_data?.billing_address?.street || result.so_data?.billing_address?.address || 'N/A'}</div>
-                      <div>{result.so_data?.billing_address?.city || 'N/A'}, {result.so_data?.billing_address?.province || 'N/A'} {result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code || 'N/A'}</div>
-                      <div className="text-gray-500">{result.so_data?.billing_address?.country || 'N/A'}</div>
+                      {(result.so_data?.billing_address?.street || result.so_data?.billing_address?.address) && (
+                        <div>{result.so_data?.billing_address?.street || result.so_data?.billing_address?.address}</div>
+                      )}
+                      <div>
+                        {[
+                          result.so_data?.billing_address?.city,
+                          result.so_data?.billing_address?.province,
+                          result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code
+                        ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                      </div>
+                      {result.so_data?.billing_address?.country && (
+                        <div className="text-gray-500">{result.so_data?.billing_address?.country}</div>
+                      )}
                       {result.so_data?.billing_address?.phone && (
                         <div className="text-gray-600">Tel: {result.so_data?.billing_address?.phone}</div>
                       )}
@@ -1533,13 +1543,23 @@ const LogisticsAutomation: React.FC = () => {
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Shipping Address</label>
                                       </div>
                     <div className="text-sm text-gray-700 space-y-1">
-                      <div className="font-medium">{result.so_data?.shipping_address?.company || 'N/A'}</div>
+                      <div className="font-medium">{result.so_data?.shipping_address?.company || 'Unknown Company'}</div>
                       {result.so_data?.shipping_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.shipping_address?.contact}</div>
                       )}
-                      <div>{result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address || 'N/A'}</div>
-                      <div>{result.so_data?.shipping_address?.city || 'N/A'}, {result.so_data?.shipping_address?.province || 'N/A'} {result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code || 'N/A'}</div>
-                      <div className="text-gray-500">{result.so_data?.shipping_address?.country || 'N/A'}</div>
+                      {(result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
+                        <div>{result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address}</div>
+                      )}
+                      <div>
+                        {[
+                          result.so_data?.shipping_address?.city,
+                          result.so_data?.shipping_address?.province,
+                          result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
+                        ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                      </div>
+                      {result.so_data?.shipping_address?.country && (
+                        <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
+                      )}
                       {result.so_data?.shipping_address?.phone && (
                         <div className="text-gray-600">Tel: {result.so_data?.shipping_address?.phone}</div>
                       )}
