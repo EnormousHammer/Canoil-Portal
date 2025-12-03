@@ -3660,6 +3660,99 @@ def generate_all_documents():
             errors.append(f"USMCA generation failed: {str(e)}")
             results['usmca_certificate'] = {'success': False, 'error': str(e)}
         
+        # DELIVERY NOTE - Generate ONLY for Axel France orders
+        try:
+            from delivery_note_generator import generate_delivery_note, is_axel_france_order
+            
+            print("\n📦 Checking if Delivery Note is needed (Axel France)...")
+            
+            if is_axel_france_order(so_data):
+                # Get booking number from request data (user enters via popup)
+                booking_number = data.get('booking_number', '') or data.get('bookingNumber', '')
+                
+                print(f"   Axel France order detected - generating delivery note")
+                print(f"   Booking#: {booking_number or '(not provided)'}")
+                
+                dn_result = generate_delivery_note(so_data, items, booking_number)
+                
+                if dn_result.get('success'):
+                    # Move to uploads folder with consistent naming
+                    import shutil
+                    dn_original_path = dn_result['filepath']
+                    dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
+                    uploads_dir = get_uploads_dir()
+                    dn_new_path = os.path.join(uploads_dir, dn_filename)
+                    
+                    os.makedirs(os.path.dirname(dn_new_path), exist_ok=True)
+                    shutil.copy2(dn_original_path, dn_new_path)
+                    
+                    results['delivery_note'] = {
+                        'success': True,
+                        'filename': dn_filename,
+                        'download_url': f'/download/logistics/{dn_filename}',
+                        'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
+                    }
+                    print(f"   ✅ Delivery Note generated: {dn_filename}")
+                else:
+                    print(f"   ❌ Delivery Note generation failed: {dn_result.get('error')}")
+                    errors.append(f"Delivery Note: {dn_result.get('error')}")
+                    results['delivery_note'] = {'success': False, 'error': dn_result.get('error')}
+                
+                # REACH CONFORMITY (DRC) - Include for Axel France MOV/Long Life products
+                try:
+                    # Check if any items contain MOV or Long Life
+                    has_mov_longlife = False
+                    for item in items:
+                        item_code = str(item.get('item_code', '')).upper()
+                        description = str(item.get('description', '')).upper()
+                        if 'MOV' in item_code or 'MOV' in description or 'LONG LIFE' in description or 'LONGLIFE' in description:
+                            has_mov_longlife = True
+                            print(f"   📋 MOV/Long Life product detected: {item.get('item_code')} - {item.get('description')}")
+                            break
+                    
+                    if has_mov_longlife:
+                        # Copy REACH Conformity document
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        drc_source = os.path.join(current_dir, 'templates', 'declaration_of_reach_conformity_drc_axel_france', '2025 DRC for MOV Long Life.docx')
+                        
+                        if os.path.exists(drc_source):
+                            so_number = so_data.get('so_number', 'Unknown')
+                            drc_filename = f"REACH_Conformity_SO{so_number}.docx"
+                            uploads_dir = get_uploads_dir()
+                            drc_path = os.path.join(uploads_dir, drc_filename)
+                            
+                            shutil.copy2(drc_source, drc_path)
+                            
+                            results['reach_conformity'] = {
+                                'success': True,
+                                'filename': drc_filename,
+                                'download_url': f'/download/logistics/{drc_filename}',
+                                'note': 'Declaration of REACH Conformity for MOV Long Life (for printing)'
+                            }
+                            print(f"   ✅ REACH Conformity included: {drc_filename}")
+                        else:
+                            print(f"   ⚠️  REACH Conformity file not found: {drc_source}")
+                    else:
+                        print(f"   ⏭️  REACH Conformity skipped (no MOV/Long Life products)")
+                        
+                except Exception as drc_err:
+                    print(f"   ⚠️  REACH Conformity error: {drc_err}")
+                    # Don't fail the whole process for this
+                    
+            else:
+                print(f"   ⏭️  Delivery Note skipped (not an Axel France order)")
+                results['delivery_note'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': 'Not an Axel France order'
+                }
+                
+        except Exception as e:
+            print(f"❌ Delivery Note generation error: {e}")
+            traceback.print_exc()
+            errors.append(f"Delivery Note generation failed: {str(e)}")
+            results['delivery_note'] = {'success': False, 'error': str(e)}
+        
         # Summary - handle both dict results and list results (for dangerous_goods)
         successful_docs = []
         for doc, result in results.items():
@@ -3774,6 +3867,24 @@ def generate_all_documents():
                 'document_type': 'USMCA Certificate',
                 'filename': results['usmca_certificate']['filename'],
                 'download_url': results['usmca_certificate']['download_url']
+            })
+        
+        # Add Delivery Note (Axel France)
+        if results.get('delivery_note', {}).get('success'):
+            documents.append({
+                'document_type': 'Delivery Note (Axel France)',
+                'filename': results['delivery_note']['filename'],
+                'download_url': results['delivery_note']['download_url'],
+                'note': results['delivery_note'].get('note', '')
+            })
+        
+        # Add REACH Conformity (Axel France MOV/Long Life)
+        if results.get('reach_conformity', {}).get('success'):
+            documents.append({
+                'document_type': 'REACH Conformity (MOV Long Life)',
+                'filename': results['reach_conformity']['filename'],
+                'download_url': results['reach_conformity']['download_url'],
+                'note': results['reach_conformity'].get('note', '')
             })
         
         # Add CORS headers to response

@@ -66,6 +66,10 @@ const LogisticsAutomation: React.FC = () => {
   // AES Steel Certificate Reminder popup
   const [showAesSteelReminder, setShowAesSteelReminder] = useState(false);
   const [pendingGenerateAll, setPendingGenerateAll] = useState(false);
+  
+  // Axel France Booking Number popup
+  const [showAxelFrancePopup, setShowAxelFrancePopup] = useState(false);
+  const [bookingNumber, setBookingNumber] = useState('');
 
   // Check for email data from EmailAssistant on mount
   useEffect(() => {
@@ -596,10 +600,34 @@ const LogisticsAutomation: React.FC = () => {
     return customerName.includes('AEC');
   };
 
+  // Check if this is an Axel France order
+  const isAxelFranceOrder = () => {
+    const customerName = (result?.so_data?.customer_name || result?.email_data?.company_name || '').toUpperCase();
+    const shippingCompany = (result?.so_data?.shipping_address?.company || result?.so_data?.ship_to?.company || '').toUpperCase();
+    const billingCompany = (result?.so_data?.billing_address?.company || result?.so_data?.sold_to?.company || '').toUpperCase();
+    return customerName.includes('AXEL') || shippingCompany.includes('AXEL') || billingCompany.includes('AXEL');
+  };
+
   // Proceed with document generation (called after AEC popup confirmation)
   const proceedWithGenerateAllDocuments = async () => {
     setShowAesSteelReminder(false);
     setPendingGenerateAll(false);
+    
+    // After AEC confirmation, check for Axel France
+    if (isAxelFranceOrder()) {
+      setShowAxelFrancePopup(true);
+      return;
+    }
+    
+    await actualGenerateAllDocuments();
+  };
+
+  // Proceed with document generation after Axel France popup
+  const proceedWithAxelFranceDocuments = async (withBooking: boolean) => {
+    if (!withBooking) {
+      setBookingNumber('');
+    }
+    setShowAxelFrancePopup(false);
     await actualGenerateAllDocuments();
   };
 
@@ -610,6 +638,12 @@ const LogisticsAutomation: React.FC = () => {
     if (isAecOrder()) {
       setShowAesSteelReminder(true);
       setPendingGenerateAll(true);
+      return;
+    }
+
+    // For Axel France orders, show booking number popup
+    if (isAxelFranceOrder()) {
+      setShowAxelFrancePopup(true);
       return;
     }
 
@@ -634,7 +668,8 @@ const LogisticsAutomation: React.FC = () => {
         so_data: result.so_data || {},
         email_shipping: result.email_shipping || {},
         email_analysis: result.email_analysis || result.email_data || {},
-        items: result.so_data?.items || result.items || []
+        items: result.so_data?.items || result.items || [],
+        booking_number: bookingNumber || ''  // Axel France booking number
       };
       
       console.log('📤 Request data being sent:', requestData);
@@ -894,6 +929,66 @@ const LogisticsAutomation: React.FC = () => {
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
               >
                 ✓ I'll Add Certificate - Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Axel France Booking Number Popup */}
+      {showAxelFrancePopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4 border-2 border-blue-400">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-3 rounded-full">
+                <Package className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Axel France Order - Delivery Note</h3>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-800 font-medium mb-2">📦 Delivery Note Required:</p>
+              <p className="text-blue-700 mb-3">
+                Do you have a <strong>booking number</strong> for this shipment?
+              </p>
+              
+              <input
+                type="text"
+                value={bookingNumber}
+                onChange={(e) => setBookingNumber(e.target.value)}
+                placeholder="Enter booking number (e.g., 83203363)"
+                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-amber-700 text-sm">
+                ⚠️ <strong>PLEASE DO NOT FORGET TO FILL IT OUT BY HAND IF EMPTY</strong>
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAxelFrancePopup(false);
+                  setBookingNumber('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => proceedWithAxelFranceDocuments(false)}
+                className="flex-1 px-4 py-2 border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-medium"
+              >
+                No Booking # - Continue
+              </button>
+              <button
+                onClick={() => proceedWithAxelFranceDocuments(true)}
+                disabled={!bookingNumber.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-lg font-medium"
+              >
+                ✓ Use Booking #
               </button>
             </div>
           </div>
