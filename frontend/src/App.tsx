@@ -324,7 +324,7 @@ function App() {
         }
         
         // Show correct data source from backend
-        const dataSource = responseData.source || (responseData.cached ? 'Cache' : 'G: Drive');
+        const dataSource = result.source || (result.cached ? 'Cache' : 'G: Drive');
         console.log(`✅ Data loaded successfully from ${dataSource}`);
         setLoadingStatus('Data loaded! Finalizing...');
       } catch (error) {
