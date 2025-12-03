@@ -2652,7 +2652,7 @@ def process_email():
                 all_batch_numbers = []
                 
                 # Collect all batch numbers from email items
-                for item in email_items:
+                for item in email_data.get('items', []):
                     if item.get('batch_number'):
                         batch = item['batch_number']
                         # Handle batch strings like "WH5D23G025 (5)"
