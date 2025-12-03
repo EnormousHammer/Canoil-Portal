@@ -118,24 +118,32 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     # Address fields - COMPLETE FORMATTING WITH ALL PARSED FIELDS
     customer_name = so_data.get('customer_name', '')
     
+    # Clean PICK UP from customer name if present (it's an instruction, not part of name)
+    if customer_name:
+        customer_name = re.sub(r'\s*-?\s*PICK\s*UP\s*', '', customer_name, flags=re.IGNORECASE).strip()
+    
     # Build Sold To address with ALL fields from billing address
     # Support both 'billing_address' and 'sold_to' field names (from different parsers)
     sold_to_lines = []
     billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
     
-    # Company name
+    # Company name (cleaned of PICK UP)
     if customer_name:
         sold_to_lines.append(customer_name)
     
     # Attention line (if exists) - support multiple field names
-    contact = billing_addr.get('attention') or billing_addr.get('attn') or billing_addr.get('contact_person')
+    contact = billing_addr.get('attention') or billing_addr.get('attn') or billing_addr.get('contact_person') or billing_addr.get('contact')
     if contact:
         sold_to_lines.append(f"Attn: {contact}")
     
-    # Street address - support multiple field names
-    street = billing_addr.get('address') or billing_addr.get('street1') or billing_addr.get('street_address')
+    # Street address - support multiple field names (clean PICK UP from address if present)
+    street = billing_addr.get('address') or billing_addr.get('street1') or billing_addr.get('street_address') or billing_addr.get('street')
     if street:
-        sold_to_lines.append(street)
+        # Remove any PICK UP text from the address
+        street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(street), flags=re.IGNORECASE).strip()
+        street_clean = re.sub(r'^,\s*', '', street_clean)  # Remove leading comma
+        if street_clean:
+            sold_to_lines.append(street_clean)
     
     # City, Province/State, Postal Code
     if billing_addr.get('city'):
@@ -157,6 +165,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     # Support both 'shipping_address' and 'ship_to' field names (from different parsers)
     ship_to_lines = []
     shipping_addr = so_data.get('shipping_address', {}) or so_data.get('ship_to', {})
+    is_pickup_order = shipping_addr.get('is_pickup', False) or so_data.get('is_pickup_order', False)
     
     # Company name
     if shipping_addr.get('company'):
@@ -164,25 +173,35 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     elif customer_name:
         ship_to_lines.append(customer_name)
     
+    # For PICKUP orders, show "- PICK UP" right after company name
+    if is_pickup_order:
+        ship_to_lines.append("- PICK UP")
+        print(f"DEBUG: PICKUP order detected - adding PICK UP note to Ship To")
+    
     # Attention line (if exists) - support multiple field names
-    contact = shipping_addr.get('attention') or shipping_addr.get('attn') or shipping_addr.get('contact_person')
+    contact = shipping_addr.get('attention') or shipping_addr.get('attn') or shipping_addr.get('contact_person') or shipping_addr.get('contact')
     if contact:
         ship_to_lines.append(f"Attn: {contact}")
     
-    # Street address - support multiple field names
-    street = shipping_addr.get('address') or shipping_addr.get('street1') or shipping_addr.get('street_address')
+    # Street address - support multiple field names (clean PICK UP from address if present)
+    street = shipping_addr.get('address') or shipping_addr.get('street1') or shipping_addr.get('street_address') or shipping_addr.get('street')
     if street:
-        ship_to_lines.append(street)
+        # Remove any PICK UP text that might have leaked into the address
+        street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(street), flags=re.IGNORECASE).strip()
+        street_clean = re.sub(r'^,\s*', '', street_clean)  # Remove leading comma
+        if street_clean and street_clean.upper() != 'CUSTOMER PICKUP' and 'PICK UP' not in street_clean.upper():
+            ship_to_lines.append(street_clean)
     
     # City, Province/State, Postal Code
     if shipping_addr.get('city'):
         city_parts = [shipping_addr.get('city', '')]
         if shipping_addr.get('province') or shipping_addr.get('state'):
             city_parts.append(shipping_addr.get('province') or shipping_addr.get('state'))
-        if shipping_addr.get('postal_code'):
-            city_parts.append(shipping_addr.get('postal_code'))
+        if shipping_addr.get('postal_code') or shipping_addr.get('postal'):
+            city_parts.append(shipping_addr.get('postal_code') or shipping_addr.get('postal'))
         ship_city_line = ', '.join([p for p in city_parts if p]).strip()
-        ship_to_lines.append(ship_city_line)
+        if ship_city_line:
+            ship_to_lines.append(ship_city_line)
     
     # Country
     if shipping_addr.get('country'):

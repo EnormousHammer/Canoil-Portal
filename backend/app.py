@@ -712,13 +712,19 @@ def extract_so_data_from_pdf(pdf_path):
                     print(f"  📋 Found PO: {so_data['po_number']}")
         
         # Create billing and shipping addresses for compatibility
-        # First, CLEAN the raw address string by removing garbage
+        # First, CLEAN the raw address string by removing garbage (including PICK UP instructions)
         def clean_address_string(address_str):
             """Remove garbage from address string - phone numbers, batch info, N/A, etc."""
             if not address_str:
                 return ''
             
             cleaned = address_str
+            
+            # STEP 0: Remove PICK UP instructions (these are notes, not addresses)
+            cleaned = re.sub(r'\s*-\s*PICK\s*UP\s*,?\s*', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'\s*PICK\s*UP\s*-\s*', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'^\s*PICK\s*UP\s*,?\s*', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'\s*\(\s*PICK\s*UP\s*\)\s*', '', cleaned, flags=re.IGNORECASE)
             
             # STEP 1: Remove everything AFTER certain keywords (they indicate end of address)
             cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
