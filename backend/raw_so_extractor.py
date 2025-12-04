@@ -137,40 +137,83 @@ def extract_addresses_from_tables(raw_tables):
     Pre-extract Sold To and Ship To addresses from table data.
     The PDF has these in a two-column table - LEFT is Sold To, RIGHT is Ship To.
     This is MORE RELIABLE than asking GPT to parse the mixed text.
+    
+    IMPROVED: Better detection of address sections and handling of various table formats.
     """
     sold_to_lines = []
     ship_to_lines = []
-    in_address_section = False
+    in_sold_to_section = False
+    in_ship_to_section = False
+    found_address_header = False
     
-    for table_info in raw_tables:
+    print(f"\n=== DEBUG: extract_addresses_from_tables ===")
+    print(f"Number of tables: {len(raw_tables)}")
+    
+    for table_idx, table_info in enumerate(raw_tables):
         table = table_info.get('data', [])
-        for row in table:
-            if not row or len(row) < 2:
+        print(f"\nTable {table_idx}: {len(table)} rows")
+        
+        for row_idx, row in enumerate(table):
+            if not row:
                 continue
             
-            left_cell = str(row[0] or '').strip()
+            # Debug print each row
+            print(f"  Row {row_idx}: {row}")
+            
+            # Handle different row lengths
+            left_cell = str(row[0] or '').strip() if len(row) > 0 else ''
             right_cell = str(row[1] or '').strip() if len(row) > 1 else ''
             
-            # Check if this is the header row with "Sold To" / "Ship To"
-            if 'Sold To' in left_cell or 'Bill To' in left_cell or 'Ship To' in right_cell:
-                in_address_section = True
+            # Detect "Sold To" / "Ship To" header row (various formats)
+            left_upper = left_cell.upper()
+            right_upper = right_cell.upper()
+            
+            if 'SOLD TO' in left_upper or 'BILL TO' in left_upper:
+                found_address_header = True
+                in_sold_to_section = True
+                print(f"    -> Found SOLD TO header")
+                # If Ship To is in same row header
+                if 'SHIP TO' in right_upper:
+                    in_ship_to_section = True
+                    print(f"    -> Found SHIP TO header (same row)")
                 continue
             
-            # Stop when we hit a new section (Item table, etc.)
-            if in_address_section:
-                if 'Item' in left_cell or 'Ordered' in left_cell or 'Business No' in left_cell:
+            if 'SHIP TO' in left_upper or 'SHIP TO' in right_upper:
+                found_address_header = True
+                in_ship_to_section = True
+                print(f"    -> Found SHIP TO header")
+                continue
+            
+            # Stop when we hit item table or other sections
+            if found_address_header:
+                stop_keywords = ['ITEM', 'ORDERED', 'BUSINESS NO', 'QTY', 'UNIT PRICE', 'AMOUNT', 'DESCRIPTION']
+                if any(kw in left_upper for kw in stop_keywords):
+                    print(f"    -> Hit stop keyword, ending address section")
                     break
+            
+            # Collect address lines - LEFT = Sold To, RIGHT = Ship To
+            if found_address_header:
+                skip_labels = ['SOLD TO:', 'SHIP TO:', 'BILL TO:', 'SOLD TO', 'SHIP TO', 'BILL TO']
                 
-                # Collect address lines from both columns
-                if left_cell and left_cell not in ['Sold To:', 'Ship To:', 'Bill To:']:
+                if left_cell and left_cell.upper() not in [s.upper() for s in skip_labels]:
                     sold_to_lines.append(left_cell)
-                if right_cell and right_cell not in ['Sold To:', 'Ship To:', 'Bill To:']:
+                    print(f"    -> Added to SOLD TO: {left_cell}")
+                
+                if right_cell and right_cell.upper() not in [s.upper() for s in skip_labels]:
                     ship_to_lines.append(right_cell)
+                    print(f"    -> Added to SHIP TO: {right_cell}")
     
-    return {
+    result = {
         'sold_to_raw': '\n'.join(sold_to_lines),
         'ship_to_raw': '\n'.join(ship_to_lines)
     }
+    
+    print(f"\n=== FINAL EXTRACTED ADDRESSES ===")
+    print(f"SOLD TO:\n{result['sold_to_raw']}")
+    print(f"\nSHIP TO:\n{result['ship_to_raw']}")
+    print(f"=================================\n")
+    
+    return result
 
 
 def extract_brokerage_focused(special_instructions):
@@ -581,6 +624,41 @@ Return ONLY valid JSON, no explanations or markdown.
                 'phone': structured_data['ship_to'].get('phone', ''),
                 'email': structured_data['ship_to'].get('email', '')
             }
+        
+        # CRITICAL FIX: If pre-extracted addresses exist and are DIFFERENT, use them
+        # This overrides GPT's potentially wrong parsing
+        if sold_to_hint and ship_to_hint:
+            # Check if GPT gave us the same address for both (common error)
+            gpt_sold = structured_data.get('billing_address', {}).get('street_address', '')
+            gpt_ship = structured_data.get('shipping_address', {}).get('street_address', '')
+            
+            # If GPT's addresses are the same but pre-extracted are different, override
+            if gpt_sold and gpt_ship and gpt_sold.lower() == gpt_ship.lower():
+                if sold_to_hint.lower() != ship_to_hint.lower():
+                    print(f"\n[!!!] GPT GAVE SAME ADDRESS FOR BOTH - OVERRIDING WITH PRE-EXTRACTED")
+                    print(f"      GPT Sold To: {gpt_sold}")
+                    print(f"      GPT Ship To: {gpt_ship}")
+                    print(f"      PRE-EXTRACTED Sold To: {sold_to_hint}")
+                    print(f"      PRE-EXTRACTED Ship To: {ship_to_hint}")
+                    
+                    # Override with pre-extracted addresses
+                    structured_data['billing_address']['full_address'] = sold_to_hint
+                    structured_data['billing_address']['street_address'] = sold_to_hint
+                    structured_data['billing_address']['address'] = sold_to_hint
+                    structured_data['billing_address']['street'] = sold_to_hint
+                    
+                    structured_data['shipping_address']['full_address'] = ship_to_hint
+                    structured_data['shipping_address']['street_address'] = ship_to_hint
+                    structured_data['shipping_address']['address'] = ship_to_hint
+                    structured_data['shipping_address']['street'] = ship_to_hint
+                    
+                    # Also update the sold_to and ship_to objects
+                    if 'sold_to' in structured_data:
+                        structured_data['sold_to']['full_address'] = sold_to_hint
+                        structured_data['sold_to']['street_address'] = sold_to_hint
+                    if 'ship_to' in structured_data:
+                        structured_data['ship_to']['full_address'] = ship_to_hint
+                        structured_data['ship_to']['street_address'] = ship_to_hint
         
         # Add more compatibility mappings for frontend
         if 'ship_date' in structured_data and 'due_date' not in structured_data:
