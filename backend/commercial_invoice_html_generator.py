@@ -828,8 +828,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     
     # DECLARATION FIELDS
     field_values['usPort'] = ''  # Leave empty for manual entry
-    field_values['exportDate'] = ''  # Leave blank for manual entry
-    field_values['signatureDate'] = ''  # Leave blank for manual entry
+    field_values['signatureDate'] = datetime.now().strftime('%Y-%m-%d')  # Auto-fill DATE SIGNED with today
     field_values['preparerName'] = ''  # Leave blank for manual entry
     field_values['responsibleEmployee'] = ''  # Leave blank for manual entry
     
