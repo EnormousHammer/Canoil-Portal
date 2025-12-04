@@ -795,25 +795,31 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                 checkbox['checked'] = 'checked'
                 print(f"   Set funds: Cdn ✓ (no 'US$' in SO total)")
     
-    # Set freight checkboxes
-    freight_checkboxes = soup.find_all('input', {'type': 'checkbox'})
-    for cb in freight_checkboxes:
-        label_text = ''
-        if cb.parent:
-            label_text = cb.parent.get_text()
-        
-        if 'Collect' in label_text and 'C.O.D' not in label_text:
-            if freight_terms == 'Collect':
-                cb['checked'] = 'checked'
-            else:
-                if cb.has_attr('checked'):
-                    del cb['checked']
-        elif 'Prepaid' in label_text and 'C.O.D' not in label_text:
-            if freight_terms == 'Prepaid':
-                cb['checked'] = 'checked'
-            else:
-                if cb.has_attr('checked'):
-                    del cb['checked']
+    # Set freight checkboxes - ONLY for Freight Charges section, NOT C.O.D
+    # Look for the freight-box specifically to avoid C.O.D checkboxes
+    freight_box = soup.find('td', class_='freight-box')
+    if freight_box:
+        freight_checkboxes = freight_box.find_all('input', {'type': 'checkbox'})
+        for cb in freight_checkboxes:
+            label_text = ''
+            if cb.parent:
+                label_text = cb.parent.get_text()
+            
+            if 'Collect' in label_text:
+                if freight_terms == 'Collect':
+                    cb['checked'] = 'checked'
+                else:
+                    if cb.has_attr('checked'):
+                        del cb['checked']
+            elif 'Prepaid' in label_text:
+                if freight_terms == 'Prepaid':
+                    cb['checked'] = 'checked'
+                else:
+                    if cb.has_attr('checked'):
+                        del cb['checked']
+    
+    # Ensure C.O.D Collection Fee checkboxes are NEVER checked (leave empty)
+    # These are in the declared-value section, not the freight-box
     
     # Check "kg" checkbox for weight unit (not lb)
     weight_checkboxes = soup.find_all('input', {'type': 'checkbox', 'class': 'cb-mini'})
