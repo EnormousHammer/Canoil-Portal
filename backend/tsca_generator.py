@@ -155,13 +155,16 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     writer.add_page(reader.pages[0])
     
     # Prepare form fields to update
-    # DO NOT CHANGE pre-filled fields (company name, address, certifier info, etc.)
     # Set date to current date automatically
     current_date = datetime.now().strftime('%Y-%m-%d')
     
     fields_to_update = {
         'date': current_date,  # Auto-fill with current date
-        'reference number': f"SO {so_data.get('so_number', '')}"
+        'reference number': f"SO {so_data.get('so_number', '')}",
+        # Certifier information - Haron Alhakimi
+        'name': 'Haron Alhakimi',
+        'title': 'Logistics Supervisor',
+        'email': 'haron@canoilcanadaltd.com'
     }
     
     # Add product lines (product 1-10, start with actual items)

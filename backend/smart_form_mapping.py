@@ -267,7 +267,7 @@ class SmartFormMapper:
             # Signatory information
             'name': 'Haron Alhakimi',
             'title': 'Logistics Supervisor',
-            'email': 'Haron@canoilcanadaltd.com',
+            'email': 'haron@canoilcanadaltd.com',
             'date': datetime.now().strftime('%B %d, %Y'),
             
             # Delivery information
