@@ -25,7 +25,7 @@ STEEL_HTS_CODE = '7310.10'
 STEEL_PRICES = {
     'drum': 66.98,      # Steel Drum (200L)
     'pail': 26.00,      # Steel Pail (6 gal/22L)
-    'can': 3.25,        # Steel Can (1L)
+    'can': 5.38,        # Steel Can (1L)
 }
 
 # Products that use steel containers
