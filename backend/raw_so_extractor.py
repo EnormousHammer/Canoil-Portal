@@ -335,14 +335,16 @@ IMPORTANT RULES:
    - Match contact names with their correct addresses using context clues (phone numbers, postal codes)
    - Example: If you see "K. Noda" followed by "5-4-5 Nishigotanda, Shinagawa, Tokyo", that address goes with K. Noda
    - If you see "Tel: (076)287-5445" followed by "4-4.Shinbohon, Kanazawa, Ishikawa", that address goes with the phone number
-6. Parse addresses into SEPARATE fields - CAPTURE COMPLETE ADDRESS:
-   - street_address: FULL street address including ALL lines (e.g., "1600 Drew Road\nDept CW", "565 Coronation Drive\nSuite 100")
-     * Include department (Dept CW), suite numbers (Suite 100), unit numbers (Unit 5B), PO boxes, etc.
-     * If address has multiple lines before the city, combine them with newlines (\n)
-   - city: City name only (e.g., "West Hill", "Mississauga", "Kanazawa-city")
-   - province: Province/state (e.g., "ON", "Tokyo", "Ishikawa") - ALWAYS extract province even if on different line
-   - postal_code: Postal/zip code only (e.g., "M1E 2K3", "L5S 1S5", "921-8062")
-   - country: Country name (default "Canada" if not specified)
+6. Parse addresses into SEPARATE fields - DO NOT DUPLICATE DATA ACROSS FIELDS:
+   - street_address: ONLY the street/building address lines (e.g., "1600 Drew Road", "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond")
+     * Include department, suite numbers, unit numbers, PO boxes
+     * DO NOT include city, postal code, or country in street_address - those go in separate fields!
+     * For French addresses like "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond, F-79000 NIORT" - extract ONLY "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond" as street
+   - city: City name ONLY (e.g., "Niort", "West Hill", "Mississauga") - NO postal codes here!
+   - province: Province/state/region code only (e.g., "ON", "FR", "Niort Cedex")
+   - postal_code: Postal/zip code ONLY (e.g., "F-79000", "M1E 2K3", "79000") - extract from wherever it appears
+   - country: Country name (e.g., "France", "Canada")
+   - CRITICAL: Never duplicate postal codes - if "F-79000" appears, put it ONLY in postal_code, not also in street_address
 7. If information is not found, use empty string "" for text fields or 0 for numbers
 8. Preserve all items found in tables - don't skip any
 9. Handle both merged items (multiple items in one row with newlines) and single items (one per row)
