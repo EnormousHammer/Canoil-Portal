@@ -350,15 +350,21 @@
             <tr>
                 <td colspan="2">
                     <span class="label">Terms of Sale</span>
-                    <select id="termsOfSale">
-                        <option value="">Select...</option>
-                        <option value="DAP">DAP</option>
-                        <option value="EXW">EXW</option>
-                        <option value="FCA">FCA</option>
-                        <option value="FOB">FOB</option>
-                        <option value="CIF">CIF</option>
-                        <option value="DDP">DDP</option>
-                    </select>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <select id="termsOfSale" onchange="toggleCustomTerms(this)">
+                            <option value="">Select...</option>
+                            <option value="DAP">DAP</option>
+                            <option value="EXW">EXW</option>
+                            <option value="FCA">FCA</option>
+                            <option value="FOB">FOB</option>
+                            <option value="CIF">CIF</option>
+                            <option value="DDP">DDP</option>
+                            <option value="CPT">CPT</option>
+                            <option value="CFR">CFR</option>
+                            <option value="other">Other...</option>
+                        </select>
+                        <input type="text" id="termsOfSaleCustom" placeholder="Type custom terms" style="display: none; width: 150px; border-bottom: 1px solid #000;">
+                    </div>
                 </td>
             </tr>
             <tr>
@@ -505,6 +511,18 @@
         // Only auto-fill signature date
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('signatureDate').value = today;
+        
+        // Toggle custom terms input when "Other" is selected
+        function toggleCustomTerms(select) {
+            const customInput = document.getElementById('termsOfSaleCustom');
+            if (select.value === 'other') {
+                customInput.style.display = 'inline-block';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+                customInput.value = '';
+            }
+        }
         
         function addItemRow() {
             const tbody = document.getElementById('itemsBody');
