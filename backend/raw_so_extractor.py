@@ -132,6 +132,48 @@ def extract_raw_from_pdf(pdf_path):
         return None
 
 
+def extract_addresses_from_tables(raw_tables):
+    """
+    Pre-extract Sold To and Ship To addresses from table data.
+    The PDF has these in a two-column table - LEFT is Sold To, RIGHT is Ship To.
+    This is MORE RELIABLE than asking GPT to parse the mixed text.
+    """
+    sold_to_text = ""
+    ship_to_text = ""
+    
+    for table_info in raw_tables:
+        table = table_info.get('data', [])
+        for row in table:
+            if not row or len(row) < 2:
+                continue
+            
+            # Look for the row that has "Sold To" and "Ship To" headers
+            left_cell = str(row[0] or '').strip()
+            right_cell = str(row[1] or '').strip() if len(row) > 1 else ''
+            
+            # Check if this is the header row
+            if 'Sold To' in left_cell or 'Bill To' in left_cell:
+                # Found address table - next rows contain the actual addresses
+                # But often the addresses are in the SAME cells below the header
+                continue
+            
+            # Check if this row contains address data (has company name pattern)
+            # Usually right after the Sold To/Ship To header row
+            if left_cell and not left_cell.startswith('Ship') and not left_cell.startswith('Sold'):
+                # If we already have sold_to and this looks like a new section, skip
+                if sold_to_text and ('Item' in left_cell or 'Ordered' in left_cell):
+                    break
+                if not sold_to_text:
+                    sold_to_text = left_cell
+                if not ship_to_text and right_cell:
+                    ship_to_text = right_cell
+    
+    return {
+        'sold_to_raw': sold_to_text,
+        'ship_to_raw': ship_to_text
+    }
+
+
 def extract_brokerage_focused(special_instructions):
     """
     Dedicated OpenAI call ONLY for extracting carrier/broker information
@@ -241,11 +283,30 @@ def structure_with_openai(raw_data):
             print(f"OPENAI STRUCTURING: {raw_data['filename']}")
             print(f"{'='*80}")
         
+        # PRE-EXTRACT addresses from table data (more reliable than GPT parsing)
+        pre_extracted = extract_addresses_from_tables(raw_data.get('raw_tables', []))
+        sold_to_hint = pre_extracted.get('sold_to_raw', '')
+        ship_to_hint = pre_extracted.get('ship_to_raw', '')
+        
+        if DEBUG:
+            print(f"PRE-EXTRACTED Sold To: {sold_to_hint[:100]}...")
+            print(f"PRE-EXTRACTED Ship To: {ship_to_hint[:100]}...")
+        
+        # Build address hints for GPT
+        address_hints = ""
+        if sold_to_hint or ship_to_hint:
+            address_hints = f"""
+PRE-EXTRACTED ADDRESSES (USE THESE - they are from separate table columns):
+- SOLD TO (LEFT COLUMN): {sold_to_hint}
+- SHIP TO (RIGHT COLUMN): {ship_to_hint}
+IMPORTANT: These addresses are ALREADY SEPARATED. Use them directly - do NOT merge them!
+"""
+        
         # Prepare the prompt with raw data
         prompt = f"""You are a Sales Order data expert. Extract and organize ALL information from this raw PDF data into clean structured JSON.
 
 FILENAME: {raw_data['filename']}
-
+{address_hints}
 RAW TEXT FROM PDF:
 {raw_data['raw_text']}
 
