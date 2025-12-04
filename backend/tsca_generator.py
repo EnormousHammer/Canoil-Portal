@@ -162,9 +162,17 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
         'date': current_date,  # Auto-fill with current date
         'reference number': f"SO {so_data.get('so_number', '')}",
         # Certifier information - Haron Alhakimi
+        # Try multiple possible field name variations to ensure overwrite
         'name': 'Haron Alhakimi',
+        'Name': 'Haron Alhakimi',
+        'certifier_name': 'Haron Alhakimi',
+        'Certifier name': 'Haron Alhakimi',
         'title': 'Logistics Supervisor',
-        'email': 'haron@canoilcanadaltd.com'
+        'Title': 'Logistics Supervisor',
+        'Certifier title': 'Logistics Supervisor',
+        'email': 'haron@canoilcanadaltd.com',
+        'Email': 'haron@canoilcanadaltd.com',
+        'Certifier email address': 'haron@canoilcanadaltd.com',
     }
     
     # Add product lines (product 1-10, start with actual items)
