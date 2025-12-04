@@ -11,6 +11,46 @@ from bs4 import BeautifulSoup
 
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
+
+def clean_international_address(street_addr: str) -> str:
+    """
+    Clean up international addresses that have city/postal/country embedded in street.
+    The parser sometimes puts everything in one field for French/European addresses.
+    """
+    if not street_addr:
+        return ''
+    
+    # Remove common country names from street address
+    countries = ['FRANCE', 'France', 'CANADA', 'Canada', 'USA', 'U.S.A.', 'UNITED STATES']
+    cleaned = street_addr
+    for country in countries:
+        # Remove country if it's a separate word (not part of company name)
+        cleaned = re.sub(rf',?\s*{re.escape(country)}\s*,?', ',', cleaned, flags=re.IGNORECASE)
+    
+    # Remove French postal codes like "F-79000" or "F79000" or standalone "79000"
+    cleaned = re.sub(r',?\s*F-?\d{5}\s*,?', ',', cleaned)
+    
+    # Remove duplicate location patterns - if same place appears twice
+    # Pattern: "City, ... City" - remove second occurrence
+    parts = [p.strip() for p in cleaned.split(',') if p.strip()]
+    seen = set()
+    unique_parts = []
+    for part in parts:
+        # Normalize for comparison (remove extra spaces, lowercase)
+        normalized = ' '.join(part.lower().split())
+        if normalized not in seen and len(normalized) > 1:
+            seen.add(normalized)
+            unique_parts.append(part)
+    
+    cleaned = ', '.join(unique_parts)
+    
+    # Clean up multiple commas and extra whitespace
+    cleaned = re.sub(r',\s*,+', ',', cleaned)
+    cleaned = re.sub(r'^\s*,\s*', '', cleaned)
+    cleaned = re.sub(r'\s*,\s*$', '', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    
+    return cleaned
 PACKING_SLIP_TEMPLATE = os.path.join(_current_dir, 'templates', 'packing_slip', 'Packing Slip Template 2.html')
 
 def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str, Any], items: list) -> str:
@@ -142,6 +182,8 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         # Remove any PICK UP text from the address
         street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(street), flags=re.IGNORECASE).strip()
         street_clean = re.sub(r'^,\s*', '', street_clean)  # Remove leading comma
+        # Clean up international addresses that have country/postal embedded
+        street_clean = clean_international_address(street_clean)
         if street_clean:
             sold_to_lines.append(street_clean)
     
@@ -201,6 +243,8 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         # Remove any PICK UP text that might have leaked into the address
         ship_street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(ship_street), flags=re.IGNORECASE).strip()
         ship_street_clean = re.sub(r'^,\s*', '', ship_street_clean)  # Remove leading comma
+        # Clean up international addresses that have country/postal embedded
+        ship_street_clean = clean_international_address(ship_street_clean)
         if ship_street_clean and ship_street_clean.upper() != 'CUSTOMER PICKUP' and 'PICK UP' not in ship_street_clean.upper():
             ship_to_lines.append(ship_street_clean)
     
