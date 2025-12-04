@@ -310,6 +310,17 @@ IMPORTANT RULES:
    - DO NOT include shipping instructions in description (e.g., "Ship Via Manitoulin")
    - DO NOT include handling notes (e.g., "***CHEMRISK LABEL - RED***", "-SDS", "-COA")
    - DO NOT include special instructions (e.g., "IDENTIFICATION OF BATCH/LOT NUMBER")
+   - DO NOT include TAX CODES at the end of descriptions - these are SEPARATE columns:
+     * "G" = GST 5%, "H" = HST 13%, "E" = Exempt, "Z" = Zero-rated
+     * CRITICAL PDF FORMAT: ITEM_CODE | QTY | UNIT | DESCRIPTION | TAX | UNIT_PRICE | AMOUNT
+     * The single letter (G, H, E, Z) BEFORE the price is ALWAYS the TAX CODE - NEVER part of description!
+     * Strip trailing G/H/E/Z from ALL descriptions when followed by a price number
+     * Examples for ALL products:
+       - "VSGDRM 1 DRUM VSG Drums G 5,260.76" → desc: "VSG Drums"
+       - "ROBCO 83 CASE60 ROBCO EP/MP 1004 H 27.66" → desc: "ROBCO EP/MP 1004"
+       - "BVA-46 10 DRUM BVA 46 G 150.00" → desc: "BVA 46"
+       - "MOV5020 5 DRUM MOV 50/20 Long Life E 500.00" → desc: "MOV 50/20 Long Life"
+       - "REOLUBE 1 DRUM Reolube Turbofluid 46XC H 200.00" → desc: "Reolube Turbofluid 46XC"
    - These notes should go in "special_instructions" field instead
    - Example: If you see "REOLUBE 46XC DRUM\nShip Via Manitoulin COLLECT 4337\n***CHEMRISK LABEL - RED***"
      → description: "REOLUBE 46XC DRUM"
