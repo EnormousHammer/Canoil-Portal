@@ -508,10 +508,6 @@
         // document.getElementById('invoiceDate').value = today;
         // document.getElementById('saleDate').value = today;
         
-        // Only auto-fill signature date
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('signatureDate').value = today;
-        
         // Toggle custom terms input when "Other" is selected
         function toggleCustomTerms(select) {
             const customInput = document.getElementById('termsOfSaleCustom');
