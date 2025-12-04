@@ -72,12 +72,12 @@ def detect_dangerous_goods_item(item: Dict[str, Any]) -> Optional[Dict[str, str]
     return None
 
 
-def extract_weight_in_lbs(email_analysis: Dict[str, Any], so_data: Dict[str, Any], items: List[Dict]) -> float:
+def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any], items: List[Dict]) -> float:
     """
-    Extract total weight and convert to LBS
+    Extract total weight in KG (keep as kg, don't convert to lbs)
     Priority: Email > SO > Estimate
     """
-    total_weight_lbs = 0.0
+    total_weight_kg = 0.0
     
     # Priority 1: Email analysis
     email_weight = None
@@ -95,18 +95,15 @@ def extract_weight_in_lbs(email_analysis: Dict[str, Any], so_data: Dict[str, Any
         if weight_match:
             try:
                 weight_value = float(weight_match.group(1))
-                if 'kg' in weight_str.lower():
-                    # Convert KG to LBS
-                    total_weight_lbs = weight_value * 2.20462
-                elif 'lb' in weight_str.lower():
-                    # Already in LBS
-                    total_weight_lbs = weight_value
+                if 'lb' in weight_str.lower():
+                    # Convert LBS to KG
+                    total_weight_kg = weight_value / 2.20462
                 else:
-                    # Assume KG, convert to LBS
-                    total_weight_lbs = weight_value * 2.20462
+                    # Already in KG or assume KG
+                    total_weight_kg = weight_value
                 
-                print(f"   Weight from email: {email_weight} -> {total_weight_lbs:.1f} lbs")
-                return total_weight_lbs
+                print(f"   Weight from email: {email_weight} -> {total_weight_kg:.1f} kg")
+                return total_weight_kg
             except Exception as e:
                 print(f"   Error parsing email weight: {e}")
     
@@ -117,13 +114,13 @@ def extract_weight_in_lbs(email_analysis: Dict[str, Any], so_data: Dict[str, Any
         if weight_match:
             try:
                 weight_value = float(weight_match.group(1))
-                if 'kg' in weight_str.lower():
-                    total_weight_lbs = weight_value * 2.20462
+                if 'lb' in weight_str.lower():
+                    total_weight_kg = weight_value / 2.20462
                 else:
-                    total_weight_lbs = weight_value
+                    total_weight_kg = weight_value
                 
-                print(f"   Weight from SO: {so_data['total_weight']} -> {total_weight_lbs:.1f} lbs")
-                return total_weight_lbs
+                print(f"   Weight from SO: {so_data['total_weight']} -> {total_weight_kg:.1f} kg")
+                return total_weight_kg
             except Exception as e:
                 print(f"   Error parsing SO weight: {e}")
     
@@ -135,7 +132,7 @@ def extract_weight_in_lbs(email_analysis: Dict[str, Any], so_data: Dict[str, Any
             qty = int(item.get('quantity', 1))
             desc = item.get('description', '').lower()
             
-            # Typical weights
+            # Typical weights in KG
             if 'drum' in desc:
                 estimated_kg += qty * 180  # 180kg per drum
             elif 'pail' in desc:
@@ -147,9 +144,9 @@ def extract_weight_in_lbs(email_analysis: Dict[str, Any], so_data: Dict[str, Any
             else:
                 estimated_kg += qty * 25   # 25kg default
         
-        total_weight_lbs = estimated_kg * 2.20462
-        print(f"   Estimated weight: {estimated_kg} kg -> {total_weight_lbs:.1f} lbs")
-        return total_weight_lbs
+        total_weight_kg = estimated_kg
+        print(f"   Estimated weight: {total_weight_kg:.1f} kg")
+        return total_weight_kg
     
     return 0.0
 
@@ -436,7 +433,7 @@ def determine_freight_terms(so_data: Dict[str, Any]) -> str:
 
 
 def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str], 
-                      skid_info: str, total_weight_lbs: float, 
+                      skid_info: str, total_weight_kg: float, 
                       po_number: str, so_number: str, total_skids: int = 0,
                       email_analysis: Dict[str, Any] = None) -> List[Dict[str, str]]:
     """
@@ -477,10 +474,10 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         unit = (item.get('unit') or '').upper()
         is_tote_item = (unit in ['LITER', 'LITRE', 'TOTE', 'IBC'] and item_qty == 1) or is_tote_shipment
         
-        if total_pieces > 0 and total_weight_lbs > 0:
-            item_weight_lbs = (item_qty / total_pieces) * total_weight_lbs
+        if total_pieces > 0 and total_weight_kg > 0:
+            item_weight_kg = (item_qty / total_pieces) * total_weight_kg
         else:
-            item_weight_lbs = 0.0
+            item_weight_kg = 0.0
         
         # Product description (MUST come before using it in debug print)
         product = item.get('description', '')
@@ -541,7 +538,7 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         rows.append({
             'pieces': str(item_qty),
             'description': ' | '.join(row_parts),
-            'weight': f"{item_weight_lbs:.1f} lbs" if item_weight_lbs > 0 else ""
+            'weight': f"{item_weight_kg:.1f} kg" if item_weight_kg > 0 else ""
         })
         
         # Row 2: DANGEROUS GOODS (if applicable) - ALWAYS row 2, highest priority
@@ -628,12 +625,12 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     
     # Calculations
     total_pieces = sum(int(item.get('quantity', 0)) for item in items)
-    total_weight_lbs = extract_weight_in_lbs(email_analysis, so_data, items)
+    total_weight_kg = extract_weight_in_kg(email_analysis, so_data, items)
     batch_numbers = extract_batch_numbers(email_analysis, so_data)
     skid_info, total_skids = extract_skid_info(email_analysis)  # Now returns tuple
     
     print(f"   Total pieces: {total_pieces}")
-    print(f"   Total weight: {total_weight_lbs:.1f} lbs")
+    print(f"   Total weight: {total_weight_kg:.1f} kg")
     print(f"   Batch numbers: {batch_numbers} (count: {len(batch_numbers)})")
     print(f"   Skid info: {skid_info}")
     print(f"   Total skids: {total_skids}")
@@ -818,14 +815,17 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                 if cb.has_attr('checked'):
                     del cb['checked']
     
-    # Check "lb" checkbox for weight unit
+    # Check "kg" checkbox for weight unit (not lb)
     weight_checkboxes = soup.find_all('input', {'type': 'checkbox', 'class': 'cb-mini'})
     for cb in weight_checkboxes:
-        if cb.get('id') == 'w_lb':
+        if cb.get('id') == 'w_kg':
             cb['checked'] = 'checked'
+        elif cb.get('id') == 'w_lb':
+            if cb.has_attr('checked'):
+                del cb['checked']
     
     # Generate row data (pass email_analysis for tote order handling)
-    rows = generate_bol_rows(items, batch_numbers, skid_info, total_weight_lbs, po_number, so_number, total_skids, email_analysis)
+    rows = generate_bol_rows(items, batch_numbers, skid_info, total_weight_kg, po_number, so_number, total_skids, email_analysis)
     
     # Populate table rows
     tbody = soup.find('tbody')
@@ -876,7 +876,7 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                 # Total weight
                 weight_input = cells[2].find('input')
                 if weight_input:
-                    weight_input['value'] = f"{total_weight_lbs:.1f} lbs"
+                    weight_input['value'] = f"{total_weight_kg:.1f} kg"
     
     # CRITICAL: Remove ALL remaining placeholders from entire document
     # Placeholders show as grey text and are visible when printing - must be removed!
