@@ -6,12 +6,180 @@ Uses the actual Commercial Invoice HTML template
 import os
 import re
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 from bs4 import BeautifulSoup
 
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 COMMERCIAL_INVOICE_TEMPLATE = os.path.join(_current_dir, 'templates', 'commercial_invoice', 'Commerical Invoice New.html')
+
+# ============================================================================
+# STEEL CONTAINER SEPARATION FOR CUSTOMS (HTS 7310.10)
+# ============================================================================
+# Steel containers must be declared separately for cross-border shipments
+# This separates the steel cost from product cost for proper customs declaration
+
+STEEL_HTS_CODE = '7310.10'
+
+# Steel container prices (USD)
+STEEL_PRICES = {
+    'drum': 66.98,      # Steel Drum (200L)
+    'pail': 26.00,      # Steel Pail (6 gal/22L)
+    'can': 3.25,        # Steel Can (1L)
+}
+
+# Products that use steel containers
+STEEL_CONTAINER_PRODUCTS = ['MOV', 'VSG', 'REOLUBE', 'AEC', 'CANOIL']
+
+
+def detect_steel_container_type(description: str, unit: str) -> Tuple[str, int]:
+    """
+    Detect if product uses steel container and return type and quantity multiplier.
+    
+    Returns: (container_type, qty_multiplier) or (None, 0)
+    - container_type: 'drum', 'pail', 'can', or None
+    - qty_multiplier: number of containers per unit (e.g., 12 cans per case)
+    """
+    desc_lower = description.lower()
+    unit_lower = (unit or '').lower()
+    
+    # Check for drums
+    if 'drum' in desc_lower or 'drum' in unit_lower:
+        return ('drum', 1)
+    
+    # Check for pails
+    if 'pail' in desc_lower or 'pail' in unit_lower:
+        return ('pail', 1)
+    
+    # Check for cans - handle cases of cans
+    if 'can' in desc_lower or 'can' in unit_lower:
+        # Check if it's a case containing multiple cans
+        # Look for patterns like "12x1L", "12 per case", "case of 12"
+        case_match = re.search(r'(\d+)\s*(?:x|per|cans?\s*per)', desc_lower)
+        if case_match:
+            return ('can', int(case_match.group(1)))
+        # Default 1 can per unit
+        return ('can', 1)
+    
+    # Check for cases that might contain cans
+    if 'case' in unit_lower:
+        # Cases of 1L products typically have 12 cans
+        if '1l' in desc_lower or '1 l' in desc_lower:
+            return ('can', 12)
+    
+    return (None, 0)
+
+
+def needs_steel_separation(description: str) -> bool:
+    """
+    Check if product is one that uses steel containers (MOV, VSG, Reolube, AEC, etc.)
+    These products have steel container cost included in unit price that needs to be separated.
+    """
+    desc_upper = description.upper()
+    return any(prod in desc_upper for prod in STEEL_CONTAINER_PRODUCTS)
+
+
+def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Process items to separate steel container costs from product costs.
+    
+    For products in steel containers:
+    - Subtract steel cost from unit price
+    - Track steel containers for separate line items
+    
+    Returns: (adjusted_items, steel_items)
+    - adjusted_items: Original items with adjusted prices
+    - steel_items: New line items for steel containers
+    """
+    adjusted_items = []
+    steel_totals = {
+        'drum': {'count': 0, 'price': STEEL_PRICES['drum']},
+        'pail': {'count': 0, 'price': STEEL_PRICES['pail']},
+        'can': {'count': 0, 'price': STEEL_PRICES['can']},
+    }
+    
+    for item in items:
+        description = str(item.get('description', ''))
+        unit = str(item.get('unit', ''))
+        quantity = float(item.get('quantity', 0))
+        unit_price = float(item.get('unit_price', 0))
+        
+        # Check if this product uses steel containers
+        if needs_steel_separation(description):
+            container_type, qty_multiplier = detect_steel_container_type(description, unit)
+            
+            if container_type and qty_multiplier > 0:
+                steel_price = STEEL_PRICES[container_type]
+                
+                # Calculate adjusted unit price (subtract steel cost per container)
+                # If multiple containers per unit (e.g., case of 12 cans), multiply
+                steel_cost_per_unit = steel_price * qty_multiplier
+                adjusted_unit_price = unit_price - steel_cost_per_unit
+                
+                # Track total steel containers
+                total_containers = int(quantity * qty_multiplier)
+                steel_totals[container_type]['count'] += total_containers
+                
+                print(f"DEBUG STEEL: {description}")
+                print(f"  - Original unit price: ${unit_price:.2f}")
+                print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
+                print(f"  - Steel cost per unit: ${steel_cost_per_unit:.2f}")
+                print(f"  - Adjusted unit price: ${adjusted_unit_price:.2f}")
+                print(f"  - Total containers: {total_containers}")
+                
+                # Create adjusted item (copy to avoid modifying original)
+                adjusted_item = item.copy()
+                adjusted_item['unit_price'] = adjusted_unit_price
+                adjusted_item['original_unit_price'] = unit_price  # Keep original for reference
+                adjusted_item['steel_separated'] = True
+                adjusted_items.append(adjusted_item)
+            else:
+                # No steel container detected, keep original
+                adjusted_items.append(item.copy())
+        else:
+            # Not a steel container product, keep original
+            adjusted_items.append(item.copy())
+    
+    # Create steel line items for containers that were found
+    steel_items = []
+    
+    if steel_totals['drum']['count'] > 0:
+        steel_items.append({
+            'description': 'Steel Drum (200L)',
+            'hts_code': STEEL_HTS_CODE,
+            'quantity': steel_totals['drum']['count'],
+            'unit': 'Drum',
+            'unit_price': STEEL_PRICES['drum'],
+            'country_of_origin': 'Canada',
+            'is_steel_container': True,
+        })
+        print(f"DEBUG STEEL: Added {steel_totals['drum']['count']} drums @ ${STEEL_PRICES['drum']:.2f}")
+    
+    if steel_totals['pail']['count'] > 0:
+        steel_items.append({
+            'description': 'Steel pails (6 gal/22 L)',
+            'hts_code': STEEL_HTS_CODE,
+            'quantity': steel_totals['pail']['count'],
+            'unit': 'Pail',
+            'unit_price': STEEL_PRICES['pail'],
+            'country_of_origin': 'Canada',
+            'is_steel_container': True,
+        })
+        print(f"DEBUG STEEL: Added {steel_totals['pail']['count']} pails @ ${STEEL_PRICES['pail']:.2f}")
+    
+    if steel_totals['can']['count'] > 0:
+        steel_items.append({
+            'description': 'Steel cans (1L)',
+            'hts_code': STEEL_HTS_CODE,
+            'quantity': steel_totals['can']['count'],
+            'unit': 'Can',
+            'unit_price': STEEL_PRICES['can'],
+            'country_of_origin': 'Canada',
+            'is_steel_container': True,
+        })
+        print(f"DEBUG STEEL: Added {steel_totals['can']['count']} cans @ ${STEEL_PRICES['can']:.2f}")
+    
+    return adjusted_items, steel_items
 
 def normalize_date_format(date_str: str) -> str:
     """
@@ -725,6 +893,18 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     print(f"DEBUG: CI - Excluding brokerage: {item.get('description', '')}")
                 elif is_other_charge:
                     print(f"DEBUG: CI - Excluding other charge: {item.get('description', '')}")
+    
+    # ========================================================================
+    # STEEL CONTAINER SEPARATION FOR CUSTOMS
+    # ========================================================================
+    # For cross-border shipments, steel containers must be declared separately
+    # with HTS code 7310.10. This adjusts product prices and adds steel line items.
+    print(f"\n>> Processing steel container separation for {len(physical_items)} items...")
+    adjusted_items, steel_items = process_items_with_steel_separation(physical_items)
+    
+    # Replace physical_items with adjusted items + steel items
+    physical_items = adjusted_items + steel_items
+    print(f">> After steel separation: {len(adjusted_items)} products + {len(steel_items)} steel line items")
     
     # NEW TEMPLATE: Handle class-based items table with dynamic rows
     items_tbody = soup.find('tbody', id='itemsBody')
