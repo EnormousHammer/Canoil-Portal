@@ -329,12 +329,17 @@ IMPORTANT RULES:
 2. Extract items EXACTLY as they appear - if multiple items are in one table row (merged), extract each separately
 3. Convert price strings like "US$30,327.05" or "2,050.00" to numbers (remove currency symbols and commas)
 4. Keep item codes AS-IS (e.g., "BVA-46 BULK" stays "BVA-46 BULK" if that's what appears)
-5. TWO-COLUMN ADDRESS HANDLING - BE VERY CAREFUL:
-   - "Sold To" and "Ship To" are often in TWO COLUMNS side by side
-   - Text extraction reads LEFT TO RIGHT, mixing both columns
-   - Match contact names with their correct addresses using context clues (phone numbers, postal codes)
-   - Example: If you see "K. Noda" followed by "5-4-5 Nishigotanda, Shinagawa, Tokyo", that address goes with K. Noda
-   - If you see "Tel: (076)287-5445" followed by "4-4.Shinbohon, Kanazawa, Ishikawa", that address goes with the phone number
+5. SOLD TO vs SHIP TO - KEEP THEM SEPARATE (CRITICAL):
+   - "Sold To" and "Ship To" are TWO DIFFERENT addresses - NEVER merge them!
+   - The PDF has them in two columns side by side - extract each column SEPARATELY
+   - sold_to = LEFT column (billing address)
+   - ship_to = RIGHT column (shipping/delivery address)
+   - These addresses are OFTEN DIFFERENT - do NOT copy one to the other
+   - Example from Axel France SO:
+     * Sold To (LEFT): "30 Rue de Pied de Fond, ZI St. Liguaire CS 98821, Niort Cedex, France F79000"
+     * Ship To (RIGHT): "ZI SAINT-LIGUAIRE, F-79000 NIORT, FRANCE"
+     * These are DIFFERENT - keep them separate!
+   - NEVER combine text from both columns into one address
 6. Parse addresses into SEPARATE fields - DO NOT DUPLICATE DATA ACROSS FIELDS:
    - street_address: ONLY the street/building address lines (e.g., "1600 Drew Road", "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond")
      * Include department, suite numbers, unit numbers, PO boxes
