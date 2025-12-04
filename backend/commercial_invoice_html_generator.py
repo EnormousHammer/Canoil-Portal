@@ -828,10 +828,10 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     
     # DECLARATION FIELDS
     field_values['usPort'] = ''  # Leave empty for manual entry
-    field_values['exportDate'] = ''  # Leave empty for manual entry
+    field_values['exportDate'] = datetime.now().strftime('%Y-%m-%d')  # Auto-fill with today
     field_values['signatureDate'] = datetime.now().strftime('%Y-%m-%d')  # Auto-fill with today
-    field_values['preparerName'] = ''  # Leave empty for manual entry
-    field_values['responsibleEmployee'] = ''  # Leave empty for manual entry
+    field_values['preparerName'] = 'Haron Alhakimi'  # Auto-fill with certifier name
+    field_values['responsibleEmployee'] = 'Haron Alhakimi'  # Auto-fill with certifier name
     
     # Calculate package description (e.g., "4 - 230KG Drums")
     if package_counts:
