@@ -510,6 +510,18 @@ Return ONLY valid JSON, no explanations or markdown.
         # Parse JSON
         structured_data = json.loads(result_text)
         
+        # POST-PROCESSING: Strip tax codes from item descriptions
+        # GPT sometimes includes the tax code letter (G, H, E, Z) at the end of descriptions
+        if 'items' in structured_data:
+            for item in structured_data['items']:
+                desc = item.get('description', '')
+                if desc:
+                    # Strip trailing single letter tax codes: " G", " H", " E", " Z"
+                    cleaned_desc = re.sub(r'\s+[GHEZ]$', '', desc.strip())
+                    if cleaned_desc != desc:
+                        print(f"  TAX CODE STRIPPED: '{desc}' → '{cleaned_desc}'")
+                        item['description'] = cleaned_desc
+        
         # SAFETY CHECK: Ensure customer_name is the Sold To company, NOT the seller
         if 'sold_to' in structured_data and structured_data['sold_to'].get('company_name'):
             sold_to_company = structured_data['sold_to']['company_name']

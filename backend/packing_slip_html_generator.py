@@ -123,7 +123,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if customer_name:
         customer_name = re.sub(r'\s*-?\s*PICK\s*UP\s*', '', customer_name, flags=re.IGNORECASE).strip()
     
-    # Build Sold To address with ALL fields from billing address
+    # Build Sold To address - KEEP IT SIMPLE, use address as-is from SO
     # Support both 'billing_address' and 'sold_to' field names (from different parsers)
     sold_to_lines = []
     billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
@@ -132,49 +132,42 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if customer_name:
         sold_to_lines.append(customer_name)
     
-    # Attention line (if exists) - support multiple field names
-    contact = billing_addr.get('attention') or billing_addr.get('attn') or billing_addr.get('contact_person') or billing_addr.get('contact')
-    if contact:
-        sold_to_lines.append(f"Attn: {contact}")
-    
-    # Street address - support multiple field names (clean PICK UP from address if present)
+    # Street address - this often contains the FULL address from SO, use as-is
     street = billing_addr.get('address') or billing_addr.get('street1') or billing_addr.get('street_address') or billing_addr.get('street')
     if street:
-        # Remove any PICK UP text from the address
         street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(street), flags=re.IGNORECASE).strip()
-        street_clean = re.sub(r'^,\s*', '', street_clean)  # Remove leading comma
+        street_clean = re.sub(r'^,\s*', '', street_clean)
         if street_clean:
             sold_to_lines.append(street_clean)
     
-    # City, Province/State, Postal Code - BUT AVOID DUPLICATES
-    # Check if city/postal already in street address before adding
-    city = billing_addr.get('city', '')
-    province = billing_addr.get('province') or billing_addr.get('state', '')
-    postal = billing_addr.get('postal_code', '')
-    country = billing_addr.get('country', '')
+    # ONLY add city/province/postal/country if street doesn't already contain postal code pattern
+    # (postal code indicates full address was already in street)
+    has_postal_in_street = bool(street and re.search(r'[A-Z]\d[A-Z]\s*\d[A-Z]\d|F-?\d{5}|\d{5}', str(street).upper()))
     
-    # Build city line only if not already in street address
-    street_upper = (street or '').upper()
-    city_parts = []
-    if city and city.upper() not in street_upper:
-        city_parts.append(city)
-    if province and province.upper() not in street_upper:
-        city_parts.append(province)
-    if postal and postal not in (street or ''):
-        city_parts.append(postal)
-    
-    if city_parts:
-        city_line = ', '.join([p for p in city_parts if p]).strip()
-        if city_line:
-            sold_to_lines.append(city_line)
-    
-    # Country - only if not already in street address
-    if country and country.upper() not in street_upper:
-        sold_to_lines.append(country)
+    if not has_postal_in_street:
+        # Street was just street, need to add other components
+        city = billing_addr.get('city', '')
+        province = billing_addr.get('province') or billing_addr.get('state', '')
+        postal = billing_addr.get('postal_code', '')
+        country = billing_addr.get('country', '')
+        
+        city_parts = []
+        if city:
+            city_parts.append(city)
+        if province:
+            city_parts.append(province)
+        if postal:
+            city_parts.append(postal)
+        
+        if city_parts:
+            sold_to_lines.append(', '.join(city_parts))
+        
+        if country:
+            sold_to_lines.append(country)
     
     field_values['sold_to'] = '\n'.join(sold_to_lines)
     
-    # Build Ship To address with ALL fields from shipping address
+    # Build Ship To address - KEEP IT SIMPLE, use address as-is from SO
     # Support both 'shipping_address' and 'ship_to' field names (from different parsers)
     ship_to_lines = []
     shipping_addr = so_data.get('shipping_address', {}) or so_data.get('ship_to', {})
@@ -191,49 +184,37 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         ship_to_lines.append("- PICK UP")
         print(f"DEBUG: PICKUP order detected - adding PICK UP note to Ship To")
     
-    # Attention line (if exists) - support multiple field names
-    contact = shipping_addr.get('attention') or shipping_addr.get('attn') or shipping_addr.get('contact_person') or shipping_addr.get('contact')
-    if contact:
-        ship_to_lines.append(f"Attn: {contact}")
-    
-    # Street address - support multiple field names (clean PICK UP from address if present)
+    # Street address - this often contains the FULL address from SO, use as-is
     ship_street = shipping_addr.get('address') or shipping_addr.get('street1') or shipping_addr.get('street_address') or shipping_addr.get('street')
     if ship_street:
-        # Remove any PICK UP text that might have leaked into the address
         ship_street_clean = re.sub(r'\s*-?\s*PICK\s*UP\s*,?\s*', '', str(ship_street), flags=re.IGNORECASE).strip()
-        ship_street_clean = re.sub(r'^,\s*', '', ship_street_clean)  # Remove leading comma
+        ship_street_clean = re.sub(r'^,\s*', '', ship_street_clean)
         if ship_street_clean and ship_street_clean.upper() != 'CUSTOMER PICKUP' and 'PICK UP' not in ship_street_clean.upper():
             ship_to_lines.append(ship_street_clean)
     
-    # City, Province/State, Postal Code - BUT AVOID DUPLICATES
-    ship_city = shipping_addr.get('city', '')
-    ship_province = shipping_addr.get('province') or shipping_addr.get('state', '')
-    ship_postal = shipping_addr.get('postal_code') or shipping_addr.get('postal', '')
-    ship_country = shipping_addr.get('country', '')
+    # ONLY add city/province/postal/country if street doesn't already contain postal code pattern
+    has_postal_in_ship_street = bool(ship_street and re.search(r'[A-Z]\d[A-Z]\s*\d[A-Z]\d|F-?\d{5}|\d{5}', str(ship_street).upper()))
     
-    # Build city line only if not already in street address
-    ship_street_upper = (ship_street or '').upper()
-    ship_city_parts = []
-    if ship_city and ship_city.upper() not in ship_street_upper:
-        ship_city_parts.append(ship_city)
-    if ship_province and ship_province.upper() not in ship_street_upper:
-        ship_city_parts.append(ship_province)
-    if ship_postal and ship_postal not in (ship_street or ''):
-        ship_city_parts.append(ship_postal)
-    
-    if ship_city_parts:
-        ship_city_line = ', '.join([p for p in ship_city_parts if p]).strip()
-        if ship_city_line:
-            ship_to_lines.append(ship_city_line)
-    
-    # Country - only if not already in street address
-    if ship_country and ship_country.upper() not in ship_street_upper:
-        ship_to_lines.append(ship_country)
-    
-    # Phone/Tel (if exists)
-    if shipping_addr.get('phone') or shipping_addr.get('tel'):
-        phone = shipping_addr.get('phone') or shipping_addr.get('tel')
-        ship_to_lines.append(f"Tel: {phone}")
+    if not has_postal_in_ship_street:
+        # Street was just street, need to add other components
+        ship_city = shipping_addr.get('city', '')
+        ship_province = shipping_addr.get('province') or shipping_addr.get('state', '')
+        ship_postal = shipping_addr.get('postal_code') or shipping_addr.get('postal', '')
+        ship_country = shipping_addr.get('country', '')
+        
+        ship_city_parts = []
+        if ship_city:
+            ship_city_parts.append(ship_city)
+        if ship_province:
+            ship_city_parts.append(ship_province)
+        if ship_postal:
+            ship_city_parts.append(ship_postal)
+        
+        if ship_city_parts:
+            ship_to_lines.append(', '.join(ship_city_parts))
+        
+        if ship_country:
+            ship_to_lines.append(ship_country)
     
     field_values['ship_to'] = '\n'.join(ship_to_lines)
     
