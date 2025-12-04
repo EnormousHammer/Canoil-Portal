@@ -123,87 +123,96 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if customer_name:
         customer_name = re.sub(r'\s*-?\s*PICK\s*UP\s*', '', customer_name, flags=re.IGNORECASE).strip()
     
-    # Build Sold To address - USE EXACTLY WHAT SO HAS
+    # Build Sold To address - PREFER full_address (exact copy from PDF)
     billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
     
-    sold_to_lines = []
+    # BEST: Use full_address if GPT provided it (exact copy from PDF)
+    if billing_addr.get('full_address'):
+        company = billing_addr.get('company_name') or billing_addr.get('company') or customer_name or ''
+        full_addr = billing_addr.get('full_address', '').strip()
+        if company and company.upper() not in full_addr.upper():
+            field_values['sold_to'] = f"{company}\n{full_addr}"
+        else:
+            field_values['sold_to'] = full_addr
+    else:
+        # FALLBACK: Build from separate fields
+        sold_to_lines = []
+        company = billing_addr.get('company_name') or billing_addr.get('company') or customer_name or ''
+        if company:
+            sold_to_lines.append(company.strip())
+        
+        street = billing_addr.get('street_address') or billing_addr.get('address') or ''
+        street = str(street).strip()
+        city = str(billing_addr.get('city', '')).strip()
+        province = str(billing_addr.get('province', '')).strip()
+        postal = str(billing_addr.get('postal_code', '')).strip()
+        country = str(billing_addr.get('country', '')).strip()
+        
+        # If street contains postal, GPT merged everything - just use street
+        if postal and postal in street:
+            if street:
+                sold_to_lines.append(street)
+            if country and country.upper() not in street.upper():
+                sold_to_lines.append(country)
+        else:
+            if street:
+                sold_to_lines.append(street)
+            city_parts = [p for p in [city, province, postal] if p]
+            if city_parts:
+                sold_to_lines.append(', '.join(city_parts))
+            if country:
+                sold_to_lines.append(country)
+        
+        field_values['sold_to'] = '\n'.join(sold_to_lines)
     
-    # Company name
-    company = billing_addr.get('company_name') or billing_addr.get('company') or customer_name or ''
-    if company:
-        sold_to_lines.append(company.strip())
-    
-    # Street address
-    street = billing_addr.get('street_address') or billing_addr.get('address') or billing_addr.get('street1') or billing_addr.get('street') or ''
-    street = str(street).strip()
-    
-    # Get other address parts
-    city = str(billing_addr.get('city', '')).strip()
-    province = str(billing_addr.get('province') or billing_addr.get('state', '')).strip()
-    postal = str(billing_addr.get('postal_code', '')).strip()
-    country = str(billing_addr.get('country', '')).strip()
-    
-    # CRITICAL: If street already contains postal code, it means GPT put everything in street
-    # In that case, ONLY use street - don't add city/province/postal (would cause duplication)
-    street_has_postal = postal and postal in street
-    
-    if street:
-        sold_to_lines.append(street)
-    
-    # Only add city/province/postal if street doesn't already contain them
-    if not street_has_postal:
-        city_line_parts = [p for p in [city, province, postal] if p]
-        if city_line_parts:
-            sold_to_lines.append(', '.join(city_line_parts))
-    
-    # Add country if not already in street
-    if country and country.upper() not in street.upper():
-        sold_to_lines.append(country)
-    
-    field_values['sold_to'] = '\n'.join(sold_to_lines)
-    
-    # Build Ship To address - USE EXACTLY WHAT SO HAS
+    # Build Ship To address - PREFER full_address (exact copy from PDF)
     shipping_addr = so_data.get('shipping_address', {}) or so_data.get('ship_to', {})
     is_pickup_order = shipping_addr.get('is_pickup', False) or so_data.get('is_pickup_order', False)
     
-    ship_to_lines = []
-    
-    # Company name
-    ship_company = shipping_addr.get('company_name') or shipping_addr.get('company') or customer_name or ''
-    if ship_company:
-        ship_to_lines.append(ship_company.strip())
-    
-    # For PICKUP orders, show "- PICK UP"
-    if is_pickup_order:
-        ship_to_lines.append("- PICK UP")
-    
-    # Street address
-    ship_street = shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street1') or shipping_addr.get('street') or ''
-    ship_street = str(ship_street).strip()
-    
-    # Get other address parts
-    ship_city = str(shipping_addr.get('city', '')).strip()
-    ship_province = str(shipping_addr.get('province') or shipping_addr.get('state', '')).strip()
-    ship_postal = str(shipping_addr.get('postal_code') or shipping_addr.get('postal', '')).strip()
-    ship_country = str(shipping_addr.get('country', '')).strip()
-    
-    # CRITICAL: If street already contains postal code, don't add city/province/postal again
-    ship_street_has_postal = ship_postal and ship_postal in ship_street
-    
-    if ship_street:
-        ship_to_lines.append(ship_street)
-    
-    # Only add city/province/postal if street doesn't already contain them
-    if not ship_street_has_postal:
-        ship_city_parts = [p for p in [ship_city, ship_province, ship_postal] if p]
-        if ship_city_parts:
-            ship_to_lines.append(', '.join(ship_city_parts))
-    
-    # Add country if not already in street
-    if ship_country and ship_country.upper() not in ship_street.upper():
-        ship_to_lines.append(ship_country)
-    
-    field_values['ship_to'] = '\n'.join(ship_to_lines)
+    # BEST: Use full_address if GPT provided it (exact copy from PDF)
+    if shipping_addr.get('full_address'):
+        ship_company = shipping_addr.get('company_name') or shipping_addr.get('company') or customer_name or ''
+        full_addr = shipping_addr.get('full_address', '').strip()
+        
+        ship_to_lines = []
+        if ship_company and ship_company.upper() not in full_addr.upper():
+            ship_to_lines.append(ship_company)
+        if is_pickup_order:
+            ship_to_lines.append("- PICK UP")
+        ship_to_lines.append(full_addr)
+        field_values['ship_to'] = '\n'.join(ship_to_lines)
+    else:
+        # FALLBACK: Build from separate fields
+        ship_to_lines = []
+        ship_company = shipping_addr.get('company_name') or shipping_addr.get('company') or customer_name or ''
+        if ship_company:
+            ship_to_lines.append(ship_company.strip())
+        if is_pickup_order:
+            ship_to_lines.append("- PICK UP")
+        
+        ship_street = shipping_addr.get('street_address') or shipping_addr.get('address') or ''
+        ship_street = str(ship_street).strip()
+        ship_city = str(shipping_addr.get('city', '')).strip()
+        ship_province = str(shipping_addr.get('province', '')).strip()
+        ship_postal = str(shipping_addr.get('postal_code', '')).strip()
+        ship_country = str(shipping_addr.get('country', '')).strip()
+        
+        # If street contains postal, GPT merged everything - just use street
+        if ship_postal and ship_postal in ship_street:
+            if ship_street:
+                ship_to_lines.append(ship_street)
+            if ship_country and ship_country.upper() not in ship_street.upper():
+                ship_to_lines.append(ship_country)
+        else:
+            if ship_street:
+                ship_to_lines.append(ship_street)
+            city_parts = [p for p in [ship_city, ship_province, ship_postal] if p]
+            if city_parts:
+                ship_to_lines.append(', '.join(city_parts))
+            if ship_country:
+                ship_to_lines.append(ship_country)
+        
+        field_values['ship_to'] = '\n'.join(ship_to_lines)
     
     # Items - USE EMAIL DATA ONLY (SO parser is broken)
     items_to_show = []

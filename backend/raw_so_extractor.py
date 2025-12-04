@@ -337,22 +337,24 @@ Extract and organize into this exact JSON structure:
   "sold_to": {{
     "company_name": "company name from Sold To section (same as customer_name above)",
     "contact_person": "contact person if mentioned",
-    "street_address": "street address only (e.g., 565 Coronation Drive)",
+    "full_address": "COPY THE ENTIRE ADDRESS EXACTLY AS IT APPEARS IN THE PDF - preserve line breaks with \\n - DO NOT abbreviate, reformat, or change anything",
+    "street_address": "first line of address only",
     "city": "city name",
-    "province": "province/state code (e.g., ON)",
+    "province": "province/state - KEEP AS WRITTEN (Quebec stays Quebec, not QC)",
     "postal_code": "postal/zip code",
-    "country": "country (default Canada if not specified)",
+    "country": "country (default Canada if not specified) - KEEP AS WRITTEN",
     "phone": "phone number",
     "email": "email address"
   }},
   "ship_to": {{
     "company_name": "company name from Ship To section",
     "contact_person": "contact person if mentioned",
-    "street_address": "street address only (e.g., 565 Coronation Drive)",
+    "full_address": "COPY THE ENTIRE ADDRESS EXACTLY AS IT APPEARS IN THE PDF - preserve line breaks with \\n - DO NOT abbreviate, reformat, or change anything",
+    "street_address": "first line of address only",
     "city": "city name",
-    "province": "province/state code (e.g., ON)",
+    "province": "province/state - KEEP AS WRITTEN (Quebec stays Quebec, not QC)",
     "postal_code": "postal/zip code",
-    "country": "country (default Canada if not specified)",
+    "country": "country (default Canada if not specified) - KEEP AS WRITTEN",
     "phone": "phone number",
     "email": "email address"
   }},
@@ -545,8 +547,10 @@ Return ONLY valid JSON, no explanations or markdown.
         if 'sold_to' in structured_data:
             structured_data['billing_address'] = {
                 'company': structured_data['sold_to'].get('company_name', ''),
+                'company_name': structured_data['sold_to'].get('company_name', ''),
                 'contact': structured_data['sold_to'].get('contact_person', ''),
                 'contact_person': structured_data['sold_to'].get('contact_person', ''),
+                'full_address': structured_data['sold_to'].get('full_address', ''),
                 'street': structured_data['sold_to'].get('street_address', ''),
                 'street_address': structured_data['sold_to'].get('street_address', ''),
                 'address': structured_data['sold_to'].get('street_address', ''),
@@ -562,8 +566,10 @@ Return ONLY valid JSON, no explanations or markdown.
         if 'ship_to' in structured_data:
             structured_data['shipping_address'] = {
                 'company': structured_data['ship_to'].get('company_name', ''),
+                'company_name': structured_data['ship_to'].get('company_name', ''),
                 'contact': structured_data['ship_to'].get('contact_person', ''),
                 'contact_person': structured_data['ship_to'].get('contact_person', ''),
+                'full_address': structured_data['ship_to'].get('full_address', ''),
                 'street': structured_data['ship_to'].get('street_address', ''),
                 'street_address': structured_data['ship_to'].get('street_address', ''),
                 'address': structured_data['ship_to'].get('street_address', ''),
