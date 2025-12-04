@@ -32,6 +32,66 @@ STEEL_PRICES = {
 STEEL_CONTAINER_PRODUCTS = ['MOV', 'VSG', 'REOLUBE', 'AEC', 'CANOIL']
 
 
+def is_european_shipment(so_data: Dict[str, Any]) -> bool:
+    """
+    Check if the order is for a European destination (e.g., Axel France).
+    European shipments require only 6-digit HTS codes.
+    """
+    customer_name = so_data.get('customer_name', '').upper()
+    
+    # Check ship_to address
+    ship_to = so_data.get('ship_to', {}) or so_data.get('shipping_address', {})
+    if isinstance(ship_to, dict):
+        ship_country = str(ship_to.get('country', '')).upper()
+        ship_company = str(ship_to.get('company_name', '') or ship_to.get('company', '')).upper()
+    else:
+        ship_country = ''
+        ship_company = ''
+    
+    # European countries
+    european_countries = ['FRANCE', 'GERMANY', 'SPAIN', 'ITALY', 'UK', 'UNITED KINGDOM', 
+                          'NETHERLANDS', 'BELGIUM', 'POLAND', 'SWEDEN', 'AUSTRIA',
+                          'SWITZERLAND', 'PORTUGAL', 'IRELAND', 'DENMARK', 'FINLAND']
+    
+    # Check for Axel France specifically
+    is_axel = 'AXEL' in customer_name or 'AXEL' in ship_company
+    
+    # Check if ship-to country is in Europe
+    is_europe_country = any(ec in ship_country for ec in european_countries)
+    
+    result = is_axel or is_europe_country
+    print(f"🌍 European Shipment Detection: customer={customer_name}, ship_country={ship_country}, is_european={result}")
+    
+    return result
+
+
+def truncate_hts_to_6_digits(hts_code: str) -> str:
+    """
+    Truncate HTS code to first 6 digits (format: XXXX.XX).
+    European shipments only require the first 6 digits.
+    
+    Examples:
+        '3819.00.0090' -> '3819.00'
+        '7310.10.0000' -> '7310.10'
+        '2710.19.9100' -> '2710.19'
+    """
+    if not hts_code:
+        return ''
+    
+    # Remove any non-numeric/dot characters and split
+    clean_code = str(hts_code).strip()
+    parts = clean_code.split('.')
+    
+    if len(parts) >= 2:
+        # Return first 4 digits + "." + next 2 digits
+        return f"{parts[0]}.{parts[1][:2]}"
+    elif len(parts) == 1 and len(parts[0]) >= 6:
+        # No dots, just numbers - format as XXXX.XX
+        return f"{parts[0][:4]}.{parts[0][4:6]}"
+    
+    return clean_code  # Return as-is if we can't parse
+
+
 def detect_steel_container_type(description: str, unit: str) -> Tuple[str, int]:
     """
     Detect if product uses steel container and return type and quantity multiplier.
@@ -895,12 +955,35 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     print(f"DEBUG: CI - Excluding other charge: {item.get('description', '')}")
     
     # ========================================================================
+    # HTS CODE TRUNCATION FOR EUROPEAN SHIPMENTS
+    # ========================================================================
+    # European shipments (e.g., Axel France) only use 6-digit HTS codes
+    is_europe = is_european_shipment(so_data)
+    if is_europe:
+        print(f"🇪🇺 European shipment detected - truncating HTS codes to 6 digits")
+        for item in physical_items:
+            original_hts = item.get('hts_code', '')
+            if original_hts:
+                truncated_hts = truncate_hts_to_6_digits(original_hts)
+                item['hts_code'] = truncated_hts
+                print(f"   HTS: '{original_hts}' -> '{truncated_hts}'")
+    
+    # ========================================================================
     # STEEL CONTAINER SEPARATION FOR CUSTOMS
     # ========================================================================
     # For cross-border shipments, steel containers must be declared separately
     # with HTS code 7310.10. This adjusts product prices and adds steel line items.
     print(f"\n>> Processing steel container separation for {len(physical_items)} items...")
     adjusted_items, steel_items = process_items_with_steel_separation(physical_items)
+    
+    # If European shipment, also truncate steel HTS codes
+    if is_europe and steel_items:
+        for steel_item in steel_items:
+            original_hts = steel_item.get('hts_code', '')
+            if original_hts:
+                truncated_hts = truncate_hts_to_6_digits(original_hts)
+                steel_item['hts_code'] = truncated_hts
+                print(f"   Steel HTS: '{original_hts}' -> '{truncated_hts}'")
     
     # Replace physical_items with adjusted items + steel items
     physical_items = adjusted_items + steel_items
