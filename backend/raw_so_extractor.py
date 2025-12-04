@@ -138,8 +138,9 @@ def extract_addresses_from_tables(raw_tables):
     The PDF has these in a two-column table - LEFT is Sold To, RIGHT is Ship To.
     This is MORE RELIABLE than asking GPT to parse the mixed text.
     """
-    sold_to_text = ""
-    ship_to_text = ""
+    sold_to_lines = []
+    ship_to_lines = []
+    in_address_section = False
     
     for table_info in raw_tables:
         table = table_info.get('data', [])
@@ -147,30 +148,28 @@ def extract_addresses_from_tables(raw_tables):
             if not row or len(row) < 2:
                 continue
             
-            # Look for the row that has "Sold To" and "Ship To" headers
             left_cell = str(row[0] or '').strip()
             right_cell = str(row[1] or '').strip() if len(row) > 1 else ''
             
-            # Check if this is the header row
-            if 'Sold To' in left_cell or 'Bill To' in left_cell:
-                # Found address table - next rows contain the actual addresses
-                # But often the addresses are in the SAME cells below the header
+            # Check if this is the header row with "Sold To" / "Ship To"
+            if 'Sold To' in left_cell or 'Bill To' in left_cell or 'Ship To' in right_cell:
+                in_address_section = True
                 continue
             
-            # Check if this row contains address data (has company name pattern)
-            # Usually right after the Sold To/Ship To header row
-            if left_cell and not left_cell.startswith('Ship') and not left_cell.startswith('Sold'):
-                # If we already have sold_to and this looks like a new section, skip
-                if sold_to_text and ('Item' in left_cell or 'Ordered' in left_cell):
+            # Stop when we hit a new section (Item table, etc.)
+            if in_address_section:
+                if 'Item' in left_cell or 'Ordered' in left_cell or 'Business No' in left_cell:
                     break
-                if not sold_to_text:
-                    sold_to_text = left_cell
-                if not ship_to_text and right_cell:
-                    ship_to_text = right_cell
+                
+                # Collect address lines from both columns
+                if left_cell and left_cell not in ['Sold To:', 'Ship To:', 'Bill To:']:
+                    sold_to_lines.append(left_cell)
+                if right_cell and right_cell not in ['Sold To:', 'Ship To:', 'Bill To:']:
+                    ship_to_lines.append(right_cell)
     
     return {
-        'sold_to_raw': sold_to_text,
-        'ship_to_raw': ship_to_text
+        'sold_to_raw': '\n'.join(sold_to_lines),
+        'ship_to_raw': '\n'.join(ship_to_lines)
     }
 
 
@@ -296,11 +295,24 @@ def structure_with_openai(raw_data):
         address_hints = ""
         if sold_to_hint or ship_to_hint:
             address_hints = f"""
-PRE-EXTRACTED ADDRESSES (USE THESE - they are from separate table columns):
-- SOLD TO (LEFT COLUMN): {sold_to_hint}
-- SHIP TO (RIGHT COLUMN): {ship_to_hint}
-IMPORTANT: These addresses are ALREADY SEPARATED. Use them directly - do NOT merge them!
+=== CRITICAL: PRE-EXTRACTED ADDRESSES - YOU MUST USE THESE EXACTLY ===
+SOLD TO ADDRESS (from LEFT column of PDF):
+{sold_to_hint}
+
+SHIP TO ADDRESS (from RIGHT column of PDF):
+{ship_to_hint}
+
+MANDATORY RULES:
+1. Use the SOLD TO address above for the "sold_to" section
+2. Use the SHIP TO address above for the "ship_to" section  
+3. These are DIFFERENT addresses - do NOT combine them
+4. Do NOT add any text from Ship To into Sold To or vice versa
+=== END ADDRESS SECTION ===
 """
+        
+        # Always print pre-extracted addresses for debugging
+        print(f"PRE-EXTRACTED SOLD TO: {sold_to_hint}")
+        print(f"PRE-EXTRACTED SHIP TO: {ship_to_hint}")
         
         # Prepare the prompt with raw data
         prompt = f"""You are a Sales Order data expert. Extract and organize ALL information from this raw PDF data into clean structured JSON.
