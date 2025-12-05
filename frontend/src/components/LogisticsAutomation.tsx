@@ -1614,16 +1614,23 @@ const LogisticsAutomation: React.FC = () => {
                       {result.so_data?.billing_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.billing_address?.contact}</div>
                       )}
-                      {(result.so_data?.billing_address?.street || result.so_data?.billing_address?.address) && (
-                        <div>{result.so_data?.billing_address?.street || result.so_data?.billing_address?.address}</div>
+                      {/* Use full_address if available (preserves all details), otherwise use street */}
+                      {(result.so_data?.billing_address?.full_address || result.so_data?.billing_address?.street || result.so_data?.billing_address?.address) && (
+                        <div className="whitespace-pre-line">
+                          {(result.so_data?.billing_address?.full_address || result.so_data?.billing_address?.street || result.so_data?.billing_address?.address)?.split('\n').filter((line: string) => line.trim()).map((line: string, idx: number) => (
+                            <div key={idx}>{line}</div>
+                          ))}
+                        </div>
                       )}
-                      <div>
-                        {[
-                          result.so_data?.billing_address?.city,
-                          result.so_data?.billing_address?.province,
-                          result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code
-                        ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
-                      </div>
+                      {!result.so_data?.billing_address?.full_address && (
+                        <div>
+                          {[
+                            result.so_data?.billing_address?.city,
+                            result.so_data?.billing_address?.province,
+                            result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code
+                          ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                        </div>
+                      )}
                       {result.so_data?.billing_address?.country && (
                         <div className="text-gray-500">{result.so_data?.billing_address?.country}</div>
                       )}
@@ -1642,16 +1649,23 @@ const LogisticsAutomation: React.FC = () => {
                       {result.so_data?.shipping_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.shipping_address?.contact}</div>
                       )}
-                      {(result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
-                        <div>{result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address}</div>
+                      {/* Use full_address if available (preserves all details), otherwise use street */}
+                      {(result.so_data?.shipping_address?.full_address || result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
+                        <div className="whitespace-pre-line">
+                          {(result.so_data?.shipping_address?.full_address || result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address)?.split('\n').filter((line: string) => line.trim()).map((line: string, idx: number) => (
+                            <div key={idx}>{line}</div>
+                          ))}
+                        </div>
                       )}
-                      <div>
-                        {[
-                          result.so_data?.shipping_address?.city,
-                          result.so_data?.shipping_address?.province,
-                          result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
-                        ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
-                      </div>
+                      {!result.so_data?.shipping_address?.full_address && (
+                        <div>
+                          {[
+                            result.so_data?.shipping_address?.city,
+                            result.so_data?.shipping_address?.province,
+                            result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
+                          ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                        </div>
+                      )}
                       {result.so_data?.shipping_address?.country && (
                         <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
                       )}
