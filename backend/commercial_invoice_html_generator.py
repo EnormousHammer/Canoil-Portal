@@ -899,7 +899,13 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     
     field_values['discounts'] = ''  # Leave empty for manual entry
     field_values['portOfEntry'] = ''  # Leave empty for manual entry
-    field_values['termsOfSale'] = detect_terms_of_sale(so_data)  # Detect from SO or default to EXW
+    
+    # Terms of Sale - Georgia Western always uses DAP Kennesaw, GA
+    if is_georgia_western:
+        field_values['termsOfSale'] = 'DAP Kennesaw, GA'
+        print(f"DEBUG CI: Georgia Western - setting Incoterms to DAP Kennesaw, GA")
+    else:
+        field_values['termsOfSale'] = detect_terms_of_sale(so_data)  # Detect from SO or default to EXW
     field_values['currencyOther'] = ''  # Leave empty (default radio handles USD/CAD)
     
     # SHIPPING DETAILS
