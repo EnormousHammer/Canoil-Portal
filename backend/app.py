@@ -176,21 +176,96 @@ def extract_so_data_from_docx(docx_path):
         print(f"Error extracting SO data from {docx_path}: {str(e)}")
         return None
 
+def extract_addresses_from_pdf_tables(pdf_path):
+    """
+    PRE-EXTRACT Sold To and Ship To addresses from PDF tables.
+    The PDF has these in a two-column table - LEFT is Sold To, RIGHT is Ship To.
+    This is MORE RELIABLE than trying to parse merged text.
+    """
+    sold_to_lines = []
+    ship_to_lines = []
+    
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                tables = page.extract_tables()
+                if not tables:
+                    continue
+                    
+                found_address_header = False
+                
+                for table in tables:
+                    if not table:
+                        continue
+                        
+                    for row_idx, row in enumerate(table):
+                        if not row:
+                            continue
+                        
+                        # Handle different row lengths
+                        left_cell = str(row[0] or '').strip() if len(row) > 0 else ''
+                        right_cell = str(row[1] or '').strip() if len(row) > 1 else ''
+                        
+                        left_upper = left_cell.upper()
+                        right_upper = right_cell.upper()
+                        
+                        # Detect "Sold To" / "Ship To" header row
+                        if 'SOLD TO' in left_upper or 'BILL TO' in left_upper:
+                            found_address_header = True
+                            continue
+                        
+                        # Stop when we hit item table or other sections
+                        if found_address_header:
+                            stop_keywords = ['ITEM', 'ORDERED', 'BUSINESS NO', 'QTY', 'UNIT PRICE', 'AMOUNT', 'DESCRIPTION']
+                            if any(kw in left_upper for kw in stop_keywords):
+                                break
+                        
+                        # Collect address lines - LEFT = Sold To, RIGHT = Ship To
+                        if found_address_header:
+                            skip_labels = ['SOLD TO:', 'SHIP TO:', 'BILL TO:', 'SOLD TO', 'SHIP TO', 'BILL TO']
+                            
+                            if left_cell and left_cell.upper() not in [s.upper() for s in skip_labels]:
+                                sold_to_lines.append(left_cell)
+                            
+                            if right_cell and right_cell.upper() not in [s.upper() for s in skip_labels]:
+                                ship_to_lines.append(right_cell)
+    except Exception as e:
+        print(f"⚠️ Table address extraction failed: {e}")
+    
+    return {
+        'sold_to_raw': '\n'.join(sold_to_lines),
+        'ship_to_raw': '\n'.join(ship_to_lines)
+    }
+
+
 def extract_so_data_from_pdf(pdf_path):
     """
     SIMPLE SO PARSER - Just extract what's there, no complex logic
     Based on actual analysis of SO PDFs - handles all formats
+    ENHANCED: Uses layout-preserving extraction and table parsing for better address handling
     """
     try:
         print(f"PARSING: {os.path.basename(pdf_path)}")
         
-        # Extract text from PDF
+        # PRE-EXTRACT addresses from tables (more reliable for two-column PDFs)
+        table_addresses = extract_addresses_from_pdf_tables(pdf_path)
+        if table_addresses.get('sold_to_raw') or table_addresses.get('ship_to_raw'):
+            print(f"📋 PRE-EXTRACTED from tables:")
+            print(f"   Sold To: {table_addresses.get('sold_to_raw', '')[:80]}...")
+            print(f"   Ship To: {table_addresses.get('ship_to_raw', '')[:80]}...")
+        
+        # Extract text from PDF with layout preservation for better column handling
         with pdfplumber.open(pdf_path) as pdf:
             full_text = ""
+            layout_text = ""  # Layout-preserved text for address parsing
             for page in pdf.pages:
                 page_text = page.extract_text()
                 if page_text:
                     full_text += page_text + "\n"
+                # Also get layout-preserved text
+                layout_page_text = page.extract_text(layout=True)
+                if layout_page_text:
+                    layout_text += layout_page_text + "\n"
         
         lines = full_text.split('\n')
         
@@ -876,6 +951,25 @@ def extract_so_data_from_pdf(pdf_path):
         sold_to_contact = so_data['sold_to'].get('contact_person', '')
         ship_to_contact = so_data['ship_to'].get('contact_person', '')
         
+        # CRITICAL FIX: Check if table extraction found DIFFERENT addresses
+        # If so, use those as they're more reliable for two-column PDFs
+        table_sold_to = table_addresses.get('sold_to_raw', '').strip()
+        table_ship_to = table_addresses.get('ship_to_raw', '').strip()
+        
+        # Use table addresses if available AND they look like valid addresses
+        if table_sold_to and len(table_sold_to) > 10:
+            if not so_data['sold_to']['address'] or len(table_sold_to) > len(so_data['sold_to']['address']):
+                print(f"📋 Using TABLE-EXTRACTED Sold To address (more complete)")
+                so_data['sold_to']['address'] = table_sold_to.replace('\n', ', ')
+        
+        if table_ship_to and len(table_ship_to) > 10:
+            # CRITICAL: Use table Ship To if it's DIFFERENT from Sold To
+            if table_ship_to.upper() != table_sold_to.upper():
+                print(f"📋 Using TABLE-EXTRACTED Ship To address (different from Sold To)")
+                so_data['ship_to']['address'] = table_ship_to.replace('\n', ', ')
+            elif not so_data['ship_to']['address']:
+                so_data['ship_to']['address'] = table_ship_to.replace('\n', ', ')
+        
         # TRY GPT FIRST for smart address parsing (handles any format)
         # Fall back to regex only if GPT fails
         billing_addr = None
@@ -908,8 +1002,10 @@ def extract_so_data_from_pdf(pdf_path):
             'company': so_data['sold_to']['company_name'],
             'contact_person': so_data['sold_to']['contact_person'],
             'contact': so_data['sold_to']['contact_person'],  # Alias for frontend
+            'full_address': so_data['sold_to']['address'],  # Full original address
             'address': cleaned_billing_address,  # CLEANED address
             'street': billing_addr['street'] or cleaned_billing_address,  # Use cleaned if parsing fails
+            'street_address': billing_addr['street'] or cleaned_billing_address,  # Alias
             'city': billing_addr['city'],
             'province': billing_addr['province'],
             'postal': billing_addr['postal_code'],  # Frontend uses 'postal'
@@ -926,8 +1022,10 @@ def extract_so_data_from_pdf(pdf_path):
                 'company': so_data['ship_to']['company_name'],
                 'contact_person': so_data['ship_to']['contact_person'] or billing_addr.get('contact_person', ''),
                 'contact': so_data['ship_to']['contact_person'] or billing_addr.get('contact', ''),
+                'full_address': cleaned_billing_address,  # Use billing address
                 'address': cleaned_billing_address,  # Use billing address
                 'street': billing_addr['street'] or cleaned_billing_address,
+                'street_address': billing_addr['street'] or cleaned_billing_address,
                 'city': billing_addr['city'],
                 'province': billing_addr['province'],
                 'postal': billing_addr['postal_code'],
@@ -944,8 +1042,10 @@ def extract_so_data_from_pdf(pdf_path):
                 'company': so_data['ship_to']['company_name'],
                 'contact_person': so_data['ship_to']['contact_person'],
                 'contact': so_data['ship_to']['contact_person'],  # Alias for frontend
+                'full_address': so_data['ship_to']['address'],  # Full original address
                 'address': cleaned_shipping_address,  # CLEANED address
                 'street': shipping_addr['street'] or cleaned_shipping_address,  # Use cleaned if parsing fails
+                'street_address': shipping_addr['street'] or cleaned_shipping_address,  # Alias
                 'city': shipping_addr['city'],
                 'province': shipping_addr['province'],
                 'postal': shipping_addr['postal_code'],  # Frontend uses 'postal'
@@ -989,6 +1089,31 @@ def extract_so_data_from_pdf(pdf_path):
         print(f"  Subtotal: ${so_data['subtotal']:.2f}")
         print(f"  Tax: ${so_data['tax']:.2f}")
         print(f"  Total: ${so_data['total_amount']:.2f}")
+        
+        # DEBUG: Print final addresses for verification
+        print(f"\n📍 FINAL PARSED ADDRESSES:")
+        print(f"  BILLING:")
+        print(f"    Company: {so_data['billing_address'].get('company', 'N/A')}")
+        print(f"    Full Address: {so_data['billing_address'].get('full_address', 'N/A')[:80]}...")
+        print(f"    Street: {so_data['billing_address'].get('street', 'N/A')}")
+        print(f"    City: {so_data['billing_address'].get('city', 'N/A')}, Province: {so_data['billing_address'].get('province', 'N/A')}")
+        print(f"    Postal: {so_data['billing_address'].get('postal_code', 'N/A')}, Country: {so_data['billing_address'].get('country', 'N/A')}")
+        print(f"  SHIPPING:")
+        print(f"    Company: {so_data['shipping_address'].get('company', 'N/A')}")
+        print(f"    Full Address: {so_data['shipping_address'].get('full_address', 'N/A')[:80]}...")
+        print(f"    Street: {so_data['shipping_address'].get('street', 'N/A')}")
+        print(f"    City: {so_data['shipping_address'].get('city', 'N/A')}, Province: {so_data['shipping_address'].get('province', 'N/A')}")
+        print(f"    Postal: {so_data['shipping_address'].get('postal_code', 'N/A')}, Country: {so_data['shipping_address'].get('country', 'N/A')}")
+        
+        # SAFETY CHECK: Warn if billing and shipping addresses are identical (might be parsing error)
+        billing_full = so_data['billing_address'].get('full_address', '')
+        shipping_full = so_data['shipping_address'].get('full_address', '')
+        if billing_full and shipping_full and billing_full.strip() == shipping_full.strip():
+            # Check if table extraction showed different addresses
+            if table_sold_to and table_ship_to and table_sold_to != table_ship_to:
+                print(f"⚠️ WARNING: Billing and shipping addresses are IDENTICAL but table extraction showed DIFFERENT values!")
+                print(f"   Table Sold To: {table_sold_to[:60]}...")
+                print(f"   Table Ship To: {table_ship_to[:60]}...")
         
         return so_data
         

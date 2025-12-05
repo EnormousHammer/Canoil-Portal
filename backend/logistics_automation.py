@@ -1580,22 +1580,29 @@ def get_so_data_from_system(so_number):
             print(f"ERROR: LOGISTICS: SO {so_number} PDF file not found")
             return {"status": "Not found", "error": f"SO {so_number} PDF not found"}
         
-        # Parse SO PDF directly using app parser (pdfplumber internally)
+        # Parse SO PDF using raw_so_extractor (GPT-4o based - better for international addresses)
         try:
-            print(f"LOGISTICS: Parsing SO PDF with application parser (pdfplumber)")
+            print(f"LOGISTICS: Parsing SO PDF with GPT-4o based parser (raw_so_extractor)")
             # Import parse_sales_order_pdf with error handling
+            # PRIORITY: Use raw_so_extractor.py (better GPT-based parsing with table extraction)
+            # FALLBACK: Use app.py parser if raw_so_extractor fails
             try:
-                from app import parse_sales_order_pdf
+                from raw_so_extractor import parse_sales_order_pdf
+                print(f"✅ Using raw_so_extractor (GPT-4o) for better address parsing")
             except ImportError as import_err:
-                print(f"ERROR: Could not import parse_sales_order_pdf: {import_err}")
-                import sys
-                if 'app' in sys.modules:
-                    app_module = sys.modules['app']
-                    parse_sales_order_pdf = getattr(app_module, 'parse_sales_order_pdf', None)
-                    if not parse_sales_order_pdf:
-                        return {"status": "Error", "error": f"parse_sales_order_pdf function not available: {import_err}"}
-                else:
-                    return {"status": "Error", "error": f"Could not import parse_sales_order_pdf: {import_err}"}
+                print(f"⚠️ Could not import raw_so_extractor: {import_err} - falling back to app.py parser")
+                try:
+                    from app import parse_sales_order_pdf
+                except ImportError as app_import_err:
+                    print(f"ERROR: Could not import parse_sales_order_pdf: {app_import_err}")
+                    import sys
+                    if 'app' in sys.modules:
+                        app_module = sys.modules['app']
+                        parse_sales_order_pdf = getattr(app_module, 'parse_sales_order_pdf', None)
+                        if not parse_sales_order_pdf:
+                            return {"status": "Error", "error": f"parse_sales_order_pdf function not available: {app_import_err}"}
+                    else:
+                        return {"status": "Error", "error": f"Could not import parse_sales_order_pdf: {app_import_err}"}
             
             print(f"DEBUG: Calling parse_sales_order_pdf with file: {so_file_path}")
             print(f"DEBUG: File exists: {os.path.exists(so_file_path) if so_file_path else 'N/A'}")
