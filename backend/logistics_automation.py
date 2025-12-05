@@ -529,17 +529,29 @@ def parse_email_deterministic(email_text: str) -> dict:
         print(f"DEBUG: Weight breakdown: {weight_breakdown}")
     else:
         # Only try old patterns if we didn't calculate from items
-        weight_patterns = [
-            r'Total\s+(?:Net\s+)?Weight\s*:?\s*(\d+(?:\.\d+)?)\s*(kg|lbs?|pounds?)',
-            r'Weight\s*:?\s*(\d+(?:\.\d+)?)\s*(kg|lbs?|pounds?)',
-            r'(\d+(?:\.\d+)?)\s*(kg|lbs?|pounds?)\s+total'
-        ]
-        for pattern in weight_patterns:
-            weight_match = re.search(pattern, text, re.IGNORECASE)
-            if weight_match:
-                data['total_weight'] = f"{weight_match.group(1)} {weight_match.group(2).lower()}"
-                print(f"DEBUG: Found weight using old pattern: {data['total_weight']}")
-                break
+        # PREFER GROSS WEIGHT if mentioned
+        gross_match = re.search(r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(kg|lbs?|pounds?)\s*gross', text, re.IGNORECASE)
+        if not gross_match:
+            gross_match = re.search(r'gross\s*weight:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(kg|lbs?|pounds?)', text, re.IGNORECASE)
+        
+        if gross_match:
+            weight_val = gross_match.group(1).replace(',', '')
+            data['total_weight'] = f"{weight_val} {gross_match.group(2).lower()}"
+            print(f"DEBUG: Found GROSS weight: {data['total_weight']}")
+        else:
+            # No gross - use net or any weight
+            weight_patterns = [
+                r'Total\s+(?:Net\s+)?Weight\s*:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(kg|lbs?|pounds?)',
+                r'Weight\s*:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(kg|lbs?|pounds?)',
+                r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(kg|lbs?|pounds?)\s+total'
+            ]
+            for pattern in weight_patterns:
+                weight_match = re.search(pattern, text, re.IGNORECASE)
+                if weight_match:
+                    weight_val = weight_match.group(1).replace(',', '')
+                    data['total_weight'] = f"{weight_val} {weight_match.group(2).lower()}"
+                    print(f"DEBUG: Found weight: {data['total_weight']}")
+                    break
     
     # Pallet info - multiple patterns
     pallet_patterns = [
@@ -731,7 +743,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                     "batch_number": "[CRITICAL] Extract batch number for THIS SPECIFIC ITEM ONLY. If email says 'Line 1: product A, batch WH5H01G002' and 'Line 2: product B, batch NT4J28T025', then item 1 gets WH5H01G002 and item 2 gets NT4J28T025. ALWAYS include batch_number field for each item, even if same batch used for all items."
                 }}
             ],
-            "total_weight": "[CRITICAL] TOTAL weight for ALL items combined. If email has 'Line 1: 1,200 kg, Line 2: 1,020 kg, Line 3: 1,760 kg', you MUST add them: 1200+1020+1760=3980 kg. Always sum all line weights.",
+            "total_weight": "[CRITICAL] If GROSS WEIGHT is mentioned, use GROSS weight (it's the total including packaging). If only NET WEIGHT is mentioned, use net weight. Example: '180 kg net weight, 380 kg gross weight' → use '380 kg'. If multiple line weights, sum them all.",
             "pallet_count": "[CRITICAL] TOTAL number of pallets/skids/cases as integer. Look for phrases like 'on X pallets', 'X skids', 'In X case', 'On 2 pallets... On 2 pallets... On 4 pallets' (add them: 2+2+4=8). Search entire email for skid/pallet/case counts. If multiple mentioned, ADD THEM ALL. Required field - must extract if ANY pallet/skid/case mention exists.",
             "pallet_dimensions": "[CRITICAL] Pallet/skid/case dimensions. Look for: '48x40', '45×45×40', '48 x 40 x 48', 'pallet dimensions: 48x40x48', 'skid size 48x40', 'In 1 case 27×22×20 inches', etc. Include units if mentioned (inches/cm). Search entire email. Required field - must extract if ANY dimension mention exists.",
             "packaging_type": "[CRITICAL] Type of packaging: 'case', 'pallet', or 'skid'. Look for phrases like 'In 1 case 27×22×20 inches' → 'case', 'on 2 pallets 48x40' → 'pallet', 'on 3 skids' → 'skid'. If email says 'case' use 'case', if 'pallet' or 'skid' use 'pallet'. Default to 'pallet' if not specified. Required field.",
@@ -801,7 +813,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         You MUST extract ALL items listed. DO NOT skip any items.
         Each "Line X:" with a colon followed by product details is a SEPARATE item to extract.
         
-        IGNORE these as products: weight numbers, dimensions, pallet sizes, gross weights
+        IGNORE these as products: weight numbers, dimensions, pallet sizes
         
         Return ONLY the JSON, no explanations.
         """
@@ -1281,20 +1293,32 @@ def parse_email_fallback(email_text):
         data['batch_numbers'] = ', '.join(all_batch_numbers)
         data['batch_number'] = all_batch_numbers[0]  # For backward compatibility  # For backward compatibility
     
-    # Extract weight with enhanced patterns
-    weight_patterns = [
-        r'(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)',
-        r'total\s*weight:?\s*(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)',
-        r'weight:?\s*(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)',
-        r'(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)\s*total'
-    ]
+    # Extract weight - PREFER GROSS WEIGHT if both mentioned, otherwise use whatever is there
+    # First check for gross weight
+    gross_match = re.search(r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)\s*(?:gross|total\s+gross)', email_text, re.IGNORECASE)
+    if not gross_match:
+        gross_match = re.search(r'gross\s*(?:weight)?:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)', email_text, re.IGNORECASE)
     
-    for pattern in weight_patterns:
-        match = re.search(pattern, email_text, re.IGNORECASE)
-        if match:
-            data['total_weight'] = f"{match.group(1)} {match.group(2)}"
-            print(f"SUCCESS: Fallback found weight: {data['total_weight']}")
-            break
+    if gross_match:
+        weight_val = gross_match.group(1).replace(',', '')
+        data['total_weight'] = f"{weight_val} {gross_match.group(2)}"
+        print(f"SUCCESS: Fallback found GROSS weight: {data['total_weight']}")
+    else:
+        # No gross weight - use net weight or any weight mentioned
+        weight_patterns = [
+            r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)\s*(?:net|total)',
+            r'(?:net|total)\s*weight:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)',
+            r'weight:?\s*(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)',
+            r'(\d+(?:,\d+)?(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilograms?)'
+        ]
+        
+        for pattern in weight_patterns:
+            match = re.search(pattern, email_text, re.IGNORECASE)
+            if match:
+                weight_val = match.group(1).replace(',', '')
+                data['total_weight'] = f"{weight_val} {match.group(2)}"
+                print(f"SUCCESS: Fallback found weight: {data['total_weight']}")
+                break
     
     # Extract pallets with enhanced patterns
     pallet_patterns = [
