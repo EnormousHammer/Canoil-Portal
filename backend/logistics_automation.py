@@ -2656,9 +2656,22 @@ def process_email():
                     print(f"🔄 SMART FALLBACK: Found {len(all_batch_numbers)} batch number(s) to assign: {all_batch_numbers}")
                     
                     # Assign batch numbers to unmatched SO items
+                    # SKIP charges/fees - they should NEVER have batch numbers
                     batch_idx = 0
                     for so_item in so_data['items']:
                         if not so_item.get('batch_number'):
+                            # Check if this is a charge/fee (NOT a physical product)
+                            item_desc = so_item.get('description', '').lower()
+                            item_code = so_item.get('item_code', '').lower()
+                            
+                            is_charge = any(word in item_desc for word in ['pallet', 'charge', 'freight', 'brokerage', 'fee', 'shipping'])
+                            is_charge = is_charge or any(word in item_code for word in ['pallet', 'charge', 'freight', 'brokerage'])
+                            
+                            if is_charge:
+                                # Skip - charges don't get batch numbers
+                                print(f"   ⏭️ Skipping charge/fee: '{so_item.get('description', 'Unknown')}' - no batch needed")
+                                continue
+                            
                             if batch_idx < len(all_batch_numbers):
                                 so_item['batch_number'] = all_batch_numbers[batch_idx]
                                 print(f"   ✅ Assigned batch '{all_batch_numbers[batch_idx]}' to '{so_item.get('description', 'Unknown')}'")
