@@ -136,11 +136,14 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     street = (billing_addr.get('street_address') or billing_addr.get('address') or '').strip()
     
     if full_addr:
-        # full_address is the complete address from PDF - use it directly
-        sold_to_lines.append(full_addr)
+        # full_address is the complete address from PDF - filter out company if duplicated
+        addr_lines = [line for line in full_addr.split('\n') if line.strip().lower() != company.strip().lower()]
+        if addr_lines:
+            sold_to_lines.append('\n'.join(addr_lines))
     elif street:
-        # street_address likely has everything GPT parsed - just use it
-        sold_to_lines.append(street)
+        # street_address - filter out company if duplicated
+        if street.strip().lower() != company.strip().lower():
+            sold_to_lines.append(street)
         # Only add country if it's separate and not already in street
         country = billing_addr.get('country', '').strip()
         if country and country.upper() not in street.upper():
@@ -165,9 +168,14 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or '').strip()
     
     if ship_full_addr:
-        ship_to_lines.append(ship_full_addr)
+        # Filter out company if duplicated
+        addr_lines = [line for line in ship_full_addr.split('\n') if line.strip().lower() != ship_company.strip().lower()]
+        if addr_lines:
+            ship_to_lines.append('\n'.join(addr_lines))
     elif ship_street:
-        ship_to_lines.append(ship_street)
+        # Filter out company if duplicated
+        if ship_street.strip().lower() != ship_company.strip().lower():
+            ship_to_lines.append(ship_street)
         ship_country = shipping_addr.get('country', '').strip()
         if ship_country and ship_country.upper() not in ship_street.upper():
             ship_to_lines.append(ship_country)

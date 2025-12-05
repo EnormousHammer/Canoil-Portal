@@ -539,8 +539,12 @@ def format_buyer_if_different(shipping_addr: Dict[str, Any], billing_addr: Dict[
     if billing_addr.get('contact_person'):
         lines.append(billing_addr['contact_person'].strip())
     
-    # Full address
+    # Full address - filter out company if it's duplicated in address
     addr = format_address(billing_addr)
+    if addr and company:
+        addr_lines = addr.split('\n')
+        filtered_lines = [line for line in addr_lines if line.strip().lower() != company.strip().lower()]
+        addr = '\n'.join(filtered_lines)
     if addr:
         lines.append(addr)
     
@@ -622,13 +626,6 @@ def format_customs_docs_to(shipping_addr: Dict[str, Any]) -> str:
 def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> str:
     """Format consignee information for new template"""
     
-    # DEBUG: Print actual field names
-    print(f"\n=== DEBUG format_consignee_info ===")
-    print(f"shipping_addr keys: {list(shipping_addr.keys()) if shipping_addr else 'None'}")
-    print(f"customer_name: {customer_name}")
-    if shipping_addr:
-        print(f"shipping_addr full data: {shipping_addr}")
-    
     if not shipping_addr and not customer_name:
         return ''
     
@@ -647,9 +644,14 @@ def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> 
     if shipping_addr and shipping_addr.get('contact_person'):
         lines.append(shipping_addr['contact_person'].strip())
     
-    # Address formatting
+    # Address formatting - but REMOVE company name if it got included in street address
     if shipping_addr:
         addr = format_address(shipping_addr)
+        if addr and company:
+            # Remove company name from address if it was duplicated there
+            addr_lines = addr.split('\n')
+            filtered_lines = [line for line in addr_lines if line.strip().lower() != company.strip().lower()]
+            addr = '\n'.join(filtered_lines)
         if addr:
             lines.append(addr)
     
