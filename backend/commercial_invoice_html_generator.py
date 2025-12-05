@@ -656,22 +656,55 @@ def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> 
     return '\n'.join(lines)
 
 def detect_terms_of_sale(so_data: Dict[str, Any]) -> str:
-    """Detect terms of sale from SO data - leave empty if not found"""
-    # Check SO terms field first
-    so_terms = so_data.get('terms', '').upper()
+    """Detect terms of sale (Incoterms) from SO data - check terms, special_instructions, and items"""
+    import re
     
-    # Map common terms to dropdown values
-    if 'EXW' in so_terms:
+    # Build a combined text to search for Incoterms
+    search_text = ''
+    
+    # Check SO terms field
+    search_text += ' ' + so_data.get('terms', '').upper()
+    
+    # Check special_instructions (often contains "DAP ANTWERPEN" etc.)
+    search_text += ' ' + so_data.get('special_instructions', '').upper()
+    
+    # Check item descriptions (sometimes Incoterms are in item notes)
+    for item in so_data.get('items', []):
+        desc = item.get('description', '')
+        if desc:
+            search_text += ' ' + desc.upper()
+    
+    # Look for Incoterms with optional destination (e.g., "DAP ANTWERPEN", "FOB TORONTO")
+    # Return the full term with destination if found
+    incoterm_patterns = [
+        (r'DAP\s+([A-Z]+)', 'DAP'),      # DAP ANTWERPEN, DAP NIORT, etc.
+        (r'DDP\s+([A-Z]+)', 'DDP'),      # DDP with destination
+        (r'FOB\s+([A-Z]+)', 'FOB'),      # FOB with destination
+        (r'CIF\s+([A-Z]+)', 'CIF'),      # CIF with destination
+        (r'FCA\s+([A-Z]+)', 'FCA'),      # FCA with destination
+        (r'EXW\s+([A-Z]+)', 'EXW'),      # EXW with destination
+    ]
+    
+    for pattern, incoterm in incoterm_patterns:
+        match = re.search(pattern, search_text)
+        if match:
+            destination = match.group(1)
+            full_term = f"{incoterm} {destination}"
+            print(f"DEBUG: Detected terms of sale: {full_term}")
+            return full_term
+    
+    # Simple check without destination
+    if 'EXW' in search_text:
         return 'EXW'
-    elif 'FOB' in so_terms:
+    elif 'FOB' in search_text:
         return 'FOB'
-    elif 'CIF' in so_terms:
+    elif 'CIF' in search_text:
         return 'CIF'
-    elif 'DAP' in so_terms:
+    elif 'DAP' in search_text:
         return 'DAP'
-    elif 'DDP' in so_terms:
+    elif 'DDP' in search_text:
         return 'DDP'
-    elif 'FCA' in so_terms:
+    elif 'FCA' in search_text:
         return 'FCA'
     
     # Leave empty if not found - NO DEFAULT
