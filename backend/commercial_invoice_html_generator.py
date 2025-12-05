@@ -847,6 +847,25 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     
     field_values['brokerage'] = brokerage_text
     
+    # CUSTOMS BROKER FIELDS (top-right section)
+    # For Georgia Western shipments, we handle their customs clearance using Near North
+    customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
+    is_georgia_western = 'georgia western' in customer_name.lower()
+    
+    if is_georgia_western:
+        # We handle Georgia Western customs - use our broker
+        field_values['brokerCompany'] = 'Near North Customs Brokers US Inc'
+        field_values['brokerPhone'] = '716-204-4020'
+        field_values['brokerFax'] = '716-204-5551'
+        field_values['brokerPaps'] = 'ENTRY@NEARNORTHUS.COM'
+        print(f"DEBUG CI: Georgia Western detected - using Near North Customs Brokers")
+    else:
+        # Leave blank for other customers (they use their own broker)
+        field_values['brokerCompany'] = ''
+        field_values['brokerPhone'] = ''
+        field_values['brokerFax'] = ''
+        field_values['brokerPaps'] = ''
+    
     field_values['discounts'] = ''  # Leave empty for manual entry
     field_values['portOfEntry'] = ''  # Leave empty for manual entry
     field_values['termsOfSale'] = detect_terms_of_sale(so_data)  # Detect from SO or default to EXW
