@@ -916,6 +916,8 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                         field['checked'] = 'checked'
             elif field.name == 'textarea':
                 field.string = str(value)
+                if field_id in ['consigneeInfo', 'buyerInfo']:
+                    print(f"DEBUG CI: Set textarea {field_id} to {len(str(value))} chars")
             elif field.name == 'select':
                 # Handle select dropdowns - mark the matching option as selected
                 for option in field.find_all('option'):

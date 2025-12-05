@@ -137,14 +137,16 @@ def extract_addresses_from_layout_text(raw_text):
     Extract Sold To and Ship To addresses from layout-preserved PDF text.
     The PDF has a two-column layout where addresses are INTERLEAVED:
     
+    Column layout based on actual PDFs:
+    - Position 0-43: Sold To column
+    - Position 43-65: Ship To column  
+    - Position 66+: MO references (EXCLUDE)
+    
     Sold To:                          Ship To:
          AXEL FRANCE-USD                  AXEL FRANCE-USD
                                           ZI SAINT-LIGUAIRE
          30 Rue de Pied de Fond           
                                           F-79000 NIORT
-         Zl St. Liguaire CS 98821
-                                          FRANCE
-         Niort Cedex, France F79000
     
     This function parses the interleaved format by detecting left vs right column content.
     """
@@ -153,6 +155,16 @@ def extract_addresses_from_layout_text(raw_text):
     
     lines = raw_text.split('\n')
     in_address_section = False
+    
+    # Items to skip - headers, references, phone numbers
+    SKIP_PATTERNS = [
+        'SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE',
+        'LINE ', 'MO ', 'CHILD MO', 'BUSINESS NO', 'MOS '  # MOS for plural "MOs 3712"
+    ]
+    
+    # Phone number pattern
+    import re
+    phone_pattern = re.compile(r'\(\d{3}\)\s*\d{3}[-.]?\d{4}')
     
     # Find the "Sold To:" / "Ship To:" header line
     for i, line in enumerate(lines):
@@ -163,33 +175,84 @@ def extract_addresses_from_layout_text(raw_text):
         if not in_address_section:
             continue
         
-        # Stop at Business No. or Item No. or Line references
-        if 'Business No' in line or 'Item No' in line or line.strip().startswith('Line '):
+        # Stop at Business No. or Item No.
+        if 'Business No' in line or 'Item No' in line:
             break
+        
+        # Skip lines with "Line X: MO" pattern (manufacturing order refs)
+        if re.search(r'Line\s+\d+:', line):
+            continue
+        
+        # Skip lines that are mostly MO references
+        if re.search(r'\bMO\s+\d+', line):
+            continue
         
         # Skip empty lines
         stripped = line.strip()
         if not stripped:
             continue
         
-        # Detect if this line has content in LEFT column, RIGHT column, or BOTH
-        # Layout-preserved text uses spaces to align columns
-        # LEFT column content typically starts before position 30
-        # RIGHT column content typically starts after position 30
+        # Column positions based on actual PDF analysis:
+        # Sold To: position 0-43 (left column)
+        # Ship To: position 43-75 (right column) - extended to capture full addresses
+        # MO refs: position 58+ with "MO " pattern (EXCLUDE via pattern matching above)
         
-        # Find the actual content positions
-        left_content = line[:35].strip()  # Left ~35 chars for Sold To
-        right_content = line[35:].strip() if len(line) > 35 else ''  # Rest for Ship To
+        # Extract the address columns
+        left_content = line[0:43].strip()  # Sold To column
+        middle_content = line[43:75].strip() if len(line) > 43 else ''  # Ship To column
         
-        if left_content and not any(skip in left_content.upper() for skip in ['SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE']):
+        # Remove any trailing MO references that might have slipped through
+        if middle_content:
+            import re
+            # Remove "MO XXXX" or "Child MO XXXX" patterns from end
+            middle_content = re.sub(r'\s*,?\s*(Child\s+)?MO\s+\d+.*$', '', middle_content).strip()
+        
+        # Skip if content matches any skip pattern
+        def should_skip(content):
+            if not content:
+                return True
+            upper = content.upper()
+            for pattern in SKIP_PATTERNS:
+                if pattern in upper:
+                    return True
+            # Skip phone numbers
+            if phone_pattern.search(content):
+                return True
+            return False
+        
+        if left_content and not should_skip(left_content):
             sold_to_lines.append(left_content)
             
-        if right_content and not any(skip in right_content.upper() for skip in ['SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE', 'LINE ']):
-            ship_to_lines.append(right_content)
+        if middle_content and not should_skip(middle_content):
+            ship_to_lines.append(middle_content)
     
-    # Clean up and deduplicate
-    sold_to_lines = [l for l in sold_to_lines if l and len(l) > 1]
-    ship_to_lines = [l for l in ship_to_lines if l and len(l) > 1]
+    # Clean up: remove duplicates, very short lines, MO refs, and consolidate
+    def clean_lines(lines_list):
+        import re
+        cleaned = []
+        seen = set()
+        for line in lines_list:
+            line = line.strip()
+            # Skip very short or duplicate lines
+            if len(line) < 2:
+                continue
+            # Skip lines that are mainly MO references
+            if re.match(r'^(MOs?|Child MO)\s*\d+', line, re.IGNORECASE):
+                continue
+            # Remove trailing MO references from lines
+            line = re.sub(r'\s*,?\s*(MOs?|Child MO)\s+\d+.*$', '', line, flags=re.IGNORECASE).strip()
+            if len(line) < 2:
+                continue
+            # Normalize for duplicate check
+            normalized = line.lower().replace(' ', '')
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            cleaned.append(line)
+        return cleaned
+    
+    sold_to_lines = clean_lines(sold_to_lines)
+    ship_to_lines = clean_lines(ship_to_lines)
     
     result = {
         'sold_to_raw': '\n'.join(sold_to_lines),
