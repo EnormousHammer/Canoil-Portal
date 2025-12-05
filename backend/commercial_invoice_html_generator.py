@@ -1112,11 +1112,13 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             
             # Description cell (separate from HTS now)
             desc_cell = soup.new_tag('td')
-            desc_textarea = soup.new_tag('textarea', **{'class': 'item-description'}, rows='2')
             description = str(item.get('description', ''))
             unit = str(item.get('unit', ''))
             # Enhance MOV descriptions for cross-border with size and product type
             description = enhance_mov_description_for_crossborder(description, unit)
+            # Set rows to match content - no extra space
+            line_count = description.count('\n') + 1
+            desc_textarea = soup.new_tag('textarea', **{'class': 'item-description'}, rows=str(line_count))
             desc_textarea.string = description
             desc_cell.append(desc_textarea)
             new_row.append(desc_cell)
