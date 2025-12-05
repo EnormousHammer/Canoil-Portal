@@ -1635,16 +1635,18 @@ const LogisticsAutomation: React.FC = () => {
                         </div>
                       )}
                       {!result.so_data?.billing_address?.full_address && (
-                        <div>
-                          {[
-                            result.so_data?.billing_address?.city,
-                            result.so_data?.billing_address?.province,
-                            result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code
-                          ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
-                        </div>
-                      )}
-                      {result.so_data?.billing_address?.country && (
-                        <div className="text-gray-500">{result.so_data?.billing_address?.country}</div>
+                        <>
+                          <div>
+                            {[
+                              result.so_data?.billing_address?.city,
+                              result.so_data?.billing_address?.province,
+                              result.so_data?.billing_address?.postal || result.so_data?.billing_address?.postal_code
+                            ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                          </div>
+                          {result.so_data?.billing_address?.country && (
+                            <div className="text-gray-500">{result.so_data?.billing_address?.country}</div>
+                          )}
+                        </>
                       )}
                       {result.so_data?.billing_address?.phone && (
                         <div className="text-gray-600">Tel: {result.so_data?.billing_address?.phone}</div>
@@ -1682,16 +1684,18 @@ const LogisticsAutomation: React.FC = () => {
                         </div>
                       )}
                       {!result.so_data?.shipping_address?.full_address && (
-                        <div>
-                          {[
-                            result.so_data?.shipping_address?.city,
-                            result.so_data?.shipping_address?.province,
-                            result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
-                          ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
-                        </div>
-                      )}
-                      {result.so_data?.shipping_address?.country && (
-                        <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
+                        <>
+                          <div>
+                            {[
+                              result.so_data?.shipping_address?.city,
+                              result.so_data?.shipping_address?.province,
+                              result.so_data?.shipping_address?.postal || result.so_data?.shipping_address?.postal_code
+                            ].filter(Boolean).join(', ').replace(/, ([A-Z0-9]{2,3}\s?[A-Z0-9]{3})$/, ' $1') || 'Address not parsed'}
+                          </div>
+                          {result.so_data?.shipping_address?.country && (
+                            <div className="text-gray-500">{result.so_data?.shipping_address?.country}</div>
+                          )}
+                        </>
                       )}
                       {/* Show PICK UP instruction as a note UNDER the address */}
                       {result.so_data?.shipping_address?.is_pickup && (
