@@ -142,9 +142,10 @@ def needs_steel_separation(description: str) -> bool:
 def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
     """
     For MOV products on cross-border shipments, add size and product type.
-    
-    MOV Drum: 180kg/drum - Petroleum Lubricating Grease
-    MOV Pail: 17kg/pail - Petroleum Lubricating Grease
+    Each on separate line:
+    MOV Extra 0 - Drums
+    180kg/drum
+    Petroleum Lubricating Grease
     """
     desc_upper = description.upper()
     unit_lower = unit.lower() if unit else ''
@@ -157,14 +158,14 @@ def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
     if 'Petroleum Lubricating Grease' in description:
         return description
     
-    # Determine container type and add appropriate info
+    # Determine container type and add appropriate info (each on new line)
     if 'drum' in unit_lower or 'DRUM' in desc_upper:
-        return f"{description} - 180kg/drum - Petroleum Lubricating Grease"
+        return f"{description}\n180kg/drum\nPetroleum Lubricating Grease"
     elif 'pail' in unit_lower or 'PAIL' in desc_upper:
-        return f"{description} - 17kg/pail - Petroleum Lubricating Grease"
+        return f"{description}\n17kg/pail\nPetroleum Lubricating Grease"
     else:
         # Default - just add the product type
-        return f"{description} - Petroleum Lubricating Grease"
+        return f"{description}\nPetroleum Lubricating Grease"
 
 
 def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
