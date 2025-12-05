@@ -139,6 +139,34 @@ def needs_steel_separation(description: str) -> bool:
     return any(prod in desc_upper for prod in STEEL_CONTAINER_PRODUCTS)
 
 
+def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
+    """
+    For MOV products on cross-border shipments, add size and product type.
+    
+    MOV Drum: 180kg/drum - Petroleum Lubricating Grease
+    MOV Pail: 17kg/pail - Petroleum Lubricating Grease
+    """
+    desc_upper = description.upper()
+    unit_lower = unit.lower() if unit else ''
+    
+    # Only enhance MOV products
+    if 'MOV' not in desc_upper:
+        return description
+    
+    # Check if already enhanced (avoid double-adding)
+    if 'Petroleum Lubricating Grease' in description:
+        return description
+    
+    # Determine container type and add appropriate info
+    if 'drum' in unit_lower or 'DRUM' in desc_upper:
+        return f"{description} - 180kg/drum - Petroleum Lubricating Grease"
+    elif 'pail' in unit_lower or 'PAIL' in desc_upper:
+        return f"{description} - 17kg/pail - Petroleum Lubricating Grease"
+    else:
+        # Default - just add the product type
+        return f"{description} - Petroleum Lubricating Grease"
+
+
 def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process items to separate steel container costs from product costs.
@@ -1085,6 +1113,9 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             desc_cell = soup.new_tag('td')
             desc_textarea = soup.new_tag('textarea', **{'class': 'item-description'}, rows='2')
             description = str(item.get('description', ''))
+            unit = str(item.get('unit', ''))
+            # Enhance MOV descriptions for cross-border with size and product type
+            description = enhance_mov_description_for_crossborder(description, unit)
             desc_textarea.string = description
             desc_cell.append(desc_textarea)
             new_row.append(desc_cell)
