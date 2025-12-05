@@ -1614,12 +1614,24 @@ const LogisticsAutomation: React.FC = () => {
                       {result.so_data?.billing_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.billing_address?.contact}</div>
                       )}
-                      {/* Use full_address if available (preserves all details), otherwise use street */}
+                      {/* Use full_address if available, filter out company name and country (shown separately) */}
                       {(result.so_data?.billing_address?.full_address || result.so_data?.billing_address?.street || result.so_data?.billing_address?.address) && (
                         <div className="whitespace-pre-line">
-                          {(result.so_data?.billing_address?.full_address || result.so_data?.billing_address?.street || result.so_data?.billing_address?.address)?.split('\n').filter((line: string) => line.trim()).map((line: string, idx: number) => (
-                            <div key={idx}>{line}</div>
-                          ))}
+                          {(result.so_data?.billing_address?.full_address || result.so_data?.billing_address?.street || result.so_data?.billing_address?.address)?.split('\n')
+                            .filter((line: string) => {
+                              const trimmed = line.trim();
+                              if (!trimmed) return false;
+                              // Filter out company name (already shown above)
+                              const company = result.so_data?.billing_address?.company?.toUpperCase() || '';
+                              if (company && trimmed.toUpperCase() === company) return false;
+                              // Filter out standalone country (shown separately below)
+                              const country = result.so_data?.billing_address?.country?.toUpperCase() || '';
+                              if (country && trimmed.toUpperCase() === country) return false;
+                              return true;
+                            })
+                            .map((line: string, idx: number) => (
+                              <div key={idx}>{line}</div>
+                            ))}
                         </div>
                       )}
                       {!result.so_data?.billing_address?.full_address && (
@@ -1649,12 +1661,24 @@ const LogisticsAutomation: React.FC = () => {
                       {result.so_data?.shipping_address?.contact && (
                         <div className="text-gray-600">Attn: {result.so_data?.shipping_address?.contact}</div>
                       )}
-                      {/* Use full_address if available (preserves all details), otherwise use street */}
+                      {/* Use full_address if available, filter out company name and country (shown separately) */}
                       {(result.so_data?.shipping_address?.full_address || result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address) && (
                         <div className="whitespace-pre-line">
-                          {(result.so_data?.shipping_address?.full_address || result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address)?.split('\n').filter((line: string) => line.trim()).map((line: string, idx: number) => (
-                            <div key={idx}>{line}</div>
-                          ))}
+                          {(result.so_data?.shipping_address?.full_address || result.so_data?.shipping_address?.street || result.so_data?.shipping_address?.address)?.split('\n')
+                            .filter((line: string) => {
+                              const trimmed = line.trim();
+                              if (!trimmed) return false;
+                              // Filter out company name (already shown above)
+                              const company = result.so_data?.shipping_address?.company?.toUpperCase() || '';
+                              if (company && trimmed.toUpperCase() === company) return false;
+                              // Filter out standalone country (shown separately below)
+                              const country = result.so_data?.shipping_address?.country?.toUpperCase() || '';
+                              if (country && trimmed.toUpperCase() === country) return false;
+                              return true;
+                            })
+                            .map((line: string, idx: number) => (
+                              <div key={idx}>{line}</div>
+                            ))}
                         </div>
                       )}
                       {!result.so_data?.shipping_address?.full_address && (
