@@ -2626,60 +2626,10 @@ def process_email():
                     print(f"⚠️ No batch match for SO item: '{so_desc}' (Code: {so_code})")
             
             if unmatched_items:
-                print(f"⚠️ {len(unmatched_items)} SO items without batch numbers: {', '.join(unmatched_items[:3])}...")
-                
-                # SMART FALLBACK: If we have batch numbers from email but matching failed,
-                # assign them to unmatched items (especially useful for single-item orders)
-                all_batch_numbers = []
-                
-                # Collect all batch numbers from email items
-                for item in email_data.get('items', []):
-                    if item.get('batch_number'):
-                        batch = item['batch_number']
-                        # Handle batch strings like "WH5D23G025 (5)"
-                        batch_clean = re.sub(r'\s*\(\d+\)\s*', '', str(batch)).strip()
-                        if batch_clean:
-                            all_batch_numbers.append(batch_clean)
-                
-                # Also check email_data.batch_numbers
-                if email_data.get('batch_numbers'):
-                    batch_str = str(email_data['batch_numbers'])
-                    for batch in re.split(r'[,\+\s]+', batch_str):
-                        batch_clean = batch.strip()
-                        if batch_clean and len(batch_clean) > 4:
-                            all_batch_numbers.append(batch_clean)
-                
-                # Remove duplicates
-                all_batch_numbers = list(dict.fromkeys(all_batch_numbers))
-                
-                if all_batch_numbers:
-                    print(f"🔄 SMART FALLBACK: Found {len(all_batch_numbers)} batch number(s) to assign: {all_batch_numbers}")
-                    
-                    # Assign batch numbers to unmatched SO items
-                    # SKIP charges/fees - they should NEVER have batch numbers
-                    batch_idx = 0
-                    for so_item in so_data['items']:
-                        if not so_item.get('batch_number'):
-                            # Check if this is a charge/fee (NOT a physical product)
-                            item_desc = so_item.get('description', '').lower()
-                            item_code = so_item.get('item_code', '').lower()
-                            
-                            is_charge = any(word in item_desc for word in ['pallet', 'charge', 'freight', 'brokerage', 'fee', 'shipping'])
-                            is_charge = is_charge or any(word in item_code for word in ['pallet', 'charge', 'freight', 'brokerage'])
-                            
-                            if is_charge:
-                                # Skip - charges don't get batch numbers
-                                print(f"   ⏭️ Skipping charge/fee: '{so_item.get('description', 'Unknown')}' - no batch needed")
-                                continue
-                            
-                            if batch_idx < len(all_batch_numbers):
-                                so_item['batch_number'] = all_batch_numbers[batch_idx]
-                                print(f"   ✅ Assigned batch '{all_batch_numbers[batch_idx]}' to '{so_item.get('description', 'Unknown')}'")
-                                batch_idx += 1
-                            elif all_batch_numbers:
-                                # If more items than batches, reuse the last batch (common for single batch orders)
-                                so_item['batch_number'] = all_batch_numbers[-1]
-                                print(f"   ✅ Reused batch '{all_batch_numbers[-1]}' for '{so_item.get('description', 'Unknown')}'")
+                # Log unmatched items but DO NOT guess batch numbers
+                # If matching failed, leave batch empty - never risk wrong batches on shipping docs
+                print(f"⚠️ {len(unmatched_items)} SO items have no batch match (will remain empty): {', '.join(unmatched_items[:3])}...")
+                # NO FALLBACK - only matched items get batch numbers
         
         # Add HTS codes to all items
         print("\nMatching HTS codes for items...")
