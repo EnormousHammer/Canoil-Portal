@@ -418,7 +418,7 @@ def parse_email_deterministic(email_text: str) -> dict:
     # e.g., "Batch Number NT5D14T016 (5) + NT5E19T018 (3)" -> keep the whole thing
     batch_full_string = None
     batch_numbers = []
-    batch_pattern = r'batch\s*(?:number|#)?\s*:?\s*([A-Z0-9]+(?:\s*\([0-9]+\))?\s*(?:\+\s*[A-Z0-9]+(?:\s*\([0-9]+\))?)*)'
+    batch_pattern = r'batch\s*(?:number|#)?\s*:?\s*([A-Z0-9\-]+(?:\s*\([0-9]+\))?\s*(?:\+\s*[A-Z0-9\-]+(?:\s*\([0-9]+\))?)*)'
     for ln in lines:
         batch_match = re.search(batch_pattern, ln, re.IGNORECASE)
         if batch_match:
@@ -426,7 +426,7 @@ def parse_email_deterministic(email_text: str) -> dict:
             batch_full_string = batch_match.group(1).strip()
             # Extract ONLY actual batch codes (letters + numbers, min 5 chars), NOT quantity numbers
             # Match pattern: letters/numbers together, at least 5 characters
-            batch_codes = re.findall(r'\b([A-Z0-9]{5,})\b', batch_full_string)
+            batch_codes = re.findall(r'\b([A-Z0-9\-]{5,})\b', batch_full_string)
             batch_numbers.extend(batch_codes)
     
     # Items with batches (scan windowed)
@@ -877,7 +877,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                 batch_str = item['batch_number']
                 # Find all batch codes (remove quantities like "(5)")
                 import re
-                batch_codes = re.findall(r'\b([A-Z0-9]{5,})\b', str(batch_str))
+                batch_codes = re.findall(r'\b([A-Z0-9\-]{5,})\b', str(batch_str))
                 batch_numbers.extend(batch_codes)
         
         if batch_numbers:
@@ -1240,7 +1240,7 @@ def parse_email_fallback(email_text):
                 batch_number = None
                 for j in range(i, min(i + 3, len(lines))):  # Check current and next 2 lines
                     next_line = lines[j].strip()
-                    batch_match = re.search(r'batch\s*number\s*([A-Za-z0-9]+)', next_line, re.IGNORECASE)
+                    batch_match = re.search(r'batch\s*number\s*([A-Za-z0-9\-]+)', next_line, re.IGNORECASE)
                     if batch_match:
                         batch_number = batch_match.group(1)
                         break
@@ -2551,8 +2551,9 @@ def process_email():
                 print(f"  - '{item.get('description', '')}' (code: {item.get('item_code', 'None')})")
             
             # Create a comprehensive mapping of email items
+            # CRITICAL: Map by FULL descriptions only to avoid cross-contamination
             email_items_by_desc = {}
-            email_items_by_code = {}
+            email_items_list = []  # Keep original list for precise matching
             
             for email_item in email_data.get('items', []):
                 desc = (email_item.get('description') or '').upper().strip()
@@ -2564,23 +2565,20 @@ def process_email():
                         'batch_number': batch,
                         'quantity': email_item.get('quantity', ''),
                         'unit': email_item.get('unit', ''),
-                        'original_desc': email_item.get('description', '')
+                        'original_desc': email_item.get('description', ''),
+                        'full_desc': desc
                     }
                     
-                    # Map by full description
+                    # Map by full description ONLY (no word-by-word mapping to avoid collisions)
                     email_items_by_desc[desc] = item_info
-                    
-                    # Also map by potential item codes within description
-                    # e.g., "CASTROL ILOFORM PS 158" might match SO item code "PS158"
-                    words = desc.split()
-                    for word in words:
-                        if len(word) > 2:  # Skip short words
-                            email_items_by_code[word] = item_info
+                    email_items_list.append(item_info)
                     
                     # Also map by core product name for better matching
                     core_name = extract_core_product_name(desc)
                     if core_name and core_name != desc:
                         email_items_by_desc[core_name] = item_info
+                    
+                    print(f"DEBUG BATCH MAP: '{desc}' → Batch: {batch}")
             
             # Update SO items with matching batch numbers
             unmatched_items = []
@@ -2598,54 +2596,30 @@ def process_email():
                     print(f"SUCCESS: Exact match: '{so_desc}' → Batch: {match_info['batch_number']}")
                     matched = True
                 
-                # Method 2: Item code match (exact and partial)
-                elif so_code and so_code in email_items_by_code:
-                    match_info = email_items_by_code[so_code]
-                    so_item['batch_number'] = match_info['batch_number']
-                    print(f"SUCCESS: Code match: '{so_code}' → Batch: {match_info['batch_number']}")
-                    matched = True
-                # Method 2b: Smart code matching (general)
-                elif so_code:
-                    for email_word, match_info in email_items_by_code.items():
-                        if email_word in so_code or so_code.startswith(email_word):
+                # Method 2: Check if email description is CONTAINED in SO description
+                # This catches "MOV EXTRA 0" matching "MOV EXTRA 0 - DRUMS"
+                if not matched:
+                    for email_desc, match_info in email_items_by_desc.items():
+                        if email_desc in so_desc:
                             so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Smart code match: '{email_word}' matches '{so_code}' → Batch: {match_info['batch_number']}")
+                            print(f"SUCCESS: Contained match: '{email_desc}' in '{so_desc}' → Batch: {match_info['batch_number']}")
                             matched = True
                             break
                 
                 # Method 3: Smart product name matching for Canoil products
-                elif not matched:
+                if not matched:
                     for email_desc, match_info in email_items_by_desc.items():
                         # Extract core product names for comparison
                         email_core = extract_core_product_name(email_desc)
                         so_core = extract_core_product_name(so_desc)
-                        so_raw_core = extract_core_product_name(so_raw_line)
                         
-                        # Check if core product names match
-                        if email_core and so_core and email_core in so_core:
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Core product match: '{email_core}' found in '{so_core}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
-                        elif email_core and so_raw_core and email_core in so_raw_core:
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Core product match (raw): '{email_core}' found in '{so_raw_core}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
-                        
-                        # Fallback: Check if email description is contained in SO description
-                        elif email_desc in so_desc or so_desc in email_desc:
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Fuzzy match: '{so_desc}' ≈ '{email_desc}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
-                        
-                        # Check if item code is in email description
-                        elif so_code and so_code in email_desc:
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Code in desc: '{so_code}' found in '{email_desc}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
+                        # Check if core product names match (must have significant overlap)
+                        if email_core and so_core and len(email_core) >= 5:
+                            if email_core in so_core or so_core in email_core:
+                                so_item['batch_number'] = match_info['batch_number']
+                                print(f"SUCCESS: Core product match: '{email_core}' ≈ '{so_core}' → Batch: {match_info['batch_number']}")
+                                matched = True
+                                break
                 
                 if not matched:
                     unmatched_items.append(so_item.get('description', 'Unknown'))
