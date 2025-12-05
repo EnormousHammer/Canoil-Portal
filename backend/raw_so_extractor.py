@@ -132,6 +132,79 @@ def extract_raw_from_pdf(pdf_path):
         return None
 
 
+def extract_addresses_from_layout_text(raw_text):
+    """
+    Extract Sold To and Ship To addresses from layout-preserved PDF text.
+    The PDF has a two-column layout where addresses are INTERLEAVED:
+    
+    Sold To:                          Ship To:
+         AXEL FRANCE-USD                  AXEL FRANCE-USD
+                                          ZI SAINT-LIGUAIRE
+         30 Rue de Pied de Fond           
+                                          F-79000 NIORT
+         Zl St. Liguaire CS 98821
+                                          FRANCE
+         Niort Cedex, France F79000
+    
+    This function parses the interleaved format by detecting left vs right column content.
+    """
+    sold_to_lines = []
+    ship_to_lines = []
+    
+    lines = raw_text.split('\n')
+    in_address_section = False
+    
+    # Find the "Sold To:" / "Ship To:" header line
+    for i, line in enumerate(lines):
+        if 'Sold To:' in line and 'Ship To:' in line:
+            in_address_section = True
+            continue
+        
+        if not in_address_section:
+            continue
+        
+        # Stop at Business No. or Item No. or Line references
+        if 'Business No' in line or 'Item No' in line or line.strip().startswith('Line '):
+            break
+        
+        # Skip empty lines
+        stripped = line.strip()
+        if not stripped:
+            continue
+        
+        # Detect if this line has content in LEFT column, RIGHT column, or BOTH
+        # Layout-preserved text uses spaces to align columns
+        # LEFT column content typically starts before position 30
+        # RIGHT column content typically starts after position 30
+        
+        # Find the actual content positions
+        left_content = line[:35].strip()  # Left ~35 chars for Sold To
+        right_content = line[35:].strip() if len(line) > 35 else ''  # Rest for Ship To
+        
+        if left_content and not any(skip in left_content.upper() for skip in ['SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE']):
+            sold_to_lines.append(left_content)
+            
+        if right_content and not any(skip in right_content.upper() for skip in ['SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE', 'LINE ']):
+            ship_to_lines.append(right_content)
+    
+    # Clean up and deduplicate
+    sold_to_lines = [l for l in sold_to_lines if l and len(l) > 1]
+    ship_to_lines = [l for l in ship_to_lines if l and len(l) > 1]
+    
+    result = {
+        'sold_to_raw': '\n'.join(sold_to_lines),
+        'ship_to_raw': '\n'.join(ship_to_lines)
+    }
+    
+    if result['sold_to_raw'] or result['ship_to_raw']:
+        print(f"\n=== LAYOUT TEXT EXTRACTED ADDRESSES ===")
+        print(f"SOLD TO:\n{result['sold_to_raw']}")
+        print(f"\nSHIP TO:\n{result['ship_to_raw']}")
+        print(f"=======================================\n")
+    
+    return result
+
+
 def extract_addresses_from_tables(raw_tables):
     """
     Pre-extract Sold To and Ship To addresses from table data.
@@ -329,6 +402,14 @@ def structure_with_openai(raw_data):
         pre_extracted = extract_addresses_from_tables(raw_data.get('raw_tables', []))
         sold_to_hint = pre_extracted.get('sold_to_raw', '')
         ship_to_hint = pre_extracted.get('ship_to_raw', '')
+        
+        # FALLBACK: If table extraction failed, try layout-based text extraction
+        # This handles PDFs where addresses are in interleaved two-column layout, not tables
+        if not sold_to_hint and not ship_to_hint:
+            print("Table extraction empty - trying layout text extraction...")
+            layout_extracted = extract_addresses_from_layout_text(raw_data.get('raw_text', ''))
+            sold_to_hint = layout_extracted.get('sold_to_raw', '')
+            ship_to_hint = layout_extracted.get('ship_to_raw', '')
         
         if DEBUG:
             print(f"PRE-EXTRACTED Sold To: {sold_to_hint[:100]}...")
