@@ -401,11 +401,18 @@
                     <span class="label" style="font-size: 7px;">Shipping Weight</span>
                     <input type="text" id="shippingWeight">
                 </td>
-                <td style="width: 26%; padding: 5px;">
+                <td style="width: 13%; padding: 5px;">
+                    <span class="label" style="font-size: 7px;">Freight Terms</span>
+                    <div class="checkbox-group" style="flex-direction: column; align-items: flex-start; gap: 2px; font-size: 7px;">
+                        <label><input type="radio" name="freightTerms" id="freightPrepaid" value="prepaid"> PREPAID</label>
+                        <label><input type="radio" name="freightTerms" id="freightCollect" value="collect"> COLLECT</label>
+                    </div>
+                </td>
+                <td style="width: 20%; padding: 5px;">
                     <span class="label" style="font-size: 7px;">Freight Amount Included</span>
                     <input type="text" id="freightIncluded">
                 </td>
-                <td style="width: 26%; padding: 5px;">
+                <td style="width: 20%; padding: 5px;">
                     <span class="label" style="font-size: 7px;">Freight Amount to Border</span>
                     <input type="text" id="freightToBorder">
                 </td>

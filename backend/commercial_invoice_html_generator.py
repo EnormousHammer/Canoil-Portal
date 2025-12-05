@@ -915,6 +915,29 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     field_values['freightIncluded'] = f"${total_freight:.2f}" if total_freight > 0 else ''  # From SO items
     field_values['freightToBorder'] = ''  # Leave empty for manual entry
     
+    # FREIGHT TERMS - Check SO for PREPAID or COLLECT
+    # Check special_instructions, terms, and shipping method
+    freight_search_text = ' '.join([
+        so_data.get('special_instructions', ''),
+        so_data.get('terms', ''),
+        so_data.get('shipping_method', ''),
+        so_data.get('notes', '')
+    ]).upper()
+    
+    if 'PREPAID' in freight_search_text:
+        field_values['freightPrepaid'] = 'checked'
+        field_values['freightCollect'] = ''
+        print(f"DEBUG CI: Freight Terms = PREPAID (from SO)")
+    elif 'COLLECT' in freight_search_text:
+        field_values['freightPrepaid'] = ''
+        field_values['freightCollect'] = 'checked'
+        print(f"DEBUG CI: Freight Terms = COLLECT (from SO)")
+    else:
+        # Default - leave unchecked
+        field_values['freightPrepaid'] = ''
+        field_values['freightCollect'] = ''
+        print(f"DEBUG CI: Freight Terms = not specified in SO")
+    
     # DECLARATION FIELDS
     field_values['usPort'] = ''  # Leave empty for manual entry
     field_values['signatureDate'] = datetime.now().strftime('%Y-%m-%d')  # Auto-fill DATE SIGNED with today
@@ -1015,6 +1038,25 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         cad_radio = soup.find('input', {'name': 'currency', 'value': 'CAD'})
         if cad_radio:
             cad_radio['checked'] = 'checked'
+    
+    # Freight Terms - set PREPAID or COLLECT based on SO
+    freight_search = ' '.join([
+        so_data.get('special_instructions', ''),
+        so_data.get('terms', ''),
+        so_data.get('shipping_method', ''),
+        so_data.get('notes', '')
+    ]).upper()
+    
+    if 'PREPAID' in freight_search:
+        prepaid_radio = soup.find('input', {'id': 'freightPrepaid'})
+        if prepaid_radio:
+            prepaid_radio['checked'] = 'checked'
+            print(f"DEBUG CI: Set Freight Terms = PREPAID")
+    elif 'COLLECT' in freight_search:
+        collect_radio = soup.find('input', {'id': 'freightCollect'})
+        if collect_radio:
+            collect_radio['checked'] = 'checked'
+            print(f"DEBUG CI: Set Freight Terms = COLLECT")
     
     # Separate products from charges (freight, brokerage, etc.) for items table
     physical_items = []
