@@ -688,7 +688,7 @@ def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> 
     return '\n'.join(lines)
 
 def detect_terms_of_sale(so_data: Dict[str, Any], email_analysis: Dict[str, Any] = None) -> str:
-    """Detect terms of sale (Incoterms) from email and SO data - check email first, then SO"""
+    """Detect terms of sale (Incoterms) from email and SO data - check all sources"""
     import re
     
     # Build a combined text to search for Incoterms
@@ -705,12 +705,20 @@ def detect_terms_of_sale(so_data: Dict[str, Any], email_analysis: Dict[str, Any]
         # Check email body text
         email_body = email_analysis.get('email_body', '') or email_analysis.get('raw_text', '') or ''
         search_text += ' ' + email_body.upper()
+        
+        # Check email special_instructions
+        search_text += ' ' + str(email_analysis.get('special_instructions', '')).upper()
     
-    # Priority 2: Check SO terms field
+    # Priority 2: Check SO fields
     search_text += ' ' + so_data.get('terms', '').upper()
     
     # Check special_instructions (often contains "DAP ANTWERPEN" etc.)
     search_text += ' ' + so_data.get('special_instructions', '').upper()
+    
+    # Check comments/notes section (where incoterms often appear)
+    search_text += ' ' + so_data.get('comments', '').upper()
+    search_text += ' ' + so_data.get('notes', '').upper()
+    search_text += ' ' + so_data.get('memo', '').upper()
     
     # Check item descriptions (sometimes Incoterms are in item notes)
     for item in so_data.get('items', []):
@@ -718,21 +726,28 @@ def detect_terms_of_sale(so_data: Dict[str, Any], email_analysis: Dict[str, Any]
         if desc:
             search_text += ' ' + desc.upper()
     
+    # First: Look for explicit "Incoterms:" label (e.g., "Incoterms: DAP NIORT")
+    incoterms_labeled = re.search(r'INCOTERMS?\s*:?\s*([A-Z]{3}(?:\s+[A-Z][A-Za-z,\s]+)?)', search_text)
+    if incoterms_labeled:
+        full_term = incoterms_labeled.group(1).strip()
+        print(f"DEBUG: Found labeled Incoterms: {full_term}")
+        return full_term
+    
     # Look for Incoterms with optional destination (e.g., "DAP ANTWERPEN", "FOB TORONTO")
     # Return the full term with destination if found
     incoterm_patterns = [
-        (r'DAP\s+([A-Z]+)', 'DAP'),      # DAP ANTWERPEN, DAP NIORT, etc.
-        (r'DDP\s+([A-Z]+)', 'DDP'),      # DDP with destination
-        (r'FOB\s+([A-Z]+)', 'FOB'),      # FOB with destination
-        (r'CIF\s+([A-Z]+)', 'CIF'),      # CIF with destination
-        (r'FCA\s+([A-Z]+)', 'FCA'),      # FCA with destination
-        (r'EXW\s+([A-Z]+)', 'EXW'),      # EXW with destination
+        (r'DAP\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'DAP'),      # DAP ANTWERPEN, DAP NIORT, DAP Kennesaw, GA
+        (r'DDP\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'DDP'),      # DDP with destination
+        (r'FOB\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'FOB'),      # FOB with destination
+        (r'CIF\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'CIF'),      # CIF with destination
+        (r'FCA\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'FCA'),      # FCA with destination
+        (r'EXW\s+([A-Z][A-Za-z,\s]+?)(?:\s*[,\.\n]|$)', 'EXW'),      # EXW with destination
     ]
     
     for pattern, incoterm in incoterm_patterns:
         match = re.search(pattern, search_text)
         if match:
-            destination = match.group(1)
+            destination = match.group(1).strip()
             full_term = f"{incoterm} {destination}"
             print(f"DEBUG: Detected terms of sale: {full_term}")
             return full_term
