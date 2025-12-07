@@ -916,11 +916,34 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     # Brokerage field - Use Near North if Canoil handles brokerage
     brokerage_info = so_data.get('brokerage', {})
     brokerage_text = ""
+    extracted_broker = ""
+    
+    # First: Try to extract broker from "Clearance done by [BROKER]" or "Customs by [BROKER]"
+    import re
+    special_text = so_data.get('special_instructions', '') or ''
+    
+    # Patterns to extract broker name from special instructions
+    clearance_patterns = [
+        r'[Cc]learance\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|\s+Don)',
+        r'[Cc]ustoms\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|\s+Don)',
+        r'[Bb]rokerage\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$)',
+    ]
+    
+    for pattern in clearance_patterns:
+        match = re.search(pattern, special_text)
+        if match:
+            extracted_broker = match.group(1).strip()
+            print(f"DEBUG CI: Extracted broker from special instructions: {extracted_broker}")
+            break
     
     if canoil_handles_brokerage or is_georgia_western:
         # Canoil handles brokerage - use Near North Customs Brokers
         brokerage_text = "Near North Customs Brokers"
         print(f"DEBUG CI: Canoil handles brokerage (prepaid) - using Near North Customs Brokers")
+    elif extracted_broker:
+        # Customer has specified their broker in special instructions
+        brokerage_text = extracted_broker
+        print(f"DEBUG CI: Customer broker from special instructions: {brokerage_text}")
     else:
         # Check if SO has broker info (customer's broker)
         broker_name = brokerage_info.get('broker_name', '').strip() if brokerage_info else ''
@@ -947,6 +970,13 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             print(f"DEBUG CI: Georgia Western detected - using Near North Customs Brokers")
         else:
             print(f"DEBUG CI: Prepaid brokerage detected - using Near North Customs Brokers")
+    elif extracted_broker:
+        # Customer specified broker - fill company name only, leave contact info blank
+        field_values['brokerCompany'] = extracted_broker
+        field_values['brokerPhone'] = ''
+        field_values['brokerFax'] = ''
+        field_values['brokerPaps'] = ''
+        print(f"DEBUG CI: Customer broker in top-right: {extracted_broker}")
     else:
         # Leave blank for other customers (they use their own broker)
         field_values['brokerCompany'] = ''
