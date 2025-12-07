@@ -448,7 +448,6 @@ def normalize_address_for_comparison(address: str) -> str:
         normalized = normalized.replace(pattern, 'po box')
     
     # Remove punctuation that doesn't affect meaning
-    import re
     normalized = re.sub(r'[.,:;()\[\]{}#/\\-]', ' ', normalized)
     
     # Normalize whitespace
@@ -689,8 +688,6 @@ def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> 
 
 def detect_terms_of_sale(so_data: Dict[str, Any], email_analysis: Dict[str, Any] = None) -> str:
     """Detect terms of sale (Incoterms) from email and SO data - check all sources"""
-    import re
-    
     # Build a combined text to search for Incoterms
     search_text = ''
     
@@ -919,7 +916,6 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     extracted_broker = ""
     
     # First: Try to extract broker from "Clearance done by [BROKER]" or "Customs by [BROKER]"
-    import re
     special_text = so_data.get('special_instructions', '') or ''
     
     # Patterns to extract broker name from special instructions
