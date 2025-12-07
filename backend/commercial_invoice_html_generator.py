@@ -999,10 +999,6 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     field_values['freightIncluded'] = f"${total_freight:.2f}" if total_freight > 0 else ''  # From SO items
     field_values['freightToBorder'] = ''  # Leave empty for manual entry
     
-    # FREIGHT TERMS - Leave empty (removed from Commercial Invoice)
-    field_values['freightPrepaid'] = ''
-    field_values['freightCollect'] = ''
-    
     # DECLARATION FIELDS
     field_values['usPort'] = ''  # Leave empty for manual entry
     field_values['signatureDate'] = datetime.now().strftime('%Y-%m-%d')  # Auto-fill DATE SIGNED with today
