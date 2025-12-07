@@ -687,14 +687,26 @@ def format_consignee_info(shipping_addr: Dict[str, Any], customer_name: str) -> 
     
     return '\n'.join(lines)
 
-def detect_terms_of_sale(so_data: Dict[str, Any]) -> str:
-    """Detect terms of sale (Incoterms) from SO data - check terms, special_instructions, and items"""
+def detect_terms_of_sale(so_data: Dict[str, Any], email_analysis: Dict[str, Any] = None) -> str:
+    """Detect terms of sale (Incoterms) from email and SO data - check email first, then SO"""
     import re
     
     # Build a combined text to search for Incoterms
     search_text = ''
     
-    # Check SO terms field
+    # Priority 1: Check email for incoterms (e.g., "Incoterms: DAP NIORT")
+    if email_analysis:
+        # Check explicit incoterms field
+        if email_analysis.get('incoterms'):
+            incoterms = email_analysis['incoterms']
+            print(f"DEBUG: Incoterms from email field: {incoterms}")
+            return incoterms
+        
+        # Check email body text
+        email_body = email_analysis.get('email_body', '') or email_analysis.get('raw_text', '') or ''
+        search_text += ' ' + email_body.upper()
+    
+    # Priority 2: Check SO terms field
     search_text += ' ' + so_data.get('terms', '').upper()
     
     # Check special_instructions (often contains "DAP ANTWERPEN" etc.)
@@ -906,7 +918,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         field_values['termsOfSale'] = 'DAP Kennesaw, GA'
         print(f"DEBUG CI: Georgia Western - setting Incoterms to DAP Kennesaw, GA")
     else:
-        field_values['termsOfSale'] = detect_terms_of_sale(so_data)  # Detect from SO or default to EXW
+        field_values['termsOfSale'] = detect_terms_of_sale(so_data, email_analysis)  # Detect from email/SO
     field_values['currencyOther'] = ''  # Leave empty (default radio handles USD/CAD)
     
     # SHIPPING DETAILS
@@ -1004,27 +1016,6 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                         break
         else:
             print(f"DEBUG: CI - Field '{field_id}' not found in template")
-    
-    # Special handling for termsOfSale with destination (e.g., "DAP ANTWERPEN")
-    terms_value = field_values.get('termsOfSale', '')
-    if terms_value and ' ' in terms_value:
-        # Custom term with destination - set dropdown to "other" and fill custom field
-        terms_select = soup.find('select', id='termsOfSale')
-        if terms_select:
-            # Clear any selected options
-            for option in terms_select.find_all('option'):
-                if 'selected' in option.attrs:
-                    del option['selected']
-            # Select "other" option
-            other_option = terms_select.find('option', {'value': 'other'})
-            if other_option:
-                other_option['selected'] = 'selected'
-        # Fill custom input field
-        custom_input = soup.find('input', id='termsOfSaleCustom')
-        if custom_input:
-            custom_input['value'] = terms_value
-            custom_input['style'] = 'display: inline-block; width: 150px; border-bottom: 1px solid #000;'
-        print(f"DEBUG: CI - Set custom terms of sale: {terms_value}")
     
     # Handle radio button groups with special logic
     # Currency selection - detect USD vs CAD from SO data
