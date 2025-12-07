@@ -885,39 +885,68 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     # Additional duty and terms fields
     field_values['dutyAccountOther'] = ''  # Leave empty (default radio is consignee)
     
-    # Brokerage field - Show broker name and account number (not brokerage cost)
-    # ONLY fill if we have BOTH name AND account (all or nothing)
+    # Check if Canoil handles brokerage (PREPAID brokerage in SO)
+    # Search special_instructions, terms, notes for "PREPAID" + "BROKERAGE"
+    brokerage_search_text = ' '.join([
+        so_data.get('special_instructions', ''),
+        so_data.get('terms', ''),
+        so_data.get('notes', ''),
+        so_data.get('memo', '')
+    ]).upper()
+    
+    # Check for items that indicate prepaid brokerage
+    for item in so_data.get('items', []):
+        item_desc = str(item.get('description', '')).upper()
+        if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
+            brokerage_search_text += ' PREPAID BROKERAGE'
+        if 'PREPAID' in item_desc and 'BROKER' in item_desc:
+            brokerage_search_text += ' PREPAID BROKERAGE'
+    
+    # Detect if Canoil is handling brokerage (prepaid)
+    canoil_handles_brokerage = (
+        ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
+        ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
+        'PREPAID BROKERAGE' in brokerage_search_text
+    )
+    
+    # Also check customer - Georgia Western always uses our broker
+    customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
+    is_georgia_western = 'georgia western' in customer_name.lower()
+    
+    # Brokerage field - Use Near North if Canoil handles brokerage
     brokerage_info = so_data.get('brokerage', {})
     brokerage_text = ""
-    broker_name = brokerage_info.get('broker_name', '').strip() if brokerage_info else ''
-    account_num = brokerage_info.get('account_number', '').strip() if brokerage_info else ''
     
-    # Only fill if BOTH broker name AND account number are present
-    if broker_name and account_num:
-        brokerage_text = f"{broker_name} | Account #: {account_num}"
-        print(f"DEBUG CI: Brokerage info: {brokerage_text}")
+    if canoil_handles_brokerage or is_georgia_western:
+        # Canoil handles brokerage - use Near North Customs Brokers
+        brokerage_text = "Near North Customs Brokers"
+        print(f"DEBUG CI: Canoil handles brokerage (prepaid) - using Near North Customs Brokers")
     else:
-        if broker_name and not account_num:
-            print(f"DEBUG CI: Brokerage incomplete (name only) - leaving blank")
-        elif account_num and not broker_name:
-            print(f"DEBUG CI: Brokerage incomplete (account only) - leaving blank")
+        # Check if SO has broker info (customer's broker)
+        broker_name = brokerage_info.get('broker_name', '').strip() if brokerage_info else ''
+        account_num = brokerage_info.get('account_number', '').strip() if brokerage_info else ''
+        
+        # Only fill if BOTH broker name AND account number are present
+        if broker_name and account_num:
+            brokerage_text = f"{broker_name} | Account #: {account_num}"
+            print(f"DEBUG CI: Customer brokerage info: {brokerage_text}")
         else:
-            print(f"DEBUG CI: No brokerage info")
+            print(f"DEBUG CI: No brokerage info - leaving blank")
     
     field_values['brokerage'] = brokerage_text
     
     # CUSTOMS BROKER FIELDS (top-right section)
-    # For Georgia Western shipments, we handle their customs clearance using Near North
-    customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
-    is_georgia_western = 'georgia western' in customer_name.lower()
-    
-    if is_georgia_western:
-        # We handle Georgia Western customs - use our broker
+    # Use Near North when Canoil handles brokerage (prepaid) or for Georgia Western
+    if canoil_handles_brokerage or is_georgia_western:
+        # We handle customs - use our broker
         field_values['brokerCompany'] = 'Near North Customs Brokers US Inc'
         field_values['brokerPhone'] = '716-204-4020'
         field_values['brokerFax'] = '716-204-5551'
         field_values['brokerPaps'] = 'ENTRY@NEARNORTHUS.COM'
-        print(f"DEBUG CI: Georgia Western detected - using Near North Customs Brokers")
+        if is_georgia_western:
+            print(f"DEBUG CI: Georgia Western detected - using Near North Customs Brokers")
+        else:
+            print(f"DEBUG CI: Prepaid brokerage detected - using Near North Customs Brokers")
     else:
         # Leave blank for other customers (they use their own broker)
         field_values['brokerCompany'] = ''

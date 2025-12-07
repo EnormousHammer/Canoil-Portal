@@ -2756,6 +2756,40 @@ def process_email():
             print(f"   Grand Total: ${grand_total:,.2f}")
             print(f"   ⚠️ This is for line {line_numbers} only - NOT the full SO!\n")
         
+        # Check if Canoil handles brokerage (PREPAID brokerage) - add Near North info
+        brokerage_search_text = ' '.join([
+            so_data.get('special_instructions', ''),
+            so_data.get('terms', ''),
+            so_data.get('notes', ''),
+            so_data.get('memo', '')
+        ]).upper()
+        
+        # Check items for prepaid brokerage
+        for item in so_data.get('items', []):
+            item_desc = str(item.get('description', '')).upper()
+            if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
+                brokerage_search_text += ' PREPAID BROKERAGE'
+            if 'PREPAID' in item_desc and 'BROKER' in item_desc:
+                brokerage_search_text += ' PREPAID BROKERAGE'
+        
+        # Detect if Canoil handles brokerage
+        customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
+        is_georgia_western = 'georgia western' in customer_name.lower()
+        canoil_handles_brokerage = (
+            ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
+            ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
+            'PREPAID BROKERAGE' in brokerage_search_text or
+            is_georgia_western
+        )
+        
+        # Add Near North broker info to email_data for frontend display
+        if canoil_handles_brokerage:
+            email_data['customs_broker'] = 'Near North Customs Brokers'
+            email_data['customs_broker_phone'] = '716-204-4020'
+            email_data['customs_broker_fax'] = '716-204-5551'
+            email_data['customs_broker_email'] = 'entry@nearnorthus.com'
+            print(f"DEBUG: Canoil handles brokerage - added Near North Customs Brokers info")
+        
         result = {
             'success': True,
             'so_data': so_data,
