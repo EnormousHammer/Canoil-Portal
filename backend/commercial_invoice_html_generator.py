@@ -321,11 +321,12 @@ def extract_weight_from_email(email_analysis: Dict[str, Any]) -> str:
     
     if email_weight:
         weight_str = str(email_weight)
-        # Extract number from any position in the string
-        weight_match = re.search(r'(\d+(?:\.\d+)?)', weight_str)
+        # Extract number from any position in the string (handle commas as thousand separators)
+        weight_match = re.search(r'([\d,]+(?:\.\d+)?)', weight_str)
         if weight_match:
             try:
-                weight_value = float(weight_match.group(1))
+                # Remove commas before converting to float
+                weight_value = float(weight_match.group(1).replace(',', ''))
                 if 'kg' in weight_str.lower():
                     # Keep in kg for Commercial Invoice
                     return f"{weight_value:.1f} kg"

@@ -91,10 +91,12 @@ def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any]
     
     if email_weight:
         weight_str = str(email_weight)
-        weight_match = re.search(r'(\d+(?:\.\d+)?)', weight_str)
+        # Handle numbers with commas as thousand separators (e.g., "1,835 kg")
+        weight_match = re.search(r'([\d,]+(?:\.\d+)?)', weight_str)
         if weight_match:
             try:
-                weight_value = float(weight_match.group(1))
+                # Remove commas before converting to float
+                weight_value = float(weight_match.group(1).replace(',', ''))
                 if 'lb' in weight_str.lower():
                     # Convert LBS to KG
                     total_weight_kg = weight_value / 2.20462
@@ -110,10 +112,12 @@ def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any]
     # Priority 2: SO data
     if so_data.get('total_weight'):
         weight_str = str(so_data['total_weight'])
-        weight_match = re.search(r'(\d+(?:\.\d+)?)', weight_str)
+        # Handle numbers with commas as thousand separators (e.g., "1,835 kg")
+        weight_match = re.search(r'([\d,]+(?:\.\d+)?)', weight_str)
         if weight_match:
             try:
-                weight_value = float(weight_match.group(1))
+                # Remove commas before converting to float
+                weight_value = float(weight_match.group(1).replace(',', ''))
                 if 'lb' in weight_str.lower():
                     total_weight_kg = weight_value / 2.20462
                 else:
