@@ -3431,15 +3431,15 @@ def generate_all_documents():
                     'success': True,
                     'filename': ci_html_filename,
                     'download_url': f'/download/logistics/{ci_html_filename}',
-                    'file_type': 'html'
+                    'file_type': 'html',
+                    'reason': f'Generated for cross-border shipment to {destination_country}'
                 }
                 
                 if ci_pdf_success:
                     results['commercial_invoice']['pdf_file'] = ci_pdf_filename
                     results['commercial_invoice']['pdf_download_url'] = f'/download/logistics/{ci_pdf_filename}'
-                    'reason': f'Generated for cross-border shipment to {destination_country}'
-                }
-                print(f"✅ Commercial Invoice generated: {ci_filename}")
+                
+                print(f"✅ Commercial Invoice generated: {ci_html_filename}")
             else:
                 print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
                 results['commercial_invoice'] = {
