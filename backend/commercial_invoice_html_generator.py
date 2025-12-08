@@ -1074,6 +1074,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             print(f"DEBUG: CI - Field '{field_id}' not found in template")
     
     # Hide Phone and Fax fields when BBL CARGO emails are present (to save space)
+    # Also increase font size for BBL emails
     broker_paps = field_values.get('brokerPaps', '')
     if broker_paps and '@bbl-cargo.com' in broker_paps.lower():
         phone_row = soup.find(id='brokerPhoneRow')
@@ -1082,7 +1083,18 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             phone_row['style'] = 'display: none;'
         if fax_row:
             fax_row['style'] = 'display: none;'
-        print(f"DEBUG CI: BBL CARGO emails detected - hiding Phone and Fax fields")
+        # Increase font size for BBL emails
+        broker_paps_textarea = soup.find(id='brokerPaps')
+        if broker_paps_textarea:
+            current_style = broker_paps_textarea.get('style', '')
+            # Update font-size to 11px for BBL emails
+            if 'font-size:' in current_style:
+                import re
+                current_style = re.sub(r'font-size:\s*\d+px', 'font-size: 11px', current_style)
+            else:
+                current_style += ' font-size: 11px;'
+            broker_paps_textarea['style'] = current_style
+        print(f"DEBUG CI: BBL CARGO emails detected - hiding Phone/Fax and increasing font size")
     
     # Handle radio button groups with special logic
     # Currency selection - detect USD vs CAD from SO data
