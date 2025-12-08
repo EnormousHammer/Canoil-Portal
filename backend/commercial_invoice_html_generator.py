@@ -1089,7 +1089,6 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             current_style = broker_paps_textarea.get('style', '')
             # Update font-size to 11px for BBL emails
             if 'font-size:' in current_style:
-                import re
                 current_style = re.sub(r'font-size:\s*\d+px', 'font-size: 11px', current_style)
             else:
                 current_style += ' font-size: 11px;'
