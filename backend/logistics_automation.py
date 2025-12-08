@@ -3042,21 +3042,45 @@ def generate_commercial_invoice():
             email_analysis
         )
         
-        filename = generate_document_filename("CommercialInvoice", so_data, '.html')
         uploads_dir = get_uploads_dir()
-        filepath = os.path.join(uploads_dir, filename)
+        os.makedirs(uploads_dir, exist_ok=True)
         
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, 'w', encoding='utf-8') as f:
+        # Save HTML file
+        html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
+        html_filepath = os.path.join(uploads_dir, html_filename)
+        with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print(f"SUCCESS: Commercial invoice generated: {filename}")
+        print(f"SUCCESS: Commercial invoice HTML generated: {html_filename}")
         
-        return jsonify({
+        # Generate PDF file
+        pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+        pdf_filepath = os.path.join(uploads_dir, pdf_filename)
+        
+        try:
+            from playwright_pdf_converter import html_to_pdf_sync
+            pdf_success = html_to_pdf_sync(html_content, pdf_filepath)
+            if pdf_success:
+                print(f"SUCCESS: Commercial invoice PDF generated: {pdf_filename}")
+            else:
+                print(f"WARNING: PDF generation failed, but HTML saved successfully")
+                pdf_filename = None
+        except Exception as pdf_error:
+            print(f"WARNING: PDF generation error: {pdf_error}, but HTML saved successfully")
+            pdf_filename = None
+        
+        response_data = {
             'success': True,
-            'commercial_invoice_file': filename,
-            'download_url': f'/download/logistics/{filename}'
-        })
+            'commercial_invoice_file': html_filename,
+            'download_url': f'/download/logistics/{html_filename}',
+            'file_type': 'html'
+        }
+        
+        if pdf_filename:
+            response_data['pdf_file'] = pdf_filename
+            response_data['pdf_download_url'] = f'/download/logistics/{pdf_filename}'
+        
+        return jsonify(response_data)
         
     except Exception as e:
         print(f"ERROR: Error generating commercial invoice: {e}")
@@ -3381,17 +3405,38 @@ def generate_all_documents():
                     items, 
                     email_analysis
                 )
-                ci_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
                 uploads_dir = get_uploads_dir()
-                ci_filepath = os.path.join(uploads_dir, ci_filename)
+                os.makedirs(uploads_dir, exist_ok=True)
                 
-                with open(ci_filepath, 'w', encoding='utf-8') as f:
+                # Save HTML file
+                ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
+                ci_html_filepath = os.path.join(uploads_dir, ci_html_filename)
+                with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(ci_html)
+                
+                # Generate PDF file
+                ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+                ci_pdf_filepath = os.path.join(uploads_dir, ci_pdf_filename)
+                
+                ci_pdf_success = False
+                try:
+                    from playwright_pdf_converter import html_to_pdf_sync
+                    ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                    if ci_pdf_success:
+                        print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
+                except Exception as pdf_error:
+                    print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
                 
                 results['commercial_invoice'] = {
                     'success': True,
-                    'filename': ci_filename,
-                    'download_url': f'/download/logistics/{ci_filename}',
+                    'filename': ci_html_filename,
+                    'download_url': f'/download/logistics/{ci_html_filename}',
+                    'file_type': 'html'
+                }
+                
+                if ci_pdf_success:
+                    results['commercial_invoice']['pdf_file'] = ci_pdf_filename
+                    results['commercial_invoice']['pdf_download_url'] = f'/download/logistics/{ci_pdf_filename}'
                     'reason': f'Generated for cross-border shipment to {destination_country}'
                 }
                 print(f"✅ Commercial Invoice generated: {ci_filename}")
