@@ -1073,6 +1073,17 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         else:
             print(f"DEBUG: CI - Field '{field_id}' not found in template")
     
+    # Hide Phone and Fax fields when BBL CARGO emails are present (to save space)
+    broker_paps = field_values.get('brokerPaps', '')
+    if broker_paps and '@bbl-cargo.com' in broker_paps.lower():
+        phone_row = soup.find(id='brokerPhoneRow')
+        fax_row = soup.find(id='brokerFaxRow')
+        if phone_row:
+            phone_row['style'] = 'display: none;'
+        if fax_row:
+            fax_row['style'] = 'display: none;'
+        print(f"DEBUG CI: BBL CARGO emails detected - hiding Phone and Fax fields")
+    
     # Handle radio button groups with special logic
     # Currency selection - detect USD vs CAD from SO data
     raw_text = str(so_data.get('raw_text', '')).upper()
