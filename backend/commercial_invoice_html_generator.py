@@ -967,11 +967,23 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         else:
             print(f"DEBUG CI: Prepaid brokerage detected - using Near North Customs Brokers")
     elif extracted_broker:
-        # Customer specified broker - fill company name only, leave contact info blank
+        # Customer specified broker - fill company name
         field_values['brokerCompany'] = extracted_broker
         field_values['brokerPhone'] = ''
         field_values['brokerFax'] = ''
-        field_values['brokerPaps'] = ''
+        
+        # Special case: AXEL FRANCE with BBL CARGO - add specific email addresses
+        customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
+        is_axel_france = 'AXEL' in customer_name.upper() and 'FRANCE' in customer_name.upper()
+        is_bbl_cargo = 'BBL' in extracted_broker.upper() or 'BBL CARGO' in extracted_broker.upper()
+        
+        if is_axel_france and is_bbl_cargo:
+            # AXEL FRANCE uses BBL CARGO with specific email addresses
+            field_values['brokerPaps'] = 'greve.victor@bbl-cargo.com, bocquet.julie@bbl-cargo.com, cheminel.christian@bbl-cargo.com, bertin.arnaud@bbl-cargo.com, mallard.camille@bbl-cargo.com'
+            print(f"DEBUG CI: AXEL FRANCE with BBL CARGO - added specific email addresses")
+        else:
+            field_values['brokerPaps'] = ''
+        
         print(f"DEBUG CI: Customer broker in top-right: {extracted_broker}")
     else:
         # Leave blank for other customers (they use their own broker)
