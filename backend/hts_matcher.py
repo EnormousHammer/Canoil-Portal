@@ -242,6 +242,14 @@ class HTSMatcher:
                     'description': 'Engine Flush Solution RDS Lubricating Oil'
                 }
         
+        # Method 12b: Diesel/Fuel System products (without AEC prefix)
+        if 'DIESEL' in desc_upper and ('FUEL' in desc_upper or 'SYSTEM' in desc_upper or 'CLEANING' in desc_upper):
+            return {
+                'hts_code': '3811.90.0000',
+                'country_of_origin': 'Canada',
+                'description': 'Diesel Fuel System Cleaning Solution'
+            }
+        
         # Method 13: VanFlex DIDP Lube Oil (rare)
         if 'VANFLEX' in desc_upper or 'DIDP' in desc_upper:
             return {

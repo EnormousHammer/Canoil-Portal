@@ -362,7 +362,8 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str, Any]) -> Dict[str, str]:
     """
     Extract and format consignee address
-    Priority: Email ship_to > SO shipping_address
+    Priority: SO shipping_address > Email ship_to
+    Uses full_address if available (most reliable from frontend parsing)
     """
     consignee = {
         'name': '',
@@ -371,38 +372,79 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         'postal': ''
     }
     
-    # Priority 1: SO shipping_address (most reliable)
+    # Priority 1: SO shipping_address (most reliable - matches frontend display)
     if so_data.get('shipping_address'):
         ship_addr = so_data['shipping_address']
-        consignee['name'] = ship_addr.get('company', '')
+        consignee['name'] = ship_addr.get('company', '') or ship_addr.get('contact', '')
         
-        # Street address with proper spacing
-        street_parts = []
-        if ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address'):
-            street = ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address')
-            street_parts.append(street)
-        if ship_addr.get('street2') or ship_addr.get('street_address2'):
-            street2 = ship_addr.get('street2') or ship_addr.get('street_address2')
-            street_parts.append(street2)
-        
-        # Join with space or newline
-        consignee['street'] = ' '.join(street_parts) if street_parts else ''
-        
-        # City, State
-        city_parts = []
-        if ship_addr.get('city'):
-            city_parts.append(ship_addr['city'])
-        if ship_addr.get('province') or ship_addr.get('state'):
-            city_parts.append(ship_addr.get('province') or ship_addr.get('state'))
-        
-        consignee['city_state'] = ', '.join(city_parts) if city_parts else ''
-        
-        # Postal code - check multiple field names
-        postal = (ship_addr.get('postal_code') or 
-                 ship_addr.get('postal') or 
-                 ship_addr.get('zip') or 
-                 ship_addr.get('zip_code') or '')
-        consignee['postal'] = postal.strip() if postal else ''
+        # PRIORITY: Use full_address if available (this is what frontend shows correctly)
+        if ship_addr.get('full_address'):
+            full_addr = ship_addr['full_address']
+            # Parse full_address into components
+            # Format is typically: "Street\nCity, Province Postal\nCountry"
+            lines = [line.strip() for line in full_addr.split('\n') if line.strip()]
+            
+            # Filter out the company name if it appears in lines (already shown separately)
+            company = consignee['name'].upper() if consignee['name'] else ''
+            lines = [line for line in lines if line.upper() != company]
+            
+            if lines:
+                # First line after company is usually street
+                consignee['street'] = lines[0] if lines else ''
+                
+                # Try to find city/state/postal from remaining lines
+                if len(lines) > 1:
+                    # Look for line with postal code pattern
+                    for i, line in enumerate(lines[1:], 1):
+                        # Skip country-only lines
+                        if line.upper() in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
+                            continue
+                        # This line likely has city, province, postal
+                        consignee['city_state'] = line
+                        break
+                
+                # Extract postal code if present in city_state
+                if consignee['city_state']:
+                    import re
+                    # Canadian postal: A1A 1A1
+                    postal_match = re.search(r'([A-Z]\d[A-Z]\s*\d[A-Z]\d)', consignee['city_state'], re.IGNORECASE)
+                    if postal_match:
+                        consignee['postal'] = postal_match.group(1).upper()
+                        # Remove postal from city_state
+                        consignee['city_state'] = re.sub(r'[A-Z]\d[A-Z]\s*\d[A-Z]\d', '', consignee['city_state'], flags=re.IGNORECASE).strip().rstrip(',').strip()
+                    else:
+                        # US ZIP: 12345 or 12345-1234
+                        zip_match = re.search(r'(\d{5}(?:-\d{4})?)', consignee['city_state'])
+                        if zip_match:
+                            consignee['postal'] = zip_match.group(1)
+                            consignee['city_state'] = re.sub(r'\d{5}(?:-\d{4})?', '', consignee['city_state']).strip().rstrip(',').strip()
+        else:
+            # Fallback: Build from individual fields
+            street_parts = []
+            if ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address'):
+                street = ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address')
+                street_parts.append(street)
+            if ship_addr.get('street2') or ship_addr.get('street_address2'):
+                street2 = ship_addr.get('street2') or ship_addr.get('street_address2')
+                street_parts.append(street2)
+            
+            consignee['street'] = ' '.join(street_parts) if street_parts else ''
+            
+            # City, State
+            city_parts = []
+            if ship_addr.get('city'):
+                city_parts.append(ship_addr['city'])
+            if ship_addr.get('province') or ship_addr.get('state'):
+                city_parts.append(ship_addr.get('province') or ship_addr.get('state'))
+            
+            consignee['city_state'] = ', '.join(city_parts) if city_parts else ''
+            
+            # Postal code - check multiple field names
+            postal = (ship_addr.get('postal_code') or 
+                     ship_addr.get('postal') or 
+                     ship_addr.get('zip') or 
+                     ship_addr.get('zip_code') or '')
+            consignee['postal'] = postal.strip() if postal else ''
     
     # Priority 2: Email ship_to (if SO address is incomplete)
     elif email_analysis and email_analysis.get('ship_to'):
@@ -417,6 +459,12 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
     # Fallback to customer name
     if not consignee['name']:
         consignee['name'] = so_data.get('customer_name', '')
+    
+    print(f"   DEBUG extract_consignee_address:")
+    print(f"      Name: {consignee['name']}")
+    print(f"      Street: {consignee['street']}")
+    print(f"      City/State: {consignee['city_state']}")
+    print(f"      Postal: {consignee['postal']}")
     
     return consignee
 

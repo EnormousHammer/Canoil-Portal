@@ -29,7 +29,7 @@ STEEL_PRICES = {
 }
 
 # Products that use steel containers
-STEEL_CONTAINER_PRODUCTS = ['MOV', 'VSG', 'REOLUBE', 'AEC', 'CANOIL']
+STEEL_CONTAINER_PRODUCTS = ['MOV', 'VSG', 'REOLUBE', 'AEC', 'CANOIL', 'DIESEL', 'ENGINE FLUSH', 'FUEL SYSTEM']
 
 
 def is_european_shipment(so_data: Dict[str, Any]) -> bool:
@@ -192,6 +192,7 @@ def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[Li
         unit = str(item.get('unit', ''))
         quantity = float(item.get('quantity', 0))
         unit_price = float(item.get('unit_price', 0))
+        is_sample = item.get('is_sample', False) or 'SAMPLE' in description.upper()
         
         # Check if this product uses steel containers
         if needs_steel_separation(description):
@@ -200,28 +201,40 @@ def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[Li
             if container_type and qty_multiplier > 0:
                 steel_price = STEEL_PRICES[container_type]
                 
-                # Calculate adjusted unit price (subtract steel cost per container)
-                # If multiple containers per unit (e.g., case of 12 cans), multiply
-                steel_cost_per_unit = steel_price * qty_multiplier
-                adjusted_unit_price = unit_price - steel_cost_per_unit
-                
-                # Track total steel containers
+                # Track total steel containers (always count, even for samples)
                 total_containers = int(quantity * qty_multiplier)
                 steel_totals[container_type]['count'] += total_containers
                 
-                print(f"DEBUG STEEL: {description}")
-                print(f"  - Original unit price: ${unit_price:.2f}")
-                print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
-                print(f"  - Steel cost per unit: ${steel_cost_per_unit:.2f}")
-                print(f"  - Adjusted unit price: ${adjusted_unit_price:.2f}")
-                print(f"  - Total containers: {total_containers}")
-                
-                # Create adjusted item (copy to avoid modifying original)
-                adjusted_item = item.copy()
-                adjusted_item['unit_price'] = adjusted_unit_price
-                adjusted_item['original_unit_price'] = unit_price  # Keep original for reference
-                adjusted_item['steel_separated'] = True
-                adjusted_items.append(adjusted_item)
+                # For SAMPLES: Keep price at $0, but still count the steel container
+                if is_sample or unit_price == 0:
+                    print(f"DEBUG STEEL (SAMPLE): {description}")
+                    print(f"  - SAMPLE item - $0 value, but steel container counted")
+                    print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
+                    print(f"  - Total containers: {total_containers}")
+                    
+                    adjusted_item = item.copy()
+                    adjusted_item['unit_price'] = 0.0
+                    adjusted_item['is_sample'] = True
+                    adjusted_item['steel_separated'] = True
+                    adjusted_items.append(adjusted_item)
+                else:
+                    # Normal item - subtract steel cost from unit price
+                    steel_cost_per_unit = steel_price * qty_multiplier
+                    adjusted_unit_price = unit_price - steel_cost_per_unit
+                    
+                    print(f"DEBUG STEEL: {description}")
+                    print(f"  - Original unit price: ${unit_price:.2f}")
+                    print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
+                    print(f"  - Steel cost per unit: ${steel_cost_per_unit:.2f}")
+                    print(f"  - Adjusted unit price: ${adjusted_unit_price:.2f}")
+                    print(f"  - Total containers: {total_containers}")
+                    
+                    # Create adjusted item (copy to avoid modifying original)
+                    adjusted_item = item.copy()
+                    adjusted_item['unit_price'] = adjusted_unit_price
+                    adjusted_item['original_unit_price'] = unit_price  # Keep original for reference
+                    adjusted_item['steel_separated'] = True
+                    adjusted_items.append(adjusted_item)
             else:
                 # No steel container detected, keep original
                 adjusted_items.append(item.copy())
@@ -833,7 +846,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                 if unit in ['DRUM', 'PAIL', 'CASE', 'GALLON', 'TUBE']:
                     if unit not in package_counts:
                         package_counts[unit] = 0
-                    package_counts[unit] += quantity
+                    package_counts[unit] += int(quantity) if quantity else 0
     
     # NEW TEMPLATE FIELD MAPPING - Based on actual field analysis
     field_values = {

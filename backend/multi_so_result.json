@@ -1,0 +1,509 @@
+{
+  "auto_detection": {
+    "is_multi_so": true,
+    "so_number": "3004 & 3020"
+  },
+  "email_analysis": {
+    "company_name": "AEC Group Inc.",
+    "is_multi_so": true,
+    "items": [
+      {
+        "batch_number": "CCL-25324",
+        "description": "AEC Engine Flush Finished 6 Gallon Pail",
+        "gross_weight": "7,610 kg",
+        "pallet_count": 10,
+        "pallet_dimensions": "48\u00d740\u00d753 inches",
+        "quantity": "360",
+        "so_number": "3004",
+        "unit": "pails"
+      },
+      {
+        "batch_number": "CCL-25304",
+        "description": "Diesel - Fuel System 12x1L Cleaning Solution",
+        "gross_weight": "6,267.3 kg",
+        "pallet_count": 9,
+        "pallet_dimensions": "48\u00d740\u00d746 inches (8) + 45\u00d740\u00d722 inches (1)",
+        "quantity": "500",
+        "so_number": "3020",
+        "unit": "cases"
+      }
+    ],
+    "items_by_so": {
+      "3004": [
+        {
+          "batch_number": "CCL-25324",
+          "description": "AEC Engine Flush Finished 6 Gallon Pail",
+          "gross_weight": "7,610 kg",
+          "pallet_count": 10,
+          "pallet_dimensions": "48\u00d740\u00d753 inches",
+          "quantity": "360",
+          "so_number": "3004",
+          "unit": "pails"
+        }
+      ],
+      "3020": [
+        {
+          "batch_number": "CCL-25304",
+          "description": "Diesel - Fuel System 12x1L Cleaning Solution",
+          "gross_weight": "6,267.3 kg",
+          "pallet_count": 9,
+          "pallet_dimensions": "48\u00d740\u00d746 inches (8) + 45\u00d740\u00d722 inches (1)",
+          "quantity": "500",
+          "so_number": "3020",
+          "unit": "cases"
+        }
+      ]
+    },
+    "pallet_count": 19,
+    "po_number": "20475 & 20496",
+    "so_number": "3004 & 3020",
+    "so_numbers": [
+      "3004",
+      "3020"
+    ],
+    "total_weight": "13,877.3 kg"
+  },
+  "email_data": {
+    "company_name": "AEC Group Inc.",
+    "is_multi_so": true,
+    "items": [
+      {
+        "batch_number": "CCL-25324",
+        "description": "AEC Engine Flush Finished 6 Gallon Pail",
+        "gross_weight": "7,610 kg",
+        "pallet_count": 10,
+        "pallet_dimensions": "48\u00d740\u00d753 inches",
+        "quantity": "360",
+        "so_number": "3004",
+        "unit": "pails"
+      },
+      {
+        "batch_number": "CCL-25304",
+        "description": "Diesel - Fuel System 12x1L Cleaning Solution",
+        "gross_weight": "6,267.3 kg",
+        "pallet_count": 9,
+        "pallet_dimensions": "48\u00d740\u00d746 inches (8) + 45\u00d740\u00d722 inches (1)",
+        "quantity": "500",
+        "so_number": "3020",
+        "unit": "cases"
+      }
+    ],
+    "items_by_so": {
+      "3004": [
+        {
+          "batch_number": "CCL-25324",
+          "description": "AEC Engine Flush Finished 6 Gallon Pail",
+          "gross_weight": "7,610 kg",
+          "pallet_count": 10,
+          "pallet_dimensions": "48\u00d740\u00d753 inches",
+          "quantity": "360",
+          "so_number": "3004",
+          "unit": "pails"
+        }
+      ],
+      "3020": [
+        {
+          "batch_number": "CCL-25304",
+          "description": "Diesel - Fuel System 12x1L Cleaning Solution",
+          "gross_weight": "6,267.3 kg",
+          "pallet_count": 9,
+          "pallet_dimensions": "48\u00d740\u00d746 inches (8) + 45\u00d740\u00d722 inches (1)",
+          "quantity": "500",
+          "so_number": "3020",
+          "unit": "cases"
+        }
+      ]
+    },
+    "pallet_count": 19,
+    "po_number": "20475 & 20496",
+    "so_number": "3004 & 3020",
+    "so_numbers": [
+      "3004",
+      "3020"
+    ],
+    "total_weight": "13,877.3 kg"
+  },
+  "email_shipping": {
+    "company_name": "AEC Group Inc.",
+    "pallet_count": 19,
+    "total_weight": "13,877.3 kg"
+  },
+  "is_multi_so": true,
+  "items": [
+    {
+      "batch_number": "CCL-25304",
+      "country_of_origin": "Canada",
+      "description": "Diesel - Fuel System 12x1L Cleaning Soultion",
+      "gross_weight": "6,267.3 kg",
+      "hts_code": "3811.90.0000",
+      "item_code": "Diesel - Fuel",
+      "quantity": 500,
+      "source_so": "3020",
+      "total_price": 80845.0,
+      "unit": "CASE12",
+      "unit_price": 161.69
+    },
+    {
+      "batch_number": "CCL-25324",
+      "country_of_origin": "Canada",
+      "description": "AEC Engine Flush Finished 6 Gallon Pail",
+      "gross_weight": "7,610 kg",
+      "hts_code": "3403.19.0000",
+      "item_code": "AEC Engine Flush",
+      "quantity": 360,
+      "source_so": "3004",
+      "total_price": 37445.76,
+      "unit": "PAIL",
+      "unit_price": 104.016
+    }
+  ],
+  "so_data": {
+    "billing_address": {
+      "address": "3600 West Carriage Drive",
+      "city": "Santa Ana",
+      "company": "AEC Group Inc.",
+      "company_name": "AEC Group Inc.",
+      "contact": "",
+      "contact_person": "",
+      "country": "USA",
+      "email": "",
+      "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+      "phone": "",
+      "postal": "92704",
+      "postal_code": "92704",
+      "province": "California",
+      "street": "3600 West Carriage Drive",
+      "street_address": "3600 West Carriage Drive"
+    },
+    "customer_name": "AEC Group Inc.",
+    "hst": "$0.00",
+    "is_multi_so": true,
+    "items": [
+      {
+        "batch_number": "CCL-25304",
+        "country_of_origin": "Canada",
+        "description": "Diesel - Fuel System 12x1L Cleaning Soultion",
+        "gross_weight": "6,267.3 kg",
+        "hts_code": "3811.90.0000",
+        "item_code": "Diesel - Fuel",
+        "quantity": 500,
+        "source_so": "3020",
+        "total_price": 80845.0,
+        "unit": "CASE12",
+        "unit_price": 161.69
+      },
+      {
+        "batch_number": "CCL-25324",
+        "country_of_origin": "Canada",
+        "description": "AEC Engine Flush Finished 6 Gallon Pail",
+        "gross_weight": "7,610 kg",
+        "hts_code": "3403.19.0000",
+        "item_code": "AEC Engine Flush",
+        "quantity": 360,
+        "source_so": "3004",
+        "total_price": 37445.76,
+        "unit": "PAIL",
+        "unit_price": 104.016
+      }
+    ],
+    "order_date": "09/23/25",
+    "po_number": "20475 & 20496",
+    "ship_date": "11/21/25",
+    "ship_to": {
+      "city": "Santa Ana",
+      "company_name": "AEC Group Inc.",
+      "contact_person": "",
+      "country": "USA",
+      "email": "",
+      "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+      "phone": "",
+      "postal_code": "92704",
+      "province": "California",
+      "street_address": "3600 West Carriage Drive"
+    },
+    "shipping_address": {
+      "address": "3600 West Carriage Drive",
+      "city": "Santa Ana",
+      "company": "AEC Group Inc.",
+      "company_name": "AEC Group Inc.",
+      "contact": "",
+      "contact_person": "",
+      "country": "USA",
+      "email": "",
+      "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+      "phone": "",
+      "postal": "92704",
+      "postal_code": "92704",
+      "province": "California",
+      "street": "3600 West Carriage Drive",
+      "street_address": "3600 West Carriage Drive"
+    },
+    "so_number": "3020 & 3004",
+    "so_numbers": [
+      "3020",
+      "3004"
+    ],
+    "sold_to": {
+      "city": "Santa Ana",
+      "company_name": "AEC Group Inc.",
+      "contact_person": "",
+      "country": "USA",
+      "email": "",
+      "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+      "phone": "",
+      "postal_code": "92704",
+      "province": "California",
+      "street_address": "3600 West Carriage Drive"
+    },
+    "subtotal": "$0.00",
+    "total": "$0.00"
+  },
+  "so_data_list": [
+    {
+      "billing_address": {
+        "address": "3600 West Carriage Drive",
+        "city": "Santa Ana",
+        "company": "AEC Group Inc.",
+        "company_name": "AEC Group Inc.",
+        "contact": "",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal": "92704",
+        "postal_code": "92704",
+        "province": "California",
+        "street": "3600 West Carriage Drive",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "brokerage": {
+        "account_number": "",
+        "broker_name": ""
+      },
+      "business_number": "81751 0654",
+      "customer_name": "AEC Group Inc.",
+      "data_source": "Original PDF parsing",
+      "due_date": "11/21/25",
+      "file_info": {
+        "filename": "salesorder_3020.pdf",
+        "filepath": "G:\\Shared drives\\Sales_CSR\\Customer Orders\\Sales Orders\\Completed and Closed\\2025\\11\\salesorder_3020.pdf",
+        "page_count": 1
+      },
+      "file_path": "G:\\Shared drives\\Sales_CSR\\Customer Orders\\Sales Orders\\Completed and Closed\\2025\\11\\salesorder_3020.pdf",
+      "items": [
+        {
+          "country_of_origin": "Canada",
+          "description": "Diesel - Fuel System 12x1L Cleaning Soultion",
+          "hts_code": "3811.90.0000",
+          "item_code": "Diesel - Fuel",
+          "quantity": 500,
+          "total_price": 80845.0,
+          "unit": "CASE12",
+          "unit_price": 161.69
+        },
+        {
+          "description": "Pallet charge",
+          "item_code": "Pallet",
+          "quantity": 9,
+          "total_price": 315.0,
+          "unit": "Each",
+          "unit_price": 35.0
+        }
+      ],
+      "order_date": "09/23/25",
+      "po_number": "20496",
+      "raw_text": "Canoil Canada Ltd. SALES ORDER 62 Todd Road Georgetown, Ontario L7G 4R7 Canada Order No.: 3020 Date: 09/23/25 Page: 1 Ship Date: 11/21/25 Sold To: AEC Group Inc. 3600 West Carriage Drive Santa Ana, California 92704 USA Ship To: AEC Group Inc. 3600 West Carriage Drive Santa Ana, California 92704 USA MO 3739 (Parent MO) MO 3740 (Child MO) Business No.: 81751 0654 Item No. Ordered Unit Description Tax Unit Price Amount Diesel - Fuel 500 CASE12 Diesel - Fuel System 12x1L Cleaning 161.69 US$80,845.00 System 12x1L Soultion Cleaning Soultion Pallet 9 Each Pallet charge (total number of pallets 35.00 US$315.00 subject to change at time of shipment) Subtotal: US$81,160.00 Shipped By: Terms: Net 30. Due 10/23/25. Comment: PO 20496 Total Amount US$81,160.00 Sold By:",
+      "ship_date": "11/21/25",
+      "ship_to": {
+        "city": "Santa Ana",
+        "company_name": "AEC Group Inc.",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal_code": "92704",
+        "province": "California",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "shipping_address": {
+        "address": "3600 West Carriage Drive",
+        "city": "Santa Ana",
+        "company": "AEC Group Inc.",
+        "company_name": "AEC Group Inc.",
+        "contact": "",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal": "92704",
+        "postal_code": "92704",
+        "province": "California",
+        "street": "3600 West Carriage Drive",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "so_number": "3020",
+      "sold_to": {
+        "city": "Santa Ana",
+        "company_name": "AEC Group Inc.",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal_code": "92704",
+        "province": "California",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "source": "Local filesystem",
+      "special_instructions": "",
+      "status": "Found in system",
+      "subtotal": 81160.0,
+      "tax": 0,
+      "terms": "Net 30. Due 10/23/25.",
+      "total_amount": 81160.0
+    },
+    {
+      "billing_address": {
+        "address": "3600 West Carriage Drive",
+        "city": "Santa Ana",
+        "company": "AEC Group Inc.",
+        "company_name": "AEC Group Inc.",
+        "contact": "",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal": "92704",
+        "postal_code": "92704",
+        "province": "California",
+        "street": "3600 West Carriage Drive",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "brokerage": {
+        "account_number": "",
+        "broker_name": ""
+      },
+      "business_number": "81751 0654",
+      "customer_name": "AEC Group Inc.",
+      "data_source": "Original PDF parsing",
+      "due_date": "11/10/25",
+      "file_info": {
+        "filename": "salesorder_3004_R1.pdf",
+        "filepath": "G:\\Shared drives\\Sales_CSR\\Customer Orders\\Sales Orders\\In Production\\Scheduled\\salesorder_3004_R1.pdf",
+        "page_count": 1
+      },
+      "file_path": "G:\\Shared drives\\Sales_CSR\\Customer Orders\\Sales Orders\\In Production\\Scheduled\\salesorder_3004_R1.pdf",
+      "items": [
+        {
+          "country_of_origin": "Canada",
+          "description": "AEC Engine Flush Finished 6 Gallon Pail",
+          "hts_code": "3403.19.0000",
+          "item_code": "AEC Engine Flush",
+          "quantity": 360,
+          "total_price": 37445.76,
+          "unit": "PAIL",
+          "unit_price": 104.016
+        },
+        {
+          "description": "Pallet charge",
+          "item_code": "Pallet",
+          "quantity": 10,
+          "total_price": 350.0,
+          "unit": "Each",
+          "unit_price": 35.0
+        }
+      ],
+      "order_date": "09/15/25",
+      "po_number": "20475",
+      "raw_text": "Canoil Canada Ltd. SALES ORDER 62 Todd Road Georgetown, Ontario L7G 4R7 Canada Order No.: 3004 Date: 09/15/25 Page: 1 Ship Date: 11/10/25 Sold To: AEC Group Inc. 3600 West Carriage Drive Santa Ana, California 92704 USA Ship To: AEC Group Inc. 3600 West Carriage Drive Santa Ana, California 92704 USA MO 3719, Child MO 3720 Business No.: 81751 0654 Item No. Ordered Unit Description Tax Unit Price Amount AEC Engine Flush 360 PAIL AEC Engine Flush Finished 6 Gallon Pail 104.016 US$37,445.76 Finished 6 gallon Pail Pallet 10 Each Pallet charge 35.000 US$350.00 Subtotal: US$37,795.76 Shipped By: Terms: Net 30. Due 10/15/25. Comment: PO 20475 Total Amount US$37,795.76 Sold By:",
+      "ship_date": "11/10/25",
+      "ship_to": {
+        "city": "Santa Ana",
+        "company_name": "AEC Group Inc.",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal_code": "92704",
+        "province": "California",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "shipping_address": {
+        "address": "3600 West Carriage Drive",
+        "city": "Santa Ana",
+        "company": "AEC Group Inc.",
+        "company_name": "AEC Group Inc.",
+        "contact": "",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal": "92704",
+        "postal_code": "92704",
+        "province": "California",
+        "street": "3600 West Carriage Drive",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "so_number": "3004",
+      "sold_to": {
+        "city": "Santa Ana",
+        "company_name": "AEC Group Inc.",
+        "contact_person": "",
+        "country": "USA",
+        "email": "",
+        "full_address": "AEC Group Inc.\n3600 West Carriage Drive\nSanta Ana, California 92704\nUSA",
+        "phone": "",
+        "postal_code": "92704",
+        "province": "California",
+        "street_address": "3600 West Carriage Drive"
+      },
+      "source": "Local filesystem",
+      "special_instructions": "",
+      "status": "Found in system",
+      "subtotal": 37795.76,
+      "tax": 0,
+      "terms": "Net 30. Due 10/15/25.",
+      "total_amount": 37795.76
+    }
+  ],
+  "so_numbers": [
+    "3004",
+    "3020"
+  ],
+  "success": true,
+  "validation_details": {
+    "is_multi_so": true,
+    "overall_status": "warning",
+    "per_so_validation": [
+      {
+        "matched_items": 0,
+        "so_number": "3020",
+        "status": "failed",
+        "total_email_items": 1,
+        "unmatched_items": [
+          {
+            "email_item": "Diesel - Fuel System 12x1L Cleaning Solution"
+          }
+        ]
+      },
+      {
+        "matched_items": 1,
+        "so_number": "3004",
+        "status": "passed",
+        "total_email_items": 1,
+        "unmatched_items": []
+      }
+    ],
+    "so_numbers": [
+      "3004",
+      "3020"
+    ]
+  },
+  "validation_passed": true
+}

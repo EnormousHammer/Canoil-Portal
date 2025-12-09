@@ -4,6 +4,8 @@ import { Truck, FileText, Mail, Download, AlertCircle, Send, Package, CheckCircl
 
 interface EmailAnalysis {
   so_number: string;
+  so_numbers?: string[];  // For multi-SO support
+  is_multi_so?: boolean;  // Flag for multi-SO mode
   company_name?: string;
   contact_person?: string;
   contact_email?: string;
@@ -1180,6 +1182,74 @@ const LogisticsAutomation: React.FC = () => {
           </div>
         )}
         
+        {/* Multi-SO Mode Indicator */}
+        {result?.is_multi_so && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-2 rounded-full">
+                <Package className="w-8 h-8 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-blue-800 font-bold text-xl">Multi-SO Shipment Detected</h3>
+                <p className="text-blue-600 text-sm">
+                  Processing {result.so_numbers?.length || 0} Sales Orders: {result.so_numbers?.join(' & ') || 'N/A'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Per-SO Validation Grid */}
+            {result.validation_details?.per_so_validation && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {result.validation_details.per_so_validation.map((soVal: any, idx: number) => (
+                  <div key={idx} className={`border rounded-lg p-4 ${
+                    soVal.status === 'passed' 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-yellow-50 border-yellow-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {soVal.status === 'passed' ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-yellow-600" />
+                      )}
+                      <span className="font-semibold text-gray-800">SO #{soVal.so_number}</span>
+                    </div>
+                    <p className="text-sm text-gray-700">
+                      {soVal.matched_items}/{soVal.total_email_items} items matched
+                    </p>
+                    {soVal.unmatched_items?.length > 0 && (
+                      <div className="mt-2 text-xs text-yellow-700">
+                        <p className="font-medium">Unmatched:</p>
+                        {soVal.unmatched_items.map((item: any, i: number) => (
+                          <p key={i}>• {item.email_item}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Combined Totals */}
+            <div className="mt-4 p-4 bg-white/70 rounded-lg">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-sm text-gray-600">Total Items</p>
+                  <p className="text-xl font-bold text-gray-800">{result.items?.length || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Pallets</p>
+                  <p className="text-xl font-bold text-gray-800">{result.email_data?.pallet_count || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Weight</p>
+                  <p className="text-xl font-bold text-gray-800">{result.email_data?.total_weight || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Validation Failed Warning */}
         {result?.validation_failed && result?.validation_details && (
           <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
@@ -1324,7 +1394,13 @@ const LogisticsAutomation: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 mb-1">Logistics Data Extraction Complete</h2>
-                    <p className="text-sm text-slate-600">Data extracted from SO #{result.so_data?.so_number || result.email_analysis?.so_number} and shipping email</p>
+                    <p className="text-sm text-slate-600">
+                      {result.is_multi_so ? (
+                        <>Data extracted from SOs #{result.so_numbers?.join(' & ')} (Multi-SO Shipment)</>
+                      ) : (
+                        <>Data extracted from SO #{result.so_data?.so_number || result.email_analysis?.so_number} and shipping email</>
+                      )}
+                    </p>
                     <div className="flex gap-3 mt-2">
                       <div className="flex items-center gap-1.5 text-xs text-slate-600">
                         <Mail className="w-3.5 h-3.5 text-blue-500" />

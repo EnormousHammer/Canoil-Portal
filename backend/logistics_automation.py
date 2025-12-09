@@ -69,7 +69,10 @@ def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.h
         filename = f"{doc_type} SO{so_number} | {date_str}{file_ext}"
     
     # Clean filename (remove invalid characters for file system)
+    # Windows doesn't allow: \ / : * ? " < > |
     filename = filename.replace('/', '-').replace('\\', '-').replace(':', '-')
+    filename = filename.replace('*', '-').replace('?', '-').replace('"', '-')
+    filename = filename.replace('<', '-').replace('>', '-').replace('|', '-')
     
     return filename
 
@@ -107,6 +110,220 @@ except ImportError as e:
         return None
     HTS_MATCHER_AVAILABLE = False
 # Simple dangerous goods detection - no complex imports needed
+
+# =============================================================================
+# MULTI-SO SUPPORT - Extract multiple Sales Orders from one email
+# =============================================================================
+
+def extract_all_so_numbers(text: str) -> list:
+    """
+    Extract ALL SO numbers from email text.
+    Returns list of unique SO numbers found.
+    
+    Examples:
+        "SO 3004 & 3020" → ["3004", "3020"]
+        "sales orders 3004 & 3020" → ["3004", "3020"]
+        "SO 3004" → ["3004"]
+    """
+    so_numbers = []
+    
+    # Pattern 1: "sales orders 3004 & 3020" or "SOs 3004, 3020"
+    multi_pattern = r'(?:sales\s*orders?|SOs?)\s*[#:]?\s*(\d{3,5})\s*(?:&|,|and)\s*(\d{3,5})'
+    multi_matches = re.findall(multi_pattern, text, re.IGNORECASE)
+    for match in multi_matches:
+        so_numbers.extend(match)
+    
+    # Pattern 2: Individual SO mentions - "Sales Order 3004:" or "SO 3004"
+    # This catches cases where SOs are mentioned individually in structured emails
+    individual_pattern = r'(?:sales\s*order|SO)\s*[#:]?\s*(\d{3,5})'
+    individual_matches = re.findall(individual_pattern, text, re.IGNORECASE)
+    so_numbers.extend(individual_matches)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_so_numbers = []
+    for so in so_numbers:
+        if so not in seen:
+            seen.add(so)
+            unique_so_numbers.append(so)
+    
+    return unique_so_numbers
+
+
+def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
+    """
+    Parse email with MULTIPLE Sales Orders.
+    Returns structured data with items grouped by SO number.
+    """
+    openai_client = get_openai_client()
+    if not openai_client:
+        print("OpenAI not available - falling back to regex multi-SO parsing")
+        return parse_multi_so_fallback(email_text)
+    
+    prompt = f"""
+    Parse this logistics email that contains MULTIPLE Sales Orders shipping together.
+    
+    CRITICAL: This email has multiple SOs (e.g., "SO 3004 & 3020"). Extract data for EACH SO separately.
+    
+    Email Content:
+    {email_text}
+    
+    Return JSON with this EXACT structure:
+    {{
+        "so_numbers": ["3004", "3020"],  // Array of ALL SO numbers found
+        "po_numbers": ["20475", "20496"],  // Array of PO numbers if any (in same order as SOs)
+        "company_name": "AEC Group Inc.",  // Customer company
+        "items_by_so": {{
+            "3004": [
+                {{
+                    "description": "AEC Engine Flush Finished 6 Gallon Pail",
+                    "quantity": "360",
+                    "unit": "pails",
+                    "batch_number": "CCL-25324",
+                    "gross_weight": "7,610 kg",
+                    "pallet_count": 10,
+                    "pallet_dimensions": "48×40×53 inches"
+                }}
+            ],
+            "3020": [
+                {{
+                    "description": "Diesel - Fuel System 12x1L Cleaning Solution",
+                    "quantity": "500",
+                    "unit": "cases",
+                    "batch_number": "CCL-25304",
+                    "gross_weight": "6,267.3 kg",
+                    "pallet_count": 9,
+                    "pallet_dimensions": "48×40×46 inches (8) + 45×40×22 inches (1)"
+                }}
+            ]
+        }},
+        "combined_totals": {{
+            "total_gross_weight": "13,877.3 kg",
+            "total_pallet_count": 19
+        }}
+    }}
+    
+    IMPORTANT RULES:
+    1. Extract EACH SO's items separately under items_by_so
+    2. Match batch numbers to their correct SO
+    3. Calculate combined totals for the entire shipment
+    4. Keep weight values as strings with units
+    
+    SPECIAL INSTRUCTIONS (CRITICAL):
+    Look for instructions at the end of the email like:
+    - "add 1 pail to SO 3020" → Add this item to that SO's items
+    - "free of charge" / "sample" / "no value" → Set is_sample: true, unit_price: 0
+    - "no need to add weight" → Set gross_weight: "N/A"
+    
+    Example: "add 1 pail to 3020, free of charge, no weight" should add:
+    {{
+        "description": "Sample Pail",
+        "quantity": "1",
+        "unit": "pail",
+        "is_sample": true,
+        "unit_price": 0,
+        "gross_weight": "N/A",
+        "batch_number": "N/A"
+    }}
+    
+    These sample/free items MUST appear on customs paperwork even if $0 value!
+    
+    Return ONLY valid JSON, no explanations.
+    """
+    
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a logistics parsing expert. Parse multi-SO shipping emails accurately. Include any special instructions like samples or free items."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=3000,
+            response_format={"type": "json_object"}
+        )
+        
+        result = response.choices[0].message.content.strip()
+        
+        # Clean response
+        if result.startswith('```json'):
+            result = result[7:]
+        if result.startswith('```'):
+            result = result[3:]
+        if result.endswith('```'):
+            result = result[:-3]
+        result = result.strip()
+        
+        parsed_data = json.loads(result)
+        print(f"✅ Multi-SO GPT parsing successful: {len(parsed_data.get('so_numbers', []))} SOs found")
+        return parsed_data
+        
+    except Exception as e:
+        print(f"❌ Multi-SO GPT parsing failed: {e}")
+        return parse_multi_so_fallback(email_text)
+
+
+def parse_multi_so_fallback(email_text: str) -> dict:
+    """
+    Fallback regex parser for multi-SO emails when GPT is unavailable.
+    """
+    so_numbers = extract_all_so_numbers(email_text)
+    
+    data = {
+        'so_numbers': so_numbers,
+        'po_numbers': [],
+        'company_name': '',
+        'items_by_so': {},
+        'combined_totals': {}
+    }
+    
+    # Extract PO numbers
+    po_pattern = r'(?:purchase\s*orders?\s*(?:numbers?)?|POs?)\s*[#:]?\s*(\d+)\s*(?:&|,|and)\s*(\d+)'
+    po_match = re.search(po_pattern, email_text, re.IGNORECASE)
+    if po_match:
+        data['po_numbers'] = list(po_match.groups())
+    
+    # Try to extract items per SO from structured format like "Sales Order 3004:\n360 pails..."
+    for so_num in so_numbers:
+        # Find section for this SO
+        section_pattern = rf'Sales\s*Order\s*{so_num}[:\s]*\n(.*?)(?=Sales\s*Order|\Z)'
+        section_match = re.search(section_pattern, email_text, re.IGNORECASE | re.DOTALL)
+        
+        if section_match:
+            section_text = section_match.group(1)
+            items = []
+            
+            # Extract item from section
+            item_pattern = r'(\d+)\s+(pails?|drums?|cases?|gallons?)\s+of\s+([^\n,]+)'
+            item_match = re.search(item_pattern, section_text, re.IGNORECASE)
+            if item_match:
+                item = {
+                    'quantity': item_match.group(1),
+                    'unit': item_match.group(2),
+                    'description': item_match.group(3).strip()
+                }
+                
+                # Extract batch
+                batch_match = re.search(r'batch\s*(?:number)?\s*[#:]?\s*([A-Z0-9\-]+)', section_text, re.IGNORECASE)
+                if batch_match:
+                    item['batch_number'] = batch_match.group(1)
+                
+                # Extract weight
+                weight_match = re.search(r'([\d,\.]+)\s*kg\s*(?:total\s*)?gross', section_text, re.IGNORECASE)
+                if weight_match:
+                    item['gross_weight'] = f"{weight_match.group(1)} kg"
+                
+                # Extract pallet info
+                pallet_match = re.search(r'[Oo]n\s+(\d+)\s+pallets?', section_text)
+                if pallet_match:
+                    item['pallet_count'] = int(pallet_match.group(1))
+                
+                items.append(item)
+            
+            data['items_by_so'][so_num] = items
+    
+    return data
+
 
 # Create blueprint
 try:
@@ -312,7 +529,7 @@ def validate_sold_to_ship_to_with_gpt4(email_data, so_data):
         """
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a B2B logistics validation expert. Analyze shipping scenarios for validity."},
                 {"role": "user", "content": validation_prompt}
@@ -819,7 +1036,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         """
         
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a logistics parsing expert. Extract shipping data with 100% accuracy. CRITICAL RULES: 1) When email has 'Line 1: product A, Line 2: product B, Line 3: product C' you MUST extract ALL 3 items - never skip items! 2) Extract batch number for EACH item separately. 3) Add all pallet counts together (2+2+4=8 total). 4) 'Line X:' with colon means multiple items, NOT partial shipment. 5) Partial shipment is ONLY when SO number is followed by 'line X' like 'SO 2707 line 2'. Return only valid JSON with ALL items."},
                 {"role": "user", "content": prompt}
@@ -1759,6 +1976,329 @@ def test_logistics_endpoint():
         'openai_available': OPENAI_AVAILABLE
     }), 200
 
+def process_multi_so_email(email_content: str, so_numbers: list):
+    """
+    Process email containing MULTIPLE Sales Orders.
+    Fetches data for each SO, validates items, and returns combined result.
+    
+    Args:
+        email_content: Raw email text
+        so_numbers: List of SO numbers found in email ["3004", "3020"]
+    
+    Returns:
+        Flask JSON response with combined SO data
+    """
+    import concurrent.futures
+    
+    print(f"\n{'='*80}")
+    print(f"MULTI-SO PROCESSING: {so_numbers}")
+    print(f"{'='*80}")
+    
+    # Parse email to get items grouped by SO
+    multi_so_email_data = parse_multi_so_email_with_gpt4(email_content)
+    print(f"📧 Multi-SO Email Data: {json.dumps(multi_so_email_data, indent=2, default=str)}")
+    
+    # Fetch SO data for ALL SOs in parallel
+    so_data_list = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(so_numbers)) as executor:
+        # Start all fetches
+        future_to_so = {executor.submit(get_so_data_from_system, so_num): so_num for so_num in so_numbers}
+        
+        # Collect results
+        for future in concurrent.futures.as_completed(future_to_so):
+            so_num = future_to_so[future]
+            try:
+                so_data = future.result(timeout=60)
+                if so_data and isinstance(so_data, dict) and so_data.get('status') != 'Error':
+                    so_data_list.append(so_data)
+                    print(f"✅ Fetched SO {so_num}: {len(so_data.get('items', []))} items")
+                else:
+                    print(f"❌ Failed to fetch SO {so_num}: {so_data.get('error', 'Unknown error')}")
+            except Exception as e:
+                print(f"❌ Exception fetching SO {so_num}: {e}")
+    
+    if not so_data_list:
+        return jsonify({'error': f"Could not fetch any SO data for: {so_numbers}"}), 500
+    
+    # Validate items per SO
+    validation_details = {
+        'is_multi_so': True,
+        'so_numbers': so_numbers,
+        'per_so_validation': [],
+        'overall_status': 'passed'
+    }
+    
+    items_by_so = multi_so_email_data.get('items_by_so', {})
+    
+    for so_data in so_data_list:
+        so_num = so_data.get('so_number', '')
+        email_items_for_so = items_by_so.get(so_num, [])
+        so_items = so_data.get('items', [])
+        
+        # Build list of SO item descriptions for matching
+        so_item_names = [item.get('description', '').upper() for item in so_items 
+                        if not any(skip in item.get('description', '').upper() 
+                                  for skip in ['FREIGHT', 'CHARGE', 'PALLET', 'BROKERAGE'])]
+        
+        matched_count = 0
+        unmatched_items = []
+        
+        for email_item in email_items_for_so:
+            email_desc = (email_item.get('description') or '').upper().strip()
+            matched = False
+            
+            for so_desc in so_item_names:
+                if email_desc in so_desc or so_desc in email_desc:
+                    matched = True
+                    matched_count += 1
+                    break
+            
+            if not matched:
+                unmatched_items.append({'email_item': email_item.get('description', '')})
+        
+        so_validation = {
+            'so_number': so_num,
+            'status': 'passed' if not unmatched_items else 'failed',
+            'total_email_items': len(email_items_for_so),
+            'matched_items': matched_count,
+            'unmatched_items': unmatched_items
+        }
+        validation_details['per_so_validation'].append(so_validation)
+        
+        if unmatched_items:
+            validation_details['overall_status'] = 'warning'
+        
+        print(f"📊 SO {so_num} validation: {matched_count}/{len(email_items_for_so)} matched")
+    
+    # Combine SO data for document generation
+    combined_so_data = combine_so_data_for_documents(so_data_list, multi_so_email_data)
+    
+    # Build email_data structure for frontend compatibility
+    email_data = {
+        'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
+        'so_numbers': so_numbers,
+        'is_multi_so': True,
+        'po_number': ' & '.join(multi_so_email_data.get('po_numbers', [])) if multi_so_email_data.get('po_numbers') else '',
+        'company_name': multi_so_email_data.get('company_name', ''),
+        'items': [],  # Combined items
+        'total_weight': multi_so_email_data.get('combined_totals', {}).get('total_gross_weight', ''),
+        'pallet_count': multi_so_email_data.get('combined_totals', {}).get('total_pallet_count', 0),
+        'items_by_so': items_by_so
+    }
+    
+    # Flatten items for backward compatibility
+    for so_num, items in items_by_so.items():
+        for item in items:
+            item['so_number'] = so_num  # Tag which SO this item belongs to
+            email_data['items'].append(item)
+    
+    # Count pallets from raw email
+    pallet_matches = re.findall(r'[Oo]n\s+(\d+)\s+(?:pallet|skid)', email_content)
+    if pallet_matches:
+        email_data['pallet_count'] = sum(int(p) for p in pallet_matches)
+        print(f"📦 Total pallets from email: {email_data['pallet_count']}")
+    
+    # Build result
+    result = {
+        'success': True,
+        'is_multi_so': True,
+        'so_numbers': so_numbers,
+        'so_data': combined_so_data,
+        'so_data_list': so_data_list,  # Individual SO data for reference
+        'email_data': email_data,
+        'email_analysis': email_data,
+        'items': combined_so_data.get('items', []),
+        'email_shipping': {
+            'total_weight': email_data.get('total_weight'),
+            'pallet_count': email_data.get('pallet_count'),
+            'company_name': email_data.get('company_name')
+        },
+        'validation_details': validation_details,
+        'validation_passed': validation_details['overall_status'] != 'failed',
+        'auto_detection': {
+            'so_number': ' & '.join(so_numbers),
+            'is_multi_so': True
+        }
+    }
+    
+    print(f"\n{'='*80}")
+    print(f"✅ MULTI-SO PROCESSING COMPLETE")
+    print(f"   SOs: {so_numbers}")
+    print(f"   Total items: {len(combined_so_data.get('items', []))}")
+    print(f"   Validation: {validation_details['overall_status']}")
+    print(f"{'='*80}\n")
+    
+    return jsonify(result), 200
+
+
+def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict) -> dict:
+    """
+    Combine multiple SO data into a single structure for document generation.
+    
+    Args:
+        so_data_list: List of individual SO data dicts
+        multi_so_email_data: Parsed email data with items_by_so
+    
+    Returns:
+        Combined SO data dict for BOL/Packing Slip/Commercial Invoice generation
+    """
+    if not so_data_list:
+        return {}
+    
+    # Use first SO as base for company info
+    base_so = so_data_list[0]
+    so_numbers = [so.get('so_number', '') for so in so_data_list]
+    
+    combined = {
+        'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
+        'so_numbers': so_numbers,
+        'is_multi_so': True,
+        'customer_name': base_so.get('customer_name', ''),
+        'billing_address': base_so.get('billing_address', {}),
+        'shipping_address': base_so.get('shipping_address', {}),
+        'sold_to': base_so.get('sold_to', {}),
+        'ship_to': base_so.get('ship_to', {}),
+        'order_date': base_so.get('order_date', ''),
+        'ship_date': base_so.get('ship_date', ''),
+        'items': [],
+        'subtotal': 0.0,
+        'total': 0.0
+    }
+    
+    # Combine PO numbers
+    po_numbers = multi_so_email_data.get('po_numbers', [])
+    if po_numbers:
+        combined['po_number'] = ' & '.join(po_numbers)
+    else:
+        # Try to get from individual SOs
+        po_list = [so.get('po_number', '') for so in so_data_list if so.get('po_number')]
+        combined['po_number'] = ' & '.join(po_list) if po_list else ''
+    
+    # Combine items from all SOs, grouped by SO
+    items_by_so = multi_so_email_data.get('items_by_so', {})
+    total_subtotal = 0.0
+    
+    for so_data in so_data_list:
+        so_num = so_data.get('so_number', '')
+        email_items = items_by_so.get(so_num, [])
+        
+        for so_item in so_data.get('items', []):
+            # Skip freight/charges
+            desc = so_item.get('description', '').upper()
+            if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
+                continue
+            
+            # Add SO identifier to item
+            item_copy = so_item.copy()
+            item_copy['source_so'] = so_num
+            
+            # Try to match batch number from email (flexible matching for typos)
+            for email_item in email_items:
+                email_desc = (email_item.get('description') or '').upper()
+                # Check for substring match OR key word overlap
+                email_words = set(email_desc.split())
+                so_words = set(desc.split())
+                common_words = email_words & so_words
+                
+                # Match if: substring match OR at least 2 significant words in common
+                significant_common = [w for w in common_words if len(w) > 3]
+                matches = (email_desc in desc or desc in email_desc or 
+                          len(significant_common) >= 2)
+                
+                if matches:
+                    if email_item.get('batch_number'):
+                        item_copy['batch_number'] = email_item['batch_number']
+                        print(f"   📝 Batch matched for {desc[:40]}: {email_item['batch_number']}")
+                    if email_item.get('gross_weight'):
+                        item_copy['gross_weight'] = email_item['gross_weight']
+                    break
+            
+            combined['items'].append(item_copy)
+            
+            # Add to subtotal
+            try:
+                item_total = float(str(so_item.get('total', 0)).replace('$', '').replace(',', ''))
+                total_subtotal += item_total
+            except:
+                pass
+    
+    # ==========================================================================
+    # SPECIAL INSTRUCTIONS: Add sample items from email that aren't in SO PDFs
+    # ==========================================================================
+    # These are items mentioned in email (like samples) that need to appear on
+    # customs paperwork but aren't in the original Sales Order
+    
+    for so_num, email_items in items_by_so.items():
+        for email_item in email_items:
+            email_desc = (email_item.get('description') or '').upper()
+            email_full = str(email_item).upper()
+            
+            # Check if this is a sample/free item (special instruction)
+            # Keywords that indicate free/sample items that still need to be on paperwork
+            free_keywords = ['SAMPLE', 'FREE OF CHARGE', 'FREE', 'NO VALUE', 'NO CHARGE', 
+                            'COMPLIMENTARY', 'N/A', 'FOC', '$0', 'ZERO VALUE']
+            
+            is_sample = (email_item.get('is_sample') or
+                        any(kw in email_desc for kw in free_keywords) or
+                        any(kw in email_full for kw in free_keywords) or
+                        email_item.get('unit_price') in [0, '0', 0.0, None] or
+                        (email_item.get('gross_weight') in ['N/A', 'n/a', None, ''] and 
+                         email_item.get('batch_number') in ['N/A', 'n/a', None, '']))
+            
+            if not is_sample:
+                continue
+            
+            # Check if this item is already in combined items (matched to SO)
+            already_added = False
+            for existing in combined['items']:
+                existing_desc = (existing.get('description') or '').upper()
+                if email_desc in existing_desc or existing_desc in email_desc:
+                    already_added = True
+                    break
+            
+            if not already_added:
+                # Add sample item to combined items
+                sample_item = {
+                    'description': email_item.get('description', ''),
+                    'item_code': email_item.get('description', '').split()[0] if email_item.get('description') else 'SAMPLE',
+                    'quantity': email_item.get('quantity', 1),
+                    'unit': email_item.get('unit', 'Each').upper(),
+                    'unit_price': 0.0,  # Samples have no value
+                    'total': 0.0,
+                    'source_so': so_num,
+                    'is_sample': True,
+                    'batch_number': email_item.get('batch_number', 'N/A'),
+                    'country_of_origin': 'Canada'
+                }
+                combined['items'].append(sample_item)
+                print(f"   🎁 SAMPLE ADDED: {email_item.get('quantity')} {email_item.get('unit')} - {email_item.get('description')} (from SO {so_num})")
+    
+    combined['subtotal'] = f"${total_subtotal:,.2f}"
+    hst = total_subtotal * 0.13
+    combined['hst'] = f"${hst:,.2f}"
+    combined['total'] = f"${(total_subtotal + hst):,.2f}"
+    
+    # Add HTS codes to all items (including samples)
+    print("\n📋 Matching HTS codes for combined items...")
+    for item in combined['items']:
+        hts_info = get_hts_code_for_item(
+            item.get('description', ''), 
+            item.get('item_code', '')
+        )
+        if hts_info:
+            item['hts_code'] = hts_info['hts_code']
+            item['country_of_origin'] = hts_info.get('country_of_origin', 'Canada')
+            print(f"  ✅ {item.get('item_code')}: HTS {hts_info['hts_code']}")
+    
+    print(f"\n📊 Combined SO data:")
+    print(f"   SO Numbers: {combined['so_number']}")
+    print(f"   PO Numbers: {combined.get('po_number', 'N/A')}")
+    print(f"   Total Items: {len(combined['items'])}")
+    print(f"   Subtotal: {combined['subtotal']}")
+    
+    return combined
+
+
 @logistics_bp.route('/api/logistics/process-email', methods=['POST'])
 def process_email():
     """Process email content with GPT-4o and extract SO data - REAL DATA ONLY"""
@@ -1821,6 +2361,23 @@ def process_email():
         
         print(f"EMAIL: LOGISTICS: Email content length: {len(email_content)} characters")
         
+        # =============================================================================
+        # MULTI-SO DETECTION: Check if email contains multiple Sales Orders
+        # =============================================================================
+        all_so_numbers = extract_all_so_numbers(email_content)
+        print(f"📋 SO Detection: Found {len(all_so_numbers)} SO(s): {all_so_numbers}")
+        
+        # If multiple SOs detected, use multi-SO processing path
+        if len(all_so_numbers) > 1:
+            print(f"\n{'='*80}")
+            print(f"🔀 MULTI-SO MODE: Processing {len(all_so_numbers)} Sales Orders together")
+            print(f"{'='*80}")
+            return process_multi_so_email(email_content, all_so_numbers)
+        
+        # =============================================================================
+        # SINGLE SO PATH (UNCHANGED) - Backwards compatible
+        # =============================================================================
+        
         # OPTIMIZATION: Quick SO number extraction with regex (fast, <1ms)
         # This allows us to start fetching SO data in parallel with GPT parsing
         import re
@@ -1841,6 +2398,28 @@ def process_email():
             # Use GPT parser for accurate multi-item extraction
             print("INFO: Parsing email with GPT-4o-mini for multi-item support...")
             email_data = parse_email_with_gpt4(email_content)
+            
+            # CRITICAL: Count pallets from RAW EMAIL - NEVER trust GPT for counting
+            # Patterns: "On 3 pallets", "On 1 pallet", "on 2 skids", etc.
+            pallet_matches = re.findall(r'[Oo]n\s+(\d+)\s+(?:pallet|skid)', email_content)
+            if pallet_matches:
+                correct_pallet_count = sum(int(p) for p in pallet_matches)
+                gpt_pallet_count = email_data.get('pallet_count', 0) or 0
+                print(f"📦 PALLET COUNT FROM EMAIL: {correct_pallet_count} (found: {pallet_matches})")
+                print(f"   GPT said: {gpt_pallet_count}")
+                
+                # ALWAYS use the email count, not GPT's count
+                email_data['pallet_count'] = correct_pallet_count
+                
+                # Rebuild skid_info with correct count
+                pallet_dims = email_data.get('pallet_dimensions', '')
+                pkg_type = email_data.get('packaging_type', 'pallet')
+                if correct_pallet_count == 1:
+                    email_data['skid_info'] = f"1 {pkg_type} {pallet_dims}".strip()
+                else:
+                    email_data['skid_info'] = f"{correct_pallet_count} {pkg_type}s {pallet_dims} each".strip()
+                print(f"   skid_info: {email_data['skid_info']}")
+            
             print(f"\n{'='*80}")
             print(f"EMAIL DATA PARSED:")
             print(f"  SO Number: {email_data.get('so_number')}")
@@ -3618,6 +4197,74 @@ def generate_all_documents():
             traceback.print_exc()  # Use module-level traceback
             errors.append(f"TSCA generation failed: {str(e)}")
             results['tsca_certification'] = {'success': False, 'error': str(e)}
+        
+        # AEC MANUFACTURER'S AFFIDAVIT - For AEC shipments with steel cans/drums
+        try:
+            print("\n📜 Checking if AEC Manufacturer's Affidavit is needed...")
+            
+            # Check if any items are AEC products with steel containers
+            has_aec_steel = False
+            for item in items:
+                item_code = str(item.get('item_code', '')).upper()
+                description = str(item.get('description', '')).upper()
+                unit = str(item.get('unit', '')).upper()
+                
+                # Check if it's an AEC product
+                is_aec_product = 'AEC' in item_code or 'AEC' in description
+                
+                # Check if it uses steel container (can or drum)
+                is_steel_container = any([
+                    'DRUM' in unit or 'DRUM' in description,
+                    'CAN' in unit or 'CASE' in unit,  # Cases often contain cans
+                    'PAIL' in unit or 'PAIL' in description
+                ])
+                
+                if is_aec_product and is_steel_container:
+                    has_aec_steel = True
+                    print(f"   ✅ Found AEC product with steel container: {item.get('description', item_code)}")
+                    break
+            
+            if has_aec_steel:
+                # Source AEC affidavit template
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                aec_source = os.path.join(current_dir, 'templates', 'AEC Manufacturer\'s Affidavit', 'AEX_MANUFACTURING AFFIDAVIT.pdf')
+                
+                if os.path.exists(aec_source):
+                    import shutil
+                    so_number = so_data.get('so_number', 'Unknown')
+                    aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
+                    uploads_dir = get_uploads_dir()
+                    aec_path = os.path.join(uploads_dir, aec_filename)
+                    
+                    os.makedirs(os.path.dirname(aec_path), exist_ok=True)
+                    shutil.copy2(aec_source, aec_path)
+                    
+                    results['aec_affidavit'] = {
+                        'success': True,
+                        'filename': aec_filename,
+                        'download_url': f'/download/logistics/{aec_filename}',
+                        'note': 'AEC Manufacturer\'s Affidavit for steel containers'
+                    }
+                    print(f"   ✅ AEC Affidavit included: {aec_filename}")
+                else:
+                    print(f"   ⚠️ AEC Affidavit template not found at: {aec_source}")
+                    results['aec_affidavit'] = {
+                        'success': False,
+                        'error': 'Template not found'
+                    }
+            else:
+                print(f"   ⏭️ AEC Affidavit not needed (no AEC products with steel containers)")
+                results['aec_affidavit'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': 'No AEC products with steel containers in this shipment'
+                }
+                
+        except Exception as e:
+            print(f"❌ AEC Affidavit error: {e}")
+            traceback.print_exc()
+            errors.append(f"AEC Affidavit generation failed: {str(e)}")
+            results['aec_affidavit'] = {'success': False, 'error': str(e)}
         
         # SMART USMCA CERTIFICATE - Check Destination + HTS + COO
         has_usmca = False
