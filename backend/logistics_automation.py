@@ -335,6 +335,28 @@ except Exception as e:
     traceback.print_exc()
     raise
 
+# Add CORS headers to ALL responses from this blueprint
+@logistics_bp.after_request
+def add_cors_headers(response):
+    """Add CORS headers to every response from logistics blueprint"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
+
+# Handle preflight OPTIONS requests
+@logistics_bp.route('/api/logistics/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """Handle preflight CORS requests"""
+    from flask import Response
+    response = Response()
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
+
 # Lazy OpenAI client initialization (only when needed)
 client = None
 
