@@ -2245,52 +2245,23 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
                 pass
     
     # ==========================================================================
-    # SPECIAL INSTRUCTIONS: Add sample items from email that aren't in SO PDFs
+    # SPECIAL INSTRUCTIONS: Sample pails are added to steel pail COUNT only
     # ==========================================================================
-    # These are items mentioned in email (like samples) that need to appear on
-    # customs paperwork but aren't in the original Sales Order
-    
+    # Sample pails don't appear as separate line items - they just add to the
+    # total steel pail count on the commercial invoice. This is handled in
+    # commercial_invoice_html_generator.py when processing steel containers.
+    # 
+    # We track sample_pail_count here for the commercial invoice generator.
+    sample_pail_count = 0
     for so_num, email_items in items_by_so.items():
         for email_item in email_items:
-            email_desc = (email_item.get('description') or '').upper()
-            
-            # ONLY add items that are EXPLICITLY marked as samples
-            # Do NOT add regular items just because they lack a price
-            # Keywords that indicate free/sample items mentioned in special instructions
-            sample_keywords = ['SAMPLE', 'FREE OF CHARGE', 'NO VALUE', 'NO CHARGE', 
-                              'COMPLIMENTARY', 'FOC', 'ZERO VALUE']
-            
-            # Must be EXPLICITLY a sample - either flagged by GPT or has sample keyword in description
-            is_sample = (email_item.get('is_sample') == True or
-                        any(kw in email_desc for kw in sample_keywords))
-            
-            if not is_sample:
-                continue
-            
-            # Check if this item is already in combined items (matched to SO)
-            already_added = False
-            for existing in combined['items']:
-                existing_desc = (existing.get('description') or '').upper()
-                if email_desc in existing_desc or existing_desc in email_desc:
-                    already_added = True
-                    break
-            
-            if not already_added:
-                # Add sample item to combined items
-                sample_item = {
-                    'description': email_item.get('description', ''),
-                    'item_code': email_item.get('description', '').split()[0] if email_item.get('description') else 'SAMPLE',
-                    'quantity': email_item.get('quantity', 1),
-                    'unit': email_item.get('unit', 'Each').upper(),
-                    'unit_price': 0.0,  # Samples have no value
-                    'total': 0.0,
-                    'source_so': so_num,
-                    'is_sample': True,
-                    'batch_number': email_item.get('batch_number', 'N/A'),
-                    'country_of_origin': 'Canada'
-                }
-                combined['items'].append(sample_item)
-                print(f"   🎁 SAMPLE ADDED: {email_item.get('quantity')} {email_item.get('unit')} - {email_item.get('description')} (from SO {so_num})")
+            if email_item.get('is_sample') == True:
+                unit = (email_item.get('unit') or '').upper()
+                if 'PAIL' in unit:
+                    sample_pail_count += int(email_item.get('quantity', 1))
+                    print(f"   🎁 SAMPLE PAIL: +{email_item.get('quantity')} pail(s) will be added to steel pail count")
+    
+    combined['sample_pail_count'] = sample_pail_count
     
     combined['subtotal'] = f"${total_subtotal:,.2f}"
     hst = total_subtotal * 0.13

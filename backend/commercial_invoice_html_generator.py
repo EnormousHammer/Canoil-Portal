@@ -168,13 +168,17 @@ def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
         return f"{description}\nPetroleum Lubricating Grease"
 
 
-def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail_count: int = 0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process items to separate steel container costs from product costs.
     
     For products in steel containers:
     - Subtract steel cost from unit price
     - Track steel containers for separate line items
+    
+    Args:
+        items: List of items to process
+        sample_pail_count: Extra pails from samples (added to steel pail count, no separate line)
     
     Returns: (adjusted_items, steel_items)
     - adjusted_items: Original items with adjusted prices
@@ -183,9 +187,12 @@ def process_items_with_steel_separation(items: List[Dict[str, Any]]) -> Tuple[Li
     adjusted_items = []
     steel_totals = {
         'drum': {'count': 0, 'price': STEEL_PRICES['drum']},
-        'pail': {'count': 0, 'price': STEEL_PRICES['pail']},
+        'pail': {'count': sample_pail_count, 'price': STEEL_PRICES['pail']},  # Start with sample pails
         'can': {'count': 0, 'price': STEEL_PRICES['can']},
     }
+    
+    if sample_pail_count > 0:
+        print(f"DEBUG STEEL: Starting with {sample_pail_count} sample pail(s) added to steel count")
     
     for item in items:
         description = str(item.get('description', ''))
@@ -1190,8 +1197,12 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     # ========================================================================
     # For cross-border shipments, steel containers must be declared separately
     # with HTS code 7310.10. This adjusts product prices and adds steel line items.
+    # Sample pails (mentioned in email but not on SO) are added to steel pail count.
+    sample_pail_count = so_data.get('sample_pail_count', 0)
     print(f"\n>> Processing steel container separation for {len(physical_items)} items...")
-    adjusted_items, steel_items = process_items_with_steel_separation(physical_items)
+    if sample_pail_count > 0:
+        print(f"   (Including {sample_pail_count} sample pail(s) in steel count)")
+    adjusted_items, steel_items = process_items_with_steel_separation(physical_items, sample_pail_count)
     
     # If European shipment, also truncate steel HTS codes
     if is_europe and steel_items:
