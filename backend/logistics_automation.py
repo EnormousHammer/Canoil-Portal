@@ -2253,19 +2253,16 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     for so_num, email_items in items_by_so.items():
         for email_item in email_items:
             email_desc = (email_item.get('description') or '').upper()
-            email_full = str(email_item).upper()
             
-            # Check if this is a sample/free item (special instruction)
-            # Keywords that indicate free/sample items that still need to be on paperwork
-            free_keywords = ['SAMPLE', 'FREE OF CHARGE', 'FREE', 'NO VALUE', 'NO CHARGE', 
-                            'COMPLIMENTARY', 'N/A', 'FOC', '$0', 'ZERO VALUE']
+            # ONLY add items that are EXPLICITLY marked as samples
+            # Do NOT add regular items just because they lack a price
+            # Keywords that indicate free/sample items mentioned in special instructions
+            sample_keywords = ['SAMPLE', 'FREE OF CHARGE', 'NO VALUE', 'NO CHARGE', 
+                              'COMPLIMENTARY', 'FOC', 'ZERO VALUE']
             
-            is_sample = (email_item.get('is_sample') or
-                        any(kw in email_desc for kw in free_keywords) or
-                        any(kw in email_full for kw in free_keywords) or
-                        email_item.get('unit_price') in [0, '0', 0.0, None] or
-                        (email_item.get('gross_weight') in ['N/A', 'n/a', None, ''] and 
-                         email_item.get('batch_number') in ['N/A', 'n/a', None, '']))
+            # Must be EXPLICITLY a sample - either flagged by GPT or has sample keyword in description
+            is_sample = (email_item.get('is_sample') == True or
+                        any(kw in email_desc for kw in sample_keywords))
             
             if not is_sample:
                 continue
