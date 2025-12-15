@@ -985,7 +985,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             "broker_carrier_ref": "broker or carrier reference number if mentioned",
             "terms_of_sale": "payment terms if mentioned (e.g. Net 30, Net 60)",
             "final_destination": "final destination country if different from shipping address",
-            "customs_broker": "[CRITICAL] Extract customs broker/brokerage company name if mentioned. Look for patterns: 'cleared by [broker name]', 'customs clearance by [broker]', 'brokerage by [broker]', 'broker: [name]', 'brokerage: [name]', 'broker will be taking care of by exporter using [broker name]', 'broker will be taking care of by [exporter] using [broker name]'. IMPORTANT: If you see 'Brokerage: Near North' or 'Broker: Near North', this means the EXPORTER (Canoil) will handle brokerage using Near North Customs Brokers. Common brokers: 'Near North Brokers', 'Near North Customs Brokers US Inc', 'Near North', 'Farrow', 'Livingston International', 'Cole International'. Example: 'This will be cleared by Near North Brokers US Inc' → 'Near North Brokers US Inc'. Example: 'Broker will be taking care of by exporter using Near North' → 'Near North Customs Brokers'. Example: 'Brokerage: Near North' → 'Near North Customs Brokers'"
+            "customs_broker": "[CRITICAL] Extract customs broker/brokerage company name if mentioned. Look for patterns: 'cleared by [broker name]', 'customs clearance by [broker]', 'brokerage by [broker]', 'broker: [name]', 'brokerage: [name]', 'broker will be taking care of by exporter using [broker name]', 'broker will be taking care of by [exporter] using [broker name]', 'broker on the exporter and using [broker name]', 'broker on exporter using [broker name]'. IMPORTANT: If you see 'Brokerage: Near North', 'Broker: Near North', or 'Broker on the Exporter and using Near North', this means the EXPORTER (Canoil) will handle brokerage using Near North Customs Brokers. Common brokers: 'Near North Brokers', 'Near North Customs Brokers US Inc', 'Near North', 'Farrow', 'Livingston International', 'Cole International'. Example: 'This will be cleared by Near North Brokers US Inc' → 'Near North Brokers US Inc'. Example: 'Broker will be taking care of by exporter using Near North' → 'Near North Customs Brokers'. Example: 'Brokerage: Near North' → 'Near North Customs Brokers'. Example: 'Broker on the Exporter and using Near North' → 'Near North Customs Brokers'"
         }}
         
         CRITICAL EXAMPLES FOR LINE NUMBERS (MUST EXTRACT CORRECTLY):
@@ -3588,13 +3588,20 @@ def process_email():
             email_content,
             re.IGNORECASE
         )
+        # Check for "Broker on the Exporter and using Near North" pattern
+        broker_on_exporter_pattern = re.search(
+            r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+            email_content,
+            re.IGNORECASE
+        )
         near_north_in_email = (
             'NEAR NORTH' in email_upper or 
             'NEARNORTH' in email_upper or
             'NEAR NORTH' in gpt_broker or
             'NEARNORTH' in gpt_broker or
             exporter_using_pattern is not None or
-            brokerage_near_north_pattern is not None
+            brokerage_near_north_pattern is not None or
+            broker_on_exporter_pattern is not None
         )
         
         # Check if any broker keyword is mentioned in email

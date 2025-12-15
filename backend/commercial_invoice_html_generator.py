@@ -1111,6 +1111,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     clearance_patterns = [
         r'[Bb]rokerage\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
         r'[Bb]roker\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
         r'[Bb]roker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|$)',
         r'[Bb]roker\s+will\s+be\s+handled\s+by\s+(?:exporter\s+)?using\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|$)',
         r'[Cc]learance\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|\s+Don)',
