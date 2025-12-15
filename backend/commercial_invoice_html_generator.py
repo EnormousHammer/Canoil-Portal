@@ -21,9 +21,10 @@ COMMERCIAL_INVOICE_TEMPLATE = os.path.join(_current_dir, 'templates', 'commercia
 
 STEEL_HTS_CODE = '7310.10'
 
-# Steel container prices (USD)
+# Steel container prices (USD/CAD - 1:1, no conversion)
 STEEL_PRICES = {
     'drum': 66.98,      # Steel Drum (200L)
+    'keg': 45.00,       # Steel Keg (55kg)
     'pail': 26.00,      # Steel Pail (6 gal/22L)
     'can': 5.38,        # Steel Can (1L)
 }
@@ -97,35 +98,52 @@ def detect_steel_container_type(description: str, unit: str) -> Tuple[str, int]:
     Detect if product uses steel container and return type and quantity multiplier.
     
     Returns: (container_type, qty_multiplier) or (None, 0)
-    - container_type: 'drum', 'pail', 'can', or None
+    - container_type: 'drum', 'keg', 'pail', 'can', or None
     - qty_multiplier: number of containers per unit (e.g., 12 cans per case)
     """
     desc_lower = description.lower()
     unit_lower = (unit or '').lower()
     
-    # Check for drums
-    if 'drum' in desc_lower or 'drum' in unit_lower:
+    # PRIORITY 1: Check UNIT first (most reliable) - unit tells us the container type
+    if 'drum' in unit_lower:
         return ('drum', 1)
     
-    # Check for pails
-    if 'pail' in desc_lower or 'pail' in unit_lower:
+    if 'keg' in unit_lower:
+        return ('keg', 1)
+    
+    if 'pail' in unit_lower:
         return ('pail', 1)
     
-    # Check for cans - handle cases of cans
-    if 'can' in desc_lower or 'can' in unit_lower:
-        # Check if it's a case containing multiple cans
-        # Look for patterns like "12x1L", "12 per case", "case of 12"
-        case_match = re.search(r'(\d+)\s*(?:x|per|cans?\s*per)', desc_lower)
+    # CASE12, CASE, etc. with 1L products = steel cans
+    if 'case' in unit_lower:
+        # Look for "12x1L" or similar pattern in description
+        case_match = re.search(r'(\d+)\s*x\s*1\s*l', desc_lower, re.IGNORECASE)
         if case_match:
             return ('can', int(case_match.group(1)))
-        # Default 1 can per unit
-        return ('can', 1)
-    
-    # Check for cases that might contain cans
-    if 'case' in unit_lower:
-        # Cases of 1L products typically have 12 cans
+        # Default 12 cans per case for 1L products
         if '1l' in desc_lower or '1 l' in desc_lower:
             return ('can', 12)
+        return ('can', 12)  # Default for cases
+    
+    # PRIORITY 2: Check description only if unit didn't match
+    # But IGNORE "sample pail" mentions - those are appended notes, not the product type
+    desc_for_check = desc_lower.split('+')[0].strip()  # Remove "+ 1 Sample pail" suffix
+    
+    if 'drum' in desc_for_check:
+        return ('drum', 1)
+    
+    if 'keg' in desc_for_check:
+        return ('keg', 1)
+    
+    if 'pail' in desc_for_check and 'sample' not in desc_lower:
+        return ('pail', 1)
+    
+    # Check for cans in description
+    if 'can' in desc_for_check:
+        case_match = re.search(r'(\d+)\s*(?:x|per|cans?\s*per)', desc_for_check)
+        if case_match:
+            return ('can', int(case_match.group(1)))
+        return ('can', 1)
     
     return (None, 0)
 
@@ -168,38 +186,50 @@ def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
         return f"{description}\nPetroleum Lubricating Grease"
 
 
-def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail_count: int = 0) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail_count: int = 0, is_aec: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process items to separate steel container costs from product costs.
     
-    For products in steel containers:
-    - Subtract steel cost from unit price
-    - Track steel containers for separate line items
+    For AEC orders:
+    - Convert quantity to LITERS for commercial invoice
+    - Sample pails added to liters AND steel count
     
     Args:
         items: List of items to process
-        sample_pail_count: Extra pails from samples (added to steel pail count, no separate line)
+        sample_pail_count: Extra pails from samples
+        is_aec: True for AEC orders (uses liter conversion)
     
     Returns: (adjusted_items, steel_items)
-    - adjusted_items: Original items with adjusted prices
-    - steel_items: New line items for steel containers
     """
     adjusted_items = []
     steel_totals = {
         'drum': {'count': 0, 'price': STEEL_PRICES['drum']},
-        'pail': {'count': sample_pail_count, 'price': STEEL_PRICES['pail']},  # Start with sample pails
+        'keg': {'count': 0, 'price': STEEL_PRICES['keg']},
+        'pail': {'count': 0, 'price': STEEL_PRICES['pail']},  # DON'T pre-add sample - already in item qty
         'can': {'count': 0, 'price': STEEL_PRICES['can']},
     }
     
+    # Conversion factors to liters
+    LITERS_PER_GALLON = 3.785
+    LITERS_PER_DRUM = 200  # 200L drum
+    LITERS_PER_PAIL_6GAL = 6 * LITERS_PER_GALLON  # ~22.71 L
+    
+    # Track if we've added sample pail liters to a pail product
+    sample_pail_liters_added = False
+    
     if sample_pail_count > 0:
-        print(f"DEBUG STEEL: Starting with {sample_pail_count} sample pail(s) added to steel count")
+        print(f"DEBUG STEEL: Starting with {sample_pail_count} sample pail(s) - will add to steel count AND first pail product liters")
     
     for item in items:
         description = str(item.get('description', ''))
         unit = str(item.get('unit', ''))
         quantity = float(item.get('quantity', 0))
         unit_price = float(item.get('unit_price', 0))
-        is_sample = item.get('is_sample', False) or 'SAMPLE' in description.upper()
+        # Check if item is a sample - but NOT if it just has "Sample pail" appended to description
+        is_sample = item.get('is_sample', False)
+        # Only treat as sample if description STARTS with "Sample" (not contains "+ 1 Sample pail")
+        if not is_sample and description.upper().startswith('SAMPLE'):
+            is_sample = True
         
         # Check if this product uses steel containers
         if needs_steel_separation(description):
@@ -212,36 +242,95 @@ def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail
                 total_containers = int(quantity * qty_multiplier)
                 steel_totals[container_type]['count'] += total_containers
                 
-                # For SAMPLES: Keep price at $0, but still count the steel container
-                if is_sample or unit_price == 0:
-                    print(f"DEBUG STEEL (SAMPLE): {description}")
-                    print(f"  - SAMPLE item - $0 value, but steel container counted")
-                    print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
-                    print(f"  - Total containers: {total_containers}")
+                print(f"DEBUG STEEL: {description}")
+                print(f"  - Container type: {container_type}, multiplier: {qty_multiplier}")
+                print(f"  - Original qty: {quantity} {unit}")
+                print(f"  - Steel containers: {total_containers}")
+                print(f"  - Is AEC order: {is_aec}")
+                
+                # ============================================================
+                # AEC ORDERS: Convert to LITERS, add sample pails
+                # ============================================================
+                if is_aec:
+                    # Calculate quantity in LITERS for AEC commercial invoice
+                    if container_type == 'drum':
+                        liters_qty = quantity * LITERS_PER_DRUM
+                    elif container_type == 'pail':
+                        # DON'T add sample pails again - they're already included in quantity
+                        # (Sample was merged in logistics_automation.py combine_so_data_for_documents)
+                        total_pails = int(quantity)  # Already includes sample if applicable
+                        sample_pail_liters_added = True  # Mark as handled
+                        print(f"  - Total pails: {total_pails} (sample already included in qty)")
+                        liters_qty = total_pails * LITERS_PER_PAIL_6GAL
+                    elif container_type == 'can':
+                        # 500 cases × 12 cans × 1L = 6000 L
+                        liters_qty = quantity * qty_multiplier * 1
+                    else:
+                        liters_qty = quantity
                     
-                    adjusted_item = item.copy()
-                    adjusted_item['unit_price'] = 0.0
-                    adjusted_item['is_sample'] = True
-                    adjusted_item['steel_separated'] = True
-                    adjusted_items.append(adjusted_item)
+                    print(f"  - Converted to LITERS: {liters_qty:.1f} L")
+                    
+                    # For SAMPLES: $0 value
+                    if is_sample or unit_price == 0:
+                        print(f"  - SAMPLE item - $0 value")
+                        adjusted_item = item.copy()
+                        # Store original values for package counting
+                        adjusted_item['original_quantity'] = quantity
+                        adjusted_item['original_unit'] = unit
+                        adjusted_item['quantity'] = liters_qty
+                        adjusted_item['unit'] = 'L'
+                        adjusted_item['unit_price'] = 0.0
+                        adjusted_item['is_sample'] = True
+                        adjusted_item['steel_separated'] = True
+                        adjusted_items.append(adjusted_item)
+                    else:
+                        # Total value from SO (sample is FREE)
+                        total_value = quantity * unit_price
+                        # Steel cost = PAID containers only
+                        paid_containers = int(quantity * qty_multiplier)
+                        steel_cost_to_deduct = paid_containers * steel_price
+                        adjusted_total_value = total_value - steel_cost_to_deduct
+                        # Price per liter
+                        adjusted_price_per_liter = adjusted_total_value / liters_qty if liters_qty > 0 else 0
+                        
+                        print(f"  - SO total: ${total_value:.2f}")
+                        print(f"  - Steel deducted: ${steel_cost_to_deduct:.2f}")
+                        print(f"  - Product value: ${adjusted_total_value:.2f}")
+                        print(f"  - Price/L: ${adjusted_price_per_liter:.4f}")
+                        
+                        adjusted_item = item.copy()
+                        # Store original values for package counting
+                        adjusted_item['original_quantity'] = quantity
+                        adjusted_item['original_unit'] = unit
+                        adjusted_item['quantity'] = liters_qty
+                        adjusted_item['unit'] = 'L'
+                        adjusted_item['unit_price'] = adjusted_price_per_liter
+                        adjusted_item['total_price'] = adjusted_total_value
+                        adjusted_item['steel_separated'] = True
+                        adjusted_items.append(adjusted_item)
+                
+                # ============================================================
+                # NON-AEC ORDERS: Keep original units, just separate steel
+                # ============================================================
                 else:
-                    # Normal item - subtract steel cost from unit price
-                    steel_cost_per_unit = steel_price * qty_multiplier
-                    adjusted_unit_price = unit_price - steel_cost_per_unit
-                    
-                    print(f"DEBUG STEEL: {description}")
-                    print(f"  - Original unit price: ${unit_price:.2f}")
-                    print(f"  - Steel type: {container_type}, multiplier: {qty_multiplier}")
-                    print(f"  - Steel cost per unit: ${steel_cost_per_unit:.2f}")
-                    print(f"  - Adjusted unit price: ${adjusted_unit_price:.2f}")
-                    print(f"  - Total containers: {total_containers}")
-                    
-                    # Create adjusted item (copy to avoid modifying original)
-                    adjusted_item = item.copy()
-                    adjusted_item['unit_price'] = adjusted_unit_price
-                    adjusted_item['original_unit_price'] = unit_price  # Keep original for reference
-                    adjusted_item['steel_separated'] = True
-                    adjusted_items.append(adjusted_item)
+                    if is_sample or unit_price == 0:
+                        adjusted_item = item.copy()
+                        adjusted_item['unit_price'] = 0.0
+                        adjusted_item['is_sample'] = True
+                        adjusted_item['steel_separated'] = True
+                        adjusted_items.append(adjusted_item)
+                    else:
+                        # Subtract steel cost from unit price
+                        steel_cost_per_unit = steel_price * qty_multiplier
+                        adjusted_unit_price = unit_price - steel_cost_per_unit
+                        
+                        print(f"  - Steel cost/unit: ${steel_cost_per_unit:.2f}")
+                        print(f"  - Adjusted price: ${adjusted_unit_price:.2f}")
+                        
+                        adjusted_item = item.copy()
+                        adjusted_item['unit_price'] = adjusted_unit_price
+                        adjusted_item['steel_separated'] = True
+                        adjusted_items.append(adjusted_item)
             else:
                 # No steel container detected, keep original
                 adjusted_items.append(item.copy())
@@ -263,6 +352,18 @@ def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail
             'is_steel_container': True,
         })
         print(f"DEBUG STEEL: Added {steel_totals['drum']['count']} drums @ ${STEEL_PRICES['drum']:.2f}")
+    
+    if steel_totals['keg']['count'] > 0:
+        steel_items.append({
+            'description': 'Steel Keg (55kg)',
+            'hts_code': STEEL_HTS_CODE,
+            'quantity': steel_totals['keg']['count'],
+            'unit': 'Keg',
+            'unit_price': STEEL_PRICES['keg'],
+            'country_of_origin': 'Canada',
+            'is_steel_container': True,
+        })
+        print(f"DEBUG STEEL: Added {steel_totals['keg']['count']} kegs @ ${STEEL_PRICES['keg']:.2f}")
     
     if steel_totals['pail']['count'] > 0:
         steel_items.append({
@@ -511,13 +612,14 @@ def normalize_address_for_comparison(address: str) -> str:
 
 def format_buyer_if_different(shipping_addr: Dict[str, Any], billing_addr: Dict[str, Any]) -> str:
     """
-    Return buyer info if different from consignee, empty if same
+    Return buyer info if different COMPANY from consignee, empty if same company
     
     CRITICAL BUSINESS RULE:
-    - If buyer address = shipping address → Return EMPTY string (no buyer field)
-    - If buyer address ≠ shipping address → Return formatted buyer info
+    - If buyer COMPANY = consignee COMPANY → Return EMPTY string (even if different addresses)
+    - If buyer COMPANY ≠ consignee COMPANY → Return formatted buyer info
     
-    This prevents duplicate address information in forms when they're the same location.
+    Same company with different addresses (billing HQ vs shipping warehouse) should NOT show buyer.
+    Only show buyer when it's a DIFFERENT company (e.g., parent company paying for subsidiary).
     """
     
     # DEBUG: Print actual field names to see what we're working with
@@ -532,51 +634,82 @@ def format_buyer_if_different(shipping_addr: Dict[str, Any], billing_addr: Dict[
     if not billing_addr:
         return ''
     
-    # Check if billing is different from shipping - compare FULL ADDRESS, not just company
-    # Same company can have different Ship To and Sold To locations (e.g. Calgary HQ vs Winnipeg warehouse)
+    # FIRST: Compare COMPANY NAMES - if same company, don't show buyer (even with different addresses)
+    shipping_company = (shipping_addr.get('company_name', '') or 
+                        shipping_addr.get('company', '') or '').strip().upper()
+    billing_company = (billing_addr.get('company_name', '') or 
+                       billing_addr.get('company', '') or '').strip().upper()
     
-    # Compare key address fields - USE ACTUAL SO FIELD NAMES from raw_so_extractor.py
-    # SO uses: street_address, city, province, postal_code, company_name
-    shipping_street = (shipping_addr.get('street_address', '') or 
-                       shipping_addr.get('street', '') or 
-                       shipping_addr.get('address', '')).strip()
-    billing_street = (billing_addr.get('street_address', '') or 
-                     billing_addr.get('street', '') or 
-                     billing_addr.get('address', '')).strip()
+    # Normalize company names for comparison (remove Inc, Ltd, LLC, etc.)
+    def normalize_company(name):
+        if not name:
+            return ''
+        name = name.upper()
+        # Remove common suffixes
+        for suffix in [' INC', ' INC.', ' LTD', ' LTD.', ' LLC', ' LLC.', ' CORP', ' CORP.', ' CO', ' CO.', ' LIMITED']:
+            name = name.replace(suffix, '')
+        # Remove extra whitespace
+        name = ' '.join(name.split())
+        return name.strip()
     
-    shipping_city = shipping_addr.get('city', '').strip()
-    billing_city = billing_addr.get('city', '').strip()
+    shipping_company_normalized = normalize_company(shipping_company)
+    billing_company_normalized = normalize_company(billing_company)
     
-    shipping_postal = shipping_addr.get('postal_code', '').strip()
-    billing_postal = billing_addr.get('postal_code', '').strip()
+    print(f"🏢 COMPANY COMPARISON:")
+    print(f"   Consignee company: '{shipping_company}' → normalized: '{shipping_company_normalized}'")
+    print(f"   Buyer company:     '{billing_company}' → normalized: '{billing_company_normalized}'")
     
-    # CRITICAL: Only compare actual address components, ignore attention names, contact persons, etc.
-    # Extract just the core address parts for comparison
-    shipping_core = f"{shipping_street} {shipping_city} {shipping_postal}".strip()
-    billing_core = f"{billing_street} {billing_city} {billing_postal}".strip()
+    # If same company name, don't show buyer (even if different addresses)
+    if shipping_company_normalized and billing_company_normalized:
+        if shipping_company_normalized == billing_company_normalized:
+            print("✅ Same company - NOT filling buyer field (different address is OK)")
+            print("🚫 BUYER FIELD WILL REMAIN EMPTY - Same company, different address")
+            return ''
     
-    # Normalize addresses for comparison (this removes attention names, contact persons, etc.)
-    shipping_normalized = normalize_address_for_comparison(shipping_core)
-    billing_normalized = normalize_address_for_comparison(billing_core)
+    # Additional check: If one company name contains the other, likely same company
+    if shipping_company_normalized and billing_company_normalized:
+        if (shipping_company_normalized in billing_company_normalized or 
+            billing_company_normalized in shipping_company_normalized):
+            print("✅ Company names overlap - likely same company, NOT filling buyer field")
+            return ''
     
-    print(f"🔍 ADDRESS COMPARISON:")
-    print(f"   Shipping normalized: '{shipping_normalized}'")
-    print(f"   Billing normalized:  '{billing_normalized}'")
-    print(f"   Are they different?  {shipping_normalized != billing_normalized}")
+    # FALLBACK: If company names are empty, compare addresses
+    if not shipping_company_normalized or not billing_company_normalized:
+        print("⚠️ Company name missing - falling back to address comparison")
+        
+        shipping_street = (shipping_addr.get('street_address', '') or 
+                           shipping_addr.get('street', '') or 
+                           shipping_addr.get('address', '')).strip()
+        billing_street = (billing_addr.get('street_address', '') or 
+                         billing_addr.get('street', '') or 
+                         billing_addr.get('address', '')).strip()
+        
+        shipping_city = shipping_addr.get('city', '').strip()
+        billing_city = billing_addr.get('city', '').strip()
+        
+        shipping_postal = shipping_addr.get('postal_code', '').strip()
+        billing_postal = billing_addr.get('postal_code', '').strip()
+        
+        shipping_core = f"{shipping_street} {shipping_city} {shipping_postal}".strip()
+        billing_core = f"{billing_street} {billing_city} {billing_postal}".strip()
+        
+        shipping_normalized = normalize_address_for_comparison(shipping_core)
+        billing_normalized = normalize_address_for_comparison(billing_core)
+        
+        print(f"🔍 ADDRESS COMPARISON (fallback):")
+        print(f"   Shipping normalized: '{shipping_normalized}'")
+        print(f"   Billing normalized:  '{billing_normalized}'")
+        
+        if shipping_normalized == billing_normalized:
+            print("✅ Addresses are the same - NOT filling buyer field")
+            return ''
+        
+        if len(shipping_normalized.strip()) < 5 or len(billing_normalized.strip()) < 5:
+            print("⚠️ Addresses too short for reliable comparison - NOT filling buyer field")
+            return ''
     
-    # CRITICAL: If addresses are the same after normalization, NEVER show buyer
-    if shipping_normalized == billing_normalized:
-        print("✅ Addresses are the same - NOT filling buyer field")
-        print("🚫 BUYER FIELD WILL REMAIN EMPTY - This is correct behavior!")
-        return ''
-    
-    # Additional safety check - if normalized addresses are empty or too short, don't fill buyer
-    if len(shipping_normalized.strip()) < 5 or len(billing_normalized.strip()) < 5:
-        print("⚠️ Addresses too short for reliable comparison - NOT filling buyer field")
-        return ''
-    
-    # Different addresses - show buyer info with full formatting
-    print("✅ Addresses are different - filling buyer field")
+    # DIFFERENT COMPANY - show buyer info with full formatting
+    print("✅ Different company detected - filling buyer field")
     lines = []
     
     # Company name - SO uses 'company_name', legacy uses 'company'
@@ -830,9 +963,25 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                 print(f"DEBUG: CI - Brokerage found: {item.get('description', '')} = ${brokerage_amount:.2f}")
             
             # Count packages and calculate weight for physical items
-            elif not any(keyword in description for keyword in ['pallet', 'charge', 'fee']):
-                unit = str(item.get('unit', '')).upper()
-                quantity = item.get('quantity', 0)
+            elif not any(keyword in description for keyword in ['pallet', 'charge', 'fee', 'steel']):
+                # Use original_unit if available (before liter conversion), otherwise current unit
+                unit = str(item.get('original_unit', item.get('unit', ''))).upper()
+                # Use original_quantity if available, otherwise current quantity
+                quantity = item.get('original_quantity', item.get('quantity', 0))
+                
+                # For AEC liter conversion: detect original unit from description if unit is now "L"
+                if unit == 'L' or unit == '':
+                    desc_upper = item.get('description', '').upper()
+                    if 'PAIL' in desc_upper:
+                        unit = 'PAIL'
+                    elif 'CASE' in desc_upper or 'CASE12' in str(item.get('original_unit', '')).upper():
+                        unit = 'CASE'
+                    elif 'DRUM' in desc_upper:
+                        unit = 'DRUM'
+                
+                # Normalize CASE12 to CASE
+                if unit == 'CASE12':
+                    unit = 'CASE'
                 
                 # Calculate weight from item data or description
                 weight_per_unit = 0
@@ -853,7 +1002,10 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                 if unit in ['DRUM', 'PAIL', 'CASE', 'GALLON', 'TUBE']:
                     if unit not in package_counts:
                         package_counts[unit] = 0
-                    package_counts[unit] += int(quantity) if quantity else 0
+                    try:
+                        package_counts[unit] += int(float(quantity)) if quantity else 0
+                    except:
+                        pass
     
     # NEW TEMPLATE FIELD MAPPING - Based on actual field analysis
     field_values = {
@@ -900,7 +1052,7 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     field_values['saleDate'] = normalized_sale_date
     
     # Additional duty and terms fields
-    field_values['dutyAccountOther'] = ''  # Leave empty (default radio is consignee)
+    field_values['dutyAccountOther'] = ''  # Leave empty for manual entry
     
     # Check if Canoil handles brokerage (PREPAID brokerage in SO)
     # Search special_instructions, terms, notes for "PREPAID" + "BROKERAGE"
@@ -936,20 +1088,53 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     extracted_broker = ""
     
     # First: Try to extract broker from "Clearance done by [BROKER]" or "Customs by [BROKER]"
+    # Check both SO special_instructions and email_analysis special_instructions
     special_text = so_data.get('special_instructions', '') or ''
+    if email_analysis:
+        email_special = email_analysis.get('special_instructions', '') or ''
+        if email_special:
+            special_text = special_text + ' ' + email_special if special_text else email_special
+    
+    # Also check email raw text for broker patterns
+    email_raw_text = ''
+    if email_analysis:
+        email_raw_text = email_analysis.get('raw_text', '') or email_analysis.get('email_body', '') or ''
+    
+    # Combine all text sources for broker extraction
+    combined_text = special_text
+    if email_raw_text:
+        combined_text = combined_text + ' ' + email_raw_text if combined_text else email_raw_text
     
     # Patterns to extract broker name from special instructions
+    # IMPORTANT: Patterns like "Brokerage: Near North" or "Broker: Near North" mean EXPORTER (Canoil) handles it
+    # This triggers Near North Customs Brokers filling + EXPORTER radio button checked
     clearance_patterns = [
+        r'[Bb]rokerage\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        r'[Bb]roker\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        r'[Bb]roker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|$)',
+        r'[Bb]roker\s+will\s+be\s+handled\s+by\s+(?:exporter\s+)?using\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|$)',
         r'[Cc]learance\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|\s+Don)',
         r'[Cc]ustoms\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$|\s+Don)',
         r'[Bb]rokerage\s+(?:done\s+)?by\s+([A-Z][A-Za-z0-9\s&]+?)(?:,|\.|\s*$)',
     ]
     
     for pattern in clearance_patterns:
-        match = re.search(pattern, special_text)
+        match = re.search(pattern, combined_text, re.IGNORECASE)
         if match:
             extracted_broker = match.group(1).strip()
-            print(f"DEBUG CI: Extracted broker from special instructions: {extracted_broker}")
+            print(f"DEBUG CI: Extracted broker from special instructions/email: {extracted_broker}")
+            
+            # Normalize "Near North" variations to trigger Near North filling
+            # When Near North is mentioned, it means EXPORTER (Canoil) handles brokerage
+            extracted_upper = extracted_broker.upper()
+            if 'NEAR NORTH' in extracted_upper or 'NEARNORTH' in extracted_upper:
+                # This means Near North should be used - set flag if email_analysis exists
+                if email_analysis:
+                    email_analysis['use_near_north'] = True
+                    email_analysis['customs_broker'] = 'Near North Customs Brokers'
+                    print(f"DEBUG CI: ✅ Near North detected! Setting use_near_north flag - EXPORTER will handle brokerage")
+                # Also set extracted_broker to empty so it doesn't override Near North logic below
+                extracted_broker = ''
             break
     
     if canoil_handles_brokerage or is_georgia_western:
@@ -974,18 +1159,106 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     
     field_values['brokerage'] = brokerage_text
     
+    # Check if AEC order (for broker info and IRS number)
+    is_aec_order = 'AEC' in customer_name.upper()
+    
+    # =====================================================================
+    # CLEAN BROKER DETECTION - Use simple flag from email processing
+    # =====================================================================
+    use_near_north = False
+    if email_analysis:
+        # Primary check: use_near_north flag set by process_email
+        use_near_north = email_analysis.get('use_near_north', False)
+        
+        # Fallback 1: check customs_broker field for Near North
+        if not use_near_north:
+            customs_broker = str(email_analysis.get('customs_broker') or '').upper()
+            use_near_north = 'NEAR NORTH' in customs_broker or 'NEARNORTH' in customs_broker
+        
+        # Fallback 2: check email raw text for "Brokerage: Near North" pattern
+        if not use_near_north and email_raw_text:
+            brokerage_near_north_match = re.search(
+                r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                email_raw_text,
+                re.IGNORECASE
+            )
+            if brokerage_near_north_match:
+                use_near_north = True
+                print(f"DEBUG CI: Found 'Brokerage: Near North' pattern in email - setting use_near_north flag")
+        
+        # Fallback 3: check combined_text for Near North mentions
+        if not use_near_north and combined_text:
+            combined_upper = combined_text.upper()
+            if 'NEAR NORTH' in combined_upper or 'NEARNORTH' in combined_upper:
+                # Only set if it's in a broker context (not just random mention)
+                if any(kw in combined_upper for kw in ['BROKER', 'BROKERAGE', 'CUSTOMS', 'CLEARANCE']):
+                    use_near_north = True
+                    print(f"DEBUG CI: Found Near North in broker context - setting use_near_north flag")
+    
+    print(f"DEBUG CI: 🔍 Broker Detection:")
+    print(f"   use_near_north flag: {email_analysis.get('use_near_north', 'NOT SET') if email_analysis else 'NO EMAIL'}")
+    print(f"   customs_broker: {email_analysis.get('customs_broker', 'NOT SET') if email_analysis else 'NO EMAIL'}")
+    print(f"   Final use_near_north: {use_near_north}")
+    
     # CUSTOMS BROKER FIELDS (top-right section)
-    # Use Near North when Canoil handles brokerage (prepaid) or for Georgia Western
-    if canoil_handles_brokerage or is_georgia_western:
+    # PRIORITY 1: AEC orders use Farrow broker
+    if is_aec_order:
+        field_values['brokerCompany'] = 'Farrow'
+        field_values['brokerPhone'] = '734-955-7799'
+        field_values['brokerFax'] = '877-632-7769'
+        field_values['brokerPaps'] = 'uscustomsdocs365@farrow.com, Taylor.paps@farrow.com, USCustomssupport@farrow.com'
+        field_values['irsNumber'] = '06-1589396'  # AEC IRS number
+        field_values['brokerage'] = 'Farrow | Account #: AECGR001'  # Override brokerage field
+        print(f"DEBUG CI: AEC order detected - using Farrow broker (Account: AECGR001)")
+    # PRIORITY 2: Use Near North when use_near_north flag is set
+    # This covers: Near North mentioned in email, prepaid brokerage, Georgia Western
+    elif use_near_north:
         # We handle customs - use our broker
         field_values['brokerCompany'] = 'Near North Customs Brokers US Inc'
         field_values['brokerPhone'] = '716-204-4020'
         field_values['brokerFax'] = '716-204-5551'
         field_values['brokerPaps'] = 'ENTRY@NEARNORTHUS.COM'
-        if is_georgia_western:
-            print(f"DEBUG CI: Georgia Western detected - using Near North Customs Brokers")
-        else:
-            print(f"DEBUG CI: Prepaid brokerage detected - using Near North Customs Brokers")
+        field_values['brokerage'] = 'Near North Customs Brokers'
+        
+        # DIRECT FILL - Don't rely on generic loop, fill broker fields NOW
+        broker_company_field = soup.find(id='brokerCompany')
+        print(f"DEBUG: brokerCompany field found: {broker_company_field is not None}")
+        if broker_company_field:
+            broker_company_field['value'] = 'Near North Customs Brokers US Inc'
+            print(f"DEBUG: Set brokerCompany value to: {broker_company_field.get('value')}")
+        
+        broker_phone_field = soup.find(id='brokerPhone')
+        print(f"DEBUG: brokerPhone field found: {broker_phone_field is not None}")
+        if broker_phone_field:
+            broker_phone_field['value'] = '716-204-4020'
+            print(f"DEBUG: Set brokerPhone value to: {broker_phone_field.get('value')}")
+        
+        broker_fax_field = soup.find(id='brokerFax')
+        print(f"DEBUG: brokerFax field found: {broker_fax_field is not None}")
+        if broker_fax_field:
+            broker_fax_field['value'] = '716-204-5551'
+            print(f"DEBUG: Set brokerFax value to: {broker_fax_field.get('value')}")
+        
+        broker_paps_field = soup.find(id='brokerPaps')
+        print(f"DEBUG: brokerPaps field found: {broker_paps_field is not None}")
+        if broker_paps_field:
+            broker_paps_field.string = 'ENTRY@NEARNORTHUS.COM'
+            print(f"DEBUG: Set brokerPaps to: ENTRY@NEARNORTHUS.COM")
+        
+        brokerage_field = soup.find(id='brokerage')
+        print(f"DEBUG: brokerage field found: {brokerage_field is not None}")
+        if brokerage_field:
+            brokerage_field['value'] = 'Near North Customs Brokers'
+            print(f"DEBUG: Set brokerage value to: {brokerage_field.get('value')}")
+        
+        # Set duty account to EXPORTER
+        exporter_radio = soup.find(id='dutyExporter')
+        print(f"DEBUG: dutyExporter radio found: {exporter_radio is not None}")
+        if exporter_radio:
+            exporter_radio['checked'] = 'checked'
+            print(f"DEBUG: Set dutyExporter checked")
+        
+        print(f"DEBUG CI: ✅ FILLED Near North broker info directly into HTML")
     elif extracted_broker:
         # Customer specified broker - fill company name
         field_values['brokerCompany'] = extracted_broker
@@ -1011,6 +1284,22 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         field_values['brokerPhone'] = ''
         field_values['brokerFax'] = ''
         field_values['brokerPaps'] = ''
+    
+    # DUTY/BROKERAGE ACCOUNT: Who pays for duties and brokerage fees?
+    # - EXPORTER (Canoil) when we handle brokerage (Near North, prepaid, Georgia Western)
+    # - CONSIGNEE (customer) when they use their own broker
+    if is_aec_order:
+        # AEC uses Farrow - customer pays their own broker
+        field_values['dutyAccount'] = 'consignee'
+        print(f"DEBUG CI: Duty account = CONSIGNEE (AEC uses their Farrow broker)")
+    elif use_near_north:
+        # Canoil handles brokerage - we pay (EXPORTER)
+        field_values['dutyAccount'] = 'exporter'
+        print(f"DEBUG CI: Duty account = EXPORTER (Canoil handles brokerage)")
+    else:
+        # Customer uses their own broker - they pay (CONSIGNEE)
+        field_values['dutyAccount'] = 'consignee'
+        print(f"DEBUG CI: Duty account = CONSIGNEE (customer handles their own broker)")
     
     field_values['discounts'] = ''  # Leave empty for manual entry
     field_values['portOfEntry'] = ''  # Leave empty for manual entry
@@ -1063,6 +1352,15 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     if total_brokerage > 0:
         print(f"DEBUG: CI - Total Brokerage added to field_values: ${total_brokerage:.2f}")
     
+    
+    # DEBUG: Show broker field values before population
+    print(f"\n🔍 BROKER FIELDS DEBUG:")
+    print(f"   brokerCompany: '{field_values.get('brokerCompany', 'NOT SET')}'")
+    print(f"   brokerPhone: '{field_values.get('brokerPhone', 'NOT SET')}'")
+    print(f"   brokerFax: '{field_values.get('brokerFax', 'NOT SET')}'")
+    print(f"   brokerPaps: '{field_values.get('brokerPaps', 'NOT SET')}'")
+    print(f"   brokerage: '{field_values.get('brokerage', 'NOT SET')}'")
+    print(f"   dutyAccount: '{field_values.get('dutyAccount', 'NOT SET')}'")
     
     # Populate all input fields and textareas using ID-based lookup
     for field_id, value in field_values.items():
@@ -1128,6 +1426,19 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         cad_radio = soup.find('input', {'name': 'currency', 'value': 'CAD'})
         if cad_radio:
             cad_radio['checked'] = 'checked'
+    
+    # Duty/Brokerage Account - who pays for duties and brokerage
+    duty_account = field_values.get('dutyAccount', 'consignee')
+    if duty_account == 'exporter':
+        exporter_radio = soup.find('input', {'id': 'dutyExporter'})
+        if exporter_radio:
+            exporter_radio['checked'] = 'checked'
+        print(f"DEBUG CI: Set duty account radio = EXPORTER")
+    else:
+        consignee_radio = soup.find('input', {'id': 'dutyConsignee'})
+        if consignee_radio:
+            consignee_radio['checked'] = 'checked'
+        print(f"DEBUG CI: Set duty account radio = CONSIGNEE")
     
     # Freight Terms - removed from Commercial Invoice (leave empty)
     
@@ -1199,10 +1510,16 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     # with HTS code 7310.10. This adjusts product prices and adds steel line items.
     # Sample pails (mentioned in email but not on SO) are added to steel pail count.
     sample_pail_count = so_data.get('sample_pail_count', 0)
+    
+    # Check if AEC order (uses liter conversion)
+    customer_name = so_data.get('customer_name', '').upper()
+    is_aec = 'AEC' in customer_name
+    
     print(f"\n>> Processing steel container separation for {len(physical_items)} items...")
+    print(f"   Customer: {customer_name}, Is AEC: {is_aec}")
     if sample_pail_count > 0:
         print(f"   (Including {sample_pail_count} sample pail(s) in steel count)")
-    adjusted_items, steel_items = process_items_with_steel_separation(physical_items, sample_pail_count)
+    adjusted_items, steel_items = process_items_with_steel_separation(physical_items, sample_pail_count, is_aec)
     
     # If European shipment, also truncate steel HTS codes
     if is_europe and steel_items:
@@ -1257,11 +1574,22 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             hts_cell.append(hts_input)
             new_row.append(hts_cell)
             
-            # Unit Quantity cell
+            # Unit Quantity cell - format as "6000 L" or "361 Pail"
             qty_cell = soup.new_tag('td')
-            qty_input = soup.new_tag('input', type='number', **{'class': 'unit-qty'}, 
-                                   step='1', min='0', onchange='calculateItemTotal(this)')
-            qty_input['value'] = str(item.get('quantity', ''))
+            qty_input = soup.new_tag('input', type='text', **{'class': 'unit-qty'}, 
+                                   onchange='calculateItemTotal(this)')
+            qty_value = item.get('quantity', 0)
+            unit_value = item.get('unit', '')
+            # Format qty with unit (e.g. "6,000 L" or "361 Pail")
+            try:
+                qty_num = float(qty_value)
+                if qty_num == int(qty_num):
+                    qty_formatted = f"{int(qty_num):,}"
+                else:
+                    qty_formatted = f"{qty_num:,.1f}"
+            except:
+                qty_formatted = str(qty_value)
+            qty_input['value'] = f"{qty_formatted} {unit_value}".strip()
             qty_cell.append(qty_input)
             new_row.append(qty_cell)
             
@@ -1305,21 +1633,22 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             }
         });
         
-        // Calculate invoice total for pre-filled items
-        let grandTotal = 0;
-        document.querySelectorAll('.item-total').forEach(function(totalInput) {
-            if (totalInput.value) {
-                // Remove $ and commas, then parse
-                let value = parseFloat(totalInput.value.replace(/[$,]/g, '')) || 0;
-                grandTotal += value;
-            }
-        });
-        
-        // Set grand total with $ and commas
+        // Only calculate grand total if not already set by backend (SO total takes priority)
         let grandTotalElem = document.getElementById('grandTotal');
-        if (grandTotalElem && grandTotal > 0) {
-            grandTotalElem.value = '$' + grandTotal.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+        if (grandTotalElem && !grandTotalElem.value) {
+            // No pre-set value, calculate from items
+            let grandTotal = 0;
+            document.querySelectorAll('.item-total').forEach(function(totalInput) {
+                if (totalInput.value) {
+                    let value = parseFloat(totalInput.value.replace(/[$,]/g, '')) || 0;
+                    grandTotal += value;
+                }
+            });
+            if (grandTotal > 0) {
+                grandTotalElem.value = '$' + grandTotal.toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+            }
         }
+        // If grandTotal already has a value from SO, keep it (don't recalculate)
     });
     """
     # Insert at the beginning of body, before template's script

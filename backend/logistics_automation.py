@@ -163,45 +163,36 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
     prompt = f"""
     Parse this logistics email that contains MULTIPLE Sales Orders shipping together.
     
-    CRITICAL: This email has multiple SOs (e.g., "SO 3004 & 3020"). Extract data for EACH SO separately.
+    CRITICAL: Extract data EXACTLY as written in the email. DO NOT use example values.
     
     Email Content:
     {email_text}
     
-    Return JSON with this EXACT structure:
+    Return JSON with this structure (use ACTUAL values from email above, NOT these examples):
     {{
-        "so_numbers": ["3004", "3020"],  // Array of ALL SO numbers found
-        "po_numbers": ["20475", "20496"],  // Array of PO numbers if any (in same order as SOs)
-        "company_name": "AEC Group Inc.",  // Customer company
+        "so_numbers": ["XXXX", "YYYY"],  // Extract actual SO numbers from email
+        "po_numbers": ["AAAA", "BBBB"],  // Extract actual PO numbers from email
+        "company_name": "Extract from email",  // Extract actual company name
         "items_by_so": {{
-            "3004": [
+            "XXXX": [
                 {{
-                    "description": "AEC Engine Flush Finished 6 Gallon Pail",
-                    "quantity": "360",
-                    "unit": "pails",
-                    "batch_number": "CCL-25324",
-                    "gross_weight": "7,610 kg",
-                    "pallet_count": 10,
-                    "pallet_dimensions": "48×40×53 inches"
-                }}
-            ],
-            "3020": [
-                {{
-                    "description": "Diesel - Fuel System 12x1L Cleaning Solution",
-                    "quantity": "500",
-                    "unit": "cases",
-                    "batch_number": "CCL-25304",
-                    "gross_weight": "6,267.3 kg",
-                    "pallet_count": 9,
-                    "pallet_dimensions": "48×40×46 inches (8) + 45×40×22 inches (1)"
+                    "description": "Extract actual product name",
+                    "quantity": "Extract actual quantity",
+                    "unit": "Extract actual unit",
+                    "batch_number": "Extract actual batch",
+                    "gross_weight": "Extract actual weight with kg",
+                    "pallet_count": 0,
+                    "pallet_dimensions": "Extract actual dimensions"
                 }}
             ]
         }},
         "combined_totals": {{
-            "total_gross_weight": "13,877.3 kg",
-            "total_pallet_count": 19
+            "total_gross_weight": "Sum all weights from email",
+            "total_pallet_count": 0
         }}
     }}
+    
+    CRITICAL: Extract the EXACT weight values from the email. Do NOT invent or use default values.
     
     IMPORTANT RULES:
     1. Extract EACH SO's items separately under items_by_so
@@ -988,11 +979,13 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             "packaging_type": "[CRITICAL] Type of packaging: 'case', 'pallet', or 'skid'. Look for phrases like 'In 1 case 27×22×20 inches' → 'case', 'on 2 pallets 48x40' → 'pallet', 'on 3 skids' → 'skid'. If email says 'case' use 'case', if 'pallet' or 'skid' use 'pallet'. Default to 'pallet' if not specified. Required field.",
             "special_instructions": "any special handling notes",
             "ship_date": "ship date if mentioned",
-            "carrier": "carrier/shipping company",
+            "carrier": "carrier/shipping company name (e.g., 'R+L Carriers', 'Day & Ross', 'FedEx')",
+            "tracking_number": "tracking number, PRO number, or BOL number if mentioned (e.g., 'PRO# 123456', 'Tracking: ABC123', 'BOL# 789')",
             "truck_info": "truck details if any",
             "broker_carrier_ref": "broker or carrier reference number if mentioned",
             "terms_of_sale": "payment terms if mentioned (e.g. Net 30, Net 60)",
-            "final_destination": "final destination country if different from shipping address"
+            "final_destination": "final destination country if different from shipping address",
+            "customs_broker": "[CRITICAL] Extract customs broker/brokerage company name if mentioned. Look for patterns: 'cleared by [broker name]', 'customs clearance by [broker]', 'brokerage by [broker]', 'broker: [name]', 'brokerage: [name]', 'broker will be taking care of by exporter using [broker name]', 'broker will be taking care of by [exporter] using [broker name]'. IMPORTANT: If you see 'Brokerage: Near North' or 'Broker: Near North', this means the EXPORTER (Canoil) will handle brokerage using Near North Customs Brokers. Common brokers: 'Near North Brokers', 'Near North Customs Brokers US Inc', 'Near North', 'Farrow', 'Livingston International', 'Cole International'. Example: 'This will be cleared by Near North Brokers US Inc' → 'Near North Brokers US Inc'. Example: 'Broker will be taking care of by exporter using Near North' → 'Near North Customs Brokers'. Example: 'Brokerage: Near North' → 'Near North Customs Brokers'"
         }}
         
         CRITICAL EXAMPLES FOR LINE NUMBERS (MUST EXTRACT CORRECTLY):
@@ -1598,6 +1591,7 @@ def parse_email_fallback(email_text):
     
     # Extract carrier information
     carrier_patterns = [
+        r'Logistics\s+Pick\s*up:?\s*([A-Za-z0-9\s&,.-]+?)\s*[-–]\s*([A-Za-z0-9-]+)',  # "Logistics Pick up: Gateway - P358521"
         r'carrier:?\s*([A-Za-z\s&,.-]+?)(?:\n|$)',
         r'shipping\s*company:?\s*([A-Za-z\s&,.-]+?)(?:\n|$)',
         r'transport:?\s*([A-Za-z\s&,.-]+?)(?:\n|$)'
@@ -1606,9 +1600,30 @@ def parse_email_fallback(email_text):
     for pattern in carrier_patterns:
         match = re.search(pattern, email_text, re.IGNORECASE)
         if match:
-            data['carrier'] = match.group(1).strip()
-            print(f"SUCCESS: Fallback found carrier: {data['carrier']}")
+            # Special handling for "Logistics Pick up: Gateway - P358521" format
+            if 'Logistics' in pattern:
+                data['carrier'] = match.group(1).strip()
+                data['tracking_number'] = match.group(2).strip()
+                print(f"SUCCESS: Fallback found carrier: {data['carrier']}, tracking: {data['tracking_number']}")
+            else:
+                data['carrier'] = match.group(1).strip()
+                print(f"SUCCESS: Fallback found carrier: {data['carrier']}")
             break
+    
+    # Extract tracking number separately if not found with carrier
+    if not data.get('tracking_number'):
+        tracking_patterns = [
+            r'PRO\s*#?\s*:?\s*([A-Za-z0-9-]+)',
+            r'Tracking\s*#?\s*:?\s*([A-Za-z0-9-]+)',
+            r'BOL\s*#?\s*:?\s*([A-Za-z0-9-]+)',
+            r'Reference\s*#?\s*:?\s*([A-Za-z0-9-]+)'
+        ]
+        for pattern in tracking_patterns:
+            match = re.search(pattern, email_text, re.IGNORECASE)
+            if match:
+                data['tracking_number'] = match.group(1).strip()
+                print(f"SUCCESS: Fallback found tracking: {data['tracking_number']}")
+                break
     
     # BACKWARD COMPATIBILITY: Ensure frontend gets company_name in expected field
     if not data.get('company_name'):
@@ -2066,11 +2081,23 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         unmatched_items = []
         
         for email_item in email_items_for_so:
+            # SKIP sample items in validation - they're special instructions, not SO items
+            if email_item.get('is_sample'):
+                print(f"   🎁 Skipping sample item in validation: {email_item.get('description')}")
+                continue
+                
             email_desc = (email_item.get('description') or '').upper().strip()
             matched = False
             
             for so_desc in so_item_names:
-                if email_desc in so_desc or so_desc in email_desc:
+                # Flexible matching: substring OR significant keyword overlap
+                email_words = set(email_desc.replace('-', ' ').split())
+                so_words = set(so_desc.replace('-', ' ').split())
+                common_words = email_words & so_words
+                significant = [w for w in common_words if len(w) > 3]
+                
+                if (email_desc in so_desc or so_desc in email_desc or 
+                    len(significant) >= 2):  # At least 2 significant words match
                     matched = True
                     matched_count += 1
                     break
@@ -2108,11 +2135,24 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'items_by_so': items_by_so
     }
     
-    # Flatten items for backward compatibility
+    # Flatten items for backward compatibility (EXCLUDE samples - they only affect steel count)
+    # ALSO apply AEC deduplication here to avoid duplicates from email parsing
     for so_num, items in items_by_so.items():
         for item in items:
+            # SKIP sample items - they should NOT appear as line items
+            if item.get('is_sample'):
+                print(f"   🎁 Skipping sample item from line items: {item.get('description')}")
+                continue
             item['so_number'] = so_num  # Tag which SO this item belongs to
             email_data['items'].append(item)
+    
+    # AEC-SPECIFIC DEDUPLICATION: Remove items from email_data that will be duplicated in combined_so_data
+    # This prevents the BOL from showing both "Solution" (from email) and "Soultion" (from SO PDF)
+    if 'AEC' in (multi_so_email_data.get('company_name') or '').upper():
+        print("   🏭 AEC order detected - applying typo-tolerant deduplication to email_data")
+        # Don't add email items to email_data - they'll come from combined_so_data with proper pricing
+        email_data['items'] = []
+        print("   ✅ Cleared email_data items (will use combined_so_data items only)")
     
     # Count pallets from raw email
     pallet_matches = re.findall(r'[Oo]n\s+(\d+)\s+(?:pallet|skid)', email_content)
@@ -2197,28 +2237,52 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
         combined['po_number'] = ' & '.join(po_list) if po_list else ''
     
     # Combine items from all SOs, grouped by SO
+    # CRITICAL: Only include items that are MENTIONED IN THE EMAIL for each SO
+    # Don't blindly pull all items from SO PDFs - only what the email says to ship
     items_by_so = multi_so_email_data.get('items_by_so', {})
     total_subtotal = 0.0
+    
+    # FIRST: Sum total_amount from each SO (this includes pallets, charges, everything)
+    combined_total_from_sos = 0.0
+    for so_data in so_data_list:
+        so_total = so_data.get('total_amount', 0)
+        if so_total:
+            try:
+                combined_total_from_sos += float(so_total)
+                print(f"   💵 SO {so_data.get('so_number', '')}: ${float(so_total):,.2f}")
+            except:
+                pass
+    print(f"   💰 Combined SO totals: ${combined_total_from_sos:,.2f}")
     
     for so_data in so_data_list:
         so_num = so_data.get('so_number', '')
         email_items = items_by_so.get(so_num, [])
         
-        for so_item in so_data.get('items', []):
-            # Skip freight/charges
-            desc = so_item.get('description', '').upper()
-            if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
+        # Skip SO entirely if no items were specified in the email for it
+        if not email_items:
+            print(f"   ⚠️ SO {so_num}: No items in email - skipping all items from this SO PDF")
+            continue
+        
+        print(f"   📋 SO {so_num}: Processing {len(email_items)} items from email")
+        
+        # For each email item, find matching SO PDF item to enrich with pricing/HTS
+        for email_item in email_items:
+            # Skip samples - they're handled separately below
+            if email_item.get('is_sample') == True:
+                print(f"   🎁 Skipping sample item: {email_item.get('description', 'Unknown')}")
                 continue
+                
+            email_desc = (email_item.get('description') or '').upper()
+            email_words = set(email_desc.split())
             
-            # Add SO identifier to item
-            item_copy = so_item.copy()
-            item_copy['source_so'] = so_num
-            
-            # Try to match batch number from email (flexible matching for typos)
-            for email_item in email_items:
-                email_desc = (email_item.get('description') or '').upper()
-                # Check for substring match OR key word overlap
-                email_words = set(email_desc.split())
+            # Find matching item from SO PDF
+            matched_so_item = None
+            for so_item in so_data.get('items', []):
+                # Skip freight/charges
+                desc = so_item.get('description', '').upper()
+                if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
+                    continue
+                
                 so_words = set(desc.split())
                 common_words = email_words & so_words
                 
@@ -2228,45 +2292,149 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
                           len(significant_common) >= 2)
                 
                 if matches:
-                    if email_item.get('batch_number'):
-                        item_copy['batch_number'] = email_item['batch_number']
-                        print(f"   📝 Batch matched for {desc[:40]}: {email_item['batch_number']}")
-                    if email_item.get('gross_weight'):
-                        item_copy['gross_weight'] = email_item['gross_weight']
+                    matched_so_item = so_item
+                    print(f"   ✅ Matched email item '{email_desc[:40]}' to SO item '{desc[:40]}'")
                     break
             
-            combined['items'].append(item_copy)
-            
-            # Add to subtotal
-            try:
-                item_total = float(str(so_item.get('total', 0)).replace('$', '').replace(',', ''))
-                total_subtotal += item_total
-            except:
-                pass
+            if matched_so_item:
+                # Use SO PDF item enriched with email batch/weight info
+                item_copy = matched_so_item.copy()
+                item_copy['source_so'] = so_num
+                
+                # Add batch number and weight from email
+                if email_item.get('batch_number'):
+                    item_copy['batch_number'] = email_item['batch_number']
+                    print(f"   📝 Batch: {email_item['batch_number']}")
+                if email_item.get('gross_weight'):
+                    item_copy['gross_weight'] = email_item['gross_weight']
+                
+                combined['items'].append(item_copy)
+                
+                # Add to subtotal
+                try:
+                    item_total = float(str(matched_so_item.get('total', 0)).replace('$', '').replace(',', ''))
+                    total_subtotal += item_total
+                except:
+                    pass
+            else:
+                # Email mentions an item but no match found in SO PDF - add from email only
+                print(f"   ⚠️ No SO PDF match for email item: {email_desc[:50]}")
+                item_copy = {
+                    'description': email_item.get('description', ''),
+                    'quantity': email_item.get('quantity', 0),
+                    'unit': email_item.get('unit', ''),
+                    'batch_number': email_item.get('batch_number', ''),
+                    'gross_weight': email_item.get('gross_weight', ''),
+                    'source_so': so_num
+                }
+                combined['items'].append(item_copy)
     
     # ==========================================================================
-    # SPECIAL INSTRUCTIONS: Sample pails are added to steel pail COUNT only
+    # DEDUPLICATION: Remove duplicate items with near-identical descriptions
     # ==========================================================================
-    # Sample pails don't appear as separate line items - they just add to the
-    # total steel pail count on the commercial invoice. This is handled in
-    # commercial_invoice_html_generator.py when processing steel containers.
-    # 
-    # We track sample_pail_count here for the commercial invoice generator.
+    # This handles cases where:
+    # - SO PDF has typo: "Diesel - Fuel System 12x1L Cleaning Soultion"
+    # - Email has correct: "Diesel - Fuel System 12x1L Cleaning Solution"
+    # Both get added but they're the SAME item - dedupe by word similarity
+    print("\n🔍 DEDUPLICATING items (handling typos like 'Solution' vs 'Soultion')...")
+    
+    def normalize_description(desc):
+        """Normalize description for comparison - remove common typo variations"""
+        if not desc:
+            return ""
+        d = desc.upper().strip()
+        # Common typo fixes for comparison only
+        d = d.replace('SOULTION', 'SOLUTION')  # AEC typo
+        d = d.replace('SOLTUION', 'SOLUTION')
+        d = d.replace('SOLUTON', 'SOLUTION')
+        return d
+    
+    def get_description_fingerprint(desc):
+        """Get a fingerprint of significant words (4+ chars) for matching"""
+        if not desc:
+            return set()
+        normalized = normalize_description(desc)
+        words = set(w for w in normalized.split() if len(w) > 3)
+        return words
+    
+    seen_fingerprints = {}  # fingerprint -> index of item to keep
+    items_to_remove = set()
+    
+    for i, item in enumerate(combined['items']):
+        desc = item.get('description', '')
+        so_num = item.get('source_so', '')
+        qty = str(item.get('quantity', ''))
+        
+        fp = get_description_fingerprint(desc)
+        fp_key = (frozenset(fp), so_num, qty)  # Same SO, same qty, similar description
+        
+        if fp_key in seen_fingerprints:
+            existing_idx = seen_fingerprints[fp_key]
+            existing_item = combined['items'][existing_idx]
+            
+            # Keep the one with more data (unit_price, hts_code, etc.)
+            existing_has_price = bool(existing_item.get('unit_price') or existing_item.get('total_price'))
+            current_has_price = bool(item.get('unit_price') or item.get('total_price'))
+            
+            if current_has_price and not existing_has_price:
+                # Current is better - remove existing, keep current
+                items_to_remove.add(existing_idx)
+                seen_fingerprints[fp_key] = i
+                print(f"   🔄 Replacing item {existing_idx} with item {i} (has pricing)")
+            else:
+                # Existing is better or equal - remove current
+                items_to_remove.add(i)
+                print(f"   🗑️ DUPLICATE REMOVED: '{desc[:50]}...' (duplicate of item {existing_idx})")
+        else:
+            seen_fingerprints[fp_key] = i
+    
+    # Remove duplicates (in reverse order to preserve indices)
+    if items_to_remove:
+        combined['items'] = [item for i, item in enumerate(combined['items']) if i not in items_to_remove]
+        print(f"   ✅ Removed {len(items_to_remove)} duplicate item(s)")
+    else:
+        print(f"   ✅ No duplicates found")
+    
+    # ==========================================================================
+    # SPECIAL INSTRUCTIONS: Sample pails are MERGED into the SO item
+    # ==========================================================================
+    # Sample pails don't appear as separate line items - they get added to:
+    # 1. The description of the item they're associated with (+ 1 Sample pail)
+    # 2. The quantity (+1)
+    # 3. The steel pail count on commercial invoice
     sample_pail_count = 0
     for so_num, email_items in items_by_so.items():
         for email_item in email_items:
             if email_item.get('is_sample') == True:
                 unit = (email_item.get('unit') or '').upper()
+                sample_qty = int(email_item.get('quantity', 1))
+                
                 if 'PAIL' in unit:
-                    sample_pail_count += int(email_item.get('quantity', 1))
-                    print(f"   🎁 SAMPLE PAIL: +{email_item.get('quantity')} pail(s) will be added to steel pail count")
+                    sample_pail_count += sample_qty
+                    
+                    # Find ANY PAIL product in the shipment (not just this SO) and add sample info
+                    # Sample pail goes with the pail product, not cases
+                    for item in combined['items']:
+                        item_unit = str(item.get('unit', '')).upper()
+                        item_desc = str(item.get('description', '')).upper()
+                        # Only add to PAIL products (unit is PAIL), not cases or drums
+                        if 'PAIL' in item_unit:
+                            # Add to description
+                            item['description'] = f"{item['description']} + {sample_qty} Sample pail"
+                            # Add to quantity
+                            item['quantity'] = int(item.get('quantity', 0)) + sample_qty
+                            print(f"   🎁 SAMPLE MERGED: Added +{sample_qty} pail to PAIL product: {item['description'][:50]}...")
+                            break
     
     combined['sample_pail_count'] = sample_pail_count
     
+    # Use item totals only (DECLARED VALUE = products, NOT pallets/charges)
     combined['subtotal'] = f"${total_subtotal:,.2f}"
+    combined['total_amount'] = total_subtotal  # For Commercial Invoice declared value (products only)
     hst = total_subtotal * 0.13
     combined['hst'] = f"${hst:,.2f}"
     combined['total'] = f"${(total_subtotal + hst):,.2f}"
+    print(f"   💰 Commercial Invoice declared value: ${total_subtotal:,.2f} (products only, NO pallets)")
     
     # Add HTS codes to all items (including samples)
     print("\n📋 Matching HTS codes for combined items...")
@@ -2388,6 +2556,10 @@ def process_email():
             # Use GPT parser for accurate multi-item extraction
             print("INFO: Parsing email with GPT-4o-mini for multi-item support...")
             email_data = parse_email_with_gpt4(email_content)
+            
+            # CRITICAL: Store original email text for downstream broker detection
+            # (BOL/CI generators need raw_text to detect "cleared by Near North" etc.)
+            email_data['raw_text'] = email_content
             
             # CRITICAL: Count pallets from RAW EMAIL - NEVER trust GPT for counting
             # Patterns: "On 3 pallets", "On 1 pallet", "on 2 skids", etc.
@@ -2519,9 +2691,10 @@ def process_email():
                 primary_company = sold_to_company
         else:
             # Fallback to old structure for backward compatibility
-            primary_company = email_data.get('company_name', '').upper().strip()
+            # Use 'or' pattern to handle None values (when key exists but value is None)
+            primary_company = (email_data.get('company_name') or '').upper().strip()
         
-        so_customer = so_data.get('customer_name', '').upper().strip()
+        so_customer = (so_data.get('customer_name') or '').upper().strip()
         
         if primary_company and so_customer:
             # Smart matching logic for B2B scenarios
@@ -3214,6 +3387,29 @@ def process_email():
                                 matched = True
                                 break
                 
+                # Method 4: Match email description against SO ITEM CODE
+                # e.g., email has "MOVLL55KG" and SO item code is "MOVLL1K55KG"
+                if not matched and so_code:
+                    for email_desc, match_info in email_items_by_desc.items():
+                        email_upper = email_desc.upper().strip()
+                        code_upper = so_code.upper().strip()
+                        
+                        # Check if email desc matches item code (with some flexibility)
+                        # Remove common variations: spaces, dashes, underscores
+                        email_clean = re.sub(r'[\s\-_]', '', email_upper)
+                        code_clean = re.sub(r'[\s\-_]', '', code_upper)
+                        
+                        # Check for match or significant overlap
+                        if (email_clean == code_clean or 
+                            email_clean in code_clean or 
+                            code_clean in email_clean or
+                            (len(email_clean) >= 5 and len(code_clean) >= 5 and 
+                             (email_clean[:5] == code_clean[:5] or email_clean[-5:] == code_clean[-5:]))):
+                            so_item['batch_number'] = match_info['batch_number']
+                            print(f"SUCCESS: Item code match: '{email_desc}' ≈ '{so_code}' → Batch: {match_info['batch_number']}")
+                            matched = True
+                            break
+                
                 if not matched:
                     unmatched_items.append(so_item.get('description', 'Unknown'))
                     print(f"⚠️ No batch match for SO item: '{so_desc}' (Code: {so_code})")
@@ -3333,13 +3529,26 @@ def process_email():
             so_data.get('memo', '')
         ]).upper()
         
-        # Check items for prepaid brokerage
+        # Check items for prepaid brokerage AND freight+brokerage charges
+        has_freight_charge = False
+        has_brokerage_charge = False
         for item in so_data.get('items', []):
             item_desc = str(item.get('description', '')).upper()
             if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
                 brokerage_search_text += ' PREPAID BROKERAGE'
             if 'PREPAID' in item_desc and 'BROKER' in item_desc:
                 brokerage_search_text += ' PREPAID BROKERAGE'
+            # Check for freight charge line item
+            if 'FREIGHT' in item_desc and ('CHARGE' in item_desc or item.get('unit_price', 0) > 0):
+                has_freight_charge = True
+            # Check for brokerage charge line item  
+            if 'BROKERAGE' in item_desc or 'BROKER' in item_desc:
+                has_brokerage_charge = True
+        
+        # If SO has BOTH freight charge AND brokerage charge → Canoil handles brokerage (Near North)
+        so_has_freight_and_brokerage = has_freight_charge and has_brokerage_charge
+        if so_has_freight_and_brokerage:
+            print(f"DEBUG: 📦 SO has BOTH freight charge AND brokerage charge - Canoil handles brokerage")
         
         # Detect if Canoil handles brokerage
         customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
@@ -3348,16 +3557,78 @@ def process_email():
             ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
             ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
             'PREPAID BROKERAGE' in brokerage_search_text or
-            is_georgia_western
+            is_georgia_western or
+            so_has_freight_and_brokerage  # NEW: freight + brokerage charges in SO
         )
         
-        # Add Near North broker info to email_data for frontend display
-        if canoil_handles_brokerage:
+        # =====================================================================
+        # CLEAN BROKER DETECTION - No raw_text needed, just check keywords
+        # =====================================================================
+        
+        # Check GPT-extracted customs_broker field
+        gpt_broker = (email_data.get('customs_broker') or '').upper()
+        
+        # Check original email content for broker keywords
+        email_upper = email_content.upper()
+        
+        # Keywords that indicate broker mention
+        broker_keywords = ['BROKER', 'BROKERAGE', 'CUSTOMS BROKER', 'CUSTOM BROKER', 
+                          'CLEARANCE', 'CLEARED BY', 'CUSTOMS CLEARANCE']
+        
+        # Check if Near North is specifically mentioned (in email or GPT extraction)
+        # Also check for various patterns that indicate Near North broker
+        exporter_using_pattern = re.search(
+            r'broker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+            email_content,
+            re.IGNORECASE
+        )
+        # Check for "Brokerage: Near North" or "Broker: Near North" patterns
+        brokerage_near_north_pattern = re.search(
+            r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+            email_content,
+            re.IGNORECASE
+        )
+        near_north_in_email = (
+            'NEAR NORTH' in email_upper or 
+            'NEARNORTH' in email_upper or
+            'NEAR NORTH' in gpt_broker or
+            'NEARNORTH' in gpt_broker or
+            exporter_using_pattern is not None or
+            brokerage_near_north_pattern is not None
+        )
+        
+        # Check if any broker keyword is mentioned in email
+        has_broker_keyword = any(kw in email_upper for kw in broker_keywords)
+        
+        print(f"\n{'='*60}")
+        print(f"🔍 CLEAN BROKER DETECTION:")
+        print(f"   GPT extracted broker: '{gpt_broker}'")
+        print(f"   Near North in email/GPT: {near_north_in_email}")
+        print(f"   Has broker keywords: {has_broker_keyword}")
+        print(f"   Canoil handles brokerage: {canoil_handles_brokerage}")
+        print(f"   Is Georgia Western: {is_georgia_western}")
+        print(f"{'='*60}\n")
+        
+        # Set clean flag for Near North usage
+        use_near_north = near_north_in_email or canoil_handles_brokerage or is_georgia_western
+        
+        # Add broker info to email_data
+        email_data['use_near_north'] = use_near_north
+        
+        if use_near_north:
             email_data['customs_broker'] = 'Near North Customs Brokers'
             email_data['customs_broker_phone'] = '716-204-4020'
             email_data['customs_broker_fax'] = '716-204-5551'
             email_data['customs_broker_email'] = 'entry@nearnorthus.com'
-            print(f"DEBUG: Canoil handles brokerage - added Near North Customs Brokers info")
+            
+            if near_north_in_email:
+                print(f"✅ Near North mentioned in email - will use Near North Customs Brokers")
+            elif is_georgia_western:
+                print(f"✅ Georgia Western customer - will use Near North Customs Brokers")
+            else:
+                print(f"✅ Canoil handles brokerage (prepaid) - will use Near North Customs Brokers")
+        else:
+            print(f"ℹ️ No Near North broker detected - broker section will be empty")
         
         result = {
             'success': True,
@@ -3854,6 +4125,22 @@ def generate_all_documents():
         origin_details = data.get('origin_details', {})
         transaction_details = data.get('transaction_details', {})
         items = data.get('items', [])
+        
+        # DEBUG: Check if email_analysis has broker-related fields
+        print(f"\n{'='*60}")
+        print(f"🔍 GENERATE-ALL-DOCUMENTS: email_analysis CHECK")
+        print(f"   email_analysis keys: {list(email_analysis.keys())}")
+        print(f"   raw_text present: {'raw_text' in email_analysis}")
+        print(f"   raw_text length: {len(email_analysis.get('raw_text', ''))}")
+        print(f"   raw_text preview: {str(email_analysis.get('raw_text', ''))[:100]}...")
+        print(f"   customs_broker: '{email_analysis.get('customs_broker', 'NOT SET')}'")
+        print(f"   customs_broker_phone: '{email_analysis.get('customs_broker_phone', 'NOT SET')}'")
+        print(f"{'='*60}\n")
+        
+        # FILTER OUT SAMPLE ITEMS - they should NOT appear on BOL/Packing Slip
+        # Sample pails only add to steel count on Commercial Invoice
+        items = [item for item in items if not item.get('is_sample')]
+        print(f"DEBUG: Filtered items (no samples): {len(items)} items")
         
         results = {}
         errors = []
@@ -4570,6 +4857,16 @@ def generate_all_documents():
                 'download_url': results['reach_conformity']['download_url'],
                 'note': results['reach_conformity'].get('note', '')
             })
+        
+        # Add AEC Manufacturer's Affidavit (for steel containers)
+        if results.get('aec_affidavit', {}).get('success'):
+            documents.append({
+                'document_type': "AEC Manufacturer's Affidavit",
+                'filename': results['aec_affidavit']['filename'],
+                'download_url': results['aec_affidavit']['download_url'],
+                'note': results['aec_affidavit'].get('note', '')
+            })
+            print(f"✅ Added AEC Manufacturer's Affidavit to documents array")
         
         # Add CORS headers to response
         response = jsonify({
