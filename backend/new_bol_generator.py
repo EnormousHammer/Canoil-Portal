@@ -518,7 +518,7 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
     
     total_pieces = sum(int(item.get('quantity', 0)) for item in items)
     
-    # Calculate individual item weights (proportional)
+    # Calculate individual item weights
     for i, item in enumerate(items):
         item_qty = int(item.get('quantity', 0))
         
@@ -526,7 +526,23 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         unit = (item.get('unit') or '').upper()
         is_tote_item = (unit in ['LITER', 'LITRE', 'TOTE', 'IBC'] and item_qty == 1) or is_tote_shipment
         
-        if total_pieces > 0 and total_weight_kg > 0:
+        # CRITICAL: Use actual gross_weight from item if available (multi-SO or email data)
+        # Don't calculate proportionally - each item has its own weight from the email
+        if item.get('gross_weight'):
+            weight_str = str(item['gross_weight'])
+            # Parse weight value (e.g. "7,610 kg" or "6267.3 kg")
+            import re
+            weight_match = re.search(r'([\d,]+(?:\.\d+)?)', weight_str)
+            if weight_match:
+                try:
+                    item_weight_kg = float(weight_match.group(1).replace(',', ''))
+                    print(f"   📦 Item {i+1}: Using actual weight from item: {item_weight_kg:.1f} kg")
+                except:
+                    item_weight_kg = 0.0
+            else:
+                item_weight_kg = 0.0
+        elif total_pieces > 0 and total_weight_kg > 0:
+            # Fallback: proportional calculation only if no item weight
             item_weight_kg = (item_qty / total_pieces) * total_weight_kg
         else:
             item_weight_kg = 0.0
@@ -728,22 +744,95 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     freight_terms = determine_freight_terms(so_data)
     print(f"   Freight: {freight_terms}")
     
-    # Brokerage info - Format: "Brokerage: [name] | Account #: [number]"
-    # ONLY use if BOTH name AND account are present (all or nothing)
-    brokerage = so_data.get('brokerage', {})
-    carrier_value = ""
-    broker_name = brokerage.get('broker_name', '').strip() if brokerage else ''
-    account_num = brokerage.get('account_number', '').strip() if brokerage else ''
+    # Check if AEC order (for brokerage info)
+    customer_name = so_data.get('customer_name', '').upper()
+    is_aec_order = 'AEC' in customer_name
     
-    # Only fill if we have BOTH broker name AND account number
-    if broker_name and account_num:
-        carrier_value = f"Brokerage: {broker_name} | Account #: {account_num}"
-        print(f"   Brokerage: {carrier_value}")
+    # =====================================================================
+    # CLEAN BROKER DETECTION - Use simple flag from email processing
+    # =====================================================================
+    use_near_north = False
+    if email_analysis:
+        # Primary check: use_near_north flag set by process_email
+        use_near_north = email_analysis.get('use_near_north', False)
+        
+        # Fallback 1: check customs_broker field for Near North
+        if not use_near_north:
+            customs_broker = str(email_analysis.get('customs_broker') or '').upper()
+            use_near_north = 'NEAR NORTH' in customs_broker or 'NEARNORTH' in customs_broker
+        
+        # Fallback 2: check email raw text for broker patterns (same as commercial invoice)
+        if not use_near_north:
+            email_raw_text = email_analysis.get('raw_text', '') or email_analysis.get('email_body', '') or ''
+            if email_raw_text:
+                # Check for "Broker on the Exporter and using Near North" pattern
+                broker_on_exporter_match = re.search(
+                    r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                    email_raw_text,
+                    re.IGNORECASE
+                )
+                if broker_on_exporter_match:
+                    use_near_north = True
+                    print(f"   🔍 Found 'Broker on the Exporter and using Near North' pattern in email")
+                else:
+                    # Check for "Brokerage: Near North" or "Broker: Near North" pattern
+                    brokerage_near_north_match = re.search(
+                        r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                        email_raw_text,
+                        re.IGNORECASE
+                    )
+                    if brokerage_near_north_match:
+                        use_near_north = True
+                        print(f"   🔍 Found 'Brokerage: Near North' pattern in email")
+                    else:
+                        # Check for "Broker will be taking care of by exporter using Near North"
+                        exporter_using_match = re.search(
+                            r'[Bb]roker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                            email_raw_text,
+                            re.IGNORECASE
+                        )
+                        if exporter_using_match:
+                            use_near_north = True
+                            print(f"   🔍 Found 'Broker will be taking care of by exporter using Near North' pattern in email")
+    
+    if use_near_north:
+        print(f"   🔍 Near North broker detected - will add to BOL Notes section")
+    
+    # CARRIER FIELD: Get logistics carrier from email (e.g., "Gateway - P358521")
+    carrier_value = ""
+    if email_analysis:
+        email_carrier = email_analysis.get('carrier', '')
+        email_tracking = email_analysis.get('tracking_number', '')
+        if email_carrier and email_tracking:
+            carrier_value = f"{email_carrier} - {email_tracking}"
+        elif email_carrier:
+            carrier_value = email_carrier
+        elif email_tracking:
+            carrier_value = f"PRO# {email_tracking}"
+    
+    if carrier_value:
+        print(f"   🚛 Logistics Carrier: {carrier_value}")
     else:
-        if broker_name and not account_num:
-            print(f"   Brokerage: Incomplete (name only) - leaving blank")
-        elif account_num and not broker_name:
-            print(f"   Brokerage: Incomplete (account only) - leaving blank")
+        print(f"   🚛 Logistics Carrier: None specified in email")
+    
+    # BROKERAGE INFO: For Notes section
+    # Priority: 1) AEC → Farrow, 2) Near North detected, 3) SO brokerage
+    brokerage_value = ""
+    if is_aec_order:
+        brokerage_value = "Brokerage: Farrow | Account #: AECGR001 | uscustomsdocs365@farrow.com"
+        print(f"   🔹 AEC order - brokerage for notes: {brokerage_value}")
+    elif use_near_north:
+        # Near North flag is set - use Near North broker info
+        brokerage_value = "Brokerage: Near North Customs Brokers US Inc | 716-204-4020 | ENTRY@NEARNORTHUS.COM"
+        print(f"   🔹 Near North detected - brokerage for notes: {brokerage_value}")
+    else:
+        brokerage = so_data.get('brokerage', {})
+        broker_name = brokerage.get('broker_name', '').strip() if brokerage else ''
+        account_num = brokerage.get('account_number', '').strip() if brokerage else ''
+        
+        if broker_name and account_num:
+            brokerage_value = f"Brokerage: {broker_name} | Account #: {account_num}"
+            print(f"   Brokerage for notes: {brokerage_value}")
         else:
             print(f"   Brokerage: None")
     
@@ -935,6 +1024,25 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                 weight_input = cells[2].find('input')
                 if weight_input:
                     weight_input['value'] = f"{total_weight_kg:.1f} kg"
+    
+    # Populate Notes section with BROKERAGE info (not carrier - carrier goes in Carrier field)
+    if brokerage_value:
+        # Find the Notes textarea (at the bottom of the BOL)
+        notes_label = soup.find('strong', string=lambda s: s and 'Notes:' in s)
+        if notes_label:
+            notes_textarea = notes_label.find_next('textarea')
+            if notes_textarea:
+                notes_textarea.string = brokerage_value
+                print(f"   📝 Set Notes (brokerage): {brokerage_value}")
+        else:
+            # Fallback: find any textarea after "Notes"
+            for strong in soup.find_all('strong'):
+                if 'Notes' in strong.get_text():
+                    textarea = strong.find_next('textarea')
+                    if textarea:
+                        textarea.string = brokerage_value
+                        print(f"   📝 Set Notes (brokerage, fallback): {brokerage_value}")
+                        break
     
     # CRITICAL: Remove ALL remaining placeholders from entire document
     # Placeholders show as grey text and are visible when printing - must be removed!
