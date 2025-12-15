@@ -815,23 +815,51 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     else:
         print(f"   🚛 Logistics Carrier: None specified in email")
     
-    # BROKERAGE INFO: For Notes section
-    # Priority: 1) AEC → Farrow, 2) Near North detected, 3) SO brokerage
+    # BROKERAGE INFO: For Notes section - Match commercial invoice format exactly
+    # Priority: 1) AEC → Farrow, 2) Near North detected, 3) Customer broker from email_analysis, 4) SO brokerage
     brokerage_value = ""
     if is_aec_order:
-        brokerage_value = "Brokerage: Farrow | Account #: AECGR001 | uscustomsdocs365@farrow.com"
+        # Match commercial invoice: Company | Phone | Fax | Email | Account #
+        brokerage_value = "Brokerage: Farrow | 734-955-7799 | 877-632-7769 | uscustomsdocs365@farrow.com, Taylor.paps@farrow.com, USCustomssupport@farrow.com | Account #: AECGR001"
         print(f"   🔹 AEC order - brokerage for notes: {brokerage_value}")
     elif use_near_north:
-        # Near North flag is set - use Near North broker info
-        brokerage_value = "Brokerage: Near North Customs Brokers US Inc | 716-204-4020 | ENTRY@NEARNORTHUS.COM"
+        # Match commercial invoice: Company | Phone | Fax | Email
+        # Get broker info from email_analysis if available, otherwise use defaults
+        broker_company = email_analysis.get('customs_broker', 'Near North Customs Brokers US Inc') if email_analysis else 'Near North Customs Brokers US Inc'
+        broker_phone = email_analysis.get('customs_broker_phone', '716-204-4020') if email_analysis else '716-204-4020'
+        broker_fax = email_analysis.get('customs_broker_fax', '716-204-5551') if email_analysis else '716-204-5551'
+        broker_email = email_analysis.get('customs_broker_email', 'ENTRY@NEARNORTHUS.COM') if email_analysis else 'ENTRY@NEARNORTHUS.COM'
+        brokerage_value = f"Brokerage: {broker_company} | {broker_phone} | {broker_fax} | {broker_email}"
         print(f"   🔹 Near North detected - brokerage for notes: {brokerage_value}")
+    elif email_analysis and email_analysis.get('customs_broker'):
+        # Customer specified broker from email - include all available info
+        broker_company = email_analysis.get('customs_broker', '').strip()
+        broker_phone = email_analysis.get('customs_broker_phone', '').strip()
+        broker_fax = email_analysis.get('customs_broker_fax', '').strip()
+        broker_email = email_analysis.get('customs_broker_email', '').strip()
+        
+        # Build broker info string with available fields
+        broker_parts = [f"Brokerage: {broker_company}"]
+        if broker_phone:
+            broker_parts.append(broker_phone)
+        if broker_fax:
+            broker_parts.append(broker_fax)
+        if broker_email:
+            broker_parts.append(broker_email)
+        
+        brokerage_value = " | ".join(broker_parts)
+        print(f"   🔹 Customer broker from email - brokerage for notes: {brokerage_value}")
     else:
+        # Fallback to SO brokerage data
         brokerage = so_data.get('brokerage', {})
         broker_name = brokerage.get('broker_name', '').strip() if brokerage else ''
         account_num = brokerage.get('account_number', '').strip() if brokerage else ''
         
         if broker_name and account_num:
             brokerage_value = f"Brokerage: {broker_name} | Account #: {account_num}"
+            print(f"   Brokerage for notes: {brokerage_value}")
+        elif broker_name:
+            brokerage_value = f"Brokerage: {broker_name}"
             print(f"   Brokerage for notes: {brokerage_value}")
         else:
             print(f"   Brokerage: None")
