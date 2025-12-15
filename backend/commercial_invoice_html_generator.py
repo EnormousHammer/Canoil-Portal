@@ -1178,14 +1178,25 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         
         # Fallback 2: check email raw text for "Brokerage: Near North" pattern
         if not use_near_north and email_raw_text:
-            brokerage_near_north_match = re.search(
-                r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+            # Check for "Broker on the Exporter" pattern first
+            broker_on_exporter_match = re.search(
+                r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
                 email_raw_text,
                 re.IGNORECASE
             )
-            if brokerage_near_north_match:
+            if broker_on_exporter_match:
                 use_near_north = True
-                print(f"DEBUG CI: Found 'Brokerage: Near North' pattern in email - setting use_near_north flag")
+                print(f"DEBUG CI: ✅ Found 'Broker on the Exporter and using Near North' pattern in email - setting use_near_north flag")
+            else:
+                # Check for "Brokerage: Near North" pattern
+                brokerage_near_north_match = re.search(
+                    r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                    email_raw_text,
+                    re.IGNORECASE
+                )
+                if brokerage_near_north_match:
+                    use_near_north = True
+                    print(f"DEBUG CI: ✅ Found 'Brokerage: Near North' pattern in email - setting use_near_north flag")
         
         # Fallback 3: check combined_text for Near North mentions
         if not use_near_north and combined_text:
@@ -1197,8 +1208,18 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     print(f"DEBUG CI: Found Near North in broker context - setting use_near_north flag")
     
     print(f"DEBUG CI: 🔍 Broker Detection:")
-    print(f"   use_near_north flag: {email_analysis.get('use_near_north', 'NOT SET') if email_analysis else 'NO EMAIL'}")
-    print(f"   customs_broker: {email_analysis.get('customs_broker', 'NOT SET') if email_analysis else 'NO EMAIL'}")
+    print(f"   email_analysis present: {email_analysis is not None}")
+    if email_analysis:
+        print(f"   email_analysis keys: {list(email_analysis.keys())}")
+        print(f"   use_near_north flag: {email_analysis.get('use_near_north', 'NOT SET')}")
+        print(f"   customs_broker: {email_analysis.get('customs_broker', 'NOT SET')}")
+        print(f"   raw_text present: {'raw_text' in email_analysis}")
+        print(f"   raw_text length: {len(email_analysis.get('raw_text', ''))}")
+        if email_analysis.get('raw_text'):
+            raw_preview = email_analysis.get('raw_text', '')[:200]
+            print(f"   raw_text preview: {raw_preview}...")
+    else:
+        print(f"   NO EMAIL ANALYSIS PROVIDED!")
     print(f"   Final use_near_north: {use_near_north}")
     
     # CUSTOMS BROKER FIELDS (top-right section)

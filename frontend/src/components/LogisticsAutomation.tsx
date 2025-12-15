@@ -149,6 +149,7 @@ const LogisticsAutomation: React.FC = () => {
           if (data.email_data || data.so_data) {
             setResult({
               email_data: data.email_data,
+              email_analysis: data.email_analysis || data.email_data,  // IMPORTANT: Include for broker detection
               so_data: data.so_data,
               validation_failed: true,
               validation_errors: data.validation_errors,
@@ -636,12 +637,7 @@ const LogisticsAutomation: React.FC = () => {
   const generateAllDocuments = async () => {
     if (!result) return;
 
-    // For AEC orders, show steel certificate reminder first
-    if (isAecOrder()) {
-      setShowAesSteelReminder(true);
-      setPendingGenerateAll(true);
-      return;
-    }
+    // AEC Manufacturer's Affidavit is now automatically included - no popup needed
 
     // For Axel France orders, show booking number popup
     if (isAxelFranceOrder()) {
@@ -895,47 +891,7 @@ const LogisticsAutomation: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 py-8">
       {/* AEC Steel Certificate Reminder Popup */}
-      {showAesSteelReminder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md mx-4 border-2 border-amber-400">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-amber-100 p-3 rounded-full">
-                <AlertCircle className="w-8 h-8 text-amber-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">AEC Order - Steel Certificate Required</h3>
-            </div>
-            
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-              <p className="text-amber-800 font-medium mb-2">⚠️ Important Reminder:</p>
-              <p className="text-amber-700">
-                Don't forget to <strong>add the Steel Certificate</strong> for this AEC shipment!
-              </p>
-              <p className="text-amber-600 text-sm mt-2">
-                USMCA form location: <br/>
-                <code className="bg-amber-100 px-1 rounded text-xs">G:\Shared drives\Logistics_Shipping\Logistics\BLANKET CUSMA, USMCA, T-MEC\2026\AEC\</code>
-              </p>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAesSteelReminder(false);
-                  setPendingGenerateAll(false);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={proceedWithGenerateAllDocuments}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-              >
-                ✓ I'll Add Certificate - Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* AEC Manufacturer's Affidavit is now automatically included in generated documents */}
 
       {/* Axel France Booking Number Popup */}
       {showAxelFrancePopup && (
@@ -1904,11 +1860,36 @@ const LogisticsAutomation: React.FC = () => {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(result.email_data).map(([key, value]) => {
+                      // Filter out items and extracted_details, but KEEP raw_text and broker fields
                       if (key === 'items' || key === 'extracted_details' || value === null || value === undefined) return null;
+                      
+                      // Handle long text fields (like raw_text) with expandable view
+                      const isLongText = key === 'raw_text' || (typeof value === 'string' && value.length > 200);
+                      const displayValue = isLongText && typeof value === 'string' 
+                        ? value.substring(0, 200) + '...' 
+                        : String(value);
+                      
+                      // Highlight broker-related fields
+                      const isBrokerField = ['customs_broker', 'use_near_north', 'customs_broker_phone', 'customs_broker_fax', 'customs_broker_email'].includes(key);
+                      
                       return (
-                        <div key={key} className="bg-slate-50 pl-3 py-2 rounded border-l-2 border-l-orange-400">
-                          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">{key.replace(/_/g, ' ')}</div>
-                          <div className="text-sm font-bold text-slate-900 mt-1">{String(value)}</div>
+                        <div key={key} className={`bg-slate-50 pl-3 py-2 rounded border-l-2 ${isBrokerField ? 'border-l-green-500 bg-green-50' : 'border-l-orange-400'}`}>
+                          <div className={`text-xs font-medium uppercase tracking-wide ${isBrokerField ? 'text-green-700' : 'text-slate-500'}`}>
+                            {key.replace(/_/g, ' ')}
+                            {isBrokerField && ' 🔍'}
+                          </div>
+                          {isLongText ? (
+                            <details className="mt-1">
+                              <summary className="text-sm font-bold text-slate-900 cursor-pointer hover:text-blue-600">
+                                {displayValue}
+                              </summary>
+                              <pre className="text-xs text-slate-700 mt-2 whitespace-pre-wrap bg-white p-2 rounded border max-h-60 overflow-auto">
+                                {String(value)}
+                              </pre>
+                            </details>
+                          ) : (
+                            <div className={`text-sm font-bold mt-1 ${isBrokerField ? 'text-green-800' : 'text-slate-900'}`}>{displayValue}</div>
+                          )}
                         </div>
                       );
                     })}
