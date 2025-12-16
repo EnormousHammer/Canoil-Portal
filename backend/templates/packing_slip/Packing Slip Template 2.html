@@ -238,10 +238,13 @@
             </div>
             <div class="packing-info">
                 <h2><strong>Packing Slip</strong></h2>
-                <div>Packing Slip №: <input type="text" id="packing_slip_number" style="width: 100px; display: inline-block;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span style="flex-shrink: 0;">Packing Slip №:</span>
+                    <input type="text" id="packing_slip_number" style="min-width: 80px; width: auto; text-align: right; background: transparent; border: none; font-size: 10pt; padding: 2px 4px; overflow: visible;">
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; width: 100%;">
                     <span style="flex-shrink: 0;">Date:</span>
-                    <input type="text" id="packing_date" readonly style="min-width: 150px; width: auto; text-align: right; background: transparent; border: none; font-size: 10pt; padding: 2px 4px; overflow: visible;">
+                    <input type="text" id="packing_date" readonly style="min-width: 80px; width: auto; text-align: right; background: transparent; border: none; font-size: 10pt; padding: 2px 4px; overflow: visible;">
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; width: 100%;">
                     <span style="flex-shrink: 0;">Page:</span>

@@ -182,22 +182,14 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     field_values['ship_to'] = '\n'.join(ship_to_lines)
     
-    # Items - USE EMAIL DATA ONLY (SO parser is broken)
+    # Items - USE COMBINED SO DATA (items parameter) - it has correct sample placement
+    # DO NOT use email_shipping.get('items') - that's raw email data without proper sample handling
     items_to_show = []
     
     print(f"\n=== DEBUG PACKING SLIP ITEMS ===")
-    print(f"email_shipping has items: {bool(email_shipping.get('items'))}")
-    print(f"email_shipping.items count: {len(email_shipping.get('items', []))}")
     print(f"items parameter count: {len(items) if items else 0}")
     
-    if email_shipping.get('items'):
-        email_items = email_shipping.get('items', [])
-        print(f"DEBUG: EMAIL ITEMS RAW DATA:")
-        for i, item in enumerate(email_items, 1):
-            print(f"  Item {i}: {item}")
-        items_to_show = email_items[:5]  # Max 5 items (template has 5 pre-defined rows)
-        print(f"DEBUG: Using {len(items_to_show)} EMAIL items")
-    elif items:
+    if items:
         print(f"DEBUG: SO ITEMS RAW DATA:")
         for i, item in enumerate(items, 1):
             print(f"  Item {i}: {item}")

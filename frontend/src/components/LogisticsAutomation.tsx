@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
-import { Truck, FileText, Mail, Download, AlertCircle, Send, Package, CheckCircle, ExternalLink, DollarSign } from 'lucide-react';
+import { Truck, FileText, Mail, Download, AlertCircle, Send, Package, CheckCircle, ExternalLink, DollarSign, History, X } from 'lucide-react';
 
 interface EmailAnalysis {
   so_number: string;
@@ -72,6 +72,28 @@ const LogisticsAutomation: React.FC = () => {
   // Axel France Booking Number popup
   const [showAxelFrancePopup, setShowAxelFrancePopup] = useState(false);
   const [bookingNumber, setBookingNumber] = useState('');
+  
+  // History state
+  const [showHistory, setShowHistory] = useState(false);
+  const [emailHistory, setEmailHistory] = useState<Array<{
+    id: string;
+    emailText: string;
+    timestamp: string;
+    soNumber?: string;
+    companyName?: string;
+  }>>([]);
+
+  // Load history from localStorage on mount
+  useEffect(() => {
+    const storedHistory = localStorage.getItem('logistics_email_history');
+    if (storedHistory) {
+      try {
+        setEmailHistory(JSON.parse(storedHistory));
+      } catch (error) {
+        console.error('Error loading email history:', error);
+      }
+    }
+  }, []);
 
   // Check for email data from EmailAssistant on mount
   useEffect(() => {
@@ -103,6 +125,42 @@ const LogisticsAutomation: React.FC = () => {
       }
     }
   }, []);
+  
+  // Save to history after successful processing
+  useEffect(() => {
+    if (result && result.success && emailText.trim()) {
+      setEmailHistory(prevHistory => {
+        const historyEntry = {
+          id: Date.now().toString(),
+          emailText: emailText,
+          timestamp: new Date().toISOString(),
+          soNumber: result.so_data?.so_number || result.email_data?.so_number,
+          companyName: result.so_data?.customer_name || result.email_data?.company_name
+        };
+        
+        const updatedHistory = [historyEntry, ...prevHistory.filter(h => h.emailText !== emailText)].slice(0, 50); // Keep last 50
+        localStorage.setItem('logistics_email_history', JSON.stringify(updatedHistory));
+        return updatedHistory;
+      });
+    }
+  }, [result, emailText]);
+  
+  // Load email from history
+  const loadFromHistory = (historyEntry: typeof emailHistory[0]) => {
+    setEmailText(historyEntry.emailText);
+    setShowHistory(false);
+    setResult(null);
+    setDocuments([]);
+    setError('');
+    setAutoDetection(null);
+  };
+  
+  // Delete from history
+  const deleteFromHistory = (id: string) => {
+    const updatedHistory = emailHistory.filter(h => h.id !== id);
+    setEmailHistory(updatedHistory);
+    localStorage.setItem('logistics_email_history', JSON.stringify(updatedHistory));
+  };
 
   const processLogisticsAuto = async () => {
     if (!emailText.trim()) {
@@ -893,6 +951,87 @@ const LogisticsAutomation: React.FC = () => {
       {/* AEC Steel Certificate Reminder Popup */}
       {/* AEC Manufacturer's Affidavit is now automatically included in generated documents */}
 
+      {/* Email History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHistory(false)}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-4xl mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-100 p-3 rounded-full">
+                  <History className="w-6 h-6 text-slate-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Email History</h3>
+                {emailHistory.length > 0 && (
+                  <span className="bg-slate-600 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                    {emailHistory.length} {emailHistory.length === 1 ? 'email' : 'emails'}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg">
+              {emailHistory.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">No email history yet</p>
+                  <p className="text-xs mt-1">Processed emails will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {emailHistory.map((entry) => (
+                    <div key={entry.id} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            {entry.soNumber && (
+                              <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-1 rounded">
+                                SO {entry.soNumber}
+                              </span>
+                            )}
+                            {entry.companyName && (
+                              <span className="text-sm font-medium text-gray-700 truncate">
+                                {entry.companyName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mb-2">
+                            {new Date(entry.timestamp).toLocaleString()}
+                          </div>
+                          <div className="text-sm text-gray-700 line-clamp-2 font-mono bg-gray-50 p-2 rounded border border-gray-200">
+                            {entry.emailText.substring(0, 200)}
+                            {entry.emailText.length > 200 && '...'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => loadFromHistory(entry)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                          >
+                            Load
+                          </button>
+                          <button
+                            onClick={() => deleteFromHistory(entry.id)}
+                            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Axel France Booking Number Popup */}
       {showAxelFrancePopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -1037,29 +1176,45 @@ const LogisticsAutomation: React.FC = () => {
             autoFocus
           />
           
-          {/* Process Button */}
-          <div className="mt-3 flex items-center justify-between">
-            <button
-              onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
-              disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
-              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
-                loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
-              }`}
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {processingMode === 'auto' ? 'Processing...' : 'Processing...'}
-                </>
-              ) : (
-                <>
-                  <Truck className="w-4 h-4" />
-                  {processingMode === 'auto' ? '🤖 Auto Process' : 'Process'}
-                </>
-              )}
-            </button>
+          {/* Action Buttons */}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
+                disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                  loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {processingMode === 'auto' ? 'Processing...' : 'Processing...'}
+                  </>
+                ) : (
+                  <>
+                    <Truck className="w-4 h-4" />
+                    {processingMode === 'auto' ? '🤖 Auto Process' : 'Process'}
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={() => setShowHistory(true)}
+                className="px-4 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white shadow-md hover:shadow-lg"
+                title="View email history"
+              >
+                <History className="w-4 h-4" />
+                History
+                {emailHistory.length > 0 && (
+                  <span className="bg-white text-slate-600 text-xs px-1.5 py-0.5 rounded-full font-bold">
+                    {emailHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
             
             {processingMode === 'auto' && (
               <span className="text-xs text-gray-500">Auto-detects SO number from email</span>

@@ -533,16 +533,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (!dateValue) return null;
     
     try {
-      // Debug: Log the original date value and its type
-      console.log('🔍 Converting date:', { value: dateValue, type: typeof dateValue });
-      
       // Handle MISys .NET JSON date format: /Date(1234567890)/
       if (typeof dateValue === 'string' && dateValue.includes('/Date(')) {
         const match = dateValue.match(/\/Date\((\d+)\)\//);
         if (match) {
           const timestamp = parseInt(match[1]);
           const converted = new Date(timestamp);
-          console.log('✅ MISys date converted:', dateValue, '→', converted);
           return converted;
         }
       }

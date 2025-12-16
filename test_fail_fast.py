@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+a#!/usr/bin/env python3
 """
 Test script to demonstrate fail-fast behavior in Cloud Run mode
 """

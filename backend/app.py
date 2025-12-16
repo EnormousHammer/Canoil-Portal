@@ -176,6 +176,150 @@ def extract_so_data_from_docx(docx_path):
         print(f"Error extracting SO data from {docx_path}: {str(e)}")
         return None
 
+def extract_addresses_from_layout(pdf_path):
+    """
+    Extract Sold To and Ship To addresses using word positions.
+    Uses x-coordinates to separate left column (Sold To) from right column (Ship To).
+    Also extracts batch number and MO number from the far right.
+    """
+    sold_to_lines = []
+    ship_to_lines = []
+    batch_number = ''
+    mo_number = ''
+    
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                words = page.extract_words()
+                if not words:
+                    continue
+                
+                # Find the "Sold To:" and "Ship To:" positions
+                sold_to_x = None
+                ship_to_x = None
+                address_start_y = None
+                
+                for w in words:
+                    text_lower = w['text'].lower()
+                    if text_lower == 'sold' or text_lower == 'sold:':
+                        sold_to_x = w['x0']
+                        address_start_y = w['top']
+                    elif text_lower == 'ship' and ship_to_x is None:
+                        # Only set ship_to_x if it's after sold_to (the header, not "Ship Date")
+                        if sold_to_x and w['x0'] > sold_to_x + 100:
+                            ship_to_x = w['x0']
+                
+                if not sold_to_x or not ship_to_x or not address_start_y:
+                    continue
+                
+                # Calculate column boundaries
+                # Left column (Sold To): x0 < midpoint
+                # Right column (Ship To): x0 >= midpoint but < far right
+                midpoint = (sold_to_x + ship_to_x) / 2 + 50  # A bit past the midpoint
+                far_right = 400  # MO/Batch area starts around x=400
+                
+                # Find address end (Business No line or Item No line)
+                address_end_y = address_start_y + 150  # Default: 150 pixels down
+                for w in words:
+                    text_upper = w['text'].upper()
+                    if text_upper in ['BUSINESS', 'ITEM'] and w['top'] > address_start_y:
+                        address_end_y = w['top']
+                        break
+                
+                # Group words by approximate Y position (same line)
+                left_lines = {}
+                right_lines = {}
+                
+                for w in words:
+                    # Only process words in the address area
+                    if w['top'] < address_start_y or w['top'] > address_end_y:
+                        continue
+                    
+                    # Skip headers
+                    text_lower = w['text'].lower()
+                    if text_lower in ['sold', 'to:', 'ship', 'to']:
+                        continue
+                    
+                    # Extract batch number and MO from far right
+                    if w['x0'] > far_right:
+                        text_upper = w['text'].upper()
+                        if 'BATCH' in text_upper or 'WH' in text_upper:
+                            # Look for batch number pattern
+                            import re
+                            if re.match(r'WH\d+[A-Z]\d+', text_upper):
+                                batch_number = w['text']
+                        elif text_upper == 'MO':
+                            # Next word should be the MO number
+                            pass
+                        elif re.match(r'^\d{4}$', w['text']):
+                            mo_number = w['text']
+                        continue
+                    
+                    # Round Y to group words on same line (within 3 pixels)
+                    y_key = round(w['top'] / 3) * 3
+                    
+                    if w['x0'] < midpoint:
+                        # Left column (Sold To)
+                        if y_key not in left_lines:
+                            left_lines[y_key] = []
+                        left_lines[y_key].append((w['x0'], w['text']))
+                    else:
+                        # Right column (Ship To)
+                        if y_key not in right_lines:
+                            right_lines[y_key] = []
+                        right_lines[y_key].append((w['x0'], w['text']))
+                
+                # Sort and join words on each line
+                for y in sorted(left_lines.keys()):
+                    line_words = sorted(left_lines[y], key=lambda x: x[0])
+                    line_text = ' '.join(w[1] for w in line_words).strip()
+                    if line_text and line_text.upper() not in ['SOLD TO:', 'SOLD TO', 'TO:']:
+                        sold_to_lines.append(line_text)
+                
+                for y in sorted(right_lines.keys()):
+                    line_words = sorted(right_lines[y], key=lambda x: x[0])
+                    line_text = ' '.join(w[1] for w in line_words).strip()
+                    if line_text and line_text.upper() not in ['SHIP TO:', 'SHIP TO', 'TO:']:
+                        # Skip MO references and batch numbers that might slip through
+                        if not line_text.startswith('MO ') and 'Batch' not in line_text:
+                            ship_to_lines.append(line_text)
+                
+                # Also look for batch number in a different pattern
+                for w in words:
+                    if 'Batch' in w['text'] or 'batch' in w['text']:
+                        # Find the next word which should be "no:" or the batch number
+                        idx = words.index(w)
+                        for next_w in words[idx:idx+4]:
+                            import re
+                            if re.match(r'WH\d+[A-Z]\d+', next_w['text'].upper()):
+                                batch_number = next_w['text']
+                                break
+                    elif w['text'].upper() == 'MO' and not mo_number:
+                        idx = words.index(w)
+                        for next_w in words[idx+1:idx+3]:
+                            if re.match(r'^\d{4}$', next_w['text']):
+                                mo_number = next_w['text']
+                                break
+                
+    except Exception as e:
+        print(f"⚠️ Layout address extraction failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    result = {
+        'sold_to_raw': '\n'.join(sold_to_lines),
+        'ship_to_raw': '\n'.join(ship_to_lines),
+        'batch_number': batch_number,
+        'mo_number': mo_number
+    }
+    
+    print(f"📍 LAYOUT EXTRACTION:")
+    print(f"   Sold To: {result['sold_to_raw'][:100]}...")
+    print(f"   Ship To: {result['ship_to_raw'][:100]}...")
+    print(f"   Batch: {batch_number}, MO: {mo_number}")
+    
+    return result
+
 def extract_addresses_from_pdf_tables(pdf_path):
     """
     PRE-EXTRACT Sold To and Ship To addresses from PDF tables.
@@ -247,12 +391,21 @@ def extract_so_data_from_pdf(pdf_path):
     try:
         print(f"PARSING: {os.path.basename(pdf_path)}")
         
-        # PRE-EXTRACT addresses from tables (more reliable for two-column PDFs)
+        # FIRST: Try layout-based extraction (uses word positions - most reliable)
+        layout_addresses = extract_addresses_from_layout(pdf_path)
+        
+        # SECOND: Try table-based extraction as fallback
         table_addresses = extract_addresses_from_pdf_tables(pdf_path)
-        if table_addresses.get('sold_to_raw') or table_addresses.get('ship_to_raw'):
-            print(f"📋 PRE-EXTRACTED from tables:")
-            print(f"   Sold To: {table_addresses.get('sold_to_raw', '')[:80]}...")
-            print(f"   Ship To: {table_addresses.get('ship_to_raw', '')[:80]}...")
+        
+        # Use layout addresses if available, otherwise fall back to table addresses
+        if layout_addresses.get('sold_to_raw') or layout_addresses.get('ship_to_raw'):
+            pre_extracted = layout_addresses
+            print(f"📍 Using LAYOUT-based address extraction")
+        elif table_addresses.get('sold_to_raw') or table_addresses.get('ship_to_raw'):
+            pre_extracted = table_addresses
+            print(f"📋 Using TABLE-based address extraction")
+        else:
+            pre_extracted = {'sold_to_raw': '', 'ship_to_raw': '', 'batch_number': '', 'mo_number': ''}
         
         # Extract text from PDF with layout preservation for better column handling
         with pdfplumber.open(pdf_path) as pdf:
@@ -951,24 +1104,43 @@ def extract_so_data_from_pdf(pdf_path):
         sold_to_contact = so_data['sold_to'].get('contact_person', '')
         ship_to_contact = so_data['ship_to'].get('contact_person', '')
         
-        # CRITICAL FIX: Check if table extraction found DIFFERENT addresses
-        # If so, use those as they're more reliable for two-column PDFs
-        table_sold_to = table_addresses.get('sold_to_raw', '').strip()
-        table_ship_to = table_addresses.get('ship_to_raw', '').strip()
+        # CRITICAL FIX: Use pre-extracted addresses (from layout or table extraction)
+        # These are more reliable for two-column PDFs
+        pre_sold_to = pre_extracted.get('sold_to_raw', '').strip()
+        pre_ship_to = pre_extracted.get('ship_to_raw', '').strip()
+        pre_batch = pre_extracted.get('batch_number', '').strip()
+        pre_mo = pre_extracted.get('mo_number', '').strip()
         
-        # Use table addresses if available AND they look like valid addresses
-        if table_sold_to and len(table_sold_to) > 10:
-            if not so_data['sold_to']['address'] or len(table_sold_to) > len(so_data['sold_to']['address']):
-                print(f"📋 Using TABLE-EXTRACTED Sold To address (more complete)")
-                so_data['sold_to']['address'] = table_sold_to.replace('\n', ', ')
+        # Store batch number in so_data
+        if pre_batch:
+            so_data['batch_number'] = pre_batch
+            print(f"📦 Batch number from PDF: {pre_batch}")
+        if pre_mo:
+            so_data['mo_number'] = pre_mo
+            print(f"   MO number from PDF: {pre_mo}")
         
-        if table_ship_to and len(table_ship_to) > 10:
-            # CRITICAL: Use table Ship To if it's DIFFERENT from Sold To
-            if table_ship_to.upper() != table_sold_to.upper():
-                print(f"📋 Using TABLE-EXTRACTED Ship To address (different from Sold To)")
-                so_data['ship_to']['address'] = table_ship_to.replace('\n', ', ')
+        # Use pre-extracted addresses if available AND they look like valid addresses
+        if pre_sold_to and len(pre_sold_to) > 10:
+            if not so_data['sold_to']['address'] or len(pre_sold_to) > len(so_data['sold_to']['address']):
+                print(f"📋 Using PRE-EXTRACTED Sold To address (more complete)")
+                so_data['sold_to']['address'] = pre_sold_to.replace('\n', ', ')
+                # Also set company name from first line if not already set
+                if not so_data['sold_to']['company_name']:
+                    first_line = pre_sold_to.split('\n')[0].strip()
+                    so_data['sold_to']['company_name'] = first_line
+                    so_data['customer_name'] = first_line
+        
+        if pre_ship_to and len(pre_ship_to) > 10:
+            # CRITICAL: Use pre-extracted Ship To if it's DIFFERENT from Sold To
+            if pre_ship_to.upper() != pre_sold_to.upper():
+                print(f"📋 Using PRE-EXTRACTED Ship To address (different from Sold To)")
+                so_data['ship_to']['address'] = pre_ship_to.replace('\n', ', ')
+                # Also set company name from first line if not already set
+                if not so_data['ship_to']['company_name']:
+                    first_line = pre_ship_to.split('\n')[0].strip()
+                    so_data['ship_to']['company_name'] = first_line
             elif not so_data['ship_to']['address']:
-                so_data['ship_to']['address'] = table_ship_to.replace('\n', ', ')
+                so_data['ship_to']['address'] = pre_ship_to.replace('\n', ', ')
         
         # TRY GPT FIRST for smart address parsing (handles any format)
         # Fall back to regex only if GPT fails
@@ -2679,6 +2851,7 @@ def find_sales_order_file(so_number):
     except Exception as e:
         print(f"ERROR: Error searching for SO file {so_number}: {e}")
         return jsonify({"found": False, "error": str(e)}), 500
+
 
 @app.route('/api/check-changes', methods=['GET'])
 def check_changes():

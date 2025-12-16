@@ -156,15 +156,20 @@ def extract_addresses_from_layout_text(raw_text):
     lines = raw_text.split('\n')
     in_address_section = False
     
-    # Items to skip - headers, references, phone numbers
+    # Items to skip - headers, references, phone numbers, batch numbers
     SKIP_PATTERNS = [
         'SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE',
-        'LINE ', 'MO ', 'CHILD MO', 'BUSINESS NO', 'MOS '  # MOS for plural "MOs 3712"
+        'LINE ', 'MO ', 'CHILD MO', 'BUSINESS NO', 'MOS ',  # MOS for plural "MOs 3712"
+        'BATCH NO', 'BATCH:', 'RECEIVING PH'  # Batch numbers and phone references
     ]
     
-    # Phone number pattern
+    # Phone number patterns - various formats
     import re
-    phone_pattern = re.compile(r'\(\d{3}\)\s*\d{3}[-.]?\d{4}')
+    phone_pattern = re.compile(r'(\(\d{3}\)\s*\d{3}[-.]?\d{4}|\d{3}[-.]?\d{3}[-.]?\d{4})')
+    
+    # Batch number pattern - extract if found
+    batch_number = ''
+    batch_pattern = re.compile(r'batch\s*(?:no)?:?\s*([A-Z0-9]+)', re.IGNORECASE)
     
     # Find the "Sold To:" / "Ship To:" header line
     for i, line in enumerate(lines):
@@ -183,10 +188,6 @@ def extract_addresses_from_layout_text(raw_text):
         if re.search(r'Line\s+\d+:', line):
             continue
         
-        # Skip lines that are mostly MO references
-        if re.search(r'\bMO\s+\d+', line):
-            continue
-        
         # Skip empty lines
         stripped = line.strip()
         if not stripped:
@@ -195,15 +196,17 @@ def extract_addresses_from_layout_text(raw_text):
         # Column positions based on actual PDF analysis:
         # Sold To: position 0-43 (left column)
         # Ship To: position 43-75 (right column) - extended to capture full addresses
-        # MO refs: position 58+ with "MO " pattern (EXCLUDE via pattern matching above)
+        # MO refs: position 58+ (far right) - handled by column extraction, not line skipping
         
-        # Extract the address columns
+        # Extract the address columns FIRST, then check for MO patterns
+        # This ensures we don't skip "USA" just because "MO 3795" appears on the same line
         left_content = line[0:43].strip()  # Sold To column
         middle_content = line[43:75].strip() if len(line) > 43 else ''  # Ship To column
         
-        # Remove any trailing MO references that might have slipped through
+        # Remove any MO references from the extracted column content (not the full line)
+        if left_content:
+            left_content = re.sub(r'\s*,?\s*(Child\s+)?MO\s+\d+.*$', '', left_content).strip()
         if middle_content:
-            import re
             # Remove "MO XXXX" or "Child MO XXXX" patterns from end
             middle_content = re.sub(r'\s*,?\s*(Child\s+)?MO\s+\d+.*$', '', middle_content).strip()
         
@@ -219,6 +222,13 @@ def extract_addresses_from_layout_text(raw_text):
             if phone_pattern.search(content):
                 return True
             return False
+        
+        # Check for batch number in the FULL line (not just extracted columns)
+        # This is important because batch numbers can appear in the far right column
+        batch_match = batch_pattern.search(line)
+        if batch_match and not batch_number:
+            batch_number = batch_match.group(1)
+            print(f"   FOUND BATCH in line: {batch_number}")
         
         if left_content and not should_skip(left_content):
             sold_to_lines.append(left_content)
@@ -256,13 +266,16 @@ def extract_addresses_from_layout_text(raw_text):
     
     result = {
         'sold_to_raw': '\n'.join(sold_to_lines),
-        'ship_to_raw': '\n'.join(ship_to_lines)
+        'ship_to_raw': '\n'.join(ship_to_lines),
+        'batch_number': batch_number
     }
     
     if result['sold_to_raw'] or result['ship_to_raw']:
         print(f"\n=== LAYOUT TEXT EXTRACTED ADDRESSES ===")
         print(f"SOLD TO:\n{result['sold_to_raw']}")
         print(f"\nSHIP TO:\n{result['ship_to_raw']}")
+        if batch_number:
+            print(f"\nBATCH NUMBER: {batch_number}")
         print(f"=======================================\n")
     
     return result
@@ -465,6 +478,7 @@ def structure_with_openai(raw_data):
         pre_extracted = extract_addresses_from_tables(raw_data.get('raw_tables', []))
         sold_to_hint = pre_extracted.get('sold_to_raw', '')
         ship_to_hint = pre_extracted.get('ship_to_raw', '')
+        batch_from_pdf = pre_extracted.get('batch_number', '')
         
         # FALLBACK: If table extraction failed, try layout-based text extraction
         # This handles PDFs where addresses are in interleaved two-column layout, not tables
@@ -473,6 +487,8 @@ def structure_with_openai(raw_data):
             layout_extracted = extract_addresses_from_layout_text(raw_data.get('raw_text', ''))
             sold_to_hint = layout_extracted.get('sold_to_raw', '')
             ship_to_hint = layout_extracted.get('ship_to_raw', '')
+            if not batch_from_pdf:
+                batch_from_pdf = layout_extracted.get('batch_number', '')
         
         if DEBUG:
             print(f"PRE-EXTRACTED Sold To: {sold_to_hint[:100]}...")
@@ -851,12 +867,19 @@ Return ONLY valid JSON, no explanations or markdown.
                 # On any failure, keep whatever the main extraction got
                 pass
         
+        # Add batch number from pre-extraction if found
+        if batch_from_pdf:
+            structured_data['batch_number'] = batch_from_pdf
+            print(f"📦 Batch number extracted from PDF: {batch_from_pdf}")
+        
         if DEBUG:
             print(f"\nOPENAI STRUCTURING COMPLETE:")
             print(f"  SO Number: {structured_data.get('so_number', 'N/A')}")
             print(f"  Customer: {structured_data.get('customer_name', 'N/A')}")
             print(f"  Items: {len(structured_data.get('items', []))}")
             print(f"  Total: ${structured_data.get('total_amount', 0):.2f}")
+            if batch_from_pdf:
+                print(f"  Batch: {batch_from_pdf}")
             brokerage = structured_data.get('brokerage', {})
             if brokerage and brokerage.get('broker_name'):
                 print(f"  Brokerage: {brokerage.get('broker_name')} | Acct: {brokerage.get('account_number', 'N/A')}")

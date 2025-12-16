@@ -1,18 +1,17 @@
 """
 Purchase Requisition Service
 Auto-fills requisition forms from PO data with Excel generation
+Uses DIRECT XML editing to preserve all template structure (drawings, images, etc.)
 """
 
 from flask import Blueprint, jsonify, request, send_file
 import os
 import json
 from datetime import datetime, timedelta
-import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 import io
 import zipfile
-import shutil
+import re
+from lxml import etree
 
 pr_service = Blueprint('pr_service', __name__)
 
@@ -24,48 +23,162 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
 
 
-def preserve_template_structure(template_path, output_bytes):
+# Excel XML namespace
+XLSX_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+XLSX_NSMAP = {None: XLSX_NS}
+
+
+def col_to_num(col_str):
+    """Convert column letter to number (A=1, B=2, ..., Z=26, AA=27, etc.)"""
+    result = 0
+    for char in col_str:
+        result = result * 26 + (ord(char.upper()) - ord('A') + 1)
+    return result
+
+
+def parse_cell_ref(ref):
+    """Parse cell reference like 'A1' into (col_letter, row_number)"""
+    match = re.match(r'^([A-Z]+)(\d+)$', ref)
+    if match:
+        return match.group(1), int(match.group(2))
+    return None, None
+
+
+def fill_excel_directly(template_path, cell_values):
     """
-    openpyxl corrupts many parts of xlsx files (VML, EMF images, printer settings, etc).
-    This function rebuilds the output by:
-    1. Starting with the complete original template
-    2. Only replacing the worksheet XML with the modified version from openpyxl
+    Fill Excel template by directly editing XML - preserves ALL template structure.
     
-    This preserves ALL template structure including drawings, signatures, logos, etc.
+    cell_values: dict of cell_ref -> value, e.g. {'I7': 'John Doe', 'B16': 'ITEM-001'}
+    
+    Returns: BytesIO with the filled Excel file
     """
-    try:
-        output_bytes.seek(0)
+    # Read all files from template
+    with zipfile.ZipFile(template_path, 'r') as zin:
+        files = {name: zin.read(name) for name in zin.namelist()}
+    
+    # Parse sheet1.xml
+    sheet_xml = etree.fromstring(files['xl/worksheets/sheet1.xml'])
+    sheet_data = sheet_xml.find(f'.//{{{XLSX_NS}}}sheetData')
+    
+    if sheet_data is None:
+        raise Exception("Could not find sheetData in worksheet")
+    
+    # Build a map of existing cells
+    cell_map = {}  # ref -> cell element
+    row_map = {}   # row_num -> row element
+    
+    for row in sheet_data:
+        row_num = int(row.get('r'))
+        row_map[row_num] = row
+        for cell in row:
+            ref = cell.get('r')
+            if ref:
+                cell_map[ref] = cell
+    
+    # Update or create cells
+    for ref, value in cell_values.items():
+        if value is None or value == '':
+            continue
+            
+        col_letter, row_num = parse_cell_ref(ref)
+        if col_letter is None:
+            continue
         
-        # Files that openpyxl modifies and we WANT to keep from openpyxl output
-        # (the actual cell data changes)
-        files_from_openpyxl = {
-            'xl/worksheets/sheet1.xml',  # Main worksheet with our data
-            'xl/worksheets/sheet2.xml',  # Instructions sheet (if exists)
-        }
-        
-        new_output = io.BytesIO()
-        
-        with zipfile.ZipFile(template_path, 'r') as template_zip:
-            with zipfile.ZipFile(output_bytes, 'r') as saved_zip:
-                with zipfile.ZipFile(new_output, 'w', zipfile.ZIP_DEFLATED) as new_zip:
-                    # Start with ALL files from original template
-                    for name in template_zip.namelist():
-                        if name in files_from_openpyxl and name in saved_zip.namelist():
-                            # Use openpyxl's version (has our cell changes)
-                            new_zip.writestr(name, saved_zip.read(name))
-                        else:
-                            # Use original template version (preserves drawings, etc.)
-                            new_zip.writestr(name, template_zip.read(name))
-        
-        new_output.seek(0)
-        return new_output
-        
-    except Exception as e:
-        print(f"Warning: Could not preserve template structure: {e}")
-        import traceback
-        traceback.print_exc()
-        output_bytes.seek(0)
-        return output_bytes
+        if ref in cell_map:
+            # Update existing cell
+            cell = cell_map[ref]
+            # Remove type attribute to treat as string/inline
+            if 't' in cell.attrib:
+                del cell.attrib['t']
+            # Find or create value element
+            v = cell.find(f'{{{XLSX_NS}}}v')
+            if v is None:
+                v = etree.SubElement(cell, f'{{{XLSX_NS}}}v')
+            
+            # Handle formulas vs values
+            if str(value).startswith('='):
+                # It's a formula
+                f = cell.find(f'{{{XLSX_NS}}}f')
+                if f is None:
+                    f = etree.SubElement(cell, f'{{{XLSX_NS}}}f')
+                f.text = str(value)[1:]  # Remove the = prefix
+                if v is not None:
+                    cell.remove(v)
+            else:
+                # It's a value - store as inline string
+                cell.set('t', 'inlineStr')
+                # Remove old value element
+                if v is not None:
+                    cell.remove(v)
+                # Remove old formula if exists
+                f = cell.find(f'{{{XLSX_NS}}}f')
+                if f is not None:
+                    cell.remove(f)
+                # Add inline string
+                is_elem = cell.find(f'{{{XLSX_NS}}}is')
+                if is_elem is None:
+                    is_elem = etree.SubElement(cell, f'{{{XLSX_NS}}}is')
+                t_elem = is_elem.find(f'{{{XLSX_NS}}}t')
+                if t_elem is None:
+                    t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
+                t_elem.text = str(value)
+        else:
+            # Create new cell - need to find or create the row first
+            if row_num not in row_map:
+                # Create new row
+                new_row = etree.Element(f'{{{XLSX_NS}}}row', r=str(row_num))
+                # Insert in correct position
+                inserted = False
+                for i, existing_row in enumerate(sheet_data):
+                    if int(existing_row.get('r')) > row_num:
+                        sheet_data.insert(i, new_row)
+                        inserted = True
+                        break
+                if not inserted:
+                    sheet_data.append(new_row)
+                row_map[row_num] = new_row
+            
+            row = row_map[row_num]
+            
+            # Create new cell with inline string
+            new_cell = etree.Element(f'{{{XLSX_NS}}}c', r=ref, t='inlineStr')
+            is_elem = etree.SubElement(new_cell, f'{{{XLSX_NS}}}is')
+            t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
+            t_elem.text = str(value)
+            
+            # Insert cell in correct column position
+            col_num = col_to_num(col_letter)
+            inserted = False
+            for i, existing_cell in enumerate(row):
+                existing_ref = existing_cell.get('r')
+                if existing_ref:
+                    existing_col, _ = parse_cell_ref(existing_ref)
+                    if existing_col and col_to_num(existing_col) > col_num:
+                        row.insert(i, new_cell)
+                        inserted = True
+                        break
+            if not inserted:
+                row.append(new_cell)
+            
+            cell_map[ref] = new_cell
+    
+    # Serialize back to XML
+    files['xl/worksheets/sheet1.xml'] = etree.tostring(
+        sheet_xml, 
+        xml_declaration=True, 
+        encoding='UTF-8', 
+        standalone='yes'
+    )
+    
+    # Create output zip
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zout:
+        for name, data in files.items():
+            zout.writestr(name, data)
+    
+    output.seek(0)
+    print(f"[PR] ✅ Filled {len(cell_values)} cells directly - template 100% preserved")
+    return output
 
 
 # Cache for latest folder to avoid repeated API calls
@@ -543,7 +656,7 @@ def get_item_enhanced(item_no):
 
 @pr_service.route('/api/pr/generate', methods=['POST'])
 def generate_requisition():
-    """Generate filled Purchase Requisition Excel file"""
+    """Generate filled Purchase Requisition Excel file using DIRECT XML editing"""
     try:
         data = request.get_json()
         
@@ -552,94 +665,62 @@ def generate_requisition():
         items = data.get('items', [])
         supplier = data.get('supplier', {})
         
-        # DEBUG: Print what we received
         print("\n" + "="*80)
-        print("🔍 DEBUG: RECEIVED REQUEST DATA")
+        print("🔍 PR GENERATION (Direct XML - No openpyxl save)")
         print("="*80)
         print(f"User Info: {user_info}")
         print(f"Items Count: {len(items)}")
-        print(f"Supplier Data: {supplier}")
-        print(f"Supplier Name: {supplier.get('name', 'EMPTY')}")
-        print(f"Supplier Contact: {supplier.get('contact', 'EMPTY')}")
-        print(f"Supplier Address: {supplier.get('address', {})}")
+        print(f"Supplier: {supplier.get('name', 'N/A')}")
         print("="*80 + "\n")
         
         if not items:
             return jsonify({"error": "No items provided"}), 400
         
-        # Load template
         if not os.path.exists(PR_TEMPLATE):
             return jsonify({"error": "Template not found"}), 404
         
-        # Load template - DO NOT use keep_vba=True as it corrupts non-VBA xlsx files
-        wb = openpyxl.load_workbook(PR_TEMPLATE, data_only=False)
-        
-        sheet = wb['Purchase Requisition']
-        
-        # DO NOT CLEAR CELLS - This breaks merged cells and form structure
-        # Only fill the specific cells needed, preserving all formatting and structure
-        # For item rows we're not using, we'll leave them as-is (template may have formulas/formatting)
-        
-        # Fill user info (CORRECT CELLS FROM TEMPLATE)
-        sheet['I7'] = user_info.get('name', 'Haron Alhakimi')  # I7: REQUESTED BY
-        sheet['I9'] = user_info.get('department', 'Sales')  # I9: DEPARTMENT
-        sheet['B5'] = user_info.get('justification', 'Low Stock')  # B5: JUSTIFICATION
-        sheet['B13'] = user_info.get('lead_time', '4 weeks')  # B13: LEAD TIME
-        
-        # Fill dates
+        # Build cell values dictionary
+        cell_values = {}
         today = datetime.now()
-        sheet['I11'] = today.strftime('%Y-%m-%d')  # I11: DATE REQUESTED (drives formula in I5)
         
-        # Calculate date needed (add lead time weeks)
+        # User info
+        cell_values['I7'] = user_info.get('name', 'Haron Alhakimi')
+        cell_values['I9'] = user_info.get('department', 'Sales')
+        cell_values['B5'] = user_info.get('justification', 'Low Stock')
+        cell_values['B13'] = user_info.get('lead_time', '4 weeks')
+        
+        # Dates
+        cell_values['I11'] = today.strftime('%Y-%m-%d')
         try:
             lead_time_weeks = int(user_info.get('lead_time', '4').split()[0])
         except:
             lead_time_weeks = 4
         date_needed = today + timedelta(weeks=lead_time_weeks)
-        sheet['I13'] = date_needed.strftime('%Y-%m-%d')  # I13: DATE NEEDED
+        cell_values['I13'] = date_needed.strftime('%Y-%m-%d')
         
-        # AUTO-DETECT SUPPLIER INFO FROM FIRST ITEM'S RECENT PURCHASE DATA
+        # Auto-detect supplier from first item
         auto_supplier_info = None
         if items:
             first_item = items[0]
             item_no = first_item.get('item_no', '')
-            
-            # Get recent purchase data for this item
             recent_prices = get_recent_purchase_price(item_no, limit=1)
             
             if recent_prices:
                 latest_purchase = recent_prices[0]
                 supplier_no = latest_purchase.get('supplier_no', '')
-                supplier_name = latest_purchase.get('supplier_name', '')
-                contact = latest_purchase.get('contact', '')
-                terms = latest_purchase.get('terms', '')
-                
-                # Get full supplier info
                 supplier_info = get_supplier_info(supplier_no)
                 
                 if supplier_info:
                     auto_supplier_info = {
-                        'name': supplier_name,
-                        'contact': contact,
+                        'name': latest_purchase.get('supplier_name', ''),
+                        'contact': latest_purchase.get('contact', ''),
                         'email': supplier_info.get('email', ''),
                         'phone': supplier_info.get('phone', ''),
-                        'terms': f"{terms} days" if terms else "",
-                        'currency': supplier_info.get('currency', 'CAD'),
-                        'buyer': supplier_info.get('buyer', ''),
-                        'po_count': supplier_info.get('po_count', 0)
+                        'terms': latest_purchase.get('terms', '')
                     }
-                    
-                    print(f"✅ AUTO-DETECTED SUPPLIER: {supplier_name}")
-                    print(f"   Contact: {contact}")
-                    print(f"   Terms: {auto_supplier_info['terms']}")
-                    print(f"   Buyer: {auto_supplier_info['buyer']}")
-                    print(f"   Total POs: {auto_supplier_info['po_count']}")
-                else:
-                    print(f"⚠️ No full supplier info found for {supplier_no}")
-            else:
-                print(f"⚠️ No recent purchase data found for item: {item_no}")
+                    print(f"✅ AUTO-DETECTED SUPPLIER: {auto_supplier_info['name']}")
         
-        # Fill supplier info - use auto-detected if available, otherwise use manual input
+        # Supplier info
         if auto_supplier_info:
             supplier_name = auto_supplier_info.get('name', '')
             supplier_contact = auto_supplier_info.get('contact', '')
@@ -653,29 +734,21 @@ def generate_requisition():
             supplier_phone = supplier.get('phone', '')
             supplier_terms = supplier.get('terms', '')
         
-        # === VENDOR INFO (Based on actual template layout) ===
-        # B9: Vendor Name
         if supplier_name:
-            sheet['B9'] = supplier_name
+            cell_values['B9'] = supplier_name
         
-        # B11: Contact Name (with phone if available)
         if supplier_contact:
             contact_with_phone = supplier_contact
             if supplier_phone:
                 contact_with_phone += f" | {supplier_phone}"
-            sheet['B11'] = contact_with_phone
+            cell_values['B11'] = contact_with_phone
         elif supplier_phone:
-            sheet['B11'] = supplier_phone
+            cell_values['B11'] = supplier_phone
         
-        # === VENDOR ADDRESS (Column C) ===
+        # Address
         address = supplier.get('address', {})
-        
-        # Build full address string
-        address_parts = []
-        address_line_1 = ''
-        full_address = ''
-        
         if address:
+            address_parts = []
             address_line_1 = address.get('Line_1', '') or address.get('Address', '')
             city = address.get('City', '')
             state = address.get('State', '')
@@ -684,52 +757,26 @@ def generate_requisition():
             
             if address_line_1:
                 address_parts.append(address_line_1)
-            
-            # City, State, Postal
-            city_state_zip = []
-            if city:
-                city_state_zip.append(city)
-            if state:
-                city_state_zip.append(state)
-            if postal_code:
-                city_state_zip.append(postal_code)
+            city_state_zip = ', '.join(filter(None, [city, state, postal_code]))
             if city_state_zip:
-                address_parts.append(', '.join(city_state_zip))
-            
+                address_parts.append(city_state_zip)
             if country:
                 address_parts.append(country)
             
-            full_address = '\n'.join(address_parts) if address_parts else ''
+            if address_parts:
+                cell_values['C9'] = '\n'.join(address_parts)
         
-        # C9: Full Address (multi-line)
-        if full_address:
-            sheet['C9'] = full_address
-        elif supplier_name:
-            sheet['C9'] = 'Address not available'
-        
-        # C11: Email
         if supplier_email:
-            sheet['C11'] = supplier_email
+            cell_values['C11'] = supplier_email
         elif supplier_terms:
-            sheet['C11'] = f"Terms: {supplier_terms}"
+            cell_values['C11'] = f"Terms: {supplier_terms}"
         
-        print("\n" + "="*60)
-        print(f"[PR] Filling {len(items)} items into Excel...")
-        print(f"[PR] User: {user_info.get('name')} | Dept: {user_info.get('department')}")
-        print(f"[PR] Supplier: {supplier_name} | Contact: {supplier_contact}")
-        print("="*60)
-        
-        # Fill line items - starting at row 16 (first data row after headers at row 15)
+        # Line items (rows 16-25)
         start_row = 16
-        for idx, item in enumerate(items):
-            if idx >= 10:  # Limit to 10 items
-                break
-            
+        num_items = min(len(items), 10)
+        
+        for idx, item in enumerate(items[:10]):
             row = start_row + idx
-            
-            # Clear only this specific row's data cells before filling (preserves form structure)
-            for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
-                sheet[f'{col}{row}'].value = ''  # Clear only data cells for this row
             
             item_no = item.get('item_no', '')
             description = item.get('description', '')
@@ -738,101 +785,46 @@ def generate_requisition():
             quantity = item.get('quantity', 0)
             unit_price = item.get('unit_price', 0)
             
-            # Get real pricing, supplier data, and inventory data for this specific item
-            item_pricing_data = None
-            inventory_data = None
-            days_since_last_order = None
+            # Get real data
             if item_no:
-                # Get recent pricing data
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
                 if recent_prices:
-                    item_pricing_data = recent_prices[0]
-                    # Use real pricing data if available
+                    item_pricing = recent_prices[0]
                     if not unit_price or unit_price == 0:
-                        unit_price = item_pricing_data.get('unit_price', 0)
+                        unit_price = item_pricing.get('unit_price', 0)
                     if not unit or unit == 'EA':
-                        unit = item_pricing_data.get('purchase_unit', unit)
-                    
-                    # Calculate days since last order
-                    order_date_str = item_pricing_data.get('order_date', '')
-                    if order_date_str:
-                        try:
-                            # Parse date (format: YYYY-MM-DD or similar)
-                            from datetime import datetime
-                            order_date = datetime.strptime(order_date_str[:10], '%Y-%m-%d')
-                            days_since_last_order = (datetime.now() - order_date).days
-                            item_pricing_data['days_since_last_order'] = days_since_last_order
-                        except Exception as e:
-                            print(f"[PR] Could not parse order date '{order_date_str}': {e}")
+                        unit = item_pricing.get('purchase_unit', unit)
                 
-                # Get real inventory data
                 inventory_data = get_inventory_data(item_no)
                 if inventory_data:
-                    # Use real stock data (Quantity On Hand) - override the input current_stock
                     current_stock = inventory_data.get('stock', 0)
-                    print(f"[PR] Using real inventory data (Qty On Hand): Stock = {current_stock}")
-                    # Use inventory pricing if no PO pricing available
                     if not unit_price or unit_price == 0:
                         unit_price = inventory_data.get('recent_cost', 0)
-                    if not unit or unit == 'EA':
-                        unit = inventory_data.get('purchasing_units', unit)
-                else:
-                    print(f"[PR] No inventory data found for {item_no} - using provided stock: {current_stock}")
             
-            print(f"[PR] Row {row}: {item_no} | Desc: {description[:30]} | Qty: {quantity} | Price: ${unit_price} | Unit: {unit} | Stock: {current_stock}")
+            cell_values[f'B{row}'] = item_no
+            cell_values[f'C{row}'] = description
+            cell_values[f'E{row}'] = str(current_stock) if current_stock else ''
+            cell_values[f'F{row}'] = unit
+            cell_values[f'G{row}'] = str(int(quantity)) if quantity else '0'
+            cell_values[f'H{row}'] = str(round(float(unit_price), 2)) if unit_price else '0'
+            cell_values[f'I{row}'] = f'=G{row}*H{row}'
             
-            sheet[f'B{row}'] = item_no           # B: ITEM № (NOT A!)
-            sheet[f'C{row}'] = description       # C: PRODUCT/SERVICE DESCRIPTION
-            
-            # D: INVENTORY TURNOVER (IN DAYS) - days since last order
-            inventory_turnover = item.get('inventory_turnover', '')
-            if inventory_turnover:
-                sheet[f'D{row}'] = inventory_turnover
-            elif item_pricing_data and item_pricing_data.get('days_since_last_order'):
-                sheet[f'D{row}'] = item_pricing_data.get('days_since_last_order')
-            
-            sheet[f'E{row}'] = current_stock     # E: CURRENT STOCK (from real inventory data)
-            sheet[f'F{row}'] = unit              # F: PURCHASING UNIT (from real data)
-            sheet[f'G{row}'] = int(quantity) if quantity else 0     # G: QTY (as number)
-            sheet[f'H{row}'] = round(float(unit_price), 2) if unit_price else 0.0  # H: UNIT PRICE (from real data, rounded to 2 decimals)
-            # I: TOTAL column has formula =G17*H17 already in template
+            print(f"[PR] Row {row}: {item_no} | Qty: {quantity} | Price: ${unit_price}")
         
-        print(f"[PR] Completed filling {min(len(items), 10)} items")
-        print("="*60 + "\n")
-        
-        # Fix formulas for item rows (should be =G16*H16, etc.)
-        # DO NOT modify row heights - preserve original form structure
-        num_items = len(items[:10])
-        for idx in range(num_items):
-            row = 16 + idx
-            sheet[f'I{row}'] = f'=G{row}*H{row}'
-            # DO NOT modify row heights - this can break signature areas and form structure
-        
-        # Clear unused item rows (rows beyond what we filled) - only clear data cells for those specific rows
-        # Use empty strings instead of None to preserve cell structure and merged cells
-        for row in range(16 + num_items, 26):
+        # Clear unused rows
+        for row in range(start_row + num_items, 26):
             for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
-                # Set to empty string - this preserves merged cell structures better than None
-                sheet[f'{col}{row}'].value = ''
+                cell_values[f'{col}{row}'] = ''
         
-        # Update TOTAL row formula to sum all item totals (I30 = SUM of I16:I25 or however many items)
-        last_item_row = 16 + num_items - 1
-        sheet['I30'] = f'=SUM(I16:I{last_item_row})'
-        print(f"[PR] Total formula set: =SUM(I16:I{last_item_row})")
+        # Total formula
+        last_item_row = start_row + num_items - 1
+        cell_values['I30'] = f'=SUM(I16:I{last_item_row})'
         
-        # DO NOT modify alignment, row heights, or formatting
-        # This preserves the original form structure including signature areas
-        # The template already has proper formatting - we only fill values
+        print(f"[PR] Filling {num_items} items using DIRECT XML editing")
         
-        # Save to memory
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
+        # Generate file using direct XML editing (preserves ALL template structure)
+        output = fill_excel_directly(PR_TEMPLATE, cell_values)
         
-        # Rebuild file using template structure (openpyxl corrupts drawings/media)
-        output = preserve_template_structure(PR_TEMPLATE, output)
-        
-        # Generate filename
         filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
         
         return send_file(
@@ -844,6 +836,8 @@ def generate_requisition():
         
     except Exception as e:
         print(f"Error generating requisition: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -1098,8 +1092,8 @@ def generate_requisition_internal(user_info, items, supplier):
             if output.getvalue() is None or len(output.getvalue()) == 0:
                 raise Exception("Workbook save resulted in empty file")
             
-            # Restore VML drawings (signature shapes) that openpyxl doesn't preserve
-            output = preserve_vml_drawings(PR_TEMPLATE, output)
+            # Restore VML drawings, images, and other template components
+            output = preserve_template_structure(PR_TEMPLATE, output)
             
             filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
             

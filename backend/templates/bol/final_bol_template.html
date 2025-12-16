@@ -181,18 +181,38 @@
             border-bottom: 0;
         }
         
-        .left-table input {
+        .left-table input,
+        .left-table textarea {
             width: 100%;
             height: 100%;
             border: none;
             outline: none;
             font-size: 11px !important;
             font-weight: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
-        .left-table input::placeholder {
+        .left-table input::placeholder,
+        .left-table textarea::placeholder {
             color: #9ca3af;
             font-size: 9px;
+        }
+        
+        /* Smart font sizing - automatically reduce font size if text is too long */
+        .left-table input.auto-resize,
+        .left-table textarea.auto-resize {
+            font-size: 11px !important;
+        }
+        
+        .left-table input.auto-resize.small,
+        .left-table textarea.auto-resize.small {
+            font-size: 9px !important;
+        }
+        
+        .left-table input.auto-resize.xsmall,
+        .left-table textarea.auto-resize.xsmall {
+            font-size: 8px !important;
         }
         
         .right-column {
@@ -716,5 +736,86 @@
             Form 005 &nbsp;&nbsp;&nbsp;&nbsp; Issued: OCT 01/11
         </div>
     </div>
+    
+    <script>
+        /**
+         * Smart font sizing: Automatically reduce font size when text is near edge of row
+         * This prevents text from overflowing or being cut off
+         */
+        function applySmartFontSizing() {
+            // Get all description inputs/textareas in the items table
+            const descriptionInputs = document.querySelectorAll('.left-table td:nth-child(2) input, .left-table td:nth-child(2) textarea');
+            
+            descriptionInputs.forEach(function(input) {
+                // Skip if input is empty
+                if (!input.value || input.value.trim() === '') {
+                    return;
+                }
+                
+                // Add auto-resize class if not already present
+                if (!input.classList.contains('auto-resize')) {
+                    input.classList.add('auto-resize');
+                }
+                
+                // Measure text width
+                const text = input.value;
+                const tempSpan = document.createElement('span');
+                tempSpan.style.visibility = 'hidden';
+                tempSpan.style.position = 'absolute';
+                tempSpan.style.whiteSpace = 'nowrap';
+                tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+                tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+                tempSpan.style.fontWeight = window.getComputedStyle(input).fontWeight;
+                tempSpan.textContent = text;
+                document.body.appendChild(tempSpan);
+                
+                const textWidth = tempSpan.offsetWidth;
+                const inputWidth = input.offsetWidth;
+                const availableWidth = inputWidth - 10; // 10px padding/margin buffer
+                
+                // Remove size classes first
+                input.classList.remove('small', 'xsmall');
+                
+                // If text is too wide, reduce font size
+                if (textWidth > availableWidth) {
+                    // Try small font (9px)
+                    tempSpan.style.fontSize = '9px';
+                    const smallWidth = tempSpan.offsetWidth;
+                    
+                    if (smallWidth <= availableWidth) {
+                        input.classList.add('small');
+                    } else {
+                        // Try extra small font (8px)
+                        tempSpan.style.fontSize = '8px';
+                        const xsmallWidth = tempSpan.offsetWidth;
+                        
+                        if (xsmallWidth <= availableWidth) {
+                            input.classList.add('xsmall');
+                        } else {
+                            // Even xsmall is too big - use xsmall anyway
+                            input.classList.add('xsmall');
+                        }
+                    }
+                }
+                
+                document.body.removeChild(tempSpan);
+            });
+        }
+        
+        // Apply smart font sizing on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            applySmartFontSizing();
+            
+            // Also apply when inputs change (for dynamic content)
+            const descriptionInputs = document.querySelectorAll('.left-table td:nth-child(2) input, .left-table td:nth-child(2) textarea');
+            descriptionInputs.forEach(function(input) {
+                input.addEventListener('input', applySmartFontSizing);
+            });
+        });
+        
+        // Apply after a short delay to ensure all content is loaded
+        setTimeout(applySmartFontSizing, 100);
+        setTimeout(applySmartFontSizing, 500);
+    </script>
 </body>
 </html>
