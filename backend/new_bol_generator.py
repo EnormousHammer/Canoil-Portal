@@ -406,11 +406,68 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return actual_items
 
 
+def parse_address_with_gpt(full_address: str, company_name: str = '') -> Dict[str, str]:
+    """Use GPT to intelligently parse a full address into components"""
+    import openai
+    import os
+    import json
+    
+    result = {'street': '', 'city': '', 'state': '', 'postal': ''}
+    
+    if not full_address:
+        return result
+    
+    try:
+        client = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        
+        prompt = f"""Parse this shipping address into components. Return ONLY valid JSON.
+
+Address:
+{full_address}
+
+Company name (exclude from street): {company_name}
+
+Rules:
+1. "street" = The actual street address with building number (e.g., "5000 Highlands Pkwy SE")
+2. If there's a building/facility name like "GA Distribution Center", include it WITH the street: "GA Distribution Center, 5000 Highlands Pkwy SE"
+3. "city" = City name only
+4. "state" = 2-letter state/province code (GA, ON, TX, etc.)
+5. "postal" = Postal/ZIP code
+
+Return JSON:
+{{"street": "...", "city": "...", "state": "...", "postal": "..."}}"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=200
+        )
+        
+        content = response.choices[0].message.content.strip()
+        # Extract JSON from response
+        if '```' in content:
+            content = content.split('```')[1].replace('json', '').strip()
+        
+        parsed = json.loads(content)
+        result['street'] = parsed.get('street', '')
+        result['city'] = parsed.get('city', '')
+        result['state'] = parsed.get('state', '')
+        result['postal'] = parsed.get('postal', '')
+        
+        print(f"   🤖 GPT parsed address: {result}")
+        
+    except Exception as e:
+        print(f"   ⚠️ GPT address parsing failed: {e}")
+    
+    return result
+
+
 def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str, Any]) -> Dict[str, str]:
     """
     Extract and format consignee address with PERFECT postal code extraction
     Priority: SO shipping_address > Email ship_to
-    Uses full_address if available (most reliable from frontend parsing)
+    Uses GPT for intelligent address parsing when needed
     """
     import re
     
@@ -481,36 +538,20 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         if postal:
             consignee['postal'] = postal
         
-        # FALLBACK: If individual fields are empty, parse from full_address
+        # FALLBACK: If individual fields are empty, USE GPT to parse full_address
         if not consignee['street'] and ship_addr.get('full_address'):
             full_addr = ship_addr['full_address']
-            lines = [line.strip() for line in full_addr.split('\n') if line.strip()]
+            print(f"   🔄 Individual fields empty, using GPT to parse full_address...")
             
-            # Filter out company name and country
-            company_upper = consignee['name'].upper() if consignee['name'] else ''
-            filtered_lines = []
-            for line in lines:
-                line_upper = line.upper().strip()
-                if line_upper == company_upper:
-                    continue
-                if line_upper in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
-                    continue
-                filtered_lines.append(line)
+            # Use GPT for intelligent parsing
+            gpt_parsed = parse_address_with_gpt(full_addr, consignee['name'])
             
-            if filtered_lines:
-                # First line is street
-                consignee['street'] = filtered_lines[0]
-                
-                # Second line is city/state (if exists)
-                if len(filtered_lines) > 1:
-                    consignee['city_state'] = filtered_lines[1]
-                
-                # Extract postal from any line
-                for line in filtered_lines:
-                    postal_found = extract_postal_code(line)
-                    if postal_found:
-                        consignee['postal'] = postal_found
-                        break
+            if gpt_parsed['street']:
+                consignee['street'] = gpt_parsed['street']
+            if gpt_parsed['city'] or gpt_parsed['state']:
+                consignee['city_state'] = f"{gpt_parsed['city']}, {gpt_parsed['state']}".strip(', ')
+            if gpt_parsed['postal']:
+                consignee['postal'] = gpt_parsed['postal']
         
         # Clean up city_state - remove postal code if embedded
         if consignee['city_state'] and consignee['postal']:
