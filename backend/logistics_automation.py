@@ -3410,6 +3410,41 @@ def process_email():
                             matched = True
                             break
                 
+                # Method 5: Abbreviation matching (VSG = Vane Spindle Grease, MOV = Motor Oil Viscous, etc.)
+                if not matched:
+                    # Common abbreviation mappings
+                    abbrev_map = {
+                        'VSG': ['VANE SPINDLE GREASE', 'VANE SPINDLE', 'SPINDLE GREASE'],
+                        'MOV': ['MOTOR OIL', 'MOV LONG LIFE', 'MOV EXTRA'],
+                        'HDEP': ['HEAVY DUTY EP', 'HEAVY DUTY'],
+                        'MPWB': ['MULTIPURPOSE', 'MULTI PURPOSE', 'MULTI-PURPOSE'],
+                    }
+                    
+                    for email_desc, match_info in email_items_by_desc.items():
+                        email_upper = email_desc.upper().strip()
+                        
+                        # Check if SO description contains abbreviation and email contains full name
+                        for abbrev, full_names in abbrev_map.items():
+                            if abbrev in so_desc or abbrev in so_code:
+                                for full_name in full_names:
+                                    if full_name in email_upper:
+                                        so_item['batch_number'] = match_info['batch_number']
+                                        print(f"SUCCESS: Abbreviation match: '{abbrev}' ≈ '{full_name}' → Batch: {match_info['batch_number']}")
+                                        matched = True
+                                        break
+                            # Also check reverse: email has abbreviation, SO has full name
+                            if abbrev in email_upper:
+                                for full_name in full_names:
+                                    if full_name in so_desc:
+                                        so_item['batch_number'] = match_info['batch_number']
+                                        print(f"SUCCESS: Reverse abbreviation match: '{abbrev}' in email ≈ '{full_name}' in SO → Batch: {match_info['batch_number']}")
+                                        matched = True
+                                        break
+                            if matched:
+                                break
+                        if matched:
+                            break
+                
                 if not matched:
                     unmatched_items.append(so_item.get('description', 'Unknown'))
                     print(f"⚠️ No batch match for SO item: '{so_desc}' (Code: {so_code})")
