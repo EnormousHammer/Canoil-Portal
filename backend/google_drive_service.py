@@ -488,8 +488,10 @@ class GoogleDriveService:
             return {}
     
     def load_folder_data(self, folder_id, drive_id=None):
-        """Load all JSON files from a folder - SEQUENTIAL (httplib2 is not thread-safe)"""
+        """Load all JSON files from a folder - PARALLEL downloads for speed"""
         import time
+        import concurrent.futures
+        from functools import partial
         
         try:
             start_time = time.time()
@@ -511,22 +513,38 @@ class GoogleDriveService:
             results = self.service.files().list(**list_params).execute()
             files = results.get('files', [])
             
-            print(f"[INFO] Found {len(files)} files to download (sequential - httplib2 not thread-safe)...")
+            print(f"[INFO] Found {len(files)} files to download (PARALLEL - using ThreadPoolExecutor)...")
             
+            # Download files in parallel (Google API client is thread-safe for read operations)
             data = {}
             
-            for file_info in files:
+            def download_single_file(file_info):
+                """Download a single file - thread-safe wrapper"""
                 file_id = file_info['id']
                 file_name = file_info['name']
-                print(f"[INFO] Downloading: {file_name}")
-                file_data = self.download_file(file_id, file_name)
-                if file_data is not None:
-                    data[file_name] = file_data
-                else:
-                    data[file_name] = []
+                try:
+                    print(f"[INFO] Downloading: {file_name}")
+                    file_data = self.download_file(file_id, file_name)
+                    return (file_name, file_data if file_data is not None else [])
+                except Exception as e:
+                    print(f"[ERROR] Failed to download {file_name}: {e}")
+                    return (file_name, [])
+            
+            # Use ThreadPoolExecutor for parallel downloads (max 10 concurrent to avoid rate limits)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_file = {executor.submit(download_single_file, file_info): file_info for file_info in files}
+                
+                for future in concurrent.futures.as_completed(future_to_file):
+                    try:
+                        file_name, file_data = future.result(timeout=30)
+                        data[file_name] = file_data
+                    except Exception as e:
+                        file_info = future_to_file[future]
+                        print(f"[ERROR] Exception downloading {file_info.get('name', 'unknown')}: {e}")
+                        data[file_info.get('name', 'unknown')] = []
             
             elapsed = time.time() - start_time
-            print(f"[OK] Download complete: {len(data)} files in {elapsed:.1f}s")
+            print(f"[OK] Download complete: {len(data)} files in {elapsed:.1f}s (PARALLEL)")
             
             return data
         except HttpError as error:
