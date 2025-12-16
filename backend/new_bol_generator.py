@@ -448,127 +448,78 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
     # Priority 1: SO shipping_address (most reliable - matches frontend display)
     if so_data.get('shipping_address'):
         ship_addr = so_data['shipping_address']
-        consignee['name'] = ship_addr.get('company', '') or ship_addr.get('contact', '')
         
-        # PRIORITY: Use full_address if available (this is what frontend shows correctly)
-        if ship_addr.get('full_address'):
+        # DEBUG: Print what we received
+        print(f"   📦 RAW shipping_address fields:")
+        for k, v in ship_addr.items():
+            print(f"      {k}: {v}")
+        
+        # Get company name
+        consignee['name'] = (ship_addr.get('company') or 
+                           ship_addr.get('company_name') or 
+                           ship_addr.get('contact') or 
+                           ship_addr.get('contact_person') or '')
+        
+        # SIMPLE APPROACH: Use individual fields FIRST if they exist
+        # These are already parsed correctly by the SO extractor
+        street = (ship_addr.get('street') or 
+                 ship_addr.get('street_address') or 
+                 ship_addr.get('address') or '')
+        
+        city = ship_addr.get('city', '')
+        province = ship_addr.get('province') or ship_addr.get('state', '')
+        postal = (ship_addr.get('postal_code') or 
+                 ship_addr.get('postal') or 
+                 ship_addr.get('zip') or 
+                 ship_addr.get('zip_code') or '')
+        
+        # If individual fields exist, use them directly
+        if street:
+            consignee['street'] = street
+        if city or province:
+            consignee['city_state'] = f"{city}, {province}".strip(', ') if city and province else (city or province)
+        if postal:
+            consignee['postal'] = postal
+        
+        # FALLBACK: If individual fields are empty, parse from full_address
+        if not consignee['street'] and ship_addr.get('full_address'):
             full_addr = ship_addr['full_address']
-            # Parse full_address into components
-            # Format can be: "Street\nCity, Province\nPostal Code\nCountry" or "Street\nCity, Province Postal\nCountry"
             lines = [line.strip() for line in full_addr.split('\n') if line.strip()]
             
-            # Filter out the company name if it appears in lines (already shown separately)
-            company = consignee['name'].upper() if consignee['name'] else ''
-            lines = [line for line in lines if line.upper() != company]
+            # Filter out company name and country
+            company_upper = consignee['name'].upper() if consignee['name'] else ''
+            filtered_lines = []
+            for line in lines:
+                line_upper = line.upper().strip()
+                if line_upper == company_upper:
+                    continue
+                if line_upper in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
+                    continue
+                filtered_lines.append(line)
             
-            # FIRST: Extract postal code from ENTIRE full_address (might be on any line)
-            postal_from_full = extract_postal_code(full_addr)
-            if postal_from_full:
-                consignee['postal'] = postal_from_full
-            
-            if lines:
-                # Street address might be multiple lines (street + street2)
-                # First line(s) after company are usually street address
-                street_lines = []
-                city_state_line = None
-                postal_line = None
+            if filtered_lines:
+                # First line is street
+                consignee['street'] = filtered_lines[0]
                 
-                for i, line in enumerate(lines):
-                    # Skip country-only lines
-                    if line.upper() in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
-                        continue
-                    
-                    # Check if this line is ONLY a postal code (standalone postal line)
-                    line_postal = extract_postal_code(line)
-                    if line_postal and len(line.strip()) <= 12:  # Postal codes are max 10 chars, allow some padding
-                        postal_line = line
-                        if not consignee['postal']:
-                            consignee['postal'] = line_postal
-                            print(f"   ✅ Found standalone postal code line: {line_postal}")
-                        continue
-                    
-                    # Check if line looks like city/state (contains comma or province/state code)
-                    # This should come AFTER street address lines
-                    if not city_state_line:
-                        # Check if line contains postal code pattern (city/state line with postal)
-                        if line_postal:
-                            city_state_line = line
-                            continue
-                        
-                        # Check if line looks like city/state format (City, Province or City State)
-                        if ',' in line or re.search(r'\b([A-Z]{2})\b', line):
-                            # This is likely city/state line - stop collecting street lines
-                            city_state_line = line
-                            continue
-                        
-                        # If we haven't found city/state yet, this is likely part of street address
-                        street_lines.append(line)
-                    else:
-                        # Already found city/state, any remaining lines are likely extra info
-                        pass
+                # Second line is city/state (if exists)
+                if len(filtered_lines) > 1:
+                    consignee['city_state'] = filtered_lines[1]
                 
-                # Combine street lines (handle multi-line street addresses)
-                consignee['street'] = ' '.join(street_lines) if street_lines else (lines[0] if lines else '')
-                
-                if city_state_line:
-                    consignee['city_state'] = city_state_line
-                    # Extract postal from city_state if not already found
-                    if not consignee['postal']:
-                        postal_from_city = extract_postal_code(city_state_line)
-                        if postal_from_city:
-                            consignee['postal'] = postal_from_city
-                            print(f"   ✅ Extracted postal from city_state line: {postal_from_city}")
-                    
-                    # Remove postal code from city_state if it's embedded (clean up display)
-                    if consignee['postal']:
-                        # Remove the postal code pattern from city_state for cleaner display
-                        consignee['city_state'] = re.sub(
-                            r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b',
-                            '',
-                            consignee['city_state'],
-                            flags=re.IGNORECASE
-                        ).strip().rstrip(',').strip()
-        else:
-            # Fallback: Build from individual fields
-            street_parts = []
-            if ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address'):
-                street = ship_addr.get('street') or ship_addr.get('street_address') or ship_addr.get('address')
-                street_parts.append(street)
-            if ship_addr.get('street2') or ship_addr.get('street_address2'):
-                street2 = ship_addr.get('street2') or ship_addr.get('street_address2')
-                street_parts.append(street2)
-            
-            consignee['street'] = ' '.join(street_parts) if street_parts else ''
-            
-            # City, State
-            city_parts = []
-            if ship_addr.get('city'):
-                city_parts.append(ship_addr['city'])
-            if ship_addr.get('province') or ship_addr.get('state'):
-                city_parts.append(ship_addr.get('province') or ship_addr.get('state'))
-            
-            consignee['city_state'] = ', '.join(city_parts) if city_parts else ''
-            
-            # Postal code - check multiple field names AND extract from city_state if needed
-            postal = (ship_addr.get('postal_code') or 
-                     ship_addr.get('postal') or 
-                     ship_addr.get('zip') or 
-                     ship_addr.get('zip_code') or '')
-            
-            if postal:
-                consignee['postal'] = postal.strip()
-            elif consignee['city_state']:
-                # Try to extract postal from city_state if not in separate field
-                postal_from_city = extract_postal_code(consignee['city_state'])
-                if postal_from_city:
-                    consignee['postal'] = postal_from_city
-                    # Remove postal from city_state
-                    consignee['city_state'] = re.sub(
-                        r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b',
-                        '',
-                        consignee['city_state'],
-                        flags=re.IGNORECASE
-                    ).strip().rstrip(',').strip()
+                # Extract postal from any line
+                for line in filtered_lines:
+                    postal_found = extract_postal_code(line)
+                    if postal_found:
+                        consignee['postal'] = postal_found
+                        break
+        
+        # Clean up city_state - remove postal code if embedded
+        if consignee['city_state'] and consignee['postal']:
+            consignee['city_state'] = re.sub(
+                r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b',
+                '',
+                consignee['city_state'],
+                flags=re.IGNORECASE
+            ).strip().rstrip(',').strip()
     
     # Priority 2: Email ship_to (if SO address is incomplete)
     elif email_analysis and email_analysis.get('ship_to'):
