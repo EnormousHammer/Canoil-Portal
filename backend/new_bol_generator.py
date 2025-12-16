@@ -28,6 +28,47 @@ DANGEROUS_GOODS_PRODUCTS = {
 }
 
 
+def normalize_batch_number(batch: str) -> str:
+    """
+    Normalize batch number string to consistent format
+    Handles various formats:
+    - "NT5D14T016 (5) + NT5E19T018 (3)" -> "NT5D14T016 + NT5E19T018"
+    - "2023087285, 2023087286" -> "2023087285 + 2023087286"
+    - "Batch: NT5D14T016" -> "NT5D14T016"
+    - "NT5D14T016 (5)" -> "NT5D14T016"
+    
+    Returns: Normalized batch string with " + " separator, quantities removed
+    """
+    if not batch:
+        return ''
+    
+    import re
+    
+    # Remove "Batch:" or "Batch Number:" prefix if present
+    batch = re.sub(r'^batch\s*(?:number|#)?\s*:?\s*', '', batch, flags=re.IGNORECASE).strip()
+    
+    # Extract all batch codes (alphanumeric with dashes, min 5 chars)
+    # This handles formats like:
+    # - "NT5D14T016 (5) + NT5E19T018 (3)"
+    # - "2023087285, 2023087286"
+    # - "NT5D14T016, NT5E19T018"
+    batch_codes = re.findall(r'\b([A-Z0-9\-]{5,})\b', batch.upper())
+    
+    if not batch_codes:
+        return batch.strip()  # Return original if no codes found
+    
+    # Remove duplicates while preserving order
+    unique_batches = []
+    seen = set()
+    for code in batch_codes:
+        if code not in seen:
+            unique_batches.append(code)
+            seen.add(code)
+    
+    # Join with " + " separator (consistent format)
+    return ' + '.join(unique_batches)
+
+
 def format_unit_description(unit_name: str) -> str:
     """
     Convert unit name to professional description
@@ -157,7 +198,8 @@ def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any]
 
 def extract_batch_numbers(email_analysis: Dict[str, Any], so_data: Dict[str, Any]) -> List[str]:
     """
-    Extract batch numbers AS-IS - no filtering, check all possible locations
+    Extract batch numbers from all possible locations and normalize them
+    Returns: List of normalized batch number strings
     """
     batch_numbers = []
     
@@ -192,23 +234,28 @@ def extract_batch_numbers(email_analysis: Dict[str, Any], so_data: Dict[str, Any
     
     # Ensure it's a list and handle string-formatted batch numbers
     if isinstance(batch_numbers, str):
-        # Handle various separators: comma, plus sign, or just spaces
-        if ' + ' in batch_numbers:
-            batch_numbers = [b.strip() for b in batch_numbers.split(' + ')]
-        elif ',' in batch_numbers:
-            batch_numbers = [b.strip() for b in batch_numbers.split(',')]
+        # Normalize the string first, then split
+        normalized = normalize_batch_number(batch_numbers)
+        if ' + ' in normalized:
+            batch_numbers = [b.strip() for b in normalized.split(' + ')]
         else:
-            # Single batch number
-            batch_numbers = [batch_numbers.strip()]
+            batch_numbers = [normalized.strip()] if normalized else []
     elif not isinstance(batch_numbers, list):
         batch_numbers = []
     
-    # Remove empty strings and duplicates
-    batch_numbers = list(dict.fromkeys([b for b in batch_numbers if b]))
+    # Normalize each batch number and remove empty strings and duplicates
+    normalized_batches = []
+    seen = set()
+    for batch in batch_numbers:
+        if batch:
+            normalized = normalize_batch_number(str(batch))
+            if normalized and normalized not in seen:
+                normalized_batches.append(normalized)
+                seen.add(normalized)
     
-    print(f"   DEBUG: Batch numbers extracted: {batch_numbers}")
+    print(f"   DEBUG: Batch numbers extracted and normalized: {normalized_batches}")
     
-    return batch_numbers
+    return normalized_batches
 
 
 def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:                 
@@ -361,16 +408,42 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str, Any]) -> Dict[str, str]:
     """
-    Extract and format consignee address
+    Extract and format consignee address with PERFECT postal code extraction
     Priority: SO shipping_address > Email ship_to
     Uses full_address if available (most reliable from frontend parsing)
     """
+    import re
+    
     consignee = {
         'name': '',
         'street': '',
         'city_state': '',
         'postal': ''
     }
+    
+    # Helper function to extract postal code from ANY string
+    def extract_postal_code(text: str) -> str:
+        """Extract postal code from text - handles all formats"""
+        if not text:
+            return ''
+        
+        # Canadian postal: A1A 1A1 or A1A1A1 (with or without space)
+        canadian_pattern = r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b'
+        canadian_match = re.search(canadian_pattern, text.upper())
+        if canadian_match:
+            # Normalize: ensure space in middle (A1A 1A1)
+            postal = canadian_match.group(1).replace(' ', '')
+            if len(postal) == 6:
+                return f"{postal[:3]} {postal[3:]}"
+            return canadian_match.group(1).upper()
+        
+        # US ZIP: 12345 or 12345-1234
+        us_zip_pattern = r'\b(\d{5}(?:-\d{4})?)\b'
+        us_zip_match = re.search(us_zip_pattern, text)
+        if us_zip_match:
+            return us_zip_match.group(1)
+        
+        return ''
     
     # Priority 1: SO shipping_address (most reliable - matches frontend display)
     if so_data.get('shipping_address'):
@@ -381,43 +454,80 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         if ship_addr.get('full_address'):
             full_addr = ship_addr['full_address']
             # Parse full_address into components
-            # Format is typically: "Street\nCity, Province Postal\nCountry"
+            # Format can be: "Street\nCity, Province\nPostal Code\nCountry" or "Street\nCity, Province Postal\nCountry"
             lines = [line.strip() for line in full_addr.split('\n') if line.strip()]
             
             # Filter out the company name if it appears in lines (already shown separately)
             company = consignee['name'].upper() if consignee['name'] else ''
             lines = [line for line in lines if line.upper() != company]
             
+            # FIRST: Extract postal code from ENTIRE full_address (might be on any line)
+            postal_from_full = extract_postal_code(full_addr)
+            if postal_from_full:
+                consignee['postal'] = postal_from_full
+            
             if lines:
-                # First line after company is usually street
-                consignee['street'] = lines[0] if lines else ''
+                # Street address might be multiple lines (street + street2)
+                # First line(s) after company are usually street address
+                street_lines = []
+                city_state_line = None
+                postal_line = None
                 
-                # Try to find city/state/postal from remaining lines
-                if len(lines) > 1:
-                    # Look for line with postal code pattern
-                    for i, line in enumerate(lines[1:], 1):
-                        # Skip country-only lines
-                        if line.upper() in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
+                for i, line in enumerate(lines):
+                    # Skip country-only lines
+                    if line.upper() in ['CANADA', 'USA', 'UNITED STATES', 'US', 'CA']:
+                        continue
+                    
+                    # Check if this line is ONLY a postal code (standalone postal line)
+                    line_postal = extract_postal_code(line)
+                    if line_postal and len(line.strip()) <= 12:  # Postal codes are max 10 chars, allow some padding
+                        postal_line = line
+                        if not consignee['postal']:
+                            consignee['postal'] = line_postal
+                            print(f"   ✅ Found standalone postal code line: {line_postal}")
+                        continue
+                    
+                    # Check if line looks like city/state (contains comma or province/state code)
+                    # This should come AFTER street address lines
+                    if not city_state_line:
+                        # Check if line contains postal code pattern (city/state line with postal)
+                        if line_postal:
+                            city_state_line = line
                             continue
-                        # This line likely has city, province, postal
-                        consignee['city_state'] = line
-                        break
-                
-                # Extract postal code if present in city_state
-                if consignee['city_state']:
-                    import re
-                    # Canadian postal: A1A 1A1
-                    postal_match = re.search(r'([A-Z]\d[A-Z]\s*\d[A-Z]\d)', consignee['city_state'], re.IGNORECASE)
-                    if postal_match:
-                        consignee['postal'] = postal_match.group(1).upper()
-                        # Remove postal from city_state
-                        consignee['city_state'] = re.sub(r'[A-Z]\d[A-Z]\s*\d[A-Z]\d', '', consignee['city_state'], flags=re.IGNORECASE).strip().rstrip(',').strip()
+                        
+                        # Check if line looks like city/state format (City, Province or City State)
+                        if ',' in line or re.search(r'\b([A-Z]{2})\b', line):
+                            # This is likely city/state line - stop collecting street lines
+                            city_state_line = line
+                            continue
+                        
+                        # If we haven't found city/state yet, this is likely part of street address
+                        street_lines.append(line)
                     else:
-                        # US ZIP: 12345 or 12345-1234
-                        zip_match = re.search(r'(\d{5}(?:-\d{4})?)', consignee['city_state'])
-                        if zip_match:
-                            consignee['postal'] = zip_match.group(1)
-                            consignee['city_state'] = re.sub(r'\d{5}(?:-\d{4})?', '', consignee['city_state']).strip().rstrip(',').strip()
+                        # Already found city/state, any remaining lines are likely extra info
+                        pass
+                
+                # Combine street lines (handle multi-line street addresses)
+                consignee['street'] = ' '.join(street_lines) if street_lines else (lines[0] if lines else '')
+                
+                if city_state_line:
+                    consignee['city_state'] = city_state_line
+                    # Extract postal from city_state if not already found
+                    if not consignee['postal']:
+                        postal_from_city = extract_postal_code(city_state_line)
+                        if postal_from_city:
+                            consignee['postal'] = postal_from_city
+                            print(f"   ✅ Extracted postal from city_state line: {postal_from_city}")
+                    
+                    # Remove postal code from city_state if it's embedded (clean up display)
+                    if consignee['postal']:
+                        # Remove the postal code pattern from city_state for cleaner display
+                        consignee['city_state'] = re.sub(
+                            r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b',
+                            '',
+                            consignee['city_state'],
+                            flags=re.IGNORECASE
+                        ).strip().rstrip(',').strip()
         else:
             # Fallback: Build from individual fields
             street_parts = []
@@ -439,12 +549,26 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
             
             consignee['city_state'] = ', '.join(city_parts) if city_parts else ''
             
-            # Postal code - check multiple field names
+            # Postal code - check multiple field names AND extract from city_state if needed
             postal = (ship_addr.get('postal_code') or 
                      ship_addr.get('postal') or 
                      ship_addr.get('zip') or 
                      ship_addr.get('zip_code') or '')
-            consignee['postal'] = postal.strip() if postal else ''
+            
+            if postal:
+                consignee['postal'] = postal.strip()
+            elif consignee['city_state']:
+                # Try to extract postal from city_state if not in separate field
+                postal_from_city = extract_postal_code(consignee['city_state'])
+                if postal_from_city:
+                    consignee['postal'] = postal_from_city
+                    # Remove postal from city_state
+                    consignee['city_state'] = re.sub(
+                        r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d|\d{5}(?:-\d{4})?)\b',
+                        '',
+                        consignee['city_state'],
+                        flags=re.IGNORECASE
+                    ).strip().rstrip(',').strip()
     
     # Priority 2: Email ship_to (if SO address is incomplete)
     elif email_analysis and email_analysis.get('ship_to'):
@@ -455,16 +579,42 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         if ship_to.get('address'):
             addr_str = ship_to['address']
             consignee['street'] = addr_str
+            # Try to extract postal from email address too
+            postal_from_email = extract_postal_code(addr_str)
+            if postal_from_email:
+                consignee['postal'] = postal_from_email
     
     # Fallback to customer name
     if not consignee['name']:
         consignee['name'] = so_data.get('customer_name', '')
     
+    # FINAL CHECK: If postal is still missing, try to extract from ANY address field
+    if not consignee['postal']:
+        # Check all possible address fields in shipping_address
+        if so_data.get('shipping_address'):
+            ship_addr = so_data['shipping_address']
+            # Check all text fields for postal code
+            for field_name in ['full_address', 'street', 'address', 'city', 'city_state', 'postal_code', 'postal', 'zip', 'zip_code']:
+                field_value = ship_addr.get(field_name, '')
+                if field_value:
+                    postal_found = extract_postal_code(str(field_value))
+                    if postal_found:
+                        consignee['postal'] = postal_found
+                        print(f"   ✅ Found postal code in {field_name}: {postal_found}")
+                        break
+    
+    # Validate postal code format
+    if consignee['postal']:
+        # Normalize Canadian postal codes (ensure space)
+        if re.match(r'^[A-Z]\d[A-Z]\d[A-Z]\d$', consignee['postal'].upper().replace(' ', '')):
+            postal_clean = consignee['postal'].upper().replace(' ', '')
+            consignee['postal'] = f"{postal_clean[:3]} {postal_clean[3:]}"
+    
     print(f"   DEBUG extract_consignee_address:")
     print(f"      Name: {consignee['name']}")
     print(f"      Street: {consignee['street']}")
     print(f"      City/State: {consignee['city_state']}")
-    print(f"      Postal: {consignee['postal']}")
+    print(f"      Postal: {consignee['postal']} {'✅' if consignee['postal'] else '❌ MISSING'}")
     
     return consignee
 
@@ -570,13 +720,14 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
                 product = f"{product} ({liters_filled}L filled)"
                 print(f"   📦 TOTE ORDER: Added liters to description: {product}")
         
-        # Get batch number from item (preserves full string with quantities)
-        batch = item.get('batch_number', '')
+        # Get batch number from item and normalize it
+        batch_raw = item.get('batch_number', '')
+        batch = normalize_batch_number(batch_raw) if batch_raw else ''
         
         # DEBUG: Show batch extraction for each item
         print(f"   DEBUG ROW: Item {i+1}/{len(items)}: {product}")
         print(f"             Item has batch_number field: {'batch_number' in item}")
-        print(f"             Batch value: '{batch}'")
+        print(f"             Batch raw: '{batch_raw}' -> normalized: '{batch}'")
         
         # Format unit description
         unit = item.get('unit', 'EA')
@@ -589,12 +740,12 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         # Row 1: Item | Batch(es) (batches on first row)
         row_parts = [f"{unit_desc} {product}"]
         
-        # Handle batch numbers smartly
+        # Handle batch numbers smartly - now normalized format
         if batch:
-            # Check if multiple batches (contains '+')
-            if '+' in batch:
-                # Split multiple batches: "NT5D14T016 (5) + NT5E19T018 (3)"
-                batches = [b.strip() for b in batch.split('+')]
+            # Normalized format uses " + " separator
+            if ' + ' in batch:
+                # Split multiple batches: "NT5D14T016 + NT5E19T018"
+                batches = [b.strip() for b in batch.split(' + ')]
                 # Add each batch separately with | separator
                 for b in batches:
                     row_parts.append(f"Batch: {b}")
@@ -906,43 +1057,114 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
             carrier_input['value'] = carrier_value
             print(f"   Set carrier (brokerage): {carrier_value}")
     
-    # Populate consignee fields - more reliable approach
+    # Populate consignee fields - ROBUST approach with multiple fallbacks
+    print(f"\n>> Filling consignee address fields...")
+    print(f"   Name: {consignee['name']}")
+    print(f"   Street: {consignee['street']}")
+    print(f"   City/State: {consignee['city_state']}")
+    print(f"   Postal: {consignee['postal']}")
+    
     all_strongs = soup.find_all('strong')
     consignee_section_started = False
+    fields_filled = {'name': False, 'street': False, 'city_state': False, 'postal': False}
     
+    # Method 1: Find by strong tag text (primary method)
     for strong in all_strongs:
         text = strong.get_text().strip()
         
         # Detect when we enter consignee section
         if 'Consignee:' in text:
             consignee_section_started = True
+            # Find input in same cell or next sibling
             next_input = strong.find_next('input', {'type': 'text'})
-            if next_input and consignee['name']:
-                next_input['value'] = consignee['name']
-                print(f"   Set consignee name: {consignee['name']}")
+            if next_input:
+                if consignee['name']:
+                    next_input['value'] = consignee['name']
+                    fields_filled['name'] = True
+                    print(f"   ✅ Set consignee name: {consignee['name']}")
+                else:
+                    next_input['value'] = ''  # Clear placeholder
         
         # Street field (comes after Consignee section starts)
-        elif consignee_section_started and text == 'Street:':
+        elif consignee_section_started and ('Street:' in text or text == 'Street'):
             next_input = strong.find_next('input', {'type': 'text'})
-            if next_input and consignee['street']:
-                next_input['value'] = consignee['street']
-                print(f"   Set street: {consignee['street']}")
+            if next_input:
+                if consignee['street']:
+                    next_input['value'] = consignee['street']
+                    fields_filled['street'] = True
+                    print(f"   ✅ Set street: {consignee['street']}")
+                else:
+                    next_input['value'] = ''  # Clear placeholder
         
-        # City/State field
-        elif consignee_section_started and 'City: Prov./State' in text:
+        # City/State field - flexible matching
+        elif consignee_section_started and ('City' in text and ('Prov' in text or 'State' in text)):
             next_input = strong.find_next('input', {'type': 'text'})
-            if next_input and consignee['city_state']:
-                next_input['value'] = consignee['city_state']
-                print(f"   Set city/state: {consignee['city_state']}")
+            if next_input:
+                if consignee['city_state']:
+                    next_input['value'] = consignee['city_state']
+                    fields_filled['city_state'] = True
+                    print(f"   ✅ Set city/state: {consignee['city_state']}")
+                else:
+                    next_input['value'] = ''  # Clear placeholder
         
-        # Postal code - comes right after City/State
-        elif consignee_section_started and 'Postal/Zip Code:' in text:
+        # Postal code - flexible matching
+        elif consignee_section_started and ('Postal' in text or 'Zip' in text or 'Code' in text):
             next_input = strong.find_next('input', {'type': 'text'})
-            if next_input and consignee['postal']:
-                next_input['value'] = consignee['postal']
-                print(f"   Set postal: {consignee['postal']}")
+            if next_input:
+                if consignee['postal']:
+                    next_input['value'] = consignee['postal']
+                    fields_filled['postal'] = True
+                    print(f"   ✅ Set postal: {consignee['postal']}")
+                else:
+                    next_input['value'] = ''  # Clear placeholder
+                    print(f"   ⚠️ WARNING: Postal code is MISSING - address may be incomplete!")
             # Exit consignee section after postal
             consignee_section_started = False
+    
+    # Method 2: Fallback - find by position in consignee table (if primary method failed)
+    if not all(fields_filled.values()):
+        print(f"\n   🔄 Using fallback method for missing fields...")
+        # Find consignee table (after shipper table)
+        all_tables = soup.find_all('table')
+        consignee_table = None
+        for i, table in enumerate(all_tables):
+            if i > 0:  # Skip first table (shipper)
+                # Check if this table has "Consignee:" label
+                if table.find('strong', string=lambda x: x and 'Consignee' in x):
+                    consignee_table = table
+                    break
+        
+        if consignee_table:
+            consignee_inputs = consignee_table.find_all('input', {'type': 'text'})
+            print(f"   Found {len(consignee_inputs)} input fields in consignee table")
+            
+            # Fill in order: Name, Street, City/State, Postal
+            if len(consignee_inputs) >= 1 and not fields_filled['name'] and consignee['name']:
+                consignee_inputs[0]['value'] = consignee['name']
+                fields_filled['name'] = True
+                print(f"   ✅ Fallback: Set consignee name: {consignee['name']}")
+            
+            if len(consignee_inputs) >= 2 and not fields_filled['street'] and consignee['street']:
+                consignee_inputs[1]['value'] = consignee['street']
+                fields_filled['street'] = True
+                print(f"   ✅ Fallback: Set street: {consignee['street']}")
+            
+            if len(consignee_inputs) >= 3 and not fields_filled['city_state'] and consignee['city_state']:
+                consignee_inputs[2]['value'] = consignee['city_state']
+                fields_filled['city_state'] = True
+                print(f"   ✅ Fallback: Set city/state: {consignee['city_state']}")
+            
+            if len(consignee_inputs) >= 4 and not fields_filled['postal'] and consignee['postal']:
+                consignee_inputs[3]['value'] = consignee['postal']
+                fields_filled['postal'] = True
+                print(f"   ✅ Fallback: Set postal: {consignee['postal']}")
+    
+    # Summary
+    missing_fields = [field for field, filled in fields_filled.items() if not filled and consignee.get(field)]
+    if missing_fields:
+        print(f"   ⚠️ WARNING: Could not fill {missing_fields} - check template structure")
+    else:
+        print(f"   ✅ All available address fields filled successfully")
     
     # Set U.S./Canadian funds checkbox based on SO total amount
     # Template has checkboxes with labels "Cdn" and "U.S" (no IDs)
@@ -1031,6 +1253,15 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                         # ALWAYS remove placeholder (clears grey example text)
                         if desc_input.has_attr('placeholder'):
                             del desc_input['placeholder']
+                        
+                        # Add auto-resize class for smart font sizing
+                        if desc_input.has_attr('class'):
+                            classes = desc_input.get('class', [])
+                            if 'auto-resize' not in classes:
+                                classes.append('auto-resize')
+                                desc_input['class'] = classes
+                        else:
+                            desc_input['class'] = ['auto-resize']
                     
                     # Weight column
                     weight_input = cells[2].find('input')
