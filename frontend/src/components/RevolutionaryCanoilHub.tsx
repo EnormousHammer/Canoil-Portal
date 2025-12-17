@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CompactLoading, DataLoading, ToastNotification } from './LoadingComponents';
 import { AICommandCenter } from './AICommandCenter';
-import { ProductionSchedule } from './ProductionSchedule';
-import { SimpleProductionCalendar } from './SimpleProductionCalendar';
+// Production Schedule - embedded from external app
 import { ReportMaker } from './ReportMaker';
 import { EnterpriseProductionCalendar } from './EnterpriseProductionCalendar';
 import { CleanEnterpriseDashboard } from './CleanEnterpriseDashboard';
@@ -1686,12 +1685,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             />
           )}
 
-          {/* Production Schedule */}
+          {/* Production Schedule - Embedded from external app */}
           {activeSection === 'production-schedule' && (
-            <SimpleProductionCalendar
-              onBack={() => setActiveSection('dashboard')}
-              data={data}
-            />
+            <div className="h-[calc(100vh-120px)] w-full">
+              <iframe
+                src={window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                  ? 'http://localhost:3000' 
+                  : 'https://cannoli-production-schedule.vercel.app'}
+                className="w-full h-full border-0 rounded-xl"
+                title="Production Schedule"
+                allow="fullscreen"
+              />
+            </div>
           )}
 
           {/* Logistics Automation */}
