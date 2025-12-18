@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
+import { NavigationHeader } from './components/NavigationHeader';
+import { ProductionScheduleMPS } from './components/ProductionScheduleMPS';
 import { GDriveDataLoader } from './services/GDriveDataLoader';
 import { getApiUrl } from './utils/apiConfig';
+import { fetchMPSData } from './services/mpsDataService';
 import './App.css';
 
 function App() {
@@ -73,6 +76,45 @@ function App() {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [showHealthWarning, setShowHealthWarning] = useState(false);
 
+  // Top-level app tab ('operations' portal vs 'production-schedule' view)
+  const [activeApp, setActiveApp] = useState<'operations' | 'production-schedule'>('operations');
+  
+  // Navigation history for back/forward buttons
+  const [navHistory, setNavHistory] = useState<('operations' | 'production-schedule')[]>(['operations']);
+  const [navIndex, setNavIndex] = useState(0);
+  
+  // Navigate to app and update history
+  const navigateToApp = (app: 'operations' | 'production-schedule') => {
+    if (app === activeApp) return; // Already on this app
+    
+    // Truncate any forward history and add new destination
+    const newHistory = [...navHistory.slice(0, navIndex + 1), app];
+    setNavHistory(newHistory);
+    setNavIndex(newHistory.length - 1);
+    setActiveApp(app);
+  };
+  
+  // Go back in history
+  const goBack = () => {
+    if (navIndex > 0) {
+      const newIndex = navIndex - 1;
+      setNavIndex(newIndex);
+      setActiveApp(navHistory[newIndex]);
+    }
+  };
+  
+  // Go forward in history
+  const goForward = () => {
+    if (navIndex < navHistory.length - 1) {
+      const newIndex = navIndex + 1;
+      setNavIndex(newIndex);
+      setActiveApp(navHistory[newIndex]);
+    }
+  };
+  
+  const canGoBack = navIndex > 0;
+  const canGoForward = navIndex < navHistory.length - 1;
+
   // Start loading data IMMEDIATELY when app opens (don't wait for anything)
   useEffect(() => {
     console.log("🚀 App opened - starting data load IMMEDIATELY");
@@ -80,6 +122,15 @@ function App() {
     loadAllData(gdriveLoader).catch((error) => {
       console.error('❌ Error loading data:', error);
     });
+    
+    // Pre-load MPS data in background so Production Schedule is instant
+    console.log("📋 Pre-loading MPS data for instant Production Schedule...");
+    fetchMPSData().then(() => {
+      console.log("✅ MPS data pre-loaded - Production Schedule will be instant!");
+    }).catch((error) => {
+      console.warn('⚠️ MPS pre-load failed (will load on demand):', error);
+    });
+    
     // Only run once on mount - don't depend on dataLoaded
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array = run immediately on mount
@@ -563,6 +614,22 @@ function App() {
   // Show main application after loading
   return (
     <div className="transition-opacity duration-1000 ease-in">
+      {/* Top-level header with app switch tabs */}
+      <NavigationHeader
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        breadcrumbs={[]}
+        onGoBack={goBack}
+        onGoForward={goForward}
+        onNavigateToItem={() => {}}
+        onHome={() => navigateToApp('operations')}
+        dataSource={dataSource}
+        currentUser={currentUser}
+        activeApp={activeApp}
+        onSelectApp={navigateToApp}
+        syncInfo={syncInfo}
+      />
+
       {/* System Health Warning Banner */}
       {showHealthWarning && systemHealth && systemHealth.issues && systemHealth.issues.length > 0 && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999]">
@@ -669,13 +736,17 @@ function App() {
         </div>
       )}
       
-      <RevolutionaryCanoilHub 
-        data={data} 
-        dataSource={dataSource} 
-        syncInfo={syncInfo}
-        currentUser={currentUser}
-        onRefreshData={handleRefreshData}
+      {activeApp === 'operations' ? (
+        <RevolutionaryCanoilHub
+          data={data}
+          dataSource={dataSource}
+          syncInfo={syncInfo}
+          currentUser={currentUser}
+          onRefreshData={handleRefreshData}
         />
+      ) : (
+        <ProductionScheduleMPS />
+      )}
       </div>
     );
 }

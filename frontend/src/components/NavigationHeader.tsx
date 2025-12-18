@@ -30,6 +30,9 @@ interface NavigationHeaderProps {
   onHome: () => void;
   onShowHelp?: () => void;
   dataSource?: string;
+  currentUser?: { name: string; email: string; isAdmin: boolean } | null;
+  activeApp?: 'operations' | 'production-schedule' | 'shipping';
+  onSelectApp?: (app: 'operations' | 'production-schedule' | 'shipping') => void;
   syncInfo?: {
     folderName: string;
     syncDate: string;
@@ -48,9 +51,12 @@ export function NavigationHeader({
   onHome,
   onShowHelp,
   dataSource,
+  currentUser,
+  activeApp = 'operations',
+  onSelectApp,
   syncInfo
 }: NavigationHeaderProps) {
-  
+
   // Format sync date for display
   const formatSyncDate = (dateStr: string | undefined) => {
     if (!dateStr) return 'Unknown';
@@ -77,111 +83,152 @@ export function NavigationHeader({
     }
   };
 
+  // Top-level app tab handlers
+  const handleOperationsClick = () => {
+    if (onSelectApp) {
+      onSelectApp('operations');
+    } else {
+      onHome();
+    }
+  };
+
+  const handleProductionScheduleClick = () => {
+    if (onSelectApp) {
+      onSelectApp('production-schedule');
+    } else if (typeof window !== 'undefined') {
+      // Fallback to legacy standalone app behavior
+      const isLocal =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1';
+
+      const url = isLocal
+        ? 'http://localhost:3000'
+        : 'https://cannoli-production-schedule.vercel.app';
+
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
-    <header className="bg-gradient-to-br from-slate-100 via-slate-50 to-white shadow-xl border-b border-slate-300/40">
-      <div className="max-w-7xl mx-auto">
-        {/* Main Header Bar */}
-        <div className="px-8 py-5">
+    <header className="bg-gradient-to-br from-slate-100 via-slate-50 to-white shadow-sm border-b border-slate-200">
+      <div className="max-w-full mx-auto">
+        {/* Main Header Bar - Compact single line */}
+        <div className="px-4 py-1.5">
           <div className="flex items-center justify-between">
-            {/* Left Side - Logo and Main Title */}
-            <div className="flex items-center space-x-6">
-              {/* Logo with subtle glow */}
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/30 to-blue-500/30 blur-xl rounded-full scale-150"></div>
-                <img 
-                  src="/Canoil_logo.png" 
-                  alt="Canoil Canada Ltd." 
-                  className="relative h-14 w-auto drop-shadow-sm"
-                />
-              </div>
+            {/* Left Side - Logo and Main Title inline */}
+            <div className="flex items-center space-x-3">
+              {/* Logo */}
+              <img
+                src="/Canoil_logo.png"
+                alt="Canoil Canada Ltd."
+                className="h-7 w-auto"
+              />
               
-              {/* Main Title with premium typography */}
-              <div className="flex flex-col space-y-1">
-                <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
+              {/* Main Title - single line */}
+              <div className="flex items-center space-x-2">
+                <h1 className="text-base font-bold text-slate-800 tracking-tight whitespace-nowrap">
                   CANOIL CANADA LTD.
                 </h1>
-                <p className="text-slate-600 font-semibold text-sm tracking-wide uppercase">
+                <span className="text-slate-400">|</span>
+                <p className="text-slate-500 font-medium text-xs tracking-wide uppercase whitespace-nowrap">
                   MISys Intelligence Center
                 </p>
               </div>
             </div>
 
-            {/* Right Side - Navigation Controls and Status */}
-            <div className="flex items-center space-x-8">
-              {/* Premium Navigation Controls */}
-              <div className="flex items-center space-x-1 bg-slate-200/60 backdrop-blur-sm rounded-2xl p-1.5 border border-slate-300/50 shadow-md">
+            {/* Right Side - All controls inline */}
+            <div className="flex items-center space-x-2">
+              {/* App Switch Tabs */}
+              <div className="flex items-center bg-slate-200/60 rounded-lg p-0.5 border border-slate-300/50">
+                <button
+                  onClick={handleOperationsClick}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-colors ${
+                    activeApp === 'operations'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+                  }`}
+                  title="Canoil Operations"
+                >
+                  Canoil Operations
+                </button>
+                <button
+                  onClick={handleProductionScheduleClick}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-colors ${
+                    activeApp === 'production-schedule'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+                  }`}
+                  title="Production Schedule"
+                >
+                  Production Schedule
+                </button>
+                <button
+                  disabled
+                  className="px-2.5 py-1 rounded-md text-[10px] font-semibold text-slate-400 cursor-not-allowed whitespace-nowrap"
+                  title="Shipping (coming soon)"
+                >
+                  Shipping
+                </button>
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="flex items-center bg-slate-200/60 rounded-lg p-0.5 border border-slate-300/50">
                 <button
                   onClick={onHome}
-                  className="p-3 text-slate-700 hover:bg-gradient-to-r hover:from-emerald-100 hover:to-blue-100 hover:text-slate-800 rounded-xl transition-all duration-300 hover:scale-105 group"
+                  className="p-1.5 text-slate-600 hover:bg-white hover:text-slate-800 rounded-md transition-colors"
                   title="Home"
                 >
-                  <Home className="w-5 h-5 group-hover:scale-110" />
+                  <Home className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={onGoBack}
                   disabled={!canGoBack}
-                  className={`p-3 rounded-xl transition-all duration-300 ${
-                    canGoBack 
-                      ? 'text-slate-700 hover:bg-gradient-to-r hover:from-slate-100 hover:to-slate-200 hover:text-slate-800 hover:scale-105' 
-                      : 'text-slate-400 cursor-not-allowed'
+                  className={`p-1.5 rounded-md transition-colors ${
+                    canGoBack ? 'text-slate-600 hover:bg-white hover:text-slate-800' : 'text-slate-400 cursor-not-allowed'
                   }`}
                   title="Go Back"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <ArrowLeft className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={onGoForward}
                   disabled={!canGoForward}
-                  className={`p-3 rounded-xl transition-all duration-300 ${
-                    canGoForward 
-                      ? 'text-slate-700 hover:bg-gradient-to-r hover:from-slate-100 hover:to-slate-200 hover:text-slate-800 hover:scale-105' 
-                      : 'text-slate-400 cursor-not-allowed'
+                  className={`p-1.5 rounded-md transition-colors ${
+                    canGoForward ? 'text-slate-600 hover:bg-white hover:text-slate-800' : 'text-slate-400 cursor-not-allowed'
                   }`}
                   title="Go Forward"
                 >
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Premium G: Drive Status with Google Logo */}
-              {dataSource && (
-                <div className="flex items-center space-x-3 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl px-4 py-3 border border-emerald-400/30 shadow-lg backdrop-blur-sm">
-                  {/* Real Google Drive Icon */}
-                  <img 
-                    src="/Google_Drive_icon_(2020).svg.png" 
-                    alt="Google Drive" 
-                    className="w-5 h-5 drop-shadow-sm"
-                  />
-                  
-                  <div className="text-white">
-                    <div className="font-semibold text-sm tracking-wide">G: Drive</div>
-                    <div className="text-emerald-100 text-xs font-medium">
-                      {syncInfo ? `Data: ${formatSyncDate(syncInfo.syncDate)}` : 'Connected'}
-                    </div>
-                    {syncInfo && syncInfo.lastModified && (
-                      <div className="text-emerald-200 text-xs opacity-80">
-                        Modified: {formatSyncDate(syncInfo.lastModified)}
-                      </div>
-                    )}
-                  </div>
+              {/* Logged-in User - compact */}
+              {currentUser && (
+                <div className="flex items-center space-x-1.5 bg-slate-100/80 rounded-lg px-2 py-1 border border-slate-300/60">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-medium text-slate-600 whitespace-nowrap">
+                    {currentUser.name} {currentUser.isAdmin && '(Admin)'}
+                  </span>
                 </div>
               )}
 
-              {/* Premium Help Button */}
-              {onShowHelp && (
-                <button
-                  onClick={onShowHelp}
-                  className="p-3 text-slate-700 hover:bg-gradient-to-r hover:from-slate-100 hover:to-slate-200 hover:text-slate-800 rounded-xl transition-all duration-300 hover:scale-105 group"
-                  title="Keyboard Shortcuts & Help"
-                >
-                  <HelpCircle className="w-5 h-5 group-hover:scale-110" />
-                </button>
+              {/* G: Drive Status - compact single line */}
+              {dataSource && (
+                <div className="flex items-center space-x-1.5 bg-emerald-600 text-white rounded-lg px-2 py-1 border border-emerald-500/60">
+                  <img 
+                    src="/Google_Drive_icon_(2020).svg.png" 
+                    alt="Google Drive" 
+                    className="w-3.5 h-3.5"
+                  />
+                  <span className="text-[10px] font-semibold whitespace-nowrap">G: Drive</span>
+                  <span className="text-[10px] text-emerald-100 whitespace-nowrap">
+                    {syncInfo ? formatSyncDate(syncInfo.syncDate) : 'Connected'}
+                  </span>
+                </div>
               )}
             </div>
           </div>
         </div>
-
-
       </div>
     </header>
   );

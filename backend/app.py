@@ -13,6 +13,18 @@ import PyPDF2
 import pdfplumber
 from docx import Document
 from enterprise_analytics import EnterpriseAnalytics
+import sys
+import io
+
+# Ensure console logging works on Windows with Unicode characters (emojis, symbols)
+try:
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "buffer"):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+except Exception:
+    # Never crash the app just because logging reconfiguration failed
+    pass
 
 # Load environment variables
 load_dotenv()
@@ -2466,26 +2478,31 @@ def load_mps_data():
                 continue
             
             try:
-                # Map row data to our structure
+                # Map row data to our structure - CORRECT column mapping:
+                # 0=Line#, 1=SO, 2=MO, 3=WIP, 4=WorkCenter, 5=Status, 6=Product, 
+                # 7=CustomerCode, 8=Packaging, 9=Required, 10=Ready, 11=Planned%, 
+                # 12=Actual%, 13=Promised, 14=StartDate, 15=EndDate, 16=Duration, 
+                # 17=DTC, 18=ActionItems
                 order_data = {
                     'order_number': row[0].strip() if len(row) > 0 else '',
                     'so_number': row[1].strip() if len(row) > 1 else '',
                     'mo_number': row[2].strip() if len(row) > 2 else '',
-                    'work_center': row[3].strip() if len(row) > 3 else '',
-                    'status': row[4].strip() if len(row) > 4 else '',
-                    'product': row[5].strip() if len(row) > 5 else '',
-                    'customer': row[6].strip() if len(row) > 6 else '',
-                    'packaging': row[7].strip() if len(row) > 7 else '',
-                    'required': row[8].strip() if len(row) > 8 else '',
-                    'ready': row[9].strip() if len(row) > 9 else '',
-                    'planned': row[10].strip() if len(row) > 10 else '',
-                    'actual': row[11].strip() if len(row) > 11 else '',
-                    'promised': row[12].strip() if len(row) > 12 else '',
-                    'start_date': row[13].strip() if len(row) > 13 else '',
-                    'end_date': row[14].strip() if len(row) > 14 else '',
-                    'duration': row[15].strip() if len(row) > 15 else '',
-                    'dtc': row[16].strip() if len(row) > 16 else '',
-                    'action_items': row[17].strip() if len(row) > 17 else ''
+                    'wip': row[3].strip() if len(row) > 3 else '',
+                    'work_center': row[4].strip() if len(row) > 4 else '',
+                    'status': row[5].strip() if len(row) > 5 else '',
+                    'product': row[6].strip() if len(row) > 6 else '',
+                    'customer_code': row[7].strip() if len(row) > 7 else '',
+                    'packaging': row[8].strip() if len(row) > 8 else '',
+                    'required': row[9].strip() if len(row) > 9 else '',
+                    'ready': row[10].strip() if len(row) > 10 else '',
+                    'planned': row[11].strip() if len(row) > 11 else '',
+                    'actual': row[12].strip() if len(row) > 12 else '',
+                    'promised': row[13].strip() if len(row) > 13 else '',
+                    'start_date': row[14].strip() if len(row) > 14 else '',
+                    'end_date': row[15].strip() if len(row) > 15 else '',
+                    'duration': row[16].strip() if len(row) > 16 else '',
+                    'dtc': row[17].strip() if len(row) > 17 else '',
+                    'action_items': row[18].strip() if len(row) > 18 else ''
                 }
                 
                 # Only add if we have essential data
