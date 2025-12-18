@@ -588,7 +588,7 @@ export function ProductionScheduleMPS() {
                 {/* MO Details */}
                 {selectedOrder.mo_data && (
                   <div className="mb-6">
-                    <h3 className="text-lg font-bold text-purple-400 mb-3">�icing Manufacturing Order</h3>
+                    <h3 className="text-lg font-bold text-purple-400 mb-3">Manufacturing Order Details</h3>
                     <div className="bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>

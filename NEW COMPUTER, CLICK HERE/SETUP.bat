@@ -34,7 +34,8 @@ if %errorlevel% neq 0 (
 
 echo Installing backend dependencies...
 cd ..\backend
-call pip install -r requirements.txt
+REM Use pip via Python launcher to avoid PATH issues
+call py -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo ERROR: Backend pip install failed
     pause

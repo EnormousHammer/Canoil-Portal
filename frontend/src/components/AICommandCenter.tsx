@@ -2263,13 +2263,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">Production Schedule</h2>
                   <p className="text-gray-600">Timeline view of manufacturing orders and production planning</p>
                 </div>
-                <button
-                  onClick={() => onNavigate?.('production-schedule')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                >
-                  <Factory className="w-4 h-4" />
-                  <span>Full Schedule View</span>
-                </button>
+                {/* Full Schedule View button removed to keep Production Schedule outside portal */}
               </div>
 
               {/* Production Metrics */}

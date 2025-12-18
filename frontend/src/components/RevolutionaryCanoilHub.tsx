@@ -1479,40 +1479,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-8">
         
-        {/* COMPACT CANOIL HEADER */}
-        <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl shadow-lg overflow-hidden bg-white p-1">
-              <img 
-                src="/Canoil_logo.png" 
-                alt="Canoil Logo" 
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  // Fallback to the "C" if logo fails to load
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = '<div class="w-full h-full bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center"><span class="text-white font-black text-lg">C</span></div>';
-                  }
-                }}
-              />
-            </div>
-            <div className="text-left">
-              <h1 className="text-2xl font-black text-slate-900 mb-0">CANOIL OPERATIONS</h1>
-              <p className="text-xs text-blue-700 font-semibold">Manufacturing Intelligence Portal</p>
-              {currentUser && (
-                <div className="mt-2 flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-xs text-slate-600 font-medium">
-                    {currentUser.name} {currentUser.isAdmin && '(Admin)'}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* ENTERPRISE NAVIGATION */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 max-w-7xl mx-auto mb-8">
           <button
@@ -1685,20 +1651,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             />
           )}
 
-          {/* Production Schedule - Embedded from external app */}
-          {activeSection === 'production-schedule' && (
-            <div className="h-[calc(100vh-120px)] w-full">
-              <iframe
-                src={window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                  ? 'http://localhost:3000' 
-                  : 'https://cannoli-production-schedule.vercel.app'}
-                className="w-full h-full border-0 rounded-xl"
-                title="Production Schedule"
-                allow="fullscreen"
-              />
-            </div>
-          )}
-
           {/* Logistics Automation */}
           {activeSection === 'logistics' && (
             <LogisticsAutomation />
@@ -1749,13 +1701,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <Download className="w-4 h-4 mr-2" />
                         Export
                       </button>
-                  <button
-                    onClick={() => setActiveSection('production-schedule')}
-                        className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Production Schedule
-                  </button>
                     </div>
                   </div>
                 </div>
@@ -2300,12 +2245,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       Released MO Orders Timeline
                     </span>
                   </h3>
-                  <button
-                    onClick={() => setActiveSection('production-schedule')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    📊 Full Schedule View
-                  </button>
                 </div>
                 
                 <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">

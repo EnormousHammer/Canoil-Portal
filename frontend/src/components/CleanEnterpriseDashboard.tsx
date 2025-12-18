@@ -300,37 +300,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
             </div>
           </MetricCard>
 
-          {/* Production Schedule Card - Real MiSys Data */}
-          <MetricCard
-            title="Production Schedule"
-            subtitle="Manufacturing Timeline"
-            primaryValue={jobsAnalytics.activeJobs.toString()}
-            primaryLabel="Active Jobs"
-            secondaryValue={jobsAnalytics.activeWorkOrders.toString()}
-            secondaryLabel="Active Work Orders"
-            trend={jobsAnalytics.activeJobs > jobsAnalytics.completedJobs ? 'up' : 'neutral'}
-            trendValue={`${Math.round(jobsAnalytics.completedJobs / Math.max(jobsAnalytics.totalJobs, 1) * 100)}%`}
-            icon={<Target className="w-full h-full" />}
-            gradientFrom="from-purple-600"
-            gradientTo="to-violet-500"
-            onClick={() => onNavigate('production-schedule')}
-          >
-            <div className="flex justify-between items-center">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Total Jobs: {jobsAnalytics.totalJobs.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Value: {formatCAD(jobsAnalytics.totalJobValue)}</span>
-                </div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
-                <Zap className="w-5 h-5 text-white/80" />
-              </div>
-            </div>
-          </MetricCard>
+          {/* Production Schedule card intentionally removed from portal dashboard */}
       </div>
 
         {/* Advanced Enterprise Action Center */}
@@ -369,11 +339,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
 
             {/* Manufacturing Action */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-green-400 p-6 hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl"
-              onClick={() => {
-                console.log('🏭 Navigating to production-schedule');
-                onNavigate('production-schedule');
-              }}
+              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-green-400 p-6 shadow-lg"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
               <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>

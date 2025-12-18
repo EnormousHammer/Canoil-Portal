@@ -27,10 +27,11 @@ if %errorlevel% equ 0 (
 echo.
 
 echo Checking Python installation...
-python --version 2>nul
+REM Prefer Python launcher (py) which works even if python.exe is not on PATH
+py --version 2>nul
 if %errorlevel% equ 0 (
     echo ✅ Python is installed
-    python --version
+    py --version
 ) else (
     echo ❌ Python is NOT installed
     echo Run INSTALL-PYTHON.bat to install
@@ -38,13 +39,14 @@ if %errorlevel% equ 0 (
 echo.
 
 echo Checking pip installation...
-pip --version 2>nul
+REM Use pip via Python launcher to avoid PATH issues
+py -m pip --version 2>nul
 if %errorlevel% equ 0 (
     echo ✅ pip is installed
-    pip --version
+    py -m pip --version
 ) else (
     echo ❌ pip is NOT installed
-    echo pip comes with Python - reinstall Python
+    echo pip comes with Python - reinstall Python or ensure py launcher is installed
 )
 echo.
 

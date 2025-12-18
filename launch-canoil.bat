@@ -23,7 +23,8 @@ timeout /t 3
 echo.
 
 echo [2/4] Starting Flask Backend (G: Drive Data Service)...
-start "Canoil Backend - Flask API" cmd /k "cd /d %~dp0backend && echo Starting Flask Backend... && python app.py"
+REM Use Python launcher (py) to be robust across PATH setups
+start "Canoil Backend - Flask API" cmd /k "cd /d %~dp0backend && echo Starting Flask Backend... && py app.py"
 echo Backend service initiated on port 5002
 echo Waiting for backend to initialize...
 timeout /t 5
@@ -66,7 +67,7 @@ echo http://localhost:5001
 echo.
 echo This prevents any duplicate browser windows.
 echo.
-REM Commented out auto-browser opening to test
+REM Auto-open disabled to match the manual opening instructions above
 REM start http://localhost:5001
 echo.
 echo ================================================
