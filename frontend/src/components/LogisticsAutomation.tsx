@@ -1732,7 +1732,7 @@ const LogisticsAutomation: React.FC = () => {
             </div>
 
             {/* Main Data Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
               {/* Order Information Card */}
               <div className="bg-white border-l-4 border-l-blue-500 border-t border-r border-b border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
                 <div className="bg-slate-50 px-5 py-3.5 border-b border-slate-200">
@@ -2064,7 +2064,12 @@ const LogisticsAutomation: React.FC = () => {
                         <FileText className="w-4 h-4 text-blue-600" />
                       </div>
                       <h3 className="font-bold text-slate-900 text-sm">
-                        {result.so_data?.customer_name || 'Customer'}'s Sales Order Items for SO {result.so_data?.so_number || '#'}
+                        {result.so_data?.customer_name || 'Customer'}
+                        {result.is_multi_so ? (
+                          <>{"'s Combined Sales Order Items for SOs "}{(result.so_data?.so_number || result.so_numbers?.join(' & ') || '#')}</>
+                        ) : (
+                          <>{"'s Sales Order Items for SO "}{result.so_data?.so_number || result.email_analysis?.so_number || '#'}</>
+                        )}
                       </h3>
                     </div>
                     <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-medium shadow-sm">SO PDF</span>
@@ -2083,11 +2088,19 @@ const LogisticsAutomation: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                      {result.so_data?.items && result.so_data.items.length > 0 ? (
-                        (() => {
-                          console.log('SO ITEMS DEBUG:', result.so_data.items.length, 'items:', result.so_data.items);
-                          return result.so_data.items;
-                        })().map((item: any, index: number) => (
+                      {(() => {
+                        // In multi-SO mode, always prefer the combined items list from backend (`result.items`)
+                        // This is more robust to older backend versions where `so_data.items` might only include a single SO.
+                        const displayItems: any[] = result.is_multi_so
+                          ? (result.items || result.so_data?.items || [])
+                          : (result.so_data?.items || []);
+
+                        if (!displayItems || displayItems.length === 0) {
+                          return null;
+                        }
+
+                        console.log('SO ITEMS DEBUG:', displayItems.length, 'items:', displayItems);
+                        return displayItems.map((item: any, index: number) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             <td className="px-6 py-4">
                               <div className="text-sm font-medium text-slate-900 max-w-md">{item.description || 'N/A'}</div>
@@ -2120,8 +2133,8 @@ const LogisticsAutomation: React.FC = () => {
                               {item.total_price ? `$${item.total_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                             </td>
                               </tr>
-                            ))
-                          ) : (
+                            ));
+                      })() || (
                             <tr>
                           <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No items found</td>
                             </tr>

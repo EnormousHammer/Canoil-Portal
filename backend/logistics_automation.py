@@ -319,9 +319,10 @@ def parse_multi_so_fallback(email_text: str) -> dict:
 # Create blueprint
 try:
     logistics_bp = Blueprint('logistics', __name__, url_prefix='')
-    print("✅ Logistics blueprint created successfully")
+    # Use ASCII-only logging to avoid Unicode console issues on Windows
+    print("Logistics blueprint created successfully")
 except Exception as e:
-    print(f"❌ ERROR: Failed to create logistics blueprint: {e}")
+    print(f"ERROR: Failed to create logistics blueprint: {e}")
     import traceback
     traceback.print_exc()
     raise
@@ -2013,6 +2014,61 @@ def test_logistics_endpoint():
         'openai_available': OPENAI_AVAILABLE
     }), 200
 
+def _build_multi_so_pallet_info(multi_so_email_data: dict):
+    """
+    Build combined skid/pallet info string for MULTI-SO shipments.
+    Uses ONLY data already parsed by GPT (items_by_so) - no guessing.
+    Returns (skid_info: str, total_skids: int, pallet_dimensions: str)
+    """
+    try:
+        items_by_so = multi_so_email_data.get('items_by_so', {}) or {}
+    except AttributeError:
+        items_by_so = {}
+
+    dims_parts = []
+    total_skids = 0
+
+    for so_num, email_items in items_by_so.items():
+        if not email_items:
+            continue
+        for email_item in email_items:
+            pallet_count = email_item.get('pallet_count')
+            pallet_dims = email_item.get('pallet_dimensions')
+
+            # Normalize count to int where possible
+            count_int = 0
+            if pallet_count is not None:
+                try:
+                    count_int = int(str(pallet_count).strip())
+                except (ValueError, TypeError):
+                    count_int = 0
+
+            if count_int > 0:
+                total_skids += count_int
+
+            if pallet_dims:
+                dims_str = str(pallet_dims).strip()
+                if dims_str and dims_str not in dims_parts:
+                    dims_parts.append(dims_str)
+
+    if not dims_parts and total_skids <= 0:
+        # Nothing usable found – let existing logic handle it (no skid info)
+        return "", 0, ""
+
+    # Build a human-readable pallet dimensions string
+    pallet_dimensions = ", ".join(dims_parts)
+
+    # Build skid_info using actual count when available
+    if total_skids <= 0:
+        skid_info = pallet_dimensions
+    elif total_skids == 1:
+        skid_info = f"1 pallet {pallet_dimensions}"
+    else:
+        skid_info = f"{total_skids} pallets {pallet_dimensions} each"
+
+    return skid_info, total_skids, pallet_dimensions
+
+
 def process_multi_so_email(email_content: str, so_numbers: list):
     """
     Process email containing MULTIPLE Sales Orders.
@@ -2159,6 +2215,24 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     if pallet_matches:
         email_data['pallet_count'] = sum(int(p) for p in pallet_matches)
         print(f"📦 Total pallets from email: {email_data['pallet_count']}")
+
+    # For MULTI-SO, also build combined skid_info / pallet_dimensions from GPT-parsed items_by_so
+    try:
+        skid_info, total_skids, pallet_dimensions = _build_multi_so_pallet_info(multi_so_email_data)
+        if skid_info:
+            email_data['skid_info'] = skid_info
+            print(f"📦 Combined skid_info for MULTI-SO: {skid_info}")
+        if total_skids > 0:
+            # Trust explicit per-SO counts from GPT over regex count, but don't zero out an existing non-zero value
+            prev_count = email_data.get('pallet_count', 0) or 0
+            email_data['pallet_count'] = total_skids if total_skids >= prev_count else prev_count
+            print(f"📦 Combined pallet_count for MULTI-SO: {email_data['pallet_count']}")
+        if pallet_dimensions:
+            email_data['pallet_dimensions'] = pallet_dimensions
+            print(f"📦 Combined pallet_dimensions for MULTI-SO: {pallet_dimensions}")
+    except Exception as e:
+        # Never let skid_info building break the flow
+        print(f"⚠️ Failed to build MULTI-SO skid_info: {e}")
     
     # Build result
     result = {
