@@ -2188,7 +2188,11 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'items': [],  # Combined items
         'total_weight': multi_so_email_data.get('combined_totals', {}).get('total_gross_weight', ''),
         'pallet_count': multi_so_email_data.get('combined_totals', {}).get('total_pallet_count', 0),
-        'items_by_so': items_by_so
+        'items_by_so': items_by_so,
+        # Preserve original email text so downstream generators (BOL/CI)
+        # can run broker/exporter detection exactly like single-SO flow.
+        'raw_text': email_content,
+        'email_body': email_content
     }
     
     # Flatten items for backward compatibility (EXCLUDE samples - they only affect steel count)

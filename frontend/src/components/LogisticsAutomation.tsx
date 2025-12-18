@@ -1712,10 +1712,38 @@ const LogisticsAutomation: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Match Status */}
+            {/* Match Status */}
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex items-center gap-2">
-                    {result.email_data?.so_number === result.so_data?.so_number ? (
+                    {(() => {
+                      const emailSo = result.email_data?.so_number;
+                      const pdfSo = result.so_data?.so_number;
+
+                      if (!emailSo || !pdfSo) {
+                        return false;
+                      }
+
+                      // Multi-SO aware comparison:
+                      // - Split on '&' or ','.
+                      // - Trim whitespace.
+                      // - Sort numerically.
+                      const normalize = (value: any) => {
+                        const raw = String(value);
+                        return raw
+                          .split(/&|,/)
+                          .map(part => part.trim())
+                          .filter(Boolean)
+                          .sort((a, b) => {
+                            const na = parseInt(a, 10);
+                            const nb = parseInt(b, 10);
+                            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                            return a.localeCompare(b);
+                          })
+                          .join('&');
+                      };
+
+                      return normalize(emailSo) === normalize(pdfSo);
+                    })() ? (
                       <>
                         <CheckCircle className="w-5 h-5 text-green-600" />
                         <span className="text-sm text-green-700 font-medium">SO Numbers Match</span>
