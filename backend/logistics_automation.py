@@ -2210,6 +2210,181 @@ def detect_and_apply_broker_info(email_content: str, email_data: dict, so_data: 
     return use_near_north
 
 
+def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
+    """
+    SHARED BATCH MATCHING LOGIC - Used by BOTH single-SO and multi-SO paths.
+    
+    Matches batch numbers from email items to SO items using multiple methods:
+    1. Exact description match
+    2. Contained description match
+    3. Core product name match
+    4. Item code match
+    5. Abbreviation matching
+    
+    Args:
+        email_items: List of items from email with batch_number field
+        so_items: List of SO items to update with batch numbers
+    
+    Returns:
+        dict with 'matched_count', 'unmatched_items', 'so_items' (updated)
+    """
+    import re
+    
+    if not email_items or not so_items:
+        return {'matched_count': 0, 'unmatched_items': [], 'so_items': so_items}
+    
+    print(f"   🔄 BATCH MATCHING: {len(email_items)} email items → {len(so_items)} SO items")
+    
+    # Build email item mapping by description
+    email_items_by_desc = {}
+    for email_item in email_items:
+        desc = (email_item.get('description') or '').upper().strip()
+        batch = (email_item.get('batch_number') or '').strip()
+        
+        if desc and batch:
+            item_info = {
+                'batch_number': batch,
+                'quantity': email_item.get('quantity', ''),
+                'unit': email_item.get('unit', ''),
+                'original_desc': email_item.get('description', ''),
+                'full_desc': desc
+            }
+            email_items_by_desc[desc] = item_info
+            
+            # Also map by core product name
+            core_name = extract_core_product_name(desc)
+            if core_name and core_name != desc:
+                email_items_by_desc[core_name] = item_info
+    
+    matched_count = 0
+    unmatched_items = []
+    
+    for so_item in so_items:
+        matched = False
+        so_desc = so_item.get('description', '').upper().strip()
+        so_code = so_item.get('item_code', '').upper().strip()
+        
+        # Skip charge items
+        if any(skip in so_desc for skip in ['FREIGHT', 'CHARGE', 'PALLET', 'BROKERAGE']):
+            continue
+        
+        # Method 1: Exact description match
+        if so_desc in email_items_by_desc:
+            match_info = email_items_by_desc[so_desc]
+            so_item['batch_number'] = match_info['batch_number']
+            matched = True
+            matched_count += 1
+        
+        # Method 2: Contained description match
+        if not matched:
+            for email_desc, match_info in email_items_by_desc.items():
+                if email_desc in so_desc or so_desc in email_desc:
+                    so_item['batch_number'] = match_info['batch_number']
+                    matched = True
+                    matched_count += 1
+                    break
+        
+        # Method 3: Core product name matching
+        if not matched:
+            so_core = extract_core_product_name(so_desc)
+            for email_desc, match_info in email_items_by_desc.items():
+                email_core = extract_core_product_name(email_desc)
+                if email_core and so_core and len(email_core) >= 5:
+                    if email_core in so_core or so_core in email_core:
+                        so_item['batch_number'] = match_info['batch_number']
+                        matched = True
+                        matched_count += 1
+                        break
+        
+        # Method 4: Item code matching
+        if not matched and so_code:
+            for email_desc, match_info in email_items_by_desc.items():
+                email_clean = re.sub(r'[\s\-_]', '', email_desc)
+                code_clean = re.sub(r'[\s\-_]', '', so_code)
+                
+                if (email_clean == code_clean or 
+                    email_clean in code_clean or 
+                    code_clean in email_clean or
+                    (len(email_clean) >= 5 and len(code_clean) >= 5 and 
+                     (email_clean[:5] == code_clean[:5] or email_clean[-5:] == code_clean[-5:]))):
+                    so_item['batch_number'] = match_info['batch_number']
+                    matched = True
+                    matched_count += 1
+                    break
+        
+        # Method 5: Abbreviation matching
+        if not matched:
+            abbrev_map = {
+                'VSG': ['VANE SPINDLE GREASE', 'VANE SPINDLE', 'SPINDLE GREASE'],
+                'MOV': ['MOTOR OIL', 'MOV LONG LIFE', 'MOV EXTRA'],
+                'HDEP': ['HEAVY DUTY EP', 'HEAVY DUTY'],
+                'MPWB': ['MULTIPURPOSE', 'MULTI PURPOSE', 'MULTI-PURPOSE'],
+            }
+            
+            for email_desc, match_info in email_items_by_desc.items():
+                email_upper = email_desc.upper().strip()
+                
+                for abbrev, full_names in abbrev_map.items():
+                    if abbrev in so_desc or abbrev in so_code:
+                        for full_name in full_names:
+                            if full_name in email_upper:
+                                so_item['batch_number'] = match_info['batch_number']
+                                matched = True
+                                matched_count += 1
+                                break
+                    if abbrev in email_upper:
+                        for full_name in full_names:
+                            if full_name in so_desc:
+                                so_item['batch_number'] = match_info['batch_number']
+                                matched = True
+                                matched_count += 1
+                                break
+                    if matched:
+                        break
+                if matched:
+                    break
+        
+        if not matched:
+            unmatched_items.append(so_item.get('description', 'Unknown'))
+    
+    if unmatched_items:
+        print(f"   ⚠️ {len(unmatched_items)} SO items have no batch match")
+    else:
+        print(f"   ✅ All {matched_count} items matched with batch numbers")
+    
+    return {
+        'matched_count': matched_count,
+        'unmatched_items': unmatched_items,
+        'so_items': so_items
+    }
+
+
+def apply_hts_codes_to_items(items: list) -> None:
+    """
+    SHARED HTS CODE LOGIC - Used by BOTH single-SO and multi-SO paths.
+    
+    Adds HTS codes and country of origin to items.
+    Modifies items list in place.
+    
+    Args:
+        items: List of item dicts to update with HTS codes
+    """
+    print("   📋 Matching HTS codes for items...")
+    for item in items:
+        # Skip charge items
+        if any(keyword in (item.get('description') or '').upper() 
+              for keyword in ['PALLET', 'FREIGHT', 'BROKERAGE', 'CHARGE']):
+            continue
+        
+        hts_info = get_hts_code_for_item(
+            item.get('description', ''), 
+            item.get('item_code', '')
+        )
+        if hts_info:
+            item['hts_code'] = hts_info['hts_code']
+            item['country_of_origin'] = hts_info.get('country_of_origin', 'Canada')
+
+
 def process_multi_so_email(email_content: str, so_numbers: list):
     """
     Process email containing MULTIPLE Sales Orders.
@@ -2269,7 +2444,19 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         email_items_for_so = items_by_so.get(so_num, [])
         so_items = so_data.get('items', [])
         
-        # Build list of SO item descriptions for matching
+        print(f"\n📦 Processing SO {so_num}...")
+        
+        # =====================================================================
+        # SHARED LOGIC: Batch number matching (same as single-SO)
+        # =====================================================================
+        batch_result = match_batch_numbers_to_so_items(email_items_for_so, so_items)
+        
+        # =====================================================================
+        # SHARED LOGIC: HTS code application (same as single-SO)
+        # =====================================================================
+        apply_hts_codes_to_items(so_items)
+        
+        # Build list of SO item descriptions for validation
         so_item_names = [item.get('description', '').upper() for item in so_items 
                         if not any(skip in item.get('description', '').upper() 
                                   for skip in ['FREIGHT', 'CHARGE', 'PALLET', 'BROKERAGE'])]
@@ -2307,14 +2494,16 @@ def process_multi_so_email(email_content: str, so_numbers: list):
             'status': 'passed' if not unmatched_items else 'failed',
             'total_email_items': len(email_items_for_so),
             'matched_items': matched_count,
-            'unmatched_items': unmatched_items
+            'unmatched_items': unmatched_items,
+            'batch_matched': batch_result['matched_count'],
+            'batch_unmatched': len(batch_result['unmatched_items'])
         }
         validation_details['per_so_validation'].append(so_validation)
         
         if unmatched_items:
             validation_details['overall_status'] = 'warning'
         
-        print(f"📊 SO {so_num} validation: {matched_count}/{len(email_items_for_so)} matched")
+        print(f"📊 SO {so_num} validation: {matched_count}/{len(email_items_for_so)} items, {batch_result['matched_count']} batches matched")
     
     # Combine SO data for document generation
     combined_so_data = combine_so_data_for_documents(so_data_list, multi_so_email_data)
@@ -3535,174 +3724,20 @@ def process_email():
             'irs_tax_number': ''  # To be filled if needed
         }
         
-        # Match email items with SO items to add specific batch numbers
+        # =====================================================================
+        # SHARED LOGIC: Batch number matching (same as multi-SO)
+        # =====================================================================
         if email_data.get('items') and so_data.get('items'):
-            print(f"RETRY: Matching {len(email_data.get('items', []))} email items with {len(so_data.get('items', []))} SO items...")
-            
-            # Debug: Show what we're trying to match
-            print("DEBUG: Email items:")
-            for item in email_data.get('items', []):
-                print(f"  - '{item.get('description', '')}' (batch: {item.get('batch_number', 'None')})")
-            
-            print("DEBUG: SO items:")
-            for item in so_data.get('items', []):
-                print(f"  - '{item.get('description', '')}' (code: {item.get('item_code', 'None')})")
-            
-            # Create a comprehensive mapping of email items
-            # CRITICAL: Map by FULL descriptions only to avoid cross-contamination
-            email_items_by_desc = {}
-            email_items_list = []  # Keep original list for precise matching
-            
-            for email_item in email_data.get('items', []):
-                desc = (email_item.get('description') or '').upper().strip()
-                batch = (email_item.get('batch_number') or '').strip()
-                
-                if desc and batch:
-                    # Store full item info for better matching
-                    item_info = {
-                        'batch_number': batch,
-                        'quantity': email_item.get('quantity', ''),
-                        'unit': email_item.get('unit', ''),
-                        'original_desc': email_item.get('description', ''),
-                        'full_desc': desc
-                    }
-                    
-                    # Map by full description ONLY (no word-by-word mapping to avoid collisions)
-                    email_items_by_desc[desc] = item_info
-                    email_items_list.append(item_info)
-                    
-                    # Also map by core product name for better matching
-                    core_name = extract_core_product_name(desc)
-                    if core_name and core_name != desc:
-                        email_items_by_desc[core_name] = item_info
-                    
-                    print(f"DEBUG BATCH MAP: '{desc}' → Batch: {batch}")
-            
-            # Update SO items with matching batch numbers
-            unmatched_items = []
-            
-            for so_item in so_data['items']:
-                matched = False
-                so_desc = so_item.get('description', '').upper().strip()
-                so_code = so_item.get('item_code', '').upper().strip()
-                so_raw_line = so_item.get('raw_line', '').upper().strip()
-                
-                # Method 1: Exact description match
-                if so_desc in email_items_by_desc:
-                    match_info = email_items_by_desc[so_desc]
-                    so_item['batch_number'] = match_info['batch_number']
-                    print(f"SUCCESS: Exact match: '{so_desc}' → Batch: {match_info['batch_number']}")
-                    matched = True
-                
-                # Method 2: Check if email description is CONTAINED in SO description
-                # This catches "MOV EXTRA 0" matching "MOV EXTRA 0 - DRUMS"
-                if not matched:
-                    for email_desc, match_info in email_items_by_desc.items():
-                        if email_desc in so_desc:
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Contained match: '{email_desc}' in '{so_desc}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
-                
-                # Method 3: Smart product name matching for Canoil products
-                if not matched:
-                    for email_desc, match_info in email_items_by_desc.items():
-                        # Extract core product names for comparison
-                        email_core = extract_core_product_name(email_desc)
-                        so_core = extract_core_product_name(so_desc)
-                        
-                        # Check if core product names match (must have significant overlap)
-                        if email_core and so_core and len(email_core) >= 5:
-                            if email_core in so_core or so_core in email_core:
-                                so_item['batch_number'] = match_info['batch_number']
-                                print(f"SUCCESS: Core product match: '{email_core}' ≈ '{so_core}' → Batch: {match_info['batch_number']}")
-                                matched = True
-                                break
-                
-                # Method 4: Match email description against SO ITEM CODE
-                # e.g., email has "MOVLL55KG" and SO item code is "MOVLL1K55KG"
-                if not matched and so_code:
-                    for email_desc, match_info in email_items_by_desc.items():
-                        email_upper = email_desc.upper().strip()
-                        code_upper = so_code.upper().strip()
-                        
-                        # Check if email desc matches item code (with some flexibility)
-                        # Remove common variations: spaces, dashes, underscores
-                        email_clean = re.sub(r'[\s\-_]', '', email_upper)
-                        code_clean = re.sub(r'[\s\-_]', '', code_upper)
-                        
-                        # Check for match or significant overlap
-                        if (email_clean == code_clean or 
-                            email_clean in code_clean or 
-                            code_clean in email_clean or
-                            (len(email_clean) >= 5 and len(code_clean) >= 5 and 
-                             (email_clean[:5] == code_clean[:5] or email_clean[-5:] == code_clean[-5:]))):
-                            so_item['batch_number'] = match_info['batch_number']
-                            print(f"SUCCESS: Item code match: '{email_desc}' ≈ '{so_code}' → Batch: {match_info['batch_number']}")
-                            matched = True
-                            break
-                
-                # Method 5: Abbreviation matching (VSG = Vane Spindle Grease, MOV = Motor Oil Viscous, etc.)
-                if not matched:
-                    # Common abbreviation mappings
-                    abbrev_map = {
-                        'VSG': ['VANE SPINDLE GREASE', 'VANE SPINDLE', 'SPINDLE GREASE'],
-                        'MOV': ['MOTOR OIL', 'MOV LONG LIFE', 'MOV EXTRA'],
-                        'HDEP': ['HEAVY DUTY EP', 'HEAVY DUTY'],
-                        'MPWB': ['MULTIPURPOSE', 'MULTI PURPOSE', 'MULTI-PURPOSE'],
-                    }
-                    
-                    for email_desc, match_info in email_items_by_desc.items():
-                        email_upper = email_desc.upper().strip()
-                        
-                        # Check if SO description contains abbreviation and email contains full name
-                        for abbrev, full_names in abbrev_map.items():
-                            if abbrev in so_desc or abbrev in so_code:
-                                for full_name in full_names:
-                                    if full_name in email_upper:
-                                        so_item['batch_number'] = match_info['batch_number']
-                                        print(f"SUCCESS: Abbreviation match: '{abbrev}' ≈ '{full_name}' → Batch: {match_info['batch_number']}")
-                                        matched = True
-                                        break
-                            # Also check reverse: email has abbreviation, SO has full name
-                            if abbrev in email_upper:
-                                for full_name in full_names:
-                                    if full_name in so_desc:
-                                        so_item['batch_number'] = match_info['batch_number']
-                                        print(f"SUCCESS: Reverse abbreviation match: '{abbrev}' in email ≈ '{full_name}' in SO → Batch: {match_info['batch_number']}")
-                                        matched = True
-                                        break
-                            if matched:
-                                break
-                        if matched:
-                            break
-                
-                if not matched:
-                    unmatched_items.append(so_item.get('description', 'Unknown'))
-                    print(f"⚠️ No batch match for SO item: '{so_desc}' (Code: {so_code})")
-            
-            if unmatched_items:
-                # Log unmatched items but DO NOT guess batch numbers
-                # If matching failed, leave batch empty - never risk wrong batches on shipping docs
-                print(f"⚠️ {len(unmatched_items)} SO items have no batch match (will remain empty): {', '.join(unmatched_items[:3])}...")
-                # NO FALLBACK - only matched items get batch numbers
-        
-        # Add HTS codes to all items
-        print("\nMatching HTS codes for items...")
-        for item in so_data.get('items', []):
-            hts_info = get_hts_code_for_item(
-                item.get('description', ''), 
-                item.get('item_code', '')
+            batch_result = match_batch_numbers_to_so_items(
+                email_data.get('items', []), 
+                so_data.get('items', [])
             )
-            if hts_info:
-                item['hts_code'] = hts_info['hts_code']
-                item['country_of_origin'] = hts_info.get('country_of_origin', 'Canada')
-                print(f"  MATCHED {item.get('item_code')}: HTS {hts_info['hts_code']}")
-            else:
-                # Don't add HTS for non-product items like Pallet, Freight, etc.
-                if not any(keyword in item.get('description', '').upper() 
-                          for keyword in ['PALLET', 'FREIGHT', 'BROKERAGE', 'CHARGE']):
-                    print(f"  NO MATCH {item.get('item_code')}: No HTS code found")
+            print(f"   Batch matching: {batch_result['matched_count']} matched, {len(batch_result['unmatched_items'])} unmatched")
+        
+        # =====================================================================
+        # SHARED LOGIC: HTS code application (same as multi-SO)
+        # =====================================================================
+        apply_hts_codes_to_items(so_data.get('items', []))
         
         # FILTER SO ITEMS IF PARTIAL SHIPMENT (specific lines mentioned)
         if email_data.get('is_partial_shipment') and email_data.get('so_line_numbers'):
