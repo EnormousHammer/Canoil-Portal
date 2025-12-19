@@ -156,11 +156,12 @@ def extract_addresses_from_layout_text(raw_text):
     lines = raw_text.split('\n')
     in_address_section = False
     
-    # Items to skip - headers, references, phone numbers, batch numbers
+        # Items to skip - headers, references, phone numbers, batch numbers, stock comments
     SKIP_PATTERNS = [
         'SOLD TO:', 'SHIP TO:', 'ORDER NO', 'DATE:', 'PAGE:', 'SHIP DATE',
         'LINE ', 'MO ', 'CHILD MO', 'BUSINESS NO', 'MOS ',  # MOS for plural "MOs 3712"
-        'BATCH NO', 'BATCH:', 'RECEIVING PH'  # Batch numbers and phone references
+        'BATCH NO', 'BATCH:', 'RECEIVING PH',  # Batch numbers and phone references
+        'PULL FROM STOCK', 'PULL FROM', 'STOCK'  # Stock comments - NEVER include in addresses
     ]
     
     # Phone number patterns - various formats
@@ -230,13 +231,30 @@ def extract_addresses_from_layout_text(raw_text):
             batch_number = batch_match.group(1)
             print(f"   FOUND BATCH in line: {batch_number}")
         
+        # CRITICAL: Clean stock comments from address lines BEFORE adding
+        def clean_stock_comments(text):
+            """Remove stock-related comments from address text"""
+            if not text:
+                return text
+            # Remove "Pull from stock" and variations
+            cleaned = re.sub(r',?\s*pull\s+from\s+stock.*$', '', text, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*stock.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',\s*$', '', cleaned).strip()
+            return cleaned
+        
         if left_content and not should_skip(left_content):
-            sold_to_lines.append(left_content)
+            cleaned_left = clean_stock_comments(left_content)
+            if cleaned_left:  # Only add if there's content after cleaning
+                sold_to_lines.append(cleaned_left)
             
         if middle_content and not should_skip(middle_content):
-            ship_to_lines.append(middle_content)
+            cleaned_middle = clean_stock_comments(middle_content)
+            if cleaned_middle:  # Only add if there's content after cleaning
+                ship_to_lines.append(cleaned_middle)
     
-    # Clean up: remove duplicates, very short lines, MO refs, and consolidate
+    # Clean up: remove duplicates, very short lines, MO refs, stock comments, and consolidate
     def clean_lines(lines_list):
         import re
         cleaned = []
@@ -244,6 +262,14 @@ def extract_addresses_from_layout_text(raw_text):
         for line in lines_list:
             line = line.strip()
             # Skip very short or duplicate lines
+            if len(line) < 2:
+                continue
+            # CRITICAL: Remove stock comments - these should NEVER be in addresses
+            line = re.sub(r',?\s*pull\s+from\s+stock.*$', '', line, flags=re.IGNORECASE)
+            line = re.sub(r',?\s*pull\s+from.*$', '', line, flags=re.IGNORECASE)
+            line = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', line, flags=re.IGNORECASE)
+            line = re.sub(r',?\s*stock.*$', '', line, flags=re.IGNORECASE)
+            line = line.strip()
             if len(line) < 2:
                 continue
             # Skip lines that are mainly MO references
@@ -457,6 +483,103 @@ Return ONLY valid JSON, no explanations."""
         return {'broker_name': '', 'account_number': ''}
 
 
+def validate_and_clean_with_openai(structured_data, raw_data):
+    """
+    Use OpenAI to validate and clean parsed SO data:
+    - Remove duplicate items
+    - Fix bad address parsing
+    - Ensure data consistency
+    - Remove stock comments from addresses
+    """
+    if not structured_data:
+        return structured_data
+    
+    try:
+        client = get_openai_client()
+    except:
+        # If OpenAI not available, return data as-is
+        print("⚠️ OpenAI not available for validation - using original data")
+        return structured_data
+    
+    try:
+        # Prepare validation prompt
+        validation_prompt = f"""You are a data quality expert. Validate and clean this parsed Sales Order data.
+
+PARSED DATA:
+{json.dumps(structured_data, indent=2, default=str)}
+
+CRITICAL VALIDATION TASKS:
+1. REMOVE DUPLICATE ITEMS:
+   - If multiple items have the same item_code OR very similar descriptions (typos like "Solution" vs "Soultion"), keep only ONE
+   - Keep the item with the most complete data (has prices, quantities, etc.)
+   - Example: If you see both "Diesel - Fuel System 12x1L Cleaning Solution" and "Diesel - Fuel System 12x1L Cleaning Soultion", keep only ONE
+
+2. FIX ADDRESS PARSING:
+   - Remove ANY stock/inventory comments from addresses: "Pull from stock", "batch #", "lot #", "stock"
+   - Ensure addresses are clean: street_address should ONLY contain street/building info, NOT city/postal/country
+   - Ensure postal codes are NOT duplicated in street_address
+   - Example: If street_address contains "2275 McCollum Parkway Pull from stock, batch # WH5"
+     → Fix to: street_address: "2275 McCollum Parkway" (remove stock comment)
+
+3. ENSURE DATA CONSISTENCY:
+   - If sold_to and ship_to addresses are identical, that's OK (keep both)
+   - If customer_name doesn't match sold_to.company_name, use sold_to.company_name as source of truth
+   - Ensure all required fields are present (use empty string "" if missing)
+   - If billing_address or shipping_address exist, ensure they match sold_to and ship_to respectively
+
+4. VALIDATE ITEMS:
+   - Remove items with empty descriptions or invalid quantities
+   - Ensure item codes are not duplicated
+   - Ensure prices are valid numbers (not strings with $ symbols)
+
+5. CLEAN ALL ADDRESS FIELDS:
+   - Remove stock comments from ALL address fields: sold_to, ship_to, billing_address, shipping_address
+   - Ensure street_address fields do NOT contain city, postal code, or country
+   - Ensure postal codes are only in postal_code fields, not duplicated elsewhere
+
+Return the CLEANED and VALIDATED data in the EXACT same JSON structure.
+Return ONLY valid JSON, no explanations or markdown.
+"""
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a data quality expert. You validate and clean parsed sales order data to remove duplicates, fix parsing errors, and ensure consistency. Return only valid JSON."
+                },
+                {
+                    "role": "user",
+                    "content": validation_prompt
+                }
+            ],
+            temperature=0,  # Deterministic
+            max_tokens=4000
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        
+        # Clean markdown if present
+        if result_text.startswith('```json'):
+            result_text = result_text[7:]
+        if result_text.startswith('```'):
+            result_text = result_text[3:]
+        if result_text.endswith('```'):
+            result_text = result_text[:-3]
+        result_text = result_text.strip()
+        
+        # Parse validated data
+        validated_data = json.loads(result_text)
+        
+        print("✅ OpenAI validation complete - duplicates removed, addresses cleaned")
+        return validated_data
+        
+    except Exception as e:
+        print(f"⚠️ OpenAI validation failed (using original data): {e}")
+        # Return original data if validation fails
+        return structured_data
+
+
 def structure_with_openai(raw_data):
     """
     Step 2: Send raw data to OpenAI for complete organization and structuring
@@ -490,6 +613,27 @@ def structure_with_openai(raw_data):
             if not batch_from_pdf:
                 batch_from_pdf = layout_extracted.get('batch_number', '')
         
+        # CRITICAL: Clean stock comments from pre-extracted addresses BEFORE passing to GPT
+        # This ensures GPT doesn't see stock comments in the hints and won't include them
+        def clean_stock_from_address(address_str):
+            """Remove stock comments from address string before passing to GPT"""
+            if not address_str:
+                return address_str
+            import re
+            # Remove stock comments - these should NEVER be in addresses
+            cleaned = re.sub(r',?\s*pull\s+from\s+stock.*$', '', address_str, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*lot\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*stock.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',\s*,+', ',', cleaned)  # Multiple commas
+            cleaned = re.sub(r',\s*$', '', cleaned).strip()  # Trailing comma
+            return cleaned
+        
+        # Clean addresses before passing to GPT as hints
+        sold_to_hint = clean_stock_from_address(sold_to_hint)
+        ship_to_hint = clean_stock_from_address(ship_to_hint)
+        
         if DEBUG:
             print(f"PRE-EXTRACTED Sold To: {sold_to_hint[:100]}...")
             print(f"PRE-EXTRACTED Ship To: {ship_to_hint[:100]}...")
@@ -510,6 +654,12 @@ MANDATORY RULES:
 2. Use the SHIP TO address above for the "ship_to" section  
 3. These are DIFFERENT addresses - do NOT combine them
 4. Do NOT add any text from Ship To into Sold To or vice versa
+5. CRITICAL: Remove stock/inventory comments from addresses:
+   - EXCLUDE "Pull from stock", "Pull from", "batch #", "lot #", "stock" from ALL address fields
+   - These are inventory instructions, NOT part of the physical address
+   - Example: If you see "2275 McCollum Parkway Kennesaw, GA 30144 USA Pull from stock, batch # WH5"
+     → Extract ONLY: "2275 McCollum Parkway" (street), "Kennesaw" (city), "GA" (province), "30144" (postal), "USA" (country)
+     → IGNORE: "Pull from stock, batch # WH5" (this is NOT part of the address)
 === END ADDRESS SECTION ===
 """
         
@@ -623,11 +773,22 @@ IMPORTANT RULES:
      * Include department, suite numbers, unit numbers, PO boxes
      * DO NOT include city, postal code, or country in street_address - those go in separate fields!
      * For French addresses like "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond, F-79000 NIORT" - extract ONLY "ZI SAINT-LIGUAIRE, 30 Rue de Pied de Fond" as street
+     * CRITICAL: DO NOT include stock comments like "Pull from stock", "batch # WH5", "lot #", etc. - these are NOT part of the address!
    - city: City name ONLY (e.g., "Niort", "West Hill", "Mississauga") - NO postal codes here!
    - province: Province/state/region code only (e.g., "ON", "FR", "Niort Cedex")
    - postal_code: Postal/zip code ONLY (e.g., "F-79000", "M1E 2K3", "79000") - extract from wherever it appears
    - country: Country name (e.g., "France", "Canada")
    - CRITICAL: Never duplicate postal codes - if "F-79000" appears, put it ONLY in postal_code, not also in street_address
+   - CRITICAL: EXCLUDE stock/inventory comments from ALL address fields:
+     * DO NOT include "Pull from stock", "Pull from", "batch #", "lot #", "stock" in ANY address field
+     * These are inventory instructions, NOT part of the physical address
+     * Example: "2275 McCollum Parkway Kennesaw, GA 30144 USA Pull from stock, batch # WH5"
+       → street_address: "2275 McCollum Parkway" (NOT "2275 McCollum Parkway Pull from stock")
+       → city: "Kennesaw"
+       → province: "GA"
+       → postal_code: "30144"
+       → country: "USA"
+       → The "Pull from stock, batch # WH5" should be IGNORED - it's not part of the address!
 7. If information is not found, use empty string "" for text fields or 0 for numbers
 8. Preserve all items found in tables - don't skip any
 9. Handle both merged items (multiple items in one row with newlines) and single items (one per row)
@@ -871,6 +1032,10 @@ Return ONLY valid JSON, no explanations or markdown.
         if batch_from_pdf:
             structured_data['batch_number'] = batch_from_pdf
             print(f"📦 Batch number extracted from PDF: {batch_from_pdf}")
+        
+        # CRITICAL: Use OpenAI to validate and clean - remove duplicates, fix bad parsing
+        print("\n🔍 OpenAI Validation: Checking for duplicates and bad parsing...")
+        structured_data = validate_and_clean_with_openai(structured_data, raw_data)
         
         if DEBUG:
             print(f"\nOPENAI STRUCTURING COMPLETE:")

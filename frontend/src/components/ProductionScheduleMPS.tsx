@@ -91,14 +91,11 @@ export function ProductionScheduleMPS() {
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const loadData = async (forceRefresh = false) => {
+  const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      if (forceRefresh) {
-        clearMPSCache();
-      }
-      const data = await fetchMPSData(forceRefresh);
+      const data = await fetchMPSData();
       setOrders(data);
       setLastUpdated(new Date());
     } catch (err) {
@@ -109,8 +106,8 @@ export function ProductionScheduleMPS() {
   };
 
   useEffect(() => {
-    loadData(); // Uses cache if available - instant!
-    const interval = setInterval(() => loadData(true), 60000); // Background refresh every minute
+    loadData();
+    const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -206,10 +203,10 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-400 text-xl">Loading Production Schedule...</p>
+          <p className="text-slate-600 text-xl">Loading Production Schedule...</p>
         </div>
       </div>
     );
@@ -218,17 +215,18 @@ export function ProductionScheduleMPS() {
   const todayOffset = differenceInDays(new Date(), weekStart);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      {/* Header - Compact single row */}
-      <div className="bg-slate-800 border-b border-slate-700 px-4 py-2 flex-shrink-0">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0 shadow-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Factory className="w-5 h-5 text-blue-400" />
-            <h1 className="text-base font-bold text-white whitespace-nowrap">Production Schedule</h1>
-            <span className="text-slate-500">|</span>
-            <span className="text-slate-400 text-xs whitespace-nowrap">
-              {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
-            </span>
+          <div className="flex items-center gap-4">
+            <Factory className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Production Schedule</h1>
+              <p className="text-slate-600 text-sm">
+                {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
+              </p>
+            </div>
           </div>
           
           <div className="flex items-center gap-3">
@@ -236,7 +234,7 @@ export function ProductionScheduleMPS() {
             <select
               value={viewDays}
               onChange={(e) => setViewDays(parseInt(e.target.value))}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm shadow-sm"
             >
               <option value={7}>1 Week</option>
               <option value={14}>2 Weeks</option>
@@ -245,28 +243,28 @@ export function ProductionScheduleMPS() {
             </select>
             
             {/* Navigation */}
-            <div className="flex items-center gap-1 bg-slate-700 rounded-lg p-1">
-              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-600 rounded text-slate-300">
-                <ChevronLeft className="w-4 h-4" />
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-200 rounded">
+                <ChevronLeft className="w-4 h-4 text-slate-700" />
               </button>
-              <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-600 rounded text-white text-sm">
+              <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-200 rounded text-slate-800 text-sm">
                 Today
               </button>
-              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-600 rounded text-slate-300">
-                <ChevronRight className="w-4 h-4" />
+              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-200 rounded">
+                <ChevronRight className="w-4 h-4 text-slate-700" />
               </button>
             </div>
             
             <button
               onClick={() => setShowLegend(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
               title="Production Capacity & Legend"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
             
             <button
-              onClick={() => loadData(true)}
+              onClick={loadData}
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
             >
@@ -302,8 +300,8 @@ export function ProductionScheduleMPS() {
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden min-w-max">
           {/* Timeline Header */}
           <div className="flex border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
-            <div className="w-16 flex-shrink-0 px-2 py-2 border-r border-slate-700 bg-slate-800">
-              <span className="text-slate-400 text-[10px] font-semibold whitespace-nowrap">WC</span>
+            <div className="w-24 flex-shrink-0 px-3 py-2 border-r border-slate-700 bg-slate-800">
+              <span className="text-slate-400 text-xs font-semibold">WORK CENTER</span>
             </div>
             <div className="flex">
               {days.map((day, i) => {
@@ -336,8 +334,8 @@ export function ProductionScheduleMPS() {
             return (
               <div key={wc} className="flex border-b border-slate-700/50 hover:bg-slate-700/20">
                 {/* Work Center Label */}
-                <div className="w-16 flex-shrink-0 px-2 py-2 border-r border-slate-700 flex items-center justify-center">
-                  <span className="bg-slate-600 px-1.5 py-0.5 rounded text-white text-[10px] font-bold whitespace-nowrap">
+                <div className="w-24 flex-shrink-0 px-3 py-3 border-r border-slate-700 flex items-center">
+                  <span className="bg-slate-600 px-2 py-1 rounded text-white text-xs font-bold">
                     {wc}
                   </span>
                 </div>
@@ -586,9 +584,11 @@ export function ProductionScheduleMPS() {
                 </div>
 
                 {/* MO Details */}
-                {selectedOrder.mo_data && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-bold text-purple-400 mb-3">Manufacturing Order Details</h3>
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-purple-400 mb-3 flex items-center gap-2">
+                    🔧 Manufacturing Order
+                  </h3>
+                  {selectedOrder.mo_data ? (
                     <div className="bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
@@ -623,47 +623,143 @@ export function ProductionScheduleMPS() {
                           <div className="text-2xl font-bold text-yellow-400">{selectedOrder.mo_data.qty_remaining}</div>
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <div className="text-slate-500 text-xs">Order Date</div>
+                          <div className="text-white">{selectedOrder.mo_data.order_date || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-xs">Start Date</div>
+                          <div className="text-white">{selectedOrder.mo_data.start_date || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-xs">Release Date</div>
+                          <div className="text-white">{selectedOrder.mo_data.release_date || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-xs">Due Date</div>
+                          <div className="text-yellow-400 font-semibold">{selectedOrder.mo_data.due_date || '—'}</div>
+                        </div>
+                      </div>
+
+                      {(selectedOrder.mo_data.customer || selectedOrder.mo_data.notes) && (
+                        <div className="mt-4 pt-4 border-t border-purple-500/20">
+                          {selectedOrder.mo_data.customer && (
+                            <div className="mb-2">
+                              <span className="text-slate-500 text-sm">Customer: </span>
+                              <span className="text-white">{selectedOrder.mo_data.customer}</span>
+                            </div>
+                          )}
+                          {selectedOrder.mo_data.notes && (
+                            <div className="bg-slate-800/50 rounded-lg p-2 text-sm text-slate-300">
+                              {selectedOrder.mo_data.notes}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Costs */}
+                      {(selectedOrder.mo_data.total_material_cost > 0 || selectedOrder.mo_data.total_labor_cost > 0) && (
+                        <div className="mt-4 pt-4 border-t border-purple-500/20 flex gap-6 text-sm">
+                          <div>
+                            <span className="text-slate-500">Material Cost: </span>
+                            <span className="text-white font-semibold">${selectedOrder.mo_data.total_material_cost.toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Labor Cost: </span>
+                            <span className="text-white font-semibold">${selectedOrder.mo_data.total_labor_cost.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">
+                      No MO data available from MISys
+                    </div>
+                  )}
+                </div>
 
                 {/* Materials / BOM */}
-                {selectedOrder.materials && selectedOrder.materials.length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
-                        📦 Bill of Materials
-                      </h3>
-                      <span className="text-slate-400 text-sm">{selectedOrder.materials.length} components</span>
-                    </div>
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
+                      📦 Bill of Materials
+                    </h3>
+                    <span className="text-slate-400 text-sm">{selectedOrder.materials?.length || 0} unique components</span>
+                  </div>
+                  {selectedOrder.materials && selectedOrder.materials.length > 0 ? (
                     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-700/50">
                           <tr>
+                            <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">#</th>
                             <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">COMPONENT</th>
                             <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">NEED</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">ISSUED</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">LEFT</th>
                             <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">STOCK</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">WIP</th>
                             <th className="px-3 py-2 text-center text-xs text-slate-300 font-semibold">STATUS</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/50">
-                          {selectedOrder.materials.slice(0, 10).map((mat, idx) => {
-                            const isShort = mat.stock_on_hand < mat.required_qty;
+                          {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
+                            // SMART LOGIC: Account for WIP (Work In Progress)
+                            // WIP = material already on the floor for THIS order
+                            const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
+                            const availableTotal = mat.stock_on_hand + (mat.wip || 0); // Stock + WIP
+                            // Only SHORT if: stock+WIP can't cover remaining AND nothing in WIP yet
+                            const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
+                            const isInProgress = (mat.wip || 0) > 0; // Has WIP = in progress, not short
+                            const isDone = mat.completed_qty >= mat.required_qty;
+                            const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
+                            
                             return (
                               <tr key={idx} className={`${isShort ? 'bg-red-500/10' : ''} hover:bg-slate-700/30`}>
+                                <td className="px-3 py-2 text-slate-500 text-xs">{idx + 1}</td>
                                 <td className="px-3 py-2">
-                                  <div className="text-white font-mono text-sm">{mat.component_item_no}</div>
-                                  <div className="text-slate-500 text-xs truncate max-w-[200px]">{mat.component_description}</div>
+                                  <div className="text-white font-mono text-sm font-medium">{mat.component_item_no}</div>
+                                  {mat.component_description && (
+                                    <div className="text-slate-500 text-xs truncate max-w-[250px]">{mat.component_description}</div>
+                                  )}
                                 </td>
-                                <td className="px-3 py-2 text-right text-white">{mat.required_qty.toLocaleString()}</td>
                                 <td className="px-3 py-2 text-right">
-                                  <span className={isShort ? 'text-red-400' : 'text-green-400'}>{mat.stock_on_hand.toLocaleString()}</span>
+                                  <span className="text-white">{mat.required_qty.toLocaleString()}</span>
+                                  <span className="text-slate-500 text-xs ml-1">{mat.unit}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
+                                    {mat.completed_qty.toLocaleString()}
+                                  </span>
+                                  <span className="text-slate-500 text-xs ml-1">({pctComplete}%)</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-bold ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                                    {remainingNeeded.toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
+                                    {mat.stock_on_hand.toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                                    {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
+                                  </span>
                                 </td>
                                 <td className="px-3 py-2 text-center">
-                                  {isShort ? (
-                                    <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs">SHORT</span>
+                                  {isDone ? (
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ DONE</span>
+                                  ) : isInProgress ? (
+                                    <span className="bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded text-xs font-medium">🔄 IN WIP</span>
+                                  ) : isShort ? (
+                                    <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-medium">⚠ {(remainingNeeded - availableTotal).toLocaleString()}</span>
+                                  ) : remainingNeeded === 0 ? (
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ ALL ISSUED</span>
                                   ) : (
-                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs">OK</span>
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ READY</span>
                                   )}
                                 </td>
                               </tr>
@@ -671,6 +767,97 @@ export function ProductionScheduleMPS() {
                           })}
                         </tbody>
                       </table>
+                      
+                      {/* Summary row - accounts for WIP */}
+                      <div className="bg-slate-700/30 px-3 py-2 flex justify-between items-center text-sm border-t border-slate-700">
+                        <span className="text-slate-400">
+                          {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length} complete
+                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) && 
+                            <span className="text-cyan-400 ml-2">• {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP</span>
+                          }
+                        </span>
+                        <span className={`font-bold ${
+                          selectedOrder.materials.some(m => {
+                            const remaining = Math.max(0, m.required_qty - m.completed_qty);
+                            const available = m.stock_on_hand + (m.wip || 0);
+                            return available < remaining && remaining > 0 && (m.wip || 0) === 0;
+                          }) ? 'text-red-400' : 'text-green-400'
+                        }`}>
+                          {selectedOrder.materials.some(m => {
+                            const remaining = Math.max(0, m.required_qty - m.completed_qty);
+                            const available = m.stock_on_hand + (m.wip || 0);
+                            return available < remaining && remaining > 0 && (m.wip || 0) === 0;
+                          }) ? '⚠ Material Shortage' : '✓ Materials OK'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">
+                      No material data available
+                    </div>
+                  )}
+                </div>
+
+                {/* Finished Good Inventory */}
+                {selectedOrder.item_data && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-bold text-green-400 mb-2">📊 Finished Good Stock</h3>
+                    <div className="bg-green-500/5 rounded-xl p-4 border border-green-500/20">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="text-white font-mono font-bold">{selectedOrder.item_data.item_no}</div>
+                          <div className="text-slate-400 text-sm">{selectedOrder.item_data.description}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-slate-500 text-xs">Unit Cost</div>
+                          <div className="text-white font-semibold">${selectedOrder.item_data.recent_cost?.toFixed(2) || '0.00'}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3 text-center">
+                        <div className="bg-slate-800/50 rounded-lg p-2">
+                          <div className="text-xs text-slate-500">ON HAND</div>
+                          <div className="text-lg font-bold text-white">{selectedOrder.item_data.qty_on_hand}</div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-2">
+                          <div className="text-xs text-slate-500">AVAILABLE</div>
+                          <div className={`text-lg font-bold ${(selectedOrder.item_data.qty_available ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {selectedOrder.item_data.qty_available ?? 0}
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-2">
+                          <div className="text-xs text-slate-500">COMMITTED</div>
+                          <div className="text-lg font-bold text-orange-400">{selectedOrder.item_data.qty_committed}</div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-2">
+                          <div className="text-xs text-slate-500">ON ORDER</div>
+                          <div className="text-lg font-bold text-blue-400">{selectedOrder.item_data.qty_on_order}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SO Info */}
+                {selectedOrder.so_data && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-bold text-slate-400 mb-2">📋 Sales Order</h3>
+                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 flex justify-between">
+                      <div>
+                        <div className="text-slate-500 text-xs">Customer</div>
+                        <div className="text-white font-semibold">{selectedOrder.so_data.customer}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500 text-xs">Order Date</div>
+                        <div className="text-white">{selectedOrder.so_data.order_date || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500 text-xs">Ship Date</div>
+                        <div className="text-white">{selectedOrder.so_data.ship_date || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-500 text-xs">SO Status</div>
+                        <div className="text-white">{selectedOrder.so_data.status || '—'}</div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -690,6 +877,35 @@ export function ProductionScheduleMPS() {
           </div>
         );
       })()}
+
+      {/* PDF Viewer Modal */}
+      {showPdfViewer && pdfUrl && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4" onClick={() => setShowPdfViewer(false)}>
+          <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-800 px-4 py-3 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-white">📄 Sales Order</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openSalesOrder(selectedOrder?.so_number || '')}
+                  className="text-sm bg-blue-500/30 hover:bg-blue-500/50 text-blue-300 px-3 py-1 rounded"
+                >
+                  ↗ Open in Tab
+                </button>
+                <button onClick={() => setShowPdfViewer(false)} className="text-white/70 hover:text-white bg-black/20 rounded-full p-2">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <iframe 
+                src={pdfUrl} 
+                className="w-full h-full border-0"
+                title="Sales Order PDF"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Legend / Capacity Modal */}
       {showLegend && (
@@ -719,6 +935,90 @@ export function ProductionScheduleMPS() {
                   <div className="flex justify-between">
                     <span className="text-slate-400">Workers per line</span>
                     <span className="text-white font-bold">3 workers</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grease Lines */}
+              <div>
+                <h3 className="text-lg font-bold text-white mb-3">🧴 Grease Lines (GL1, GL2)</h3>
+                <div className="bg-slate-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-700">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-slate-300">Mode</th>
+                        <th className="px-4 py-2 text-right text-slate-300">Capacity / Day</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-slate-700">
+                        <td className="px-4 py-3 text-white">Working with drums</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-bold">4,000 tubes</td>
+                      </tr>
+                      <tr className="border-t border-slate-700">
+                        <td className="px-4 py-3 text-white">Working with bins</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-bold">4,500 tubes</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Oil Lines */}
+              <div>
+                <h3 className="text-lg font-bold text-white mb-3">🛢️ Oil Lines (OL1, OL2)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-800 rounded-xl p-4">
+                    <h4 className="text-slate-400 text-sm mb-2">OL1 - Large Bottles</h4>
+                    <div className="flex justify-between">
+                      <span className="text-white">4L & 5L</span>
+                      <span className="text-green-400 font-bold">800/day</span>
+                    </div>
+                  </div>
+                  <div className="bg-slate-800 rounded-xl p-4">
+                    <h4 className="text-slate-400 text-sm mb-3">OL2 - Small Bottles</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-white">100 ml</span>
+                        <span className="text-green-400 font-bold">7,200/day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white">200 ml</span>
+                        <span className="text-green-400 font-bold">6,400/day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white">500 ml</span>
+                        <span className="text-green-400 font-bold">3,600/day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white">946ml & 1L</span>
+                        <span className="text-green-400 font-bold">3,600/day</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Super Sonic */}
+              <div>
+                <h3 className="text-lg font-bold text-white mb-3">⚡ Super Sonic Machine (SS)</h3>
+                <div className="bg-slate-800 rounded-xl p-4 flex justify-between items-center">
+                  <span className="text-white">Tube capacity</span>
+                  <span className="text-green-400 font-bold text-lg">2,500 tubes/day</span>
+                </div>
+              </div>
+
+              {/* Other Work Centers */}
+              <div>
+                <h3 className="text-lg font-bold text-white mb-3">🔧 Other Work Centers</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-800 rounded-xl p-4">
+                    <span className="bg-slate-600 px-2 py-1 rounded text-white text-sm font-bold">B</span>
+                    <span className="text-slate-300 ml-3">Blending</span>
+                  </div>
+                  <div className="bg-slate-800 rounded-xl p-4">
+                    <span className="bg-slate-600 px-2 py-1 rounded text-white text-sm font-bold">M</span>
+                    <span className="text-slate-300 ml-3">Miscellaneous</span>
                   </div>
                 </div>
               </div>

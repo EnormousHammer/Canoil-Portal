@@ -2729,6 +2729,11 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     """
     Combine multiple SO data into a single structure for document generation.
     
+    CRITICAL: Multi-SO support means SAME functions as single-SO parsing, but with multi-SO support.
+    - If SOs are the same customer/order, addresses should be the same
+    - Use the SAME address parsing logic as single-SO (don't combine or merge addresses)
+    - Just use the address from the first SO (they should all be the same if it's the same order)
+    
     Args:
         so_data_list: List of individual SO data dicts
         multi_so_email_data: Parsed email data with items_by_so
@@ -2739,19 +2744,25 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     if not so_data_list:
         return {}
     
-    # Use first SO as base for company info
+    # Use first SO as base - addresses should be the same for all SOs in multi-SO
+    # This is the SAME logic as single-SO parsing - just use the address from the PDF
     base_so = so_data_list[0]
     so_numbers = [so.get('so_number', '') for so in so_data_list]
     
+    # CRITICAL: Use the EXACT same address structure as single-SO parsing
+    # Don't combine addresses - if SOs are the same, they should have the same address
+    # Just use the first SO's address (parsed from PDF, same as single-SO)
     combined = {
         'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
         'so_numbers': so_numbers,
         'is_multi_so': True,
         'customer_name': base_so.get('customer_name', ''),
-        'billing_address': base_so.get('billing_address', {}),
-        'shipping_address': base_so.get('shipping_address', {}),
-        'sold_to': base_so.get('sold_to', {}),
-        'ship_to': base_so.get('ship_to', {}),
+        # Use addresses from first SO - same as single-SO parsing
+        # These are already parsed correctly from the PDF (no stock comments, no merging)
+        'billing_address': base_so.get('billing_address', {}).copy() if base_so.get('billing_address') else {},
+        'shipping_address': base_so.get('shipping_address', {}).copy() if base_so.get('shipping_address') else {},
+        'sold_to': base_so.get('sold_to', {}).copy() if base_so.get('sold_to') else {},
+        'ship_to': base_so.get('ship_to', {}).copy() if base_so.get('ship_to') else {},
         'order_date': base_so.get('order_date', ''),
         'ship_date': base_so.get('ship_date', ''),
         'items': [],
@@ -2961,12 +2972,23 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     combined['sample_pail_count'] = sample_pail_count
     
     # Use item totals only (DECLARED VALUE = products, NOT pallets/charges)
+    # Calculate totals - SAME LOGIC as single-SO parsing
+    # Just sum up all items from all SOs (same as single-SO sums items from one SO)
     combined['subtotal'] = f"${total_subtotal:,.2f}"
     combined['total_amount'] = total_subtotal  # For Commercial Invoice declared value (products only)
-    hst = total_subtotal * 0.13
+    
+    # HST calculation - SAME as single-SO (13% Ontario standard rate)
+    hst_rate = 0.13
+    hst = total_subtotal * hst_rate
     combined['hst'] = f"${hst:,.2f}"
-    combined['total'] = f"${(total_subtotal + hst):,.2f}"
-    print(f"   💰 Commercial Invoice declared value: ${total_subtotal:,.2f} (products only, NO pallets)")
+    grand_total = total_subtotal + hst
+    combined['total'] = f"${grand_total:,.2f}"
+    
+    print(f"   💰 Multi-SO Totals (SAME logic as single-SO, just multiple SOs):")
+    print(f"      Subtotal: ${total_subtotal:,.2f}")
+    print(f"      HST (13%): ${hst:,.2f}")
+    print(f"      Grand Total: ${grand_total:,.2f}")
+    print(f"      Commercial Invoice declared value: ${total_subtotal:,.2f} (products only, NO pallets)")
     
     # Add HTS codes to all items (including samples)
     print("\n📋 Matching HTS codes for combined items...")

@@ -750,17 +750,40 @@ def extract_so_data_from_pdf(pdf_path):
                 so_data['sold_to']['phone'] = phone
                 so_data['ship_to']['phone'] = phone
             
-            # Build clean addresses - deduplicate parts
+            # Build clean addresses - deduplicate parts AND remove stock comments
+            def clean_address_part(part):
+                """Clean a single address part - remove stock comments, batch numbers, etc."""
+                if not part:
+                    return ''
+                cleaned = part.strip()
+                # Remove stock-related comments (CRITICAL - these should NEVER be in addresses)
+                cleaned = re.sub(r',?\s*pull\s+from\s+stock.*$', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r',?\s*lot\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r',?\s*stock.*$', '', cleaned, flags=re.IGNORECASE)
+                # Remove trailing commas and spaces
+                cleaned = re.sub(r',\s*$', '', cleaned)
+                cleaned = cleaned.strip()
+                return cleaned
+            
             def build_address(parts):
-                # Remove duplicates while preserving order
+                # Remove duplicates while preserving order AND clean each part
                 seen = set()
                 unique_parts = []
                 for p in parts:
-                    p_clean = p.strip()
+                    p_clean = clean_address_part(p)  # Clean BEFORE checking duplicates
                     if p_clean and p_clean.lower() not in seen:
                         seen.add(p_clean.lower())
                         unique_parts.append(p_clean)
-                return ', '.join(unique_parts)
+                # Join and clean the final result one more time (in case cleaning created issues)
+                result = ', '.join(unique_parts)
+                # Final pass: remove any remaining stock comments that might have slipped through
+                result = re.sub(r',?\s*pull\s+from\s+stock.*$', '', result, flags=re.IGNORECASE)
+                result = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', result, flags=re.IGNORECASE)
+                result = re.sub(r',\s*,+', ',', result)  # Multiple commas
+                result = re.sub(r',\s*$', '', result)  # Trailing comma
+                return result.strip()
             
             so_data['sold_to']['address'] = build_address(sold_to_parts)
             
@@ -967,9 +990,12 @@ def extract_so_data_from_pdf(pdf_path):
             cleaned = re.sub(r'\s*\(\s*PICK\s*UP\s*\)\s*', '', cleaned, flags=re.IGNORECASE)
             
             # STEP 1: Remove everything AFTER certain keywords (they indicate end of address)
+            # CRITICAL: Remove stock comments - these should NEVER be in addresses
+            cleaned = re.sub(r',?\s*pull\s+from\s+stock.*$', '', cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(r',?\s*pull\s+from.*$', '', cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(r',?\s*batch\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
             cleaned = re.sub(r',?\s*lot\s*#?\s*\S+.*$', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r',?\s*stock.*$', '', cleaned, flags=re.IGNORECASE)
             
             # STEP 2: Remove phone numbers (various formats)
             cleaned = re.sub(r',?\s*\d{3}[-.\s]+\d{3}[-.\s]+\d{4}\b', '', cleaned)
@@ -2114,13 +2140,22 @@ def get_all_data():
 def health_check():
     """Health check endpoint - FAST, doesn't check G: Drive (Cloud Run can't access it)"""
     try:
-        # Always return ready - we have Google Drive API fallback
-        # Don't check G: Drive here as it will always fail on Cloud Run
+        # Check Google Drive API status
+        google_drive_api_enabled = False
+        google_drive_authenticated = False
+        
+        if USE_GOOGLE_DRIVE_API:
+            google_drive_api_enabled = True
+            service = get_google_drive_service()
+            if service is not None and hasattr(service, 'authenticated'):
+                google_drive_authenticated = service.authenticated
+        
         return jsonify({
             "status": "ready",  # Changed from "healthy" to "ready" for frontend compatibility
             "message": "Backend is ready",
             "timestamp": datetime.now().isoformat(),
-            "google_drive_api_enabled": USE_GOOGLE_DRIVE_API and get_google_drive_service() is not None
+            "google_drive_api_enabled": google_drive_api_enabled,
+            "google_drive_authenticated": google_drive_authenticated
         }), 200
     except Exception as e:
         return jsonify({
