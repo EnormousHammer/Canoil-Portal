@@ -386,6 +386,7 @@ const LogisticsAutomation: React.FC = () => {
     
     try {
       // Generate Commercial Invoice using GPT-4o
+      // CRITICAL: Pass email_analysis (not just email_shipping) for broker info in multi-SO
       const response = await fetch(getApiUrl('/api/logistics/generate-commercial-invoice'), {
         method: 'POST',
         headers: {
@@ -393,7 +394,7 @@ const LogisticsAutomation: React.FC = () => {
         },
         body: JSON.stringify({
           so_data: result.so_data,
-          email_shipping: result.email_shipping,
+          email_analysis: result.email_analysis || result.email_data || result.email_shipping,
           items: result.items
         })
       });

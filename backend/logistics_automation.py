@@ -2231,6 +2231,11 @@ def detect_and_apply_broker_info(email_content: str, email_data: dict, so_data: 
         r'broker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
         email_content, re.IGNORECASE
     )
+    # Pattern for "Broker: Near North and by Exporter"
+    broker_by_exporter_pattern = re.search(
+        r'[Bb]roker\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)\s+(?:and\s+)?by\s+[Ee]xporter',
+        email_content, re.IGNORECASE
+    )
     brokerage_near_north_pattern = re.search(
         r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*(?:on\s+(?:the\s+)?exporter\s+(?:and\s+)?using\s+)?([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
         email_content, re.IGNORECASE
@@ -2246,6 +2251,7 @@ def detect_and_apply_broker_info(email_content: str, email_data: dict, so_data: 
         'NEAR NORTH' in gpt_broker or
         'NEARNORTH' in gpt_broker or
         exporter_using_pattern is not None or
+        broker_by_exporter_pattern is not None or
         brokerage_near_north_pattern is not None or
         broker_on_exporter_pattern is not None
     )

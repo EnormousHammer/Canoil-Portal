@@ -115,15 +115,35 @@ def detect_steel_container_type(description: str, unit: str) -> Tuple[str, int]:
         return ('pail', 1)
     
     # CASE12, CASE, etc. with 1L products = steel cans
+    # BUT: Tube cases (400g, etc.) are NOT steel cans - they're plastic/aluminum tubes
     if 'case' in unit_lower:
-        # Look for "12x1L" or similar pattern in description
+        # FIRST: Check if it's a TUBE case (not a can case) - be very aggressive
+        # Tube cases: "30x400g", "30X400G", "400g", "tube", "pack tube", "tube case", etc.
+        # Check for ANY of these patterns - if found, it's NOT a can case
+        tube_patterns = [
+            r'\d+\s*x\s*\d+\s*g',  # "30x400g", "30X400G"
+            r'\d+\s*g\s+tube',      # "400g tube"
+            r'tube',                # "tube" anywhere
+            r'pack\s*tube',         # "pack tube", "PACK TUBE"
+            r'tube\s*case',         # "tube case"
+        ]
+        for pattern in tube_patterns:
+            if re.search(pattern, desc_lower, re.IGNORECASE):
+                # This is a TUBE case, not a can case - NO STEEL CONTAINER
+                print(f"DEBUG STEEL: Case unit detected but description contains tube pattern '{pattern}' - NOT a can case, returning None")
+                return (None, 0)
+        
+        # SECOND: Only if NO tube patterns found, check for actual can cases
+        # Look for "12x1L" or similar pattern in description (actual can cases)
         case_match = re.search(r'(\d+)\s*x\s*1\s*l', desc_lower, re.IGNORECASE)
         if case_match:
             return ('can', int(case_match.group(1)))
-        # Default 12 cans per case for 1L products
+        # Only return cans if it's EXPLICITLY a 1L product
         if '1l' in desc_lower or '1 l' in desc_lower:
             return ('can', 12)
-        return ('can', 12)  # Default for cases
+        # DEFAULT: If we can't determine it's cans, return None - NEVER assume cans!
+        print(f"DEBUG STEEL: Case unit detected but no clear can/tube pattern - returning None (no steel container)")
+        return (None, 0)
     
     # PRIORITY 2: Check description only if unit didn't match
     # But IGNORE "sample pail" mentions - those are appended notes, not the product type
@@ -138,8 +158,9 @@ def detect_steel_container_type(description: str, unit: str) -> Tuple[str, int]:
     if 'pail' in desc_for_check and 'sample' not in desc_lower:
         return ('pail', 1)
     
-    # Check for cans in description
-    if 'can' in desc_for_check:
+    # Check for cans in description - use word boundary to avoid matching "Canada", "Canoil", etc.
+    # Only match actual "can" or "cans" as whole words
+    if re.search(r'\bcan[s]?\b', desc_for_check):
         case_match = re.search(r'(\d+)\s*(?:x|per|cans?\s*per)', desc_for_check)
         if case_match:
             return ('can', int(case_match.group(1)))
@@ -1178,17 +1199,29 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         
         # Fallback 2: check email raw text for "Brokerage: Near North" pattern
         if not use_near_north and email_raw_text:
-            # Check for "Broker on the Exporter" pattern first
-            broker_on_exporter_match = re.search(
-                r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+            # Check for "Broker: Near North and by Exporter" pattern
+            broker_by_exporter_match = re.search(
+                r'[Bb]roker\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)\s+(?:and\s+)?by\s+[Ee]xporter',
                 email_raw_text,
                 re.IGNORECASE
             )
-            if broker_on_exporter_match:
+            if broker_by_exporter_match:
                 use_near_north = True
-                print(f"DEBUG CI: ✅ Found 'Broker on the Exporter and using Near North' pattern in email - setting use_near_north flag")
-            else:
-                # Check for "Brokerage: Near North" pattern
+                print(f"DEBUG CI: ✅ Found 'Broker: Near North and by Exporter' pattern in email - setting use_near_north flag")
+            
+            # Check for "Broker on the Exporter" pattern
+            if not use_near_north:
+                broker_on_exporter_match = re.search(
+                    r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+                    email_raw_text,
+                    re.IGNORECASE
+                )
+                if broker_on_exporter_match:
+                    use_near_north = True
+                    print(f"DEBUG CI: ✅ Found 'Broker on the Exporter and using Near North' pattern in email - setting use_near_north flag")
+            
+            # Check for "Brokerage: Near North" or "Broker: Near North" pattern
+            if not use_near_north:
                 brokerage_near_north_match = re.search(
                     r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
                     email_raw_text,
@@ -1207,6 +1240,22 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     use_near_north = True
                     print(f"DEBUG CI: Found Near North in broker context - setting use_near_north flag")
     
+    # FINAL CHECK: Georgia Western always uses Near North
+    if is_georgia_western and not use_near_north:
+        use_near_north = True
+        print(f"DEBUG CI: ✅ Georgia Western customer detected - forcing use_near_north flag")
+    
+    # CRITICAL DEBUG: Log final state for multi-SO troubleshooting
+    print(f"DEBUG CI: 🔍 Broker Detection FINAL STATE:")
+    print(f"   is_multi_so: {so_data.get('is_multi_so', False)}")
+    print(f"   customer_name: '{customer_name}'")
+    print(f"   is_georgia_western: {is_georgia_western}")
+    print(f"   use_near_north: {use_near_north}")
+    print(f"   email_analysis present: {email_analysis is not None}")
+    if email_analysis:
+        print(f"   email_analysis.use_near_north: {email_analysis.get('use_near_north', 'NOT SET')}")
+        print(f"   email_analysis.customs_broker: {email_analysis.get('customs_broker', 'NOT SET')}")
+        print(f"   email_analysis.raw_text length: {len(email_analysis.get('raw_text', ''))}")
     print(f"DEBUG CI: 🔍 Broker Detection:")
     print(f"   email_analysis present: {email_analysis is not None}")
     if email_analysis:
