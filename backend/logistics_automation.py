@@ -4474,171 +4474,174 @@ def generate_all_documents():
         
         # Generate BOL (NEW professional format) - only if requested
         if requested_docs.get('bol', True):
-          try:
-            from new_bol_generator import populate_new_bol_html
-            
-            print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
-            # Use email_analysis instead of email_shipping to ensure skid_info is included
-            # email_analysis has skid_info, pallet_count, pallet_dimensions from email parsing
-            bol_email_data = email_analysis or email_shipping
-            print(f"DEBUG BOL: Using email data with keys: {list(bol_email_data.keys())}")
-            print(f"DEBUG BOL: skid_info = {bol_email_data.get('skid_info')}")
-            print(f"DEBUG BOL: pallet_count = {bol_email_data.get('pallet_count')}")
-            print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
-            bol_html = populate_new_bol_html(so_data, bol_email_data)
-            bol_filename = generate_document_filename("BOL", so_data, '.html')
-            uploads_dir = get_uploads_dir()
-            bol_filepath = os.path.join(uploads_dir, bol_filename)
-            
-            print(f"DEBUG: BOL filepath: {bol_filepath}")
-            os.makedirs(os.path.dirname(bol_filepath), exist_ok=True)
-            with open(bol_filepath, 'w', encoding='utf-8') as f:
-                f.write(bol_html)
-            print(f"DEBUG: BOL file created successfully")
-            
-            results['bol'] = {
-                'success': True,
-                'filename': bol_filename,
-                'download_url': f'/download/logistics/{bol_filename}'
-            }
-            print(f"✅ BOL generated: {bol_filename}")
-            
-          except Exception as e:
-            print(f"❌ BOL generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"BOL generation failed: {str(e)}")
-            results['bol'] = {'success': False, 'error': str(e)}
+            try:
+                from new_bol_generator import populate_new_bol_html
+                
+                print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
+                # Use email_analysis instead of email_shipping to ensure skid_info is included
+                # email_analysis has skid_info, pallet_count, pallet_dimensions from email parsing
+                bol_email_data = email_analysis or email_shipping
+                print(f"DEBUG BOL: Using email data with keys: {list(bol_email_data.keys())}")
+                print(f"DEBUG BOL: skid_info = {bol_email_data.get('skid_info')}")
+                print(f"DEBUG BOL: pallet_count = {bol_email_data.get('pallet_count')}")
+                print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
+                bol_html = populate_new_bol_html(so_data, bol_email_data)
+                bol_filename = generate_document_filename("BOL", so_data, '.html')
+                uploads_dir = get_uploads_dir()
+                bol_filepath = os.path.join(uploads_dir, bol_filename)
+                
+                print(f"DEBUG: BOL filepath: {bol_filepath}")
+                os.makedirs(os.path.dirname(bol_filepath), exist_ok=True)
+                with open(bol_filepath, 'w', encoding='utf-8') as f:
+                    f.write(bol_html)
+                print(f"DEBUG: BOL file created successfully")
+                
+                results['bol'] = {
+                    'success': True,
+                    'filename': bol_filename,
+                    'download_url': f'/download/logistics/{bol_filename}'
+                }
+                print(f"✅ BOL generated: {bol_filename}")
+                
+            except Exception as e:
+                print(f"❌ BOL generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"BOL generation failed: {str(e)}")
+                results['bol'] = {'success': False, 'error': str(e)}
         else:
             print("⬜ BOL skipped - not requested")
             results['bol'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # Generate Packing Slip - only if requested
         if requested_docs.get('packing_slip', True):
-          try:
-            from packing_slip_html_generator import generate_packing_slip_html
-            ps_html = generate_packing_slip_html(so_data, email_shipping, items)
-            ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
-            uploads_dir = get_uploads_dir()
-            ps_filepath = os.path.join(uploads_dir, ps_filename)
-            
-            with open(ps_filepath, 'w', encoding='utf-8') as f:
-                f.write(ps_html)
-            
-            results['packing_slip'] = {
-                'success': True,
-                'filename': ps_filename,
-                'download_url': f'/download/logistics/{ps_filename}'
-            }
-            print(f"✅ Packing Slip generated: {ps_filename}")
-            
-          except Exception as e:
-            print(f"❌ Packing Slip generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"Packing Slip generation failed: {str(e)}")
-            results['packing_slip'] = {'success': False, 'error': str(e)}
+            try:
+                from packing_slip_html_generator import generate_packing_slip_html
+                ps_html = generate_packing_slip_html(so_data, email_shipping, items)
+                ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
+                uploads_dir = get_uploads_dir()
+                ps_filepath = os.path.join(uploads_dir, ps_filename)
+                
+                with open(ps_filepath, 'w', encoding='utf-8') as f:
+                    f.write(ps_html)
+                
+                results['packing_slip'] = {
+                    'success': True,
+                    'filename': ps_filename,
+                    'download_url': f'/download/logistics/{ps_filename}'
+                }
+                print(f"✅ Packing Slip generated: {ps_filename}")
+                
+            except Exception as e:
+                print(f"❌ Packing Slip generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"Packing Slip generation failed: {str(e)}")
+                results['packing_slip'] = {'success': False, 'error': str(e)}
         else:
             print("⬜ Packing Slip skipped - not requested")
             results['packing_slip'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # Commercial Invoice Generation - only if requested
         if requested_docs.get('commercial_invoice', True):
-          try:
-            # Determine destination country for logging purposes
-            destination_country = None
-            is_cross_border = False
-            
-            # Check shipping address country
-            shipping_address = so_data.get('shipping_address', {})
-            if shipping_address.get('country'):
-                destination_country = str(shipping_address.get('country', '')).upper().strip()
-            
-            # Check email_shipping for destination (if passed)
-            email_shipping = data.get('email_shipping', {})
-            if not destination_country and email_shipping:
-                if email_shipping.get('destination_country'):
-                    destination_country = str(email_shipping.get('destination_country', '')).upper().strip()
-                elif email_shipping.get('final_destination'):
-                    destination_country = str(email_shipping.get('final_destination', '')).upper().strip()
-            
-            # Check email analysis for destination
-            if not destination_country and email_analysis:
-                if email_analysis.get('destination_country'):
-                    destination_country = str(email_analysis.get('destination_country', '')).upper().strip()
-                elif email_analysis.get('final_destination'):
-                    destination_country = str(email_analysis.get('final_destination', '')).upper().strip()
-            
-            # Determine if cross-border (for logging)
-            if destination_country:
-                # If destination is not Canada, it's cross-border
-                is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
-                print(f"\n📋 Commercial Invoice Check:")
-                print(f"   Destination: {destination_country}")
-                print(f"   Cross-border: {is_cross_border}")
-            else:
-                # Default to cross-border if destination unknown (safer to include)
-                is_cross_border = True
-                destination_country = 'UNKNOWN'
-                print(f"\n📋 Commercial Invoice Check:")
-                print(f"   Destination: UNKNOWN (defaulting to cross-border)")
-                print(f"   Cross-border: {is_cross_border}")
-            
-            # Only generate Commercial Invoice for cross-border shipments
-            if is_cross_border:
-                print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
-                from commercial_invoice_html_generator import generate_commercial_invoice_html
-                ci_html = generate_commercial_invoice_html(
-                    so_data, 
-                    items, 
-                    email_analysis
-                )
-                uploads_dir = get_uploads_dir()
-                os.makedirs(uploads_dir, exist_ok=True)
+            try:
+                # Determine destination country for logging purposes
+                destination_country = None
+                is_cross_border = False
                 
-                # Save HTML file
-                ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
-                ci_html_filepath = os.path.join(uploads_dir, ci_html_filename)
-                with open(ci_html_filepath, 'w', encoding='utf-8') as f:
-                    f.write(ci_html)
+                # Check shipping address country
+                shipping_address = so_data.get('shipping_address', {})
+                if shipping_address.get('country'):
+                    destination_country = str(shipping_address.get('country', '')).upper().strip()
                 
-                # Generate PDF file
-                ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-                ci_pdf_filepath = os.path.join(uploads_dir, ci_pdf_filename)
+                # Check email_shipping for destination (if passed)
+                email_shipping = data.get('email_shipping', {})
+                if not destination_country and email_shipping:
+                    if email_shipping.get('destination_country'):
+                        destination_country = str(email_shipping.get('destination_country', '')).upper().strip()
+                    elif email_shipping.get('final_destination'):
+                        destination_country = str(email_shipping.get('final_destination', '')).upper().strip()
                 
-                ci_pdf_success = False
-                try:
-                    from playwright_pdf_converter import html_to_pdf_sync
-                    ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                # Check email analysis for destination
+                if not destination_country and email_analysis:
+                    if email_analysis.get('destination_country'):
+                        destination_country = str(email_analysis.get('destination_country', '')).upper().strip()
+                    elif email_analysis.get('final_destination'):
+                        destination_country = str(email_analysis.get('final_destination', '')).upper().strip()
+                
+                # Determine if cross-border (for logging)
+                if destination_country:
+                    # If destination is not Canada, it's cross-border
+                    is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
+                    print(f"\n📋 Commercial Invoice Check:")
+                    print(f"   Destination: {destination_country}")
+                    print(f"   Cross-border: {is_cross_border}")
+                else:
+                    # Default to cross-border if destination unknown (safer to include)
+                    is_cross_border = True
+                    destination_country = 'UNKNOWN'
+                    print(f"\n📋 Commercial Invoice Check:")
+                    print(f"   Destination: UNKNOWN (defaulting to cross-border)")
+                    print(f"   Cross-border: {is_cross_border}")
+                
+                # Only generate Commercial Invoice for cross-border shipments
+                if is_cross_border:
+                    print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
+                    from commercial_invoice_html_generator import generate_commercial_invoice_html
+                    ci_html = generate_commercial_invoice_html(
+                        so_data, 
+                        items, 
+                        email_analysis
+                    )
+                    uploads_dir = get_uploads_dir()
+                    os.makedirs(uploads_dir, exist_ok=True)
+                    
+                    # Save HTML file
+                    ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
+                    ci_html_filepath = os.path.join(uploads_dir, ci_html_filename)
+                    with open(ci_html_filepath, 'w', encoding='utf-8') as f:
+                        f.write(ci_html)
+                    
+                    # Generate PDF file
+                    ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+                    ci_pdf_filepath = os.path.join(uploads_dir, ci_pdf_filename)
+                    
+                    ci_pdf_success = False
+                    try:
+                        from playwright_pdf_converter import html_to_pdf_sync
+                        ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                        if ci_pdf_success:
+                            print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
+                    except Exception as pdf_error:
+                        print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
+                    
+                    results['commercial_invoice'] = {
+                        'success': True,
+                        'filename': ci_html_filename,
+                        'download_url': f'/download/logistics/{ci_html_filename}',
+                        'file_type': 'html',
+                        'reason': f'Generated for cross-border shipment to {destination_country}'
+                    }
+                    
                     if ci_pdf_success:
-                        print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
-                except Exception as pdf_error:
-                    print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
+                        results['commercial_invoice']['pdf_file'] = ci_pdf_filename
+                        results['commercial_invoice']['pdf_download_url'] = f'/download/logistics/{ci_pdf_filename}'
+                    
+                    print(f"✅ Commercial Invoice generated: {ci_html_filename}")
+                else:
+                    print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
+                    results['commercial_invoice'] = {
+                        'success': False,
+                        'skipped': True,
+                        'reason': 'Domestic shipment - Commercial Invoice not required'
+                    }
                 
-                results['commercial_invoice'] = {
-                    'success': True,
-                    'filename': ci_html_filename,
-                    'download_url': f'/download/logistics/{ci_html_filename}',
-                    'file_type': 'html',
-                    'reason': f'Generated for cross-border shipment to {destination_country}'
-                }
-                
-                if ci_pdf_success:
-                    results['commercial_invoice']['pdf_file'] = ci_pdf_filename
-                    results['commercial_invoice']['pdf_download_url'] = f'/download/logistics/{ci_pdf_filename}'
-                
-                print(f"✅ Commercial Invoice generated: {ci_html_filename}")
-            else:
-                print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
-                results['commercial_invoice'] = {
-                    'success': False,
-                    'skipped': True,
-                    'reason': 'Domestic shipment - Commercial Invoice not required'
-                }
-            
-        except Exception as e:
-            print(f"❌ Commercial Invoice generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"Commercial Invoice generation failed: {str(e)}")
-            results['commercial_invoice'] = {'success': False, 'error': str(e)}
+            except Exception as e:
+                print(f"❌ Commercial Invoice generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"Commercial Invoice generation failed: {str(e)}")
+                results['commercial_invoice'] = {'success': False, 'error': str(e)}
+        else:
+            print("⬜ Commercial Invoice skipped - not requested")
+            results['commercial_invoice'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # SMART Dangerous Goods Declaration Generation - Auto-detect and fill correct template
         try:
