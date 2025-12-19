@@ -1854,6 +1854,7 @@ def get_so_data_from_system(so_number):
                                 
                                 # Download file content with retry for SSL errors
                                 so_file_content = None
+                                download_error = None
                                 for download_attempt in range(3):
                                     try:
                                         print(f"[INFO] LOGISTICS: Downloading SO file (attempt {download_attempt + 1}/3)...")
@@ -1862,10 +1863,24 @@ def get_so_data_from_system(so_number):
                                             print(f"[OK] LOGISTICS: Download successful ({len(so_file_content)} bytes)")
                                             break
                                     except Exception as download_err:
+                                        download_error = download_err
                                         print(f"[WARN] LOGISTICS: Download attempt {download_attempt + 1} failed: {download_err}")
                                         if download_attempt < 2:
                                             import time
-                                            time.sleep(1 * (download_attempt + 1))  # Exponential backoff
+                                            time.sleep(2 * (download_attempt + 1))  # Longer backoff for SSL errors
+                                
+                                # If download failed after all retries, return proper error
+                                if not so_file_content:
+                                    error_msg = f"SO {so_number} found in Google Drive but download failed after 3 attempts"
+                                    if download_error:
+                                        error_msg += f": {str(download_error)}"
+                                    print(f"[ERROR] LOGISTICS: {error_msg}")
+                                    return {
+                                        "status": "Error",
+                                        "error": error_msg,
+                                        "hint": "SSL/network error downloading from Google Drive - file exists but cannot be downloaded"
+                                    }
+                                
                                 if so_file_content:
                                     # Save to PERSISTENT CACHE for frontend viewing
                                     # Create cache directory if not exists
