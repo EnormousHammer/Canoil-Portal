@@ -4460,12 +4460,32 @@ def generate_all_documents():
         print(f"\n{'='*60}")
         print(f"🔍 GENERATE-ALL-DOCUMENTS: email_analysis CHECK")
         print(f"   email_analysis keys: {list(email_analysis.keys())}")
-        print(f"   raw_text present: {'raw_text' in email_analysis}")
-        print(f"   raw_text length: {len(email_analysis.get('raw_text', ''))}")
-        print(f"   raw_text preview: {str(email_analysis.get('raw_text', ''))[:100]}...")
+        print(f"   use_near_north: '{email_analysis.get('use_near_north', 'NOT SET')}'")
         print(f"   customs_broker: '{email_analysis.get('customs_broker', 'NOT SET')}'")
         print(f"   customs_broker_phone: '{email_analysis.get('customs_broker_phone', 'NOT SET')}'")
+        print(f"   raw_text present: {'raw_text' in email_analysis}")
+        print(f"   raw_text length: {len(email_analysis.get('raw_text', ''))}")
+        if email_analysis.get('raw_text'):
+            print(f"   raw_text preview: {str(email_analysis.get('raw_text', ''))[:200]}...")
+        print(f"   is_multi_so: {email_analysis.get('is_multi_so', 'NOT SET')}")
         print(f"{'='*60}\n")
+        
+        # ENSURE BROKER INFO IS SET - Re-run detection if raw_text available but use_near_north not set
+        # This catches cases where frontend didn't pass the flag properly
+        email_raw = email_analysis.get('raw_text') or email_analysis.get('email_body') or ''
+        if email_raw and not email_analysis.get('use_near_north'):
+            print("⚠️ raw_text/email_body present but use_near_north not set - re-running broker detection...")
+            try:
+                detect_and_apply_broker_info(
+                    email_content=email_raw,
+                    email_data=email_analysis,
+                    so_data=so_data,
+                    gpt_email_data=email_analysis
+                )
+                print(f"   ✅ use_near_north after re-detection: {email_analysis.get('use_near_north')}")
+                print(f"   ✅ customs_broker after re-detection: {email_analysis.get('customs_broker')}")
+            except Exception as e:
+                print(f"   ⚠️ Re-detection failed: {e}")
         
         # FILTER OUT SAMPLE ITEMS - they should NOT appear on BOL/Packing Slip
         # Sample pails only add to steel count on Commercial Invoice
