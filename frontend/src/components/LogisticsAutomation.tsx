@@ -725,7 +725,8 @@ const LogisticsAutomation: React.FC = () => {
         email_shipping: result.email_shipping || {},
         email_analysis: result.email_analysis || result.email_data || {},
         items: result.so_data?.items || result.items || [],
-        booking_number: bookingNumber || ''  // Axel France booking number
+        booking_number: bookingNumber || '',  // Axel France booking number
+        requested_documents: result.requested_documents || result.email_data?.requested_documents || null  // Documents user specifically requested in email
       };
       
       console.log('📤 Request data being sent:', requestData);
@@ -2365,6 +2366,41 @@ const LogisticsAutomation: React.FC = () => {
                   </div>
                 </div>
                 
+                {/* Documents Detected from Email */}
+                {(result.requested_documents || result.email_data?.requested_documents) && (
+                  <div className="border-t border-slate-200 pt-4 pb-2">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm font-semibold text-blue-800 mb-2">📋 Documents Requested in Email:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(() => {
+                          const reqDocs = result.requested_documents || result.email_data?.requested_documents || {};
+                          const docLabels: Record<string, string> = {
+                            bol: 'Bill of Lading',
+                            packing_slip: 'Packing Slip',
+                            commercial_invoice: 'Commercial Invoice',
+                            usmca: 'USMCA Certificate',
+                            tsca: 'TSCA',
+                            dangerous_goods: 'Dangerous Goods'
+                          };
+                          const allRequested = Object.values(reqDocs).every((v: any) => v === true);
+                          
+                          if (allRequested || reqDocs.all_documents) {
+                            return <span className="text-sm text-blue-700 bg-blue-100 px-2 py-1 rounded">All Documents (default)</span>;
+                          }
+                          
+                          return Object.entries(reqDocs)
+                            .filter(([key, value]) => value && key !== 'all_documents')
+                            .map(([key]) => (
+                              <span key={key} className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded font-medium">
+                                ✓ {docLabels[key] || key}
+                              </span>
+                            ));
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Primary Action - Generate All Documents */}
                 <div className="border-t border-slate-200 pt-5">
                   <button

@@ -124,6 +124,8 @@ def extract_all_so_numbers(text: str) -> list:
         "SO 3004 & 3020" → ["3004", "3020"]
         "sales orders 3004 & 3020" → ["3004", "3020"]
         "SO 3004" → ["3004"]
+        "SO 3012, SO 3022, and SO 3222" → ["3012", "3022", "3222"]
+        "s0 3012" → ["3012"]  (handles typo s0 instead of SO)
     """
     so_numbers = []
     
@@ -133,11 +135,17 @@ def extract_all_so_numbers(text: str) -> list:
     for match in multi_matches:
         so_numbers.extend(match)
     
-    # Pattern 2: Individual SO mentions - "Sales Order 3004:" or "SO 3004"
-    # This catches cases where SOs are mentioned individually in structured emails
-    individual_pattern = r'(?:sales\s*order|SO)\s*[#:]?\s*(\d{3,5})'
+    # Pattern 2: Individual SO mentions - "Sales Order 3004:", "SO 3004", "s0 3004" (typo)
+    # Also handles "SO 3012, SO 3022, and SO 3222" format
+    individual_pattern = r'(?:sales\s*order|[Ss][Oo0])\s*[#:]?\s*(\d{3,5})'
     individual_matches = re.findall(individual_pattern, text, re.IGNORECASE)
     so_numbers.extend(individual_matches)
+    
+    # Pattern 3: Just numbers after commas/and in SO context
+    # "SO 3012, 3022, and 3222" → catches 3022 and 3222
+    comma_and_pattern = r'(?:,\s*|\band\s+)(\d{3,5})(?=\s*(?:,|\band\b|\.|$|\s+we|\s+need))'
+    comma_matches = re.findall(comma_and_pattern, text, re.IGNORECASE)
+    so_numbers.extend(comma_matches)
     
     # Remove duplicates while preserving order
     seen = set()
@@ -148,6 +156,76 @@ def extract_all_so_numbers(text: str) -> list:
             unique_so_numbers.append(so)
     
     return unique_so_numbers
+
+
+def extract_requested_documents(text: str) -> dict:
+    """
+    Extract which documents the user is requesting from email text.
+    
+    Examples:
+        "we need packing slip and commercial invoice" → {'packing_slip': True, 'commercial_invoice': True}
+        "BOL only" → {'bol': True}
+        "all documents" → all True
+        "" (no mention) → all True (default behavior)
+    
+    Returns:
+        dict with keys: 'bol', 'packing_slip', 'commercial_invoice', 'usmca', 'tsca', 'dangerous_goods'
+        Values are True if requested, False if not
+    """
+    text_lower = text.lower()
+    
+    # Default: if no specific documents mentioned, generate all
+    result = {
+        'bol': False,
+        'packing_slip': False,
+        'commercial_invoice': False,
+        'usmca': False,
+        'tsca': False,
+        'dangerous_goods': False,
+        'all_documents': False
+    }
+    
+    # Check for "all documents" request
+    if any(phrase in text_lower for phrase in ['all documents', 'all docs', 'everything', 'full set']):
+        return {k: True for k in result}
+    
+    # BOL detection
+    if any(phrase in text_lower for phrase in ['bol', 'bill of lading', 'b/l', 'b.o.l']):
+        result['bol'] = True
+    
+    # Packing Slip detection
+    if any(phrase in text_lower for phrase in ['packing slip', 'packing list', 'pack slip', 'ps', 'p/s']):
+        result['packing_slip'] = True
+    
+    # Commercial Invoice detection
+    if any(phrase in text_lower for phrase in ['commercial invoice', 'comm invoice', 'ci', 'c/i', 'invoice']):
+        result['commercial_invoice'] = True
+    
+    # USMCA detection
+    if any(phrase in text_lower for phrase in ['usmca', 'certificate of origin', 'coo', 'nafta']):
+        result['usmca'] = True
+    
+    # TSCA detection
+    if any(phrase in text_lower for phrase in ['tsca', 'toxic substance', 'chemical']):
+        result['tsca'] = True
+    
+    # Dangerous Goods detection
+    if any(phrase in text_lower for phrase in ['dangerous goods', 'dg', 'hazmat', 'hazardous']):
+        result['dangerous_goods'] = True
+    
+    # If no specific documents detected, default to all
+    if not any(result.values()):
+        return {k: True for k in result}
+    
+    # Set all_documents flag if multiple requested
+    result['all_documents'] = sum(result.values()) > 2
+    
+    print(f"📋 Document request detection:")
+    for doc, requested in result.items():
+        if requested:
+            print(f"   ✅ {doc}")
+    
+    return result
 
 
 def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
@@ -2581,6 +2659,12 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     except Exception as e:
         print(f"⚠️ Failed broker detection: {e}")
     
+    # =========================================================================
+    # DOCUMENT REQUEST DETECTION - What documents does the user want?
+    # =========================================================================
+    requested_documents = extract_requested_documents(email_content)
+    email_data['requested_documents'] = requested_documents
+    
     # Build result
     result = {
         'success': True,
@@ -2601,7 +2685,8 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'auto_detection': {
             'so_number': ' & '.join(so_numbers),
             'is_multi_so': True
-        }
+        },
+        'requested_documents': requested_documents
     }
     
     print(f"\n{'='*80}")
@@ -3833,6 +3918,12 @@ def process_email():
             gpt_email_data=email_data  # For single-SO, GPT data is in email_data
         )
         
+        # =========================================================================
+        # DOCUMENT REQUEST DETECTION - What documents does the user want?
+        # =========================================================================
+        requested_documents = extract_requested_documents(email_content)
+        email_data['requested_documents'] = requested_documents
+        
         result = {
             'success': True,
             'so_data': so_data,
@@ -3849,7 +3940,8 @@ def process_email():
                 'file_path': so_data.get('file_path')
             },
             'validation_details': validation_details,
-            'validation_passed': True
+            'validation_passed': True,
+            'requested_documents': requested_documents
         }
         
         print(f"\n{'='*80}")
@@ -4329,6 +4421,32 @@ def generate_all_documents():
         transaction_details = data.get('transaction_details', {})
         items = data.get('items', [])
         
+        # =========================================================================
+        # REQUESTED DOCUMENTS - Only generate what the user asked for
+        # =========================================================================
+        # Get requested documents from email_analysis (set during email processing)
+        # or from explicit request parameter
+        requested_docs = data.get('requested_documents') or email_analysis.get('requested_documents', {})
+        
+        # Default to all documents if none specified
+        if not requested_docs or not any(requested_docs.values()):
+            requested_docs = {
+                'bol': True,
+                'packing_slip': True,
+                'commercial_invoice': True,
+                'usmca': True,
+                'tsca': True,
+                'dangerous_goods': True,
+                'all_documents': True
+            }
+        
+        print(f"\n{'='*60}")
+        print(f"📄 REQUESTED DOCUMENTS:")
+        for doc, requested in requested_docs.items():
+            status = "✅ Yes" if requested else "⬜ No"
+            print(f"   {doc}: {status}")
+        print(f"{'='*60}\n")
+        
         # DEBUG: Check if email_analysis has broker-related fields
         print(f"\n{'='*60}")
         print(f"🔍 GENERATE-ALL-DOCUMENTS: email_analysis CHECK")
@@ -4354,8 +4472,9 @@ def generate_all_documents():
         # Create timestamp ONCE for all documents
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # Generate BOL (NEW professional format)
-        try:
+        # Generate BOL (NEW professional format) - only if requested
+        if requested_docs.get('bol', True):
+          try:
             from new_bol_generator import populate_new_bol_html
             
             print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
@@ -4384,14 +4503,18 @@ def generate_all_documents():
             }
             print(f"✅ BOL generated: {bol_filename}")
             
-        except Exception as e:
+          except Exception as e:
             print(f"❌ BOL generation error: {e}")
             traceback.print_exc()  # Use module-level traceback
             errors.append(f"BOL generation failed: {str(e)}")
             results['bol'] = {'success': False, 'error': str(e)}
+        else:
+            print("⬜ BOL skipped - not requested")
+            results['bol'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
-        # Generate Packing Slip
-        try:
+        # Generate Packing Slip - only if requested
+        if requested_docs.get('packing_slip', True):
+          try:
             from packing_slip_html_generator import generate_packing_slip_html
             ps_html = generate_packing_slip_html(so_data, email_shipping, items)
             ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
@@ -4408,14 +4531,18 @@ def generate_all_documents():
             }
             print(f"✅ Packing Slip generated: {ps_filename}")
             
-        except Exception as e:
+          except Exception as e:
             print(f"❌ Packing Slip generation error: {e}")
             traceback.print_exc()  # Use module-level traceback
             errors.append(f"Packing Slip generation failed: {str(e)}")
             results['packing_slip'] = {'success': False, 'error': str(e)}
+        else:
+            print("⬜ Packing Slip skipped - not requested")
+            results['packing_slip'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
-        # Commercial Invoice Generation - Always generate when "Generate All Documents" is called
-        try:
+        # Commercial Invoice Generation - only if requested
+        if requested_docs.get('commercial_invoice', True):
+          try:
             # Determine destination country for logging purposes
             destination_country = None
             is_cross_border = False
