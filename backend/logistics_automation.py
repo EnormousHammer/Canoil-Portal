@@ -2963,11 +2963,20 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     return combined
 
 
-@logistics_bp.route('/api/logistics/process-email', methods=['POST'])
+@logistics_bp.route('/api/logistics/process-email', methods=['POST', 'OPTIONS'])
 def process_email():
     """Process email content with GPT-4o and extract SO data - REAL DATA ONLY"""
     import traceback
     import sys
+    
+    # Handle OPTIONS preflight request for CORS
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response, 200
     
     # CRITICAL: Catch ALL errors including import errors, attribute errors, etc.
     try:
