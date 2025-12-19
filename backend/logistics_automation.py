@@ -2492,7 +2492,10 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     print(f"📧 Multi-SO Email Data: {json.dumps(multi_so_email_data, indent=2, default=str)}")
     
     # Fetch SO data for ALL SOs in parallel
+    # CRITICAL: Increase timeout for multi-SO (SSL retries can take longer)
+    # 4 SOs × 60s each = 240s max, but with retries we need more headroom
     so_data_list = []
+    timeout_per_so = 120  # 2 minutes per SO to handle SSL retries
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(so_numbers)) as executor:
         # Start all fetches
         future_to_so = {executor.submit(get_so_data_from_system, so_num): so_num for so_num in so_numbers}
@@ -2501,12 +2504,14 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         for future in concurrent.futures.as_completed(future_to_so):
             so_num = future_to_so[future]
             try:
-                so_data = future.result(timeout=60)
+                so_data = future.result(timeout=timeout_per_so)
                 if so_data and isinstance(so_data, dict) and so_data.get('status') != 'Error':
                     so_data_list.append(so_data)
                     print(f"✅ Fetched SO {so_num}: {len(so_data.get('items', []))} items")
                 else:
                     print(f"❌ Failed to fetch SO {so_num}: {so_data.get('error', 'Unknown error')}")
+            except concurrent.futures.TimeoutError:
+                print(f"⏱️ Timeout fetching SO {so_num} after {timeout_per_so}s - SSL retries may be taking too long")
             except Exception as e:
                 print(f"❌ Exception fetching SO {so_num}: {e}")
     
