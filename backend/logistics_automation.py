@@ -2069,6 +2069,147 @@ def _build_multi_so_pallet_info(multi_so_email_data: dict):
     return skid_info, total_skids, pallet_dimensions
 
 
+def detect_and_apply_broker_info(email_content: str, email_data: dict, so_data: dict, gpt_email_data: dict = None):
+    """
+    SHARED BROKER DETECTION LOGIC - Used by BOTH single-SO and multi-SO paths.
+    
+    Detects if Near North Customs Brokers should be used based on:
+    1. "Near North" mentioned in email
+    2. Georgia Western customer (always uses Near North)
+    3. Prepaid brokerage in SO items
+    4. "Broker on the Exporter and using Near North" patterns
+    5. Freight + Brokerage charges in SO
+    
+    Updates email_data in place with broker info.
+    
+    Args:
+        email_content: Raw email text
+        email_data: Dict to update with broker info (modified in place)
+        so_data: SO data dict with items, customer_name, etc.
+        gpt_email_data: Optional GPT-parsed email data (for customs_broker field)
+    
+    Returns:
+        bool: True if Near North should be used
+    """
+    import re
+    
+    # Build search text from SO data
+    brokerage_search_text = ' '.join([
+        so_data.get('special_instructions', ''),
+        so_data.get('terms', ''),
+        so_data.get('notes', ''),
+        so_data.get('memo', '')
+    ]).upper()
+    
+    # Check items for prepaid brokerage AND freight+brokerage charges
+    has_freight_charge = False
+    has_brokerage_charge = False
+    for item in so_data.get('items', []):
+        item_desc = str(item.get('description', '')).upper()
+        item_code = str(item.get('item_code', '')).upper()
+        if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
+            brokerage_search_text += ' PREPAID BROKERAGE'
+        if 'PREPAID' in item_desc and 'BROKER' in item_desc:
+            brokerage_search_text += ' PREPAID BROKERAGE'
+        # Check for freight charge line item
+        if 'FREIGHT' in item_desc or 'FREIGHT' in item_code:
+            has_freight_charge = True
+        # Check for brokerage charge line item  
+        if 'BROKERAGE' in item_desc or 'BROKER' in item_desc:
+            has_brokerage_charge = True
+    
+    # If SO has BOTH freight charge AND brokerage charge → Canoil handles brokerage (Near North)
+    so_has_freight_and_brokerage = has_freight_charge and has_brokerage_charge
+    if so_has_freight_and_brokerage:
+        print(f"   📦 SO has BOTH freight + brokerage charges - Canoil handles brokerage")
+    
+    # Detect customer and special rules
+    customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or email_data.get('company_name', '') or ''
+    is_georgia_western = 'georgia western' in customer_name.lower()
+    
+    # Detect if Canoil handles brokerage
+    email_upper = email_content.upper()
+    canoil_handles_brokerage = (
+        ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
+        ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
+        'PREPAID BROKERAGE' in brokerage_search_text or
+        'EXPORTER' in brokerage_search_text or
+        so_has_freight_and_brokerage
+    )
+    
+    # Check GPT-extracted customs_broker field
+    gpt_broker = ''
+    if gpt_email_data:
+        gpt_broker = (gpt_email_data.get('customs_broker') or '').upper()
+    elif email_data:
+        gpt_broker = (email_data.get('customs_broker') or '').upper()
+    
+    # Keywords that indicate broker mention
+    broker_keywords = ['BROKER', 'BROKERAGE', 'CUSTOMS BROKER', 'CUSTOM BROKER', 
+                      'CLEARANCE', 'CLEARED BY', 'CUSTOMS CLEARANCE']
+    
+    # Check if Near North is specifically mentioned (in email or GPT extraction)
+    exporter_using_pattern = re.search(
+        r'broker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        email_content, re.IGNORECASE
+    )
+    brokerage_near_north_pattern = re.search(
+        r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*(?:on\s+(?:the\s+)?exporter\s+(?:and\s+)?using\s+)?([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        email_content, re.IGNORECASE
+    )
+    broker_on_exporter_pattern = re.search(
+        r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
+        email_content, re.IGNORECASE
+    )
+    
+    near_north_in_email = (
+        'NEAR NORTH' in email_upper or 
+        'NEARNORTH' in email_upper or
+        'NEAR NORTH' in gpt_broker or
+        'NEARNORTH' in gpt_broker or
+        exporter_using_pattern is not None or
+        brokerage_near_north_pattern is not None or
+        broker_on_exporter_pattern is not None
+    )
+    
+    # Check if any broker keyword is mentioned in email
+    has_broker_keyword = any(kw in email_upper for kw in broker_keywords)
+    
+    print(f"\n{'='*60}")
+    print(f"🔍 BROKER DETECTION (SHARED LOGIC):")
+    print(f"   Customer: {customer_name}")
+    print(f"   Is Georgia Western: {is_georgia_western}")
+    print(f"   GPT extracted broker: '{gpt_broker}'")
+    print(f"   Near North in email/GPT: {near_north_in_email}")
+    print(f"   Has broker keywords: {has_broker_keyword}")
+    print(f"   Canoil handles brokerage: {canoil_handles_brokerage}")
+    print(f"   SO has freight+brokerage: {so_has_freight_and_brokerage}")
+    print(f"{'='*60}")
+    
+    # Determine if Near North should be used
+    use_near_north = near_north_in_email or canoil_handles_brokerage or is_georgia_western
+    
+    # Apply broker info to email_data
+    email_data['use_near_north'] = use_near_north
+    
+    if use_near_north:
+        email_data['customs_broker'] = 'Near North Customs Brokers'
+        email_data['customs_broker_phone'] = '716-204-4020'
+        email_data['customs_broker_fax'] = '716-204-5551'
+        email_data['customs_broker_email'] = 'entry@nearnorthus.com'
+        
+        if near_north_in_email:
+            print(f"   ✅ Near North mentioned in email - will use Near North Customs Brokers")
+        elif is_georgia_western:
+            print(f"   ✅ Georgia Western customer - will use Near North Customs Brokers")
+        elif canoil_handles_brokerage:
+            print(f"   ✅ Canoil handles brokerage (prepaid) - will use Near North Customs Brokers")
+    else:
+        print(f"   ℹ️ No Near North broker detected - broker section will be empty")
+    
+    return use_near_north
+
+
 def process_multi_so_email(email_content: str, so_numbers: list):
     """
     Process email containing MULTIPLE Sales Orders.
@@ -2239,113 +2380,17 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         print(f"⚠️ Failed to build MULTI-SO skid_info: {e}")
     
     # =========================================================================
-    # MULTI-SO BROKER DETECTION - Same logic as single-SO (lines ~3637-3751)
-    # This was MISSING and caused broker info to not fill for multi-SO orders!
+    # BROKER DETECTION - Uses SHARED function (same logic as single-SO)
     # =========================================================================
     try:
-        customer_name = (email_data.get('company_name') or combined_so_data.get('customer_name') or '').upper()
-        is_georgia_western = 'georgia western' in customer_name.lower()
-        
-        # Build search text from email content and SO data
-        brokerage_search_text = ' '.join([
-            email_content.upper(),
-            (combined_so_data.get('special_instructions') or '').upper(),
-            (combined_so_data.get('terms') or '').upper(),
-        ])
-        
-        # Check items for prepaid brokerage
-        has_freight_charge = False
-        has_brokerage_charge = False
-        for item in combined_so_data.get('items', []):
-            item_desc = (item.get('description') or '').upper()
-            item_code = (item.get('item_code') or '').upper()
-            if 'FREIGHT' in item_desc or 'FREIGHT' in item_code:
-                has_freight_charge = True
-            if 'BROKERAGE' in item_desc or 'BROKER' in item_desc:
-                has_brokerage_charge = True
-            if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
-                brokerage_search_text += ' PREPAID BROKERAGE'
-            if 'PREPAID' in item_desc and 'BROKER' in item_desc:
-                brokerage_search_text += ' PREPAID BROKERAGE'
-        
-        so_has_freight_and_brokerage = has_freight_charge and has_brokerage_charge
-        
-        # Detect if Canoil handles brokerage
-        email_upper = email_content.upper()
-        canoil_handles_brokerage = (
-            ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
-            ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
-            'PREPAID BROKERAGE' in brokerage_search_text or
-            'EXPORTER' in brokerage_search_text or
-            so_has_freight_and_brokerage
+        detect_and_apply_broker_info(
+            email_content=email_content,
+            email_data=email_data,
+            so_data=combined_so_data,
+            gpt_email_data=multi_so_email_data
         )
-        
-        # Check GPT-extracted customs_broker field
-        gpt_broker = (multi_so_email_data.get('customs_broker') or '').upper()
-        
-        # Check for Near North patterns
-        near_north_pattern = re.search(
-            r'broker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
-            email_content, re.IGNORECASE
-        )
-        brokerage_near_north_pattern = re.search(
-            r'(?:brokerage|broker)\s*[:\-]?\s*(?:on\s+(?:the\s+)?exporter\s+(?:and\s+)?using\s+)?(?:near\s*north)',
-            email_content, re.IGNORECASE
-        )
-        broker_on_exporter_pattern = re.search(
-            r'broker\s+on\s+(?:the\s+)?exporter\s+(?:and\s+)?using\s+near\s*north',
-            email_content, re.IGNORECASE
-        )
-        
-        near_north_in_email = (
-            'NEAR NORTH' in email_upper or 
-            near_north_pattern is not None or
-            'NEAR NORTH' in gpt_broker or
-            'NEARNORTH' in gpt_broker or
-            brokerage_near_north_pattern is not None or
-            broker_on_exporter_pattern is not None
-        )
-        
-        # Keywords that indicate broker mention
-        broker_keywords = ['BROKER', 'BROKERAGE', 'CUSTOMS BROKER', 'CUSTOM BROKER', 
-                          'CLEARED BY', 'CLEARANCE BY', 'CUSTOMS BY']
-        has_broker_keyword = any(kw in email_upper for kw in broker_keywords)
-        
-        print(f"\n🔍 MULTI-SO BROKER DETECTION:")
-        print(f"   Customer: {customer_name}")
-        print(f"   Is Georgia Western: {is_georgia_western}")
-        print(f"   GPT extracted broker: '{gpt_broker}'")
-        print(f"   Near North in email/GPT: {near_north_in_email}")
-        print(f"   Has broker keywords: {has_broker_keyword}")
-        print(f"   Canoil handles brokerage: {canoil_handles_brokerage}")
-        print(f"   SO has freight+brokerage charges: {so_has_freight_and_brokerage}")
-        
-        # Set flag for Near North usage
-        use_near_north = near_north_in_email or canoil_handles_brokerage or is_georgia_western
-        
-        # Add broker info to email_data
-        email_data['use_near_north'] = use_near_north
-        
-        if use_near_north:
-            email_data['customs_broker'] = 'Near North Customs Brokers'
-            email_data['customs_broker_phone'] = '716-204-4020'
-            email_data['customs_broker_fax'] = '716-204-5551'
-            email_data['customs_broker_email'] = 'entry@nearnorthus.com'
-            
-            if near_north_in_email:
-                print(f"   ✅ Near North mentioned in email - will use Near North Customs Brokers")
-            elif is_georgia_western:
-                print(f"   ✅ Georgia Western customer - will use Near North Customs Brokers")
-            elif canoil_handles_brokerage:
-                print(f"   ✅ Canoil handles brokerage (prepaid) - will use Near North Customs Brokers")
-        else:
-            print(f"   ℹ️ No Near North broker detected - broker section will be empty")
-        
     except Exception as e:
-        print(f"⚠️ Failed MULTI-SO broker detection: {e}")
-    # =========================================================================
-    # END MULTI-SO BROKER DETECTION
-    # =========================================================================
+        print(f"⚠️ Failed broker detection: {e}")
     
     # Build result
     result = {
@@ -3743,121 +3788,15 @@ def process_email():
             print(f"   Grand Total: ${grand_total:,.2f}")
             print(f"   ⚠️ This is for line {line_numbers} only - NOT the full SO!\n")
         
-        # Check if Canoil handles brokerage (PREPAID brokerage) - add Near North info
-        brokerage_search_text = ' '.join([
-            so_data.get('special_instructions', ''),
-            so_data.get('terms', ''),
-            so_data.get('notes', ''),
-            so_data.get('memo', '')
-        ]).upper()
-        
-        # Check items for prepaid brokerage AND freight+brokerage charges
-        has_freight_charge = False
-        has_brokerage_charge = False
-        for item in so_data.get('items', []):
-            item_desc = str(item.get('description', '')).upper()
-            if 'BROKERAGE' in item_desc and 'PREPAID' in item_desc:
-                brokerage_search_text += ' PREPAID BROKERAGE'
-            if 'PREPAID' in item_desc and 'BROKER' in item_desc:
-                brokerage_search_text += ' PREPAID BROKERAGE'
-            # Check for freight charge line item
-            if 'FREIGHT' in item_desc and ('CHARGE' in item_desc or item.get('unit_price', 0) > 0):
-                has_freight_charge = True
-            # Check for brokerage charge line item  
-            if 'BROKERAGE' in item_desc or 'BROKER' in item_desc:
-                has_brokerage_charge = True
-        
-        # If SO has BOTH freight charge AND brokerage charge → Canoil handles brokerage (Near North)
-        so_has_freight_and_brokerage = has_freight_charge and has_brokerage_charge
-        if so_has_freight_and_brokerage:
-            print(f"DEBUG: 📦 SO has BOTH freight charge AND brokerage charge - Canoil handles brokerage")
-        
-        # Detect if Canoil handles brokerage
-        customer_name = so_data.get('customer_name', '') or so_data.get('company_name', '') or ''
-        is_georgia_western = 'georgia western' in customer_name.lower()
-        canoil_handles_brokerage = (
-            ('PREPAID' in brokerage_search_text and 'BROKERAGE' in brokerage_search_text) or
-            ('PREPAID' in brokerage_search_text and 'BROKER' in brokerage_search_text) or
-            'PREPAID BROKERAGE' in brokerage_search_text or
-            is_georgia_western or
-            so_has_freight_and_brokerage  # NEW: freight + brokerage charges in SO
+        # =========================================================================
+        # BROKER DETECTION - Uses SHARED function (same logic as multi-SO)
+        # =========================================================================
+        detect_and_apply_broker_info(
+            email_content=email_content,
+            email_data=email_data,
+            so_data=so_data,
+            gpt_email_data=email_data  # For single-SO, GPT data is in email_data
         )
-        
-        # =====================================================================
-        # CLEAN BROKER DETECTION - No raw_text needed, just check keywords
-        # =====================================================================
-        
-        # Check GPT-extracted customs_broker field
-        gpt_broker = (email_data.get('customs_broker') or '').upper()
-        
-        # Check original email content for broker keywords
-        email_upper = email_content.upper()
-        
-        # Keywords that indicate broker mention
-        broker_keywords = ['BROKER', 'BROKERAGE', 'CUSTOMS BROKER', 'CUSTOM BROKER', 
-                          'CLEARANCE', 'CLEARED BY', 'CUSTOMS CLEARANCE']
-        
-        # Check if Near North is specifically mentioned (in email or GPT extraction)
-        # Also check for various patterns that indicate Near North broker
-        exporter_using_pattern = re.search(
-            r'broker\s+will\s+be\s+taking\s+care\s+of\s+by\s+(?:exporter\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
-            email_content,
-            re.IGNORECASE
-        )
-        # Check for "Brokerage: Near North" or "Broker: Near North" patterns
-        brokerage_near_north_pattern = re.search(
-            r'(?:[Bb]rokerage|[Bb]roker)\s*:?\s*([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
-            email_content,
-            re.IGNORECASE
-        )
-        # Check for "Broker on the Exporter and using Near North" pattern
-        broker_on_exporter_pattern = re.search(
-            r'[Bb]roker\s+on\s+(?:the\s+)?[Ee]xporter\s+(?:and\s+)?using\s+([Nn]ear\s+[Nn]orth|[Nn]earnorth)',
-            email_content,
-            re.IGNORECASE
-        )
-        near_north_in_email = (
-            'NEAR NORTH' in email_upper or 
-            'NEARNORTH' in email_upper or
-            'NEAR NORTH' in gpt_broker or
-            'NEARNORTH' in gpt_broker or
-            exporter_using_pattern is not None or
-            brokerage_near_north_pattern is not None or
-            broker_on_exporter_pattern is not None
-        )
-        
-        # Check if any broker keyword is mentioned in email
-        has_broker_keyword = any(kw in email_upper for kw in broker_keywords)
-        
-        print(f"\n{'='*60}")
-        print(f"🔍 CLEAN BROKER DETECTION:")
-        print(f"   GPT extracted broker: '{gpt_broker}'")
-        print(f"   Near North in email/GPT: {near_north_in_email}")
-        print(f"   Has broker keywords: {has_broker_keyword}")
-        print(f"   Canoil handles brokerage: {canoil_handles_brokerage}")
-        print(f"   Is Georgia Western: {is_georgia_western}")
-        print(f"{'='*60}\n")
-        
-        # Set clean flag for Near North usage
-        use_near_north = near_north_in_email or canoil_handles_brokerage or is_georgia_western
-        
-        # Add broker info to email_data
-        email_data['use_near_north'] = use_near_north
-        
-        if use_near_north:
-            email_data['customs_broker'] = 'Near North Customs Brokers'
-            email_data['customs_broker_phone'] = '716-204-4020'
-            email_data['customs_broker_fax'] = '716-204-5551'
-            email_data['customs_broker_email'] = 'entry@nearnorthus.com'
-            
-            if near_north_in_email:
-                print(f"✅ Near North mentioned in email - will use Near North Customs Brokers")
-            elif is_georgia_western:
-                print(f"✅ Georgia Western customer - will use Near North Customs Brokers")
-            else:
-                print(f"✅ Canoil handles brokerage (prepaid) - will use Near North Customs Brokers")
-        else:
-            print(f"ℹ️ No Near North broker detected - broker section will be empty")
         
         result = {
             'success': True,
