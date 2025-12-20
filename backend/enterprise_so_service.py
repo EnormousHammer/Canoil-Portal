@@ -12,7 +12,8 @@ import shutil
 from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from app import extract_so_data_from_pdf
+# Lazy import to avoid circular dependency with app.py
+# from app import extract_so_data_from_pdf
 
 def safe_json_write(file_path, data, indent=2):
     """Safe atomic JSON write to prevent corruption"""
@@ -145,6 +146,9 @@ class EnterpriseSO:
             return
         
         # Parse new files
+        # Lazy import to avoid circular dependency
+        from app import extract_so_data_from_pdf
+        
         parsed_count = 0
         for file_info in files_to_parse:
             try:

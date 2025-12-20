@@ -1,23 +1,14 @@
 import { MPSOrder, MODetail } from '../types/mps';
+import { API_BASE_URL, getApiUrl } from '../utils/apiConfig';
 
-// MPS Data Service - integrated with the Canoil Portal backend (port 5002)
+// MPS Data Service - integrated with the Canoil Portal backend
 // Data sources:
 // - MPS schedule: Portal backend /api/mps (which fetches from Google Sheets server-side)
 // - MISys data (items, MOs, SOs): Portal backend /api/data
 
-// Backend API - Use the PORTAL backend (same as main app)
-// Local: Portal backend on port 5002
-// Production: Portal Cloud Run backend
-const IS_PRODUCTION =
-  typeof window !== 'undefined' &&
-  window.location.hostname !== 'localhost' &&
-  !window.location.hostname.includes('127.0.0.1');
-
-const PORTAL_BACKEND_URL = IS_PRODUCTION
-  ? 'https://canoil-portal-backend-711358371169.us-central1.run.app'
-  : 'http://localhost:5002';
-
-const CANOIL_API = `${PORTAL_BACKEND_URL}/api/data`;
+// Backend API - Use centralized API config (same as rest of app)
+// Automatically handles: localhost:5002 (local) or Cloud Run (production)
+const CANOIL_API = getApiUrl('/api/data');
 
 export interface MISysData {
   items: any[];
@@ -38,7 +29,7 @@ export function getSOUrl(soNumber: string): string | null {
   const soNum = soBase.replace(/[^0-9]/g, '');
   if (!soNum) return null;
   // Return the find endpoint - caller will need to fetch this to get PDF path
-  return `${PORTAL_BACKEND_URL}/api/sales-orders/find/${soNum}`;
+  return getApiUrl(`/api/sales-orders/find/${soNum}`);
 }
 
 // Open SO PDF in new tab - first finds the PDF, then opens it
@@ -55,7 +46,7 @@ export async function openSalesOrder(soNumber: string): Promise<void> {
     const data = await response.json();
     if (data.found && data.filePath) {
       // Open the PDF using the portal's PDF endpoint
-      const pdfUrl = `${PORTAL_BACKEND_URL}/api/sales-order-pdf/${encodeURIComponent(data.filePath)}`;
+      const pdfUrl = getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(data.filePath)}`);
       window.open(pdfUrl, '_blank');
     } else {
       console.warn(`SO ${soNumber} file not found`);
@@ -153,7 +144,7 @@ export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
     try {
       // Fetch MPS from backend (which fetches from Google Sheets server-side)
       console.log('📋 Fetching MPS schedule from backend...');
-      const response = await fetch(`${PORTAL_BACKEND_URL}/api/mps`, {
+      const response = await fetch(getApiUrl('/api/mps'), {
         cache: 'no-store',
       });
 

@@ -1,0 +1,197 @@
+﻿========================================
+  CANOIL PORTAL USAGE AUDIT REPORT
+========================================
+
+Date: 2025-12-20 13:30:28
+
+1. BACKEND URL REFERENCES
+   Checking which backend URLs are referenced in code...
+
+   âo. Found: localhost:5002
+      - apiConfig.ts:22
+      - apiConfig.ts:38
+      - mpsDataService.ts:18
+      - test_logistics.py:27
+      - test_generate_all_endpoint.py:62
+      - test_generate_all_endpoint.py:115
+      - test_generate_all_endpoint.py:119
+      - debug_test.py:35
+      - test_multi_so_api.py:30
+      - test_multi_so_api.py:142
+      - test_multi_so_api.py:164
+      - test_sample_pail.py:31
+      - test_gpt5_sample.py:33
+      - test_gpt5_sample.py:66
+      - test_full_flow.py:11
+Collection was modified; enumeration operation may not execute.
+At G:\Shared drives\IT_Automation\Canoil Apps\Canoil 
+Helper\canoil-portal\PROJECT_USAGE_AUDIT.ps1:26 char:10
++ foreach ($urlKey in $backendUrls.Keys) {
++          ~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], InvalidOperationExcept 
+   ion
+    + FullyQualifiedErrorId : System.InvalidOperationException
+ 
+
+2. API FOLDER USAGE
+   Checking if api/ folder is referenced anywhere...
+
+   âs ï,?  api/index.py is referenced:
+      - app_backup.py:1375
+      - app_backup.py:3414
+      - test_hypercorn_local.py:77
+      - app.py:2139
+      - app.py:4246
+   âs ï,?  api/health.py is referenced:
+      - app_backup.py:1375
+      - app_backup.py:3414
+      - test_hypercorn_local.py:77
+      - app.py:2139
+      - app.py:4246
+   âs ï,?  api/test.py is referenced:
+      - app_backup.py:1375
+      - app_backup.py:3414
+      - test_hypercorn_local.py:77
+      - app.py:2139
+      - app.py:4246
+   âo. vercel.json does NOT route to api folder (routes to Cloud Run)
+
+3. COMPONENTS USING apiConfig.ts (CORRECT)
+   Files that properly use centralized API config...
+
+   âo. 12 files use apiConfig.ts:
+      - GDriveDataLoader.ts
+      - RevolutionaryCanoilHub.tsx
+      - AICommandCenter.tsx
+      - RevolutionaryCanoilHub_clean.tsx
+      - temp_file.tsx
+      - LogisticsAutomation.tsx
+      - PurchaseRequisitionModal.tsx
+      - GmailStyleEmail.tsx
+      - GmailLikeEmail.tsx
+      - AIEmailAssistant.tsx
+      - GmailCleanEmail.tsx
+      - App.tsx
+
+4. HARDCODED BACKEND URLS (SHOULD USE apiConfig)
+   Files that bypass apiConfig.ts...
+
+   âs ï,?  Found 1 hardcoded URLs:
+      - mpsDataService.ts:17
+        ? 'https://canoil-portal-backend-711358371169.us-central1.run.app'
+
+5. COMPONENT USAGE ANALYSIS
+   Checking which components are imported/used...
+
+   âo. Used Components (18):
+      - SmartDataTable.tsx
+      - GoogleDriveLoader.tsx
+      - NavigationHeader.tsx
+      - RevolutionaryCanoilHub.tsx
+      - AICommandCenter.tsx
+      - CleanEnterpriseDashboard.tsx
+      - ProductionSchedule.tsx
+      - LoadingComponents.tsx
+      - InteractiveChatMessage.tsx
+      - LogisticsAutomation.tsx
+      - SOPerformanceMonitor.tsx
+      - EnterpriseUIComponents.tsx
+      - EnterpriseProductionCalendar.tsx
+      - PurchaseRequisitionModal.tsx
+      - AIEmailAssistant.tsx
+      - GmailCleanEmail.tsx
+      - ReportMaker.tsx
+      - ProductionScheduleMPS.tsx
+
+   â?O Potentially Unused Components (22):
+      - ComprehensiveDataExplorer.tsx
+      - StockAllocationTracker.tsx
+      - IntelligentSOEntry.tsx
+      - DataTest.tsx
+      - CleanVisualBOM.tsx
+      - KeyboardShortcutsHelp.tsx
+      - MISysDataGrid.tsx
+      - CleanIntelligentSOEntry.tsx
+      - RevolutionaryDataDisplay.tsx
+      - EnterpriseProductionVisualization.tsx
+      - InteractiveProductionSchedule.tsx
+      - VisualProductionDashboard.tsx
+      - TimelineProductionSchedule.tsx
+      - RevolutionaryCanoilHub_clean.tsx
+      - temp_file.tsx
+      - UserSelectionModal.tsx
+      - UltimateEnterpriseLoadingScreen.tsx
+      - EnterpriseLoginScreen.tsx
+      - SimpleProductionCalendar.tsx
+      - GmailStyleEmail.tsx
+      - GmailLikeEmail.tsx
+      - SparkStyleEmailView.tsx
+
+6. BACKEND ROUTES ANALYSIS
+   Checking which API routes are defined in backend...
+
+   âo. Found 24 API routes in backend/app.py
+      - /api/data
+      - /api/health
+      - /api/mps
+      - /api/data/clear-cache
+      - /api/data/lazy-load
+      - /api/sales-orders
+      - /api/enterprise/so-service/health
+      - /api/so-performance
+      - /api/so-performance/refresh
+      - /api/so-background-refresh
+      ... and 14 more routes
+
+7. VERCEL CONFIGURATION
+   Checking vercel.json routing...
+
+   âo. vercel.json found
+   Routes configured:
+      - /api/(.*) -> https://canoil-backend-711358371169.us-central1.run.app/api/$1
+      -  -> 
+      - /(.*) -> /index.html
+
+8. DEPLOYMENT CONFIGURATIONS
+   Checking which deployment configs exist...
+
+   âo. Dockerfile exists
+   âo. render.yaml exists
+   âo. vercel.json exists
+   âo. Procfile exists
+   âo. start.sh exists
+
+9. BACKEND STARTUP SCRIPTS
+   Checking which startup scripts exist...
+
+   âo. backend/start_app.py exists
+   âo. backend/start_hypercorn.py exists
+   âo. backend/start_server.py exists
+   âo. start.sh exists
+   âo. Procfile exists
+   âo. launch-canoil.bat exists
+   âo. launch-canoil.ps1 exists
+
+========================================
+  SUMMARY
+========================================
+
+âo. ACTIVE:
+   - backend/app.py (main backend)
+   - frontend/src/utils/apiConfig.ts (centralized config)
+   - 12 components using apiConfig.ts
+
+âs ï,?  NEEDS ATTENTION:
+   - 1 files with hardcoded URLs
+   - 22 potentially unused components
+
+â?O UNUSED/LEGACY:
+   - api/ folder (not referenced in vercel.json or imports)
+   - See component list above
+
+========================================
+  AUDIT COMPLETE
+========================================
+
+NOTE: This is analysis only. No files were deleted or moved.
+

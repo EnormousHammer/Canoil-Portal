@@ -17,11 +17,16 @@ import sys
 import io
 
 # Ensure console logging works on Windows with Unicode characters (emojis, symbols)
+# Only wrap if not already wrapped to avoid closing file handles
 try:
-    if hasattr(sys.stdout, "buffer"):
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    if hasattr(sys.stderr, "buffer"):
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stdout, "buffer") and not isinstance(sys.stdout, io.TextIOWrapper):
+        # Store original to prevent closure issues
+        original_stdout = sys.stdout
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    if hasattr(sys.stderr, "buffer") and not isinstance(sys.stderr, io.TextIOWrapper):
+        # Store original to prevent closure issues
+        original_stderr = sys.stderr
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 except Exception:
     # Never crash the app just because logging reconfiguration failed
     pass
@@ -1811,17 +1816,16 @@ def get_latest_folder():
         return None, str(e)
 
 def load_json_file(file_path):
-    """Load JSON file from G: Drive with proper error handling"""
+    """Load JSON file from G: Drive with proper error handling - optimized for speed"""
     try:
         if os.path.exists(file_path):
-            print(f"📄 Loading file: {file_path}")
+            # Reduced logging for performance - only log errors
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                print(f"SUCCESS: Successfully loaded {len(data)} records from {os.path.basename(file_path)}")
                 return data
         else:
-            print(f"⚠️ File not found: {file_path}")
-        return []
+            # File not found - return empty array silently (expected for optional files)
+            return []
     except Exception as e:
         print(f"ERROR: Error loading {file_path}: {e}")
         return []
@@ -1983,23 +1987,15 @@ def get_all_data():
             "PurchaseOrderDetails.json"  # Purchase order details
         ]
         
-        print(f"⚡ LOADING: Loading G: Drive data with proper timing...")
+        print(f"⚡ LOADING: Loading G: Drive data...")
         
-        # Minimal delay for realistic loading - just enough to show progress
-        import time
-        time.sleep(0.5)  # 0.5 second delay for smooth loading experience
-        
-        # Load only essential files first
+        # Load only essential files first (optimized - minimal logging for speed)
         for file_name in essential_files:
             file_path = os.path.join(folder_path, file_name)
-            if os.path.exists(file_path):
-                print(f"📊 Loading {file_name}...")
-                file_data = load_json_file(file_path)
-                raw_data[file_name] = file_data
-                print(f"SUCCESS: {file_name} loaded with {len(file_data) if isinstance(file_data, list) else 1} records")
-            else:
-                print(f"⚠️ {file_name} not found, using empty array")
-                raw_data[file_name] = []
+            file_data = load_json_file(file_path)
+            raw_data[file_name] = file_data
+            if file_data:
+                print(f"✅ {file_name}: {len(file_data) if isinstance(file_data, list) else 1} records")
         
         # Initialize other expected files as empty arrays for now
         other_files = [
@@ -2016,7 +2012,8 @@ def get_all_data():
         for file_name in other_files:
             raw_data[file_name] = []
         
-        print(f"⚡ FAST LOADING COMPLETE: {len([k for k, v in raw_data.items() if v])} files loaded")
+        loaded_count = len([k for k, v in raw_data.items() if isinstance(v, list) and len(v) > 0])
+        print(f"⚡ Loaded {loaded_count} files with data")
         
         # Use data AS-IS - no conversion needed!
         
@@ -2035,13 +2032,18 @@ def get_all_data():
         print("Loading Sales Orders - Performance Optimized...")
         try:
             from so_performance_optimizer import get_optimized_so_data, get_so_performance_stats
-            from so_background_refresh import start_so_background_refresh, get_so_refresh_status
-            
-            # Start background refresh service if not already running
             try:
-                start_so_background_refresh()
-            except:
-                pass  # Service might already be running
+                from so_background_refresh import start_so_background_refresh, get_so_refresh_status
+                # Start background refresh service if not already running
+                try:
+                    start_so_background_refresh()
+                except Exception as bg_error:
+                    print(f"⚠️ Background refresh service not available: {bg_error}")
+            except ImportError as import_error:
+                print(f"⚠️ so_background_refresh module not available: {import_error}")
+            except Exception as bg_error:
+                print(f"⚠️ Background refresh service error: {bg_error}")
+            
             
             sales_orders_data = get_optimized_so_data()
             if sales_orders_data:
@@ -2076,14 +2078,22 @@ def get_all_data():
             raw_data.update(cached_so_data)
             print(f"SUCCESS: Added {len(cached_so_data.get('ParsedSalesOrders.json', []))} parsed SOs to data")
         
-        # Enterprise SO Service integration
+        # Enterprise SO Service integration (lazy import to avoid circular dependency)
         try:
-            from enterprise_so_service import get_so_service_health
-            so_health = get_so_service_health()
-            raw_data['SOServiceHealth'] = so_health
-            print(f"SUCCESS: SO Service Health: {so_health['status']} - {so_health['total_sos']} SOs cached")
+            # Use importlib to avoid circular import issues
+            import importlib
+            enterprise_so_module = importlib.import_module('enterprise_so_service')
+            get_so_service_health = getattr(enterprise_so_module, 'get_so_service_health', None)
+            if get_so_service_health:
+                so_health = get_so_service_health()
+                raw_data['SOServiceHealth'] = so_health
+                print(f"SUCCESS: SO Service Health: {so_health['status']} - {so_health['total_sos']} SOs cached")
+            else:
+                print("⚠️ Enterprise SO Service function not found")
+        except ImportError as import_error:
+            print(f"⚠️ Enterprise SO Service module not available: {import_error}")
         except Exception as e:
-            print(f"⚠️ Enterprise SO Service not available: {e}")
+            print(f"⚠️ Enterprise SO Service error: {e}")
         
         # Load MPS (Master Production Schedule) data
         print("RETRY: Loading MPS data...")

@@ -23,3 +23,4 @@ google-api-python-client>=2.100.0
 gunicorn==21.2.0
 hypercorn==0.14.4
 asgiref>=3.7.0  # Required for WsgiToAsgi adapter (Flask to ASGI)
+schedule>=1.2.0  # Required for so_background_refresh
