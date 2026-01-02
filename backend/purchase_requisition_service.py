@@ -230,8 +230,9 @@ def fill_excel_directly(template_path, cell_values):
     
     # Update or create cells
     for ref, value in cell_values.items():
-        if value is None or value == '':
-            continue
+        # Convert None to empty string - but STILL update the cell to clear old data!
+        if value is None:
+            value = ''
             
         col_letter, row_num = parse_cell_ref(ref)
         if col_letter is None:
@@ -258,14 +259,6 @@ def fill_excel_directly(template_path, cell_values):
                 if v is not None:
                     cell.remove(v)
             else:
-                # Check if value is numeric
-                is_numeric = False
-                try:
-                    float(str(value).replace(',', ''))
-                    is_numeric = True
-                except (ValueError, TypeError):
-                    is_numeric = False
-                
                 # Remove old formula if exists
                 f = cell.find(f'{{{XLSX_NS}}}f')
                 if f is not None:
@@ -276,18 +269,36 @@ def fill_excel_directly(template_path, cell_values):
                 if is_elem is not None:
                     cell.remove(is_elem)
                 
+                # Remove old value if exists
+                if v is not None:
+                    cell.remove(v)
+                    v = None
+                
+                # Handle empty string - CLEAR the cell content (removes old template data!)
+                if value == '':
+                    # Clear cell - remove type attribute and all content
+                    if 't' in cell.attrib:
+                        del cell.attrib['t']
+                    # Cell is now empty - old Lanxess data cleared!
+                    continue
+                
+                # Check if value is numeric
+                is_numeric = False
+                try:
+                    float(str(value).replace(',', ''))
+                    is_numeric = True
+                except (ValueError, TypeError):
+                    is_numeric = False
+                
                 if is_numeric:
                     # Store as number - no type attribute, just value
                     if 't' in cell.attrib:
                         del cell.attrib['t']
-                    if v is None:
-                        v = etree.SubElement(cell, f'{{{XLSX_NS}}}v')
+                    v = etree.SubElement(cell, f'{{{XLSX_NS}}}v')
                     v.text = str(float(str(value).replace(',', '')))
                 else:
                     # Store as inline string
                     cell.set('t', 'inlineStr')
-                    if v is not None:
-                        cell.remove(v)
                     is_elem = etree.SubElement(cell, f'{{{XLSX_NS}}}is')
                     t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
                     t_elem.text = str(value)
@@ -344,6 +355,22 @@ def fill_excel_directly(template_path, cell_values):
                 row.append(new_cell)
             
             cell_map[ref] = new_cell
+    
+    # Clear cached values from formula cells to force Excel to recalculate on open
+    # This fixes the issue where formulas show old/wrong values until clicked
+    formula_cells_cleared = 0
+    for row in sheet_data:
+        for cell in row:
+            f = cell.find(f'{{{XLSX_NS}}}f')
+            if f is not None:
+                # This cell has a formula - remove cached value so Excel recalculates
+                v = cell.find(f'{{{XLSX_NS}}}v')
+                if v is not None:
+                    cell.remove(v)
+                    formula_cells_cleared += 1
+    
+    if formula_cells_cleared > 0:
+        print(f"[PR] 🔄 Cleared cached values from {formula_cells_cleared} formula cells for recalculation")
     
     # Serialize back to XML
     files['xl/worksheets/sheet1.xml'] = etree.tostring(
@@ -948,35 +975,28 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
     cell_values['I13'] = date_needed.strftime('%Y-%m-%d')  # Date Needed
     
     # === SUPPLIER INFO ===
-    # Only use verified data from the same supplier - properly linked, no guessing
+    # ALWAYS set all supplier cells - even if empty - to clear old template data!
+    # The template has old Lanxess data that needs to be overwritten or cleared
+    
     if supplier_info:
-        # B9: Vendor Name (from most recent PO for this supplier)
+        # B9: Vendor Name
         supplier_name = supplier_info.get('name', '')
         supplier_no = supplier_info.get('supplier_no', '')
-        if supplier_name:
-            cell_values['B9'] = supplier_name
-        elif supplier_no:
-            cell_values['B9'] = supplier_no  # Fallback to code if no name
+        cell_values['B9'] = supplier_name if supplier_name else supplier_no
         
-        # B11: Contact Name (from verified supplier data)
-        contact = supplier_info.get('contact', '')
-        if contact:
-            cell_values['B11'] = contact
+        # B11: Contact Name - ALWAYS set (empty string clears old data)
+        cell_values['B11'] = supplier_info.get('contact', '')
         
         # B13: Lead Time
         cell_values['B13'] = f"{lead_days} days"
         
-        # C11: Email (from verified PurchaseOrderAdditionalCostsTaxes)
-        email = supplier_info.get('email', '')
-        if email:
-            cell_values['C11'] = email
+        # C11: Email - ALWAYS set (empty string clears old Lanxess email)
+        cell_values['C11'] = supplier_info.get('email', '')
         
-        # Phone (if there's a cell for it in template)
-        phone = supplier_info.get('phone', '')
-        if phone:
-            cell_values['C13'] = phone  # Add phone next to lead time
+        # C13: Phone - ALWAYS set (empty string clears old data)
+        cell_values['C13'] = supplier_info.get('phone', '')
         
-        # Build address string if available
+        # Build address string and ALWAYS set it
         address_parts = []
         if supplier_info.get('address'):
             address_parts.append(supplier_info['address'])
@@ -990,10 +1010,16 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
         if supplier_info.get('postal'):
             address_parts.append(supplier_info['postal'])
         
-        # Put address in a visible cell if available
-        if address_parts:
-            # Could add to notes or another cell if template supports it
-            pass  # Template may not have address cell - keeping for reference
+        # B7 or similar cell for address - set even if empty to clear old data
+        # Note: Check template to confirm correct cell for address
+        # cell_values['B7'] = ', '.join(address_parts) if address_parts else ''
+    else:
+        # No supplier info at all - still clear all supplier cells!
+        cell_values['B9'] = ''   # Vendor name
+        cell_values['B11'] = ''  # Contact
+        cell_values['B13'] = f"{lead_days} days"  # Lead time
+        cell_values['C11'] = ''  # Email
+        cell_values['C13'] = ''  # Phone
     
     # === LINE ITEMS (Rows 16-29, max 14 items) ===
     start_row = 16
