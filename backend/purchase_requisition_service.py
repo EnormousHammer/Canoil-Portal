@@ -834,32 +834,23 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
     cell_values['I13'] = date_needed.strftime('%Y-%m-%d')  # Date Needed
     
     # === SUPPLIER INFO ===
+    # Only use verified data from the same PO - don't mix sources
     if supplier_info:
-        # B9: Vendor Name
+        # B9: Vendor Name (from most recent PO for this supplier)
         supplier_name = supplier_info.get('name', '')
+        supplier_no = supplier_info.get('supplier_no', '')
         if supplier_name:
             cell_values['B9'] = supplier_name
+        elif supplier_no:
+            cell_values['B9'] = supplier_no  # Fallback to code if no name
         
-        # B11: Contact with phone
-        contact = supplier_info.get('contact', '')
-        phone = supplier_info.get('phone', '')
-        if contact and phone:
-            cell_values['B11'] = f"{contact} | {phone}"
-        elif contact:
-            cell_values['B11'] = contact
-        elif phone:
-            cell_values['B11'] = phone
+        # B11: Leave blank - don't guess contact info that might be from different POs
+        # User can fill this in manually if needed
         
         # B13: Lead Time
         cell_values['B13'] = f"{lead_days} days"
         
-        # C11: Email or Terms
-        email = supplier_info.get('email', '')
-        terms = supplier_info.get('terms', '')
-        if email:
-            cell_values['C11'] = email
-        elif terms:
-            cell_values['C11'] = f"Terms: {terms}"
+        # C11: Leave blank - don't guess email/terms that might be inconsistent
     
     # === LINE ITEMS (Rows 16-29, max 14 items) ===
     start_row = 16
