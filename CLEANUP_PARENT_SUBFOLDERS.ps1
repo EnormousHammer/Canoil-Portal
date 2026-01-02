@@ -97,3 +97,4 @@ $deletedItems | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
 Write-Host ""
 Write-Host "✅ Subfolder cleanup complete!" -ForegroundColor Green
 
+

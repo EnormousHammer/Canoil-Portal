@@ -737,12 +737,12 @@ function App() {
       )}
       
       {activeApp === 'operations' ? (
-        <RevolutionaryCanoilHub
-          data={data}
-          dataSource={dataSource}
-          syncInfo={syncInfo}
-          currentUser={currentUser}
-          onRefreshData={handleRefreshData}
+      <RevolutionaryCanoilHub 
+        data={data} 
+        dataSource={dataSource} 
+        syncInfo={syncInfo}
+        currentUser={currentUser}
+        onRefreshData={handleRefreshData}
         />
       ) : (
         <ProductionScheduleMPS />

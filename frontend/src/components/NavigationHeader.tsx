@@ -97,15 +97,15 @@ export function NavigationHeader({
       onSelectApp('production-schedule');
     } else if (typeof window !== 'undefined') {
       // Fallback to legacy standalone app behavior
-      const isLocal =
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1';
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
 
-      const url = isLocal
-        ? 'http://localhost:3000'
-        : 'https://cannoli-production-schedule.vercel.app';
+    const url = isLocal
+      ? 'http://localhost:3000'
+      : 'https://cannoli-production-schedule.vercel.app';
 
-      window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -118,11 +118,11 @@ export function NavigationHeader({
             {/* Left Side - Logo and Main Title inline */}
             <div className="flex items-center space-x-3">
               {/* Logo */}
-              <img
-                src="/Canoil_logo.png"
-                alt="Canoil Canada Ltd."
+                <img 
+                  src="/Canoil_logo.png" 
+                  alt="Canoil Canada Ltd." 
                 className="h-7 w-auto"
-              />
+                />
               
               {/* Main Title - single line */}
               <div className="flex items-center space-x-2">

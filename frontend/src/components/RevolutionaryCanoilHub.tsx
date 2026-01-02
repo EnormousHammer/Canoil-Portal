@@ -258,6 +258,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     leadTime: 7
   });
   
+  // PR History State
+  const [showPRHistory, setShowPRHistory] = useState(false);
+  const [prHistory, setPRHistory] = useState<any[]>([]);
+  const [prHistoryLoading, setPRHistoryLoading] = useState(false);
+  
   // Customer details pagination state
   const [moPageSize, setMoPageSize] = useState(25);
   const [moCurrentPage, setMoCurrentPage] = useState(1);
@@ -878,6 +883,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     setShowAnalytics(false);
     setShowBOMPlanning(false);
     setShowFullDetails(false);
+  };
+
+  // Function to fetch PR history
+  const fetchPRHistory = async () => {
+    setPRHistoryLoading(true);
+    try {
+      const response = await fetch(`${getApiUrl()}/api/pr/history`);
+      if (response.ok) {
+        const data = await response.json();
+        setPRHistory(data.history || []);
+      } else {
+        console.error('Failed to fetch PR history');
+        setPRHistory([]);
+      }
+    } catch (error) {
+      console.error('Error fetching PR history:', error);
+      setPRHistory([]);
+    } finally {
+      setPRHistoryLoading(false);
+    }
   };
 
   // Handle ESC key press to close modal
@@ -5273,6 +5298,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     )}
                   </button>
                   
+                  {/* PR History Button */}
+                  <button 
+                    onClick={() => {
+                      setShowPRHistory(!showPRHistory);
+                      if (!showPRHistory) {
+                        fetchPRHistory();
+                      }
+                    }}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                      showPRHistory 
+                        ? 'bg-indigo-600 text-white shadow-xl' 
+                        : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                    }`}
+                  >
+                    📋 PR History
+                  </button>
+                  
                   <div className="text-sm text-slate-600">
                     {(() => {
                       const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
@@ -5393,6 +5435,118 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           )}
                         </button>
                       </>
+                    )}
+                  </div>
+                )}
+
+                {/* PR History Panel */}
+                {showPRHistory && (
+                  <div className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-200 p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-bold text-indigo-800 flex items-center gap-2">
+                        📋 Purchase Requisition History
+                        <span className="text-sm font-normal text-indigo-600">
+                          (Last 30 days)
+                        </span>
+                      </h4>
+                      <button
+                        onClick={fetchPRHistory}
+                        disabled={prHistoryLoading}
+                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1"
+                      >
+                        {prHistoryLoading ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>🔄 Refresh</>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {prHistoryLoading && prHistory.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-3xl mb-2 animate-pulse">📊</div>
+                        <div>Loading PR history...</div>
+                      </div>
+                    ) : prHistory.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-3xl mb-2">📭</div>
+                        <div>No PRs generated in the last 30 days</div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b-2 border-indigo-200">
+                              <th className="text-left py-2 px-3 font-semibold text-indigo-900">Date</th>
+                              <th className="text-left py-2 px-3 font-semibold text-indigo-900">Time</th>
+                              <th className="text-left py-2 px-3 font-semibold text-indigo-900">User</th>
+                              <th className="text-left py-2 px-3 font-semibold text-indigo-900">Justification</th>
+                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">Items</th>
+                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">Suppliers</th>
+                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">PRs</th>
+                              <th className="text-right py-2 px-3 font-semibold text-indigo-900">Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {prHistory.map((pr: any, index: number) => (
+                              <tr 
+                                key={pr.id || index} 
+                                className="border-b border-indigo-100 hover:bg-indigo-50 transition-colors"
+                              >
+                                <td className="py-3 px-3 font-medium text-gray-900">{pr.date}</td>
+                                <td className="py-3 px-3 text-gray-600">{pr.time}</td>
+                                <td className="py-3 px-3 text-gray-800">{pr.user}</td>
+                                <td className="py-3 px-3 text-gray-600 max-w-xs truncate" title={pr.justification}>
+                                  {pr.justification?.length > 30 ? `${pr.justification.substring(0, 30)}...` : pr.justification}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                                    {pr.items_requested?.length || 0}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <div className="flex flex-wrap gap-1 justify-center">
+                                    {pr.suppliers?.slice(0, 3).map((s: any, i: number) => (
+                                      <span 
+                                        key={i} 
+                                        className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium"
+                                        title={s.supplier_name}
+                                      >
+                                        {s.supplier_no?.length > 10 ? `${s.supplier_no.substring(0, 10)}...` : s.supplier_no}
+                                      </span>
+                                    ))}
+                                    {pr.suppliers?.length > 3 && (
+                                      <span className="text-gray-500 text-xs">+{pr.suppliers.length - 3}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                                    {pr.total_prs_generated || 0}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right font-medium text-gray-900">
+                                  ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        
+                        {/* Summary Footer */}
+                        <div className="mt-4 pt-3 border-t border-indigo-200 flex justify-between text-sm text-indigo-700">
+                          <span>Total: {prHistory.length} PR generation{prHistory.length !== 1 ? 's' : ''}</span>
+                          <span>
+                            Total Value: ${prHistory.reduce((sum: number, pr: any) => sum + (pr.total_value || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

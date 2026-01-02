@@ -31,6 +31,56 @@ _gdrive_data_cache = {}
 _gdrive_cache_time = None
 _GDRIVE_CACHE_DURATION = 300  # 5 minutes
 
+# PR History storage
+PR_HISTORY_FILE = os.path.join(_current_dir, 'pr_history.json')
+PR_HISTORY_RETENTION_DAYS = 30
+
+
+def load_pr_history():
+    """Load PR history from JSON file"""
+    try:
+        if os.path.exists(PR_HISTORY_FILE):
+            with open(PR_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            # Filter to last 30 days
+            cutoff = datetime.now() - timedelta(days=PR_HISTORY_RETENTION_DAYS)
+            cutoff_str = cutoff.strftime('%Y-%m-%d')
+            history = [h for h in history if h.get('date', '') >= cutoff_str]
+            return history
+        return []
+    except Exception as e:
+        print(f"[PR] Error loading PR history: {e}")
+        return []
+
+
+def save_pr_history(history):
+    """Save PR history to JSON file"""
+    try:
+        # Filter to last 30 days before saving
+        cutoff = datetime.now() - timedelta(days=PR_HISTORY_RETENTION_DAYS)
+        cutoff_str = cutoff.strftime('%Y-%m-%d')
+        history = [h for h in history if h.get('date', '') >= cutoff_str]
+        
+        with open(PR_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"[PR] Error saving PR history: {e}")
+        return False
+
+
+def add_pr_to_history(pr_record):
+    """Add a new PR record to history"""
+    try:
+        history = load_pr_history()
+        history.insert(0, pr_record)  # Add to beginning (most recent first)
+        save_pr_history(history)
+        print(f"[PR] ✅ Added PR to history: {pr_record.get('id')}")
+        return True
+    except Exception as e:
+        print(f"[PR] Error adding to PR history: {e}")
+        return False
+
 
 def get_google_drive_service():
     """Get Google Drive service from app.py - lazy initialization"""
@@ -1210,6 +1260,52 @@ def create_pr_from_bom():
         print("  ✅ Shortage report generated")
         
         # ========================================
+        # STEP 5.6: Save to PR History
+        # ========================================
+        print("\n📋 Step 5.6: Saving to PR history...")
+        try:
+            pr_id = f"PR-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            
+            # Build supplier summary for history
+            supplier_summary = []
+            for supplier_no, items_list in by_supplier.items():
+                supplier_info = get_supplier_info(supplier_no)
+                supplier_summary.append({
+                    'supplier_no': supplier_no,
+                    'supplier_name': supplier_info.get('name', supplier_no) if supplier_info else supplier_no,
+                    'item_count': len(items_list)
+                })
+            
+            # Calculate total value
+            total_value = sum(
+                item.get('order_qty', 0) * item.get('unit_price', 0) 
+                for item in short_items
+            )
+            
+            pr_record = {
+                'id': pr_id,
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'time': datetime.now().strftime('%H:%M:%S'),
+                'user': user_info.get('name', 'Unknown'),
+                'department': user_info.get('department', 'N/A'),
+                'justification': user_info.get('justification', 'N/A'),
+                'lead_time': user_info.get('lead_time', 7),
+                'items_requested': selected_items,
+                'suppliers': supplier_summary,
+                'total_prs_generated': len(generated_files),
+                'total_components_short': len(short_items),
+                'items_without_supplier': len(no_supplier),
+                'total_value': round(total_value, 2),
+                'status': 'completed',
+                'files': [f.get('filename') for f in generated_files]
+            }
+            
+            add_pr_to_history(pr_record)
+            print(f"  ✅ PR history saved: {pr_id}")
+        except Exception as hist_err:
+            print(f"  ⚠️ Failed to save PR history (non-critical): {hist_err}")
+        
+        # ========================================
         # STEP 6: Return files
         # ========================================
         print(f"\n📦 Step 6: Returning {len(generated_files)} PR file(s)...")
@@ -1273,6 +1369,46 @@ def create_pr_from_bom():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+@pr_service.route('/api/pr/history', methods=['GET'])
+def get_pr_history():
+    """
+    Get PR generation history for the last 30 days.
+    
+    Returns:
+    {
+        "history": [
+            {
+                "id": "PR-2026-01-02-123456",
+                "date": "2026-01-02",
+                "time": "14:30:25",
+                "user": "John Doe",
+                "department": "Sales",
+                "justification": "Customer Order #12345",
+                "items_requested": [
+                    {"item_no": "CC SAE30 4T12X600 CASE", "qty": 5}
+                ],
+                "suppliers": [
+                    {"supplier_no": "BRENNTAG USD", "supplier_name": "BRENNTAG CANADA INC. USD", "item_count": 3}
+                ],
+                "total_prs_generated": 2,
+                "total_components_short": 5,
+                "status": "completed"
+            }
+        ]
+    }
+    """
+    try:
+        history = load_pr_history()
+        return jsonify({
+            "success": True,
+            "history": history,
+            "count": len(history)
+        })
+    except Exception as e:
+        print(f"[PR] Error getting history: {e}")
+        return jsonify({"error": str(e), "history": []}), 500
 
 
 @pr_service.route('/api/pr/search-items', methods=['GET'])

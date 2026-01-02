@@ -1842,13 +1842,13 @@ _cache_duration = 3600  # 1 hour cache (was 5 minutes - too short)
 def get_all_data():
     """Get all data from latest G: Drive folder - with caching"""
     global _data_cache, _response_cache, _cache_timestamp
+    import time  # Import at function level for use throughout function
     
     try:
         print("/api/data endpoint called")
         
         # Check if we have valid cached response (pre-serialized)
         if _response_cache and _cache_timestamp:
-            import time
             cache_age = time.time() - _cache_timestamp
             print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}")
             if cache_age < _cache_duration:
@@ -1872,7 +1872,6 @@ def get_all_data():
                     if gdrive_data and gdrive_folder_info:
                         print(f"✅ Successfully loaded data from Google Drive API")
                         # Cache the data AND pre-serialize the response
-                        import time
                         import json as json_module
                         _data_cache = gdrive_data
                         _cache_timestamp = time.time()
@@ -4642,6 +4641,7 @@ if __name__ == '__main__':
             print(f"⚠️ G: Drive issue: {error}")
     except Exception as e:
         print(f"ERROR: G: Drive test failed: {e}")
-
-if __name__ == '__main__':
-    app.run(host='localhost', port=5002, debug=False)
+    
+    # Run Flask app - bind to 0.0.0.0 to accept connections from localhost and 127.0.0.1
+    print("🌐 Starting Flask server on http://0.0.0.0:5002 (accessible via localhost:5002)")
+    app.run(host='0.0.0.0', port=5002, debug=False)
