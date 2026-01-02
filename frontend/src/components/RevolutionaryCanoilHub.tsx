@@ -250,6 +250,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [bomCart, setBomCart] = useState<Array<{item_no: string; description: string; qty: number}>>([]);
   const [showBomCart, setShowBomCart] = useState(false);
   
+  // BOM PR Generation Modal State
+  const [showBOMPRModal, setShowBOMPRModal] = useState(false);
+  const [bomPRModalData, setBOMPRModalData] = useState({
+    justification: '',
+    requestedBy: '',
+    leadTime: 7
+  });
+  
   // Customer details pagination state
   const [moPageSize, setMoPageSize] = useState(25);
   const [moCurrentPage, setMoCurrentPage] = useState(1);
@@ -5348,83 +5356,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           ))}
                         </div>
                         
-                        {/* Generate PRs Button */}
+                        {/* Generate PRs Button - Opens Modal First */}
                         <button
-                          onClick={async () => {
+                          onClick={() => {
                             if (bomCart.length === 0) {
                               alert('Please add items to the cart first');
                               return;
                             }
-                            
-                            setBomPRLoading(true);
-                            
-                            try {
-                              const response = await fetch('/api/pr/create-from-bom', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  user_info: {
-                                    name: currentUser?.name || 'Unknown User',
-                                    department: 'Sales',
-                                    justification: `Batch BOM Planning - ${bomCart.length} items: ${bomCart.map(i => i.item_no).join(', ')}`
-                                  },
-                                  selected_items: bomCart.map(item => ({
-                                    item_no: item.item_no,
-                                    qty: item.qty
-                                  })),
-                                  location: '62TODD'
-                                })
-                              });
-                              
-                              const contentType = response.headers.get('content-type');
-                              if (contentType && contentType.includes('application/json')) {
-                                const result = await response.json();
-                                if (result.error) {
-                                  alert(`Error: ${result.error}`);
-                                  return;
-                                }
-                                if (result.message) {
-                                  alert(result.message);
-                                  return;
-                                }
-                              }
-                              
-                              if (!response.ok) {
-                                throw new Error('Failed to generate PRs');
-                              }
-                              
-                              const blob = await response.blob();
-                              const contentDisposition = response.headers.get('content-disposition');
-                              let filename = 'PRs-Batch';
-                              if (contentDisposition) {
-                                const match = contentDisposition.match(/filename="?([^"]+)"?/);
-                                if (match) filename = match[1];
-                              }
-                              
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = filename;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              window.URL.revokeObjectURL(url);
-                              
-                              if (filename.endsWith('.zip')) {
-                                alert(`✅ Generated batch PRs (grouped by supplier) for ${bomCart.length} items!\nDownloaded: ${filename}`);
-                              } else {
-                                alert(`✅ Generated PR for ${bomCart.length} items (single supplier)\nDownloaded: ${filename}`);
-                              }
-                              
-                              // Clear cart after successful generation
-                              setBomCart([]);
-                              
-                            } catch (error) {
-                              console.error('Batch PR generation error:', error);
-                              alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                            } finally {
-                              setBomPRLoading(false);
-                            }
+                            // Open the modal to collect PR details
+                            setBOMPRModalData({
+                              justification: '',
+                              requestedBy: currentUser?.name || '',
+                              leadTime: 7
+                            });
+                            setShowBOMPRModal(true);
                           }}
                           disabled={bomPRLoading || bomCart.length === 0}
                           className={`w-full py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
@@ -8727,6 +8672,158 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         allData={data}
         preFilledItems={selectedItems}
       />
+      
+      {/* BOM PR Generation Modal */}
+      {showBOMPRModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-500 to-red-600 px-6 py-4">
+              <h3 className="text-xl font-bold text-white">Generate Purchase Requisitions</h3>
+              <p className="text-orange-100 text-sm mt-1">
+                {bomCart.length} item{bomCart.length !== 1 ? 's' : ''} in cart
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Justification for Purchase *
+                </label>
+                <textarea
+                  value={bomPRModalData.justification}
+                  onChange={(e) => setBOMPRModalData(prev => ({ ...prev, justification: e.target.value }))}
+                  placeholder="e.g., Customer Order #12345, Stock Replenishment, etc."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Requested By *
+                </label>
+                <input
+                  type="text"
+                  value={bomPRModalData.requestedBy}
+                  onChange={(e) => setBOMPRModalData(prev => ({ ...prev, requestedBy: e.target.value }))}
+                  placeholder="Your name"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Lead Time (Days)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={bomPRModalData.leadTime}
+                  onChange={(e) => setBOMPRModalData(prev => ({ ...prev, leadTime: parseInt(e.target.value) || 7 }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 bg-gray-50 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowBOMPRModal(false)}
+                className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!bomPRModalData.justification.trim()) {
+                    alert('Please enter a justification for purchase');
+                    return;
+                  }
+                  if (!bomPRModalData.requestedBy.trim()) {
+                    alert('Please enter who requested this purchase');
+                    return;
+                  }
+                  
+                  setShowBOMPRModal(false);
+                  setBomPRLoading(true);
+                  
+                  try {
+                    const response = await fetch('/api/pr/create-from-bom', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        user_info: {
+                          name: bomPRModalData.requestedBy,
+                          department: 'Sales',
+                          justification: bomPRModalData.justification,
+                          lead_time: bomPRModalData.leadTime
+                        },
+                        selected_items: bomCart.map(item => ({
+                          item_no: item.item_no,
+                          qty: item.qty
+                        })),
+                        location: '62TODD'
+                      })
+                    });
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                      const result = await response.json();
+                      if (result.error) {
+                        alert(`Error: ${result.error}`);
+                        return;
+                      }
+                      if (result.message) {
+                        alert(result.message);
+                        return;
+                      }
+                    }
+                    
+                    if (!response.ok) {
+                      throw new Error('Failed to generate PRs');
+                    }
+                    
+                    const blob = await response.blob();
+                    const contentDisposition = response.headers.get('content-disposition');
+                    let filename = 'PRs-Batch';
+                    if (contentDisposition) {
+                      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                      if (match) filename = match[1];
+                    }
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    if (filename.endsWith('.zip')) {
+                      alert(`✅ Generated batch PRs (grouped by supplier) for ${bomCart.length} items!\nDownloaded: ${filename}`);
+                    } else {
+                      alert(`✅ Generated PR for ${bomCart.length} items (single supplier)\nDownloaded: ${filename}`);
+                    }
+                    
+                    setBomCart([]);
+                    
+                  } catch (error) {
+                    console.error('Batch PR generation error:', error);
+                    alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  } finally {
+                    setBomPRLoading(false);
+                  }
+                }}
+                disabled={bomPRLoading}
+                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 font-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bomPRLoading ? 'Generating...' : '🚀 Generate PRs'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

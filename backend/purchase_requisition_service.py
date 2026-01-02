@@ -723,6 +723,13 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
             )
             components.extend(sub_components)
         else:  # Raw Material (item_type == 0) - add to purchase list
+            # Skip empty tote/IBC containers - these are packaging not raw materials
+            # Only skip if Item Type 0 (purchased) AND name contains TOTE/IBC
+            component_upper = component_no.upper()
+            if 'TOTE' in component_upper or 'IBC' in component_upper or component_upper.startswith('PLASTICTOTE'):
+                print(f"    ⏭️ Skipping empty container (Item Type 0): {component_no}")
+                continue
+            
             components.append({
                 'item_no': component_no,
                 'description': component_data.get('description', ''),
