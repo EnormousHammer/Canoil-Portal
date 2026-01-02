@@ -125,7 +125,14 @@ import {
   Upload,
   RefreshCw,
   Settings,
-  MoreHorizontal
+  MoreHorizontal,
+  ClipboardList,
+  Wrench,
+  Cog,
+  Link2,
+  Package,
+  BarChart3 as BarChartIcon,
+  Briefcase
 } from 'lucide-react';
 
 // Purchase Order Types
@@ -237,6 +244,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [bomSearchQuery, setBomSearchQuery] = useState('');
   const [bomQuantity, setBomQuantity] = useState(0);
   const [selectedBomItem, setSelectedBomItem] = useState<any>(null);
+  const [bomPRLoading, setBomPRLoading] = useState(false);
+  
+  // BOM Cart for multi-item PR generation
+  const [bomCart, setBomCart] = useState<Array<{item_no: string; description: string; qty: number}>>([]);
+  const [showBomCart, setShowBomCart] = useState(false);
   
   // Customer details pagination state
   const [moPageSize, setMoPageSize] = useState(25);
@@ -1682,22 +1694,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Manufacturing Orders */}
           {activeSection === 'manufacturing-orders' && (
-            <div className="space-y-6">
-              {/* Manufacturing Operations - Enterprise Header */}
-              <div className="bg-white border-b border-gray-200 shadow-sm">
+            <div className="space-y-4">
+              {/* Modern Manufacturing Operations Header */}
+              <div className="bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-2xl">
                 <div className="max-w-7xl mx-auto px-6 py-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="flex items-center justify-center w-12 h-12 bg-indigo-600 rounded-lg shadow-lg">
-                        <Factory className="w-7 h-7 text-white" />
+                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
+                        <Factory className="w-10 h-10 text-white" />
                       </div>
                       <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Manufacturing Operations</h1>
-                        <p className="text-sm text-gray-600 mt-1">Production planning and order management</p>
+                        <h1 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Operations</h1>
+                        <p className="text-purple-100 text-base mt-1.5 font-medium">Production planning and order management</p>
                     </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
                         <Download className="w-4 h-4 mr-2" />
                         Export
                       </button>
@@ -1706,99 +1718,79 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
                 </div>
                 
-              {/* Manufacturing Metrics Dashboard */}
+              {/* Modern Manufacturing Metrics Dashboard */}
               <div className="max-w-7xl mx-auto px-4 py-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
                   
                   {/* Total Manufacturing Orders */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                            <Factory className="h-5 w-5 text-indigo-600" />
-                    </div>
-                  </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Total Manufacturing Orders</dt>
-                            <dd className="text-xl font-bold text-gray-900">
+                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-purple-100 rounded-lg">
+                          <Factory className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <dt className="text-xs font-semibold text-gray-700">Total MOs</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
                         {(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}
-                            </dd>
-                          </dl>
-                  </div>
+                      </dd>
                     </div>
                   </div>
-                    </div>
 
                   {/* Active Orders */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                            <Activity className="h-5 w-5 text-green-600" />
+                  <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-green-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-green-100 rounded-lg">
+                          <Activity className="w-4 h-4 text-green-600" />
                         </div>
-                        </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Active Orders</dt>
-                            <dd className="text-xl font-bold text-gray-900">
+                        <dt className="text-xs font-semibold text-gray-700">Active Orders</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
                         {(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}
-                            </dd>
-                          </dl>
-                      </div>
-                      </div>
+                      </dd>
                     </div>
                   </div>
 
                   {/* Planned Orders */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                            <Calendar className="h-5 w-5 text-amber-600" />
+                  <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-white to-amber-50/30 border-2 border-amber-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-amber-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-amber-100 rounded-lg">
+                          <Calendar className="w-4 h-4 text-amber-600" />
                         </div>
-                        </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Planned Orders</dt>
-                            <dd className="text-xl font-bold text-gray-900">
+                        <dt className="text-xs font-semibold text-gray-700">Planned Orders</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
                         {(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}
-                            </dd>
-                          </dl>
-                      </div>
-                      </div>
+                      </dd>
                     </div>
                   </div>
 
                   {/* Total Components */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Package2 className="h-5 w-5 text-purple-600" />
+                  <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-indigo-100 rounded-lg">
+                          <Package2 className="w-4 h-4 text-indigo-600" />
                         </div>
-                        </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Total Components</dt>
-                            <dd className="text-xl font-bold text-gray-900">
+                        <dt className="text-xs font-semibold text-gray-700">Total Components</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
                         {(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}
-                            </dd>
-                          </dl>
-                      </div>
-                      </div>
+                      </dd>
                     </div>
                   </div>
                 </div>
 
-                {/* Manufacturing Orders Table */}
+                {/* Modern Manufacturing Orders Table */}
                 {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
-                <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <div className="bg-white shadow-lg rounded-xl border-2 border-purple-200/50 overflow-hidden">
+                    <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-b-2 border-purple-200/50">
                       <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center space-x-4">
                         <div className="text-sm text-gray-600">
@@ -1861,13 +1853,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setMoSearchQuery(e.target.value);
                               setMoCurrentPage(1); // Reset to first page when searching
                             }}
-                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                            className="w-full pl-10 pr-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm shadow-sm bg-white/90 backdrop-blur-sm"
                           />
                         </div>
                         <select
                           value={moSortField}
                           onChange={(e) => setMoSortField(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm bg-white"
+                          className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
                         >
                           <option value="Mfg. Order No.">Sort by MO Number</option>
                           <option value="Customer">Sort by Customer</option>
@@ -1877,7 +1869,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </select>
                         <button
                           onClick={() => setMoSortDirection(moSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+                          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
                         >
                           {moSortDirection === 'asc' ? '↑' : '↓'}
                         </button>
@@ -1890,7 +1882,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <select
                               value={moStatusFilter}
                               onChange={(e) => setMoStatusFilter(e.target.value)}
-                              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm bg-white"
+                              className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
                             >
                               <option value="all">All Status</option>
                               <option value="0">Planned</option>
@@ -1906,7 +1898,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <select
                               value={moCustomerFilter}
                               onChange={(e) => setMoCustomerFilter(e.target.value)}
-                              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 text-sm min-w-[150px] bg-white"
+                              className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm min-w-[150px] bg-white/90 backdrop-blur-sm shadow-sm"
                             >
                               <option value="all">All Customers</option>
                               {(() => {
@@ -1930,7 +1922,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setMoSearchQuery('');
                               setMoCurrentPage(1);
                             }}
-                            className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm font-medium"
+                            className="px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
                           >
                             Clear All
                           </button>
@@ -1939,58 +1931,58 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   <div className="overflow-x-auto max-h-[700px] shadow-inner">
                       <table className="w-full text-sm">
-                      <thead className="bg-gradient-to-r from-gray-100 to-gray-200 sticky top-0 shadow-sm">
+                      <thead className="bg-gradient-to-r from-purple-100 via-indigo-100 to-purple-100 sticky top-0 shadow-md border-b-2 border-purple-200/50">
                         <tr>
                             {/* PRIMARY COLUMNS - Most Important */}
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[100px] cursor-pointer hover:bg-gray-100 bg-blue-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Mfg. Order No.', 'mo')}>
                               MO Number {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[150px] cursor-pointer hover:bg-gray-100 bg-blue-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[150px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Customer', 'mo')}>
                               Customer Name {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[100px] cursor-pointer hover:bg-gray-100 bg-blue-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Build Item No.', 'mo')}>
                               Build Item {moSortField === 'Build Item No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[200px] bg-blue-50">Description</th>
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[200px] border-r border-purple-200/30">Description</th>
                             
                             {/* QUANTITY & STATUS COLUMNS */}
-                            <th className="text-right p-2 font-medium text-gray-700 min-w-[80px] cursor-pointer hover:bg-gray-100 bg-green-50"
+                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Ordered', 'mo')}>
                               Ordered {moSortField === 'Ordered' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-right p-2 font-medium text-gray-700 min-w-[80px] cursor-pointer hover:bg-gray-100 bg-green-50"
+                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Completed', 'mo')}>
                               Completed {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-center p-2 font-medium text-gray-700 min-w-[80px] cursor-pointer hover:bg-gray-100 bg-green-50"
+                            <th className="text-center p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Status', 'mo')}>
                               Status {moSortField === 'Status' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
                             
                             {/* DATE COLUMNS */}
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[90px] cursor-pointer hover:bg-gray-100 bg-yellow-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Order Date', 'mo')}>
                               Order Date {moSortField === 'Order Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[90px] cursor-pointer hover:bg-gray-100 bg-yellow-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Release Date', 'mo')}>
                               Start Date {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[90px] cursor-pointer hover:bg-gray-100 bg-yellow-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Completion Date', 'mo')}>
                               Completion Date {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
                             
                             {/* LOCATION & COST COLUMNS */}
-                            <th className="text-left p-2 font-medium text-gray-700 min-w-[80px] bg-purple-50">Location</th>
-                            <th className="text-right p-2 font-medium text-gray-700 min-w-[100px] cursor-pointer hover:bg-gray-100 bg-red-50"
+                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[80px] border-r border-purple-200/30">Location</th>
+                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
                                 onClick={() => handleSort('Projected Material Cost', 'mo')}>
                               Unit Cost {moSortField === 'Projected Material Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-right p-2 font-medium text-gray-700 min-w-[120px] cursor-pointer hover:bg-gray-100 bg-red-50"
+                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[120px] cursor-pointer hover:bg-purple-100/50 transition-colors"
                                 onClick={() => handleSort('Cumulative Cost', 'mo')}>
                               Total Cost {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
@@ -2306,147 +2298,481 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Enhanced Manufacturing Order Details Modal */}
           {showMODetails && selectedMO && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto border border-gray-200">
-                {/* Professional MO Header */}
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-t-lg border-b border-purple-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-bold">Manufacturing Order Details</h3>
-                      <p className="text-purple-100">MO #{selectedMO['Mfg. Order No.']} - {selectedMO['Build Item No.']}</p>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
+                {/* Decorative gradient overlay */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600"></div>
+                <div className="overflow-y-auto max-h-[95vh]">
+                {/* Ultra Modern MO Header */}
+                <div className="relative bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-700 text-white px-8 py-6 border-b-4 border-purple-800/50 shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
+                        <Factory className="w-10 h-10 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Order Details</h3>
+                        <p className="text-purple-100 text-base mt-1.5 font-medium">
+                          MO #{selectedMO['Mfg. Order No.']} - {selectedMO['Build Item No.']}
+                          {selectedMO['Description'] && (
+                            <span className="ml-3 text-purple-200">• {selectedMO['Description']}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() => setShowMODetails(false)}
-                      className="text-white/80 hover:text-white text-2xl font-bold"
+                      className="text-white/90 hover:text-white hover:bg-white/20 rounded-xl p-3 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110"
+                      aria-label="Close"
                     >
-                      ×
+                      <X className="w-7 h-7" />
                     </button>
                   </div>
                 </div>
 
-                <div className="p-6">
-                  {/* Tabs */}
-                  <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+                <div className="p-4 bg-gradient-to-br from-gray-50 to-white">
+                  {/* Modern Tabs */}
+                  <div className="flex space-x-2 mb-4 border-b border-gray-200">
                     <button
                       onClick={() => setMoActiveTab('overview')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        moActiveTab === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'overview' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      📋 MO Overview
+                      <ClipboardList className="w-4 h-4" />
+                      MO Overview
                     </button>
                     <button
                       onClick={() => setMoActiveTab('details')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        moActiveTab === 'details' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'details' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      🔧 Components & Materials
+                      <Wrench className="w-4 h-4" />
+                      Components & Materials
                     </button>
                     <button
                       onClick={() => setMoActiveTab('routings')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        moActiveTab === 'routings' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'routings' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      ⚙️ Operations & Routing
+                      <Cog className="w-4 h-4" />
+                      Operations & Routing
                     </button>
                     <button
                       onClick={() => setMoActiveTab('pegged')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        moActiveTab === 'pegged' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'pegged' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      🔗 Pegged SOs
+                      <Link2 className="w-4 h-4" />
+                      Pegged SOs
                     </button>
                   </div>
 
                   {/* MO Overview Tab */}
                   {moActiveTab === 'overview' && (
                     <div className="space-y-6">
-                      {/* Header Information */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">📊 Status & Progress</h4>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">Status:</span>
-                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                selectedMO['Status'] === 1 ? 'bg-green-100 text-green-800' :
-                                selectedMO['Status'] === 0 ? 'bg-yellow-100 text-yellow-800' :
-                                selectedMO['Status'] === 2 ? 'bg-blue-100 text-blue-800' :
-                                selectedMO['Status'] === 3 ? 'bg-purple-100 text-purple-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {selectedMO['Status'] === 1 ? 'Released' :
-                                 selectedMO['Status'] === 0 ? 'Planned' :
-                                 selectedMO['Status'] === 2 ? 'Started' :
-                                 selectedMO['Status'] === 3 ? 'Finished' : 'Unknown'}
-                              </span>
+                      {/* Related Information - Sales Order, Job, Work Order */}
+                      {(() => {
+                        const salesOrderNo = selectedMO['Sales Order No.'];
+                        const jobNo = selectedMO['Job No.'];
+                        const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => 
+                          so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo
+                        ) : null;
+                        const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => 
+                          job['Job No.'] === jobNo
+                        ) : null;
+                        const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => 
+                          wo['Job No.'] === jobNo
+                        ) : [];
+
+                        if (relatedSO || relatedJob || relatedWorkOrders.length > 0) {
+                          return (
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 mb-3 shadow-sm">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Link2 className="w-4 h-4 text-blue-600" />
+                                <h4 className="font-semibold text-sm text-blue-900">Related Information</h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                                {relatedSO && (
+                                  <div className="bg-white rounded-lg p-2.5 border border-blue-200 shadow-sm">
+                                    <div className="flex items-center gap-1.5 font-medium text-blue-900 mb-1 text-xs">
+                                      <FileText className="w-3 h-3" />
+                                      Sales Order
+                                    </div>
+                                    <div className="text-blue-700 font-semibold text-sm">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
+                                    <div className="text-gray-600 text-xs mt-0.5">
+                                      {relatedSO['Customer'] || relatedSO['Customer Name'] || '—'}
+                                    </div>
+                                  </div>
+                                )}
+                                {relatedJob && (
+                                  <div className="bg-white rounded-lg p-2.5 border border-indigo-200 shadow-sm">
+                                    <div className="flex items-center gap-1.5 font-medium text-indigo-900 mb-1 text-xs">
+                                      <Briefcase className="w-3 h-3" />
+                                      Job
+                                    </div>
+                                    <div className="text-indigo-700 font-semibold text-sm">Job #{relatedJob['Job No.']}</div>
+                                    <div className="text-gray-600 text-xs mt-0.5">
+                                      {relatedJob['Status'] || '—'}
+                                    </div>
+                                  </div>
+                                )}
+                                {relatedWorkOrders.length > 0 && (
+                                  <div className="bg-white rounded-lg p-2.5 border border-purple-200 shadow-sm">
+                                    <div className="flex items-center gap-1.5 font-medium text-purple-900 mb-1 text-xs">
+                                      <Cog className="w-3 h-3" />
+                                      Work Orders
+                                    </div>
+                                    <div className="text-purple-700 font-semibold text-sm">{relatedWorkOrders.length} Work Order(s)</div>
+                                    <div className="text-gray-600 text-xs mt-0.5">
+                                      {relatedWorkOrders.map((wo: any) => wo['Work Order No.']).join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            
-                            {selectedMO['Status'] === 1 && (() => {
-                              const progressPercentage = Math.round(((parseFloat(selectedMO['Completed'] || 0) / Math.max(1, parseFloat(selectedMO['Ordered'] || 1))) * 100));
-                              return (
-                                <div>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-medium">Progress:</span>
-                                    <span className="text-sm text-gray-600">{progressPercentage}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                      style={{ width: `${progressPercentage}%` }}
-                                    ></div>
-                                  </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* Header Information - Compact Modern Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Status & Progress Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-purple-100 rounded-lg">
+                                <BarChartIcon className="w-4 h-4 text-purple-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Status & Progress</h4>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
+                                <span className="text-xs font-semibold text-gray-700">Status:</span>
+                                <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
+                                  selectedMO['Status'] === 1 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                                  selectedMO['Status'] === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
+                                  selectedMO['Status'] === 2 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                                  selectedMO['Status'] === 3 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
+                                  'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
+                                }`}>
+                                  {selectedMO['Status'] === 1 ? 'Released' :
+                                   selectedMO['Status'] === 0 ? 'Planned' :
+                                   selectedMO['Status'] === 2 ? 'Started' :
+                                   selectedMO['Status'] === 3 ? 'Finished' : 'Unknown'}
+                                </span>
+                              </div>
+                              {selectedMO['On Hold'] && (
+                                <div className="flex items-center justify-between bg-red-50 rounded-lg p-2 border border-red-200">
+                                  <span className="text-xs font-semibold text-red-700">On Hold:</span>
+                                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-red-500 text-white shadow-sm">
+                                    Yes
+                                  </span>
                                 </div>
-                              );
-                            })()}
+                              )}
+                              {(() => {
+                                const orderedQty = parseFloat(selectedMO['Ordered'] || 0);
+                                const completedQty = parseFloat(selectedMO['Completed'] || 0);
+                                const wipQty = parseFloat(selectedMO['WIP'] || 0);
+                                const issuedQty = parseFloat(selectedMO['Issued'] || 0);
+                                const progressPercentage = orderedQty > 0 
+                                  ? Math.round((completedQty / orderedQty) * 100) 
+                                  : 0;
+                                return (
+                                  <div className="space-y-2">
+                                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2.5 border border-purple-100">
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-xs font-semibold text-gray-700">Progress:</span>
+                                        <span className="text-sm font-bold text-purple-600">{progressPercentage}%</span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-inner">
+                                        <div 
+                                          className={`h-2.5 rounded-full transition-all duration-700 shadow-md ${
+                                            progressPercentage >= 100 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                            progressPercentage >= 50 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                                            progressPercentage > 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                                            'bg-gray-300'
+                                          }`}
+                                          style={{ width: `${Math.min(100, Math.max(0, progressPercentage))}%` }}
+                                        ></div>
+                                      </div>
+                                      <div className="mt-1 text-xs text-gray-500 flex justify-between">
+                                        <span>C: {completedQty.toLocaleString()}</span>
+                                        <span>O: {orderedQty.toLocaleString()}</span>
+                                      </div>
+                                    </div>
+                                    {(wipQty > 0 || issuedQty > 0) && (
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        {wipQty > 0 && (
+                                          <div className="bg-white/60 backdrop-blur-sm rounded-lg p-1.5 border border-blue-100">
+                                            <div className="text-xs text-gray-600">WIP</div>
+                                            <div className="text-xs font-bold text-blue-600">{wipQty.toLocaleString()}</div>
+                                          </div>
+                                        )}
+                                        {issuedQty > 0 && (
+                                          <div className="bg-white/60 backdrop-blur-sm rounded-lg p-1.5 border border-orange-100">
+                                            <div className="text-xs text-gray-600">Issued</div>
+                                            <div className="text-xs font-bold text-orange-600">{issuedQty.toLocaleString()}</div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">📦 Quantities</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Ordered:</span>
-                              <span className="font-semibold">{selectedMO['Ordered']?.toLocaleString() || '—'}</span>
+                        {/* Quantities Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-blue-100 rounded-lg">
+                                <Package className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Quantities</h4>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Completed:</span>
-                              <span className="font-semibold text-green-600">{selectedMO['Completed']?.toLocaleString() || '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Remaining:</span>
-                              <span className="font-semibold text-blue-600">
-                                {((selectedMO['Ordered'] || 0) - (selectedMO['Completed'] || 0)).toLocaleString()}
-                              </span>
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                                <span className="text-xs font-semibold text-gray-700">Ordered:</span>
+                                <span className="font-bold text-sm text-gray-900">{selectedMO['Ordered']?.toLocaleString() || '0'}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                                <span className="text-xs font-semibold text-gray-700">Release Qty:</span>
+                                <span className="font-bold text-sm text-blue-600">
+                                  {(() => {
+                                    const releaseQty = selectedMO['Release Order Quantity'];
+                                    if (releaseQty != null && releaseQty !== undefined) {
+                                      return releaseQty.toLocaleString();
+                                    }
+                                    return (selectedMO['Ordered']?.toLocaleString() || '0');
+                                  })()}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
+                                <span className="text-xs font-semibold text-gray-700">Completed:</span>
+                                <span className="font-bold text-sm text-green-600">{selectedMO['Completed']?.toLocaleString() || '0'}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
+                                <span className="text-xs font-semibold text-gray-700">Allocated:</span>
+                                <span className="font-bold text-sm text-purple-600">{selectedMO['Allocated']?.toLocaleString() || '0'}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
+                                <span className="text-xs font-semibold text-gray-700">Reserved:</span>
+                                <span className="font-bold text-sm text-orange-600">{selectedMO['Reserved']?.toLocaleString() || '0'}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-2.5 border-2 border-blue-300 mt-2">
+                                <span className="text-xs font-bold text-blue-900">Remaining:</span>
+                                <span className="font-bold text-base text-blue-700">
+                                  {((selectedMO['Ordered'] || 0) - (selectedMO['Completed'] || 0)).toLocaleString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">💰 Costs</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Unit Cost:</span>
-                              <span className="font-semibold">
-                                ${(selectedMO['Projected Material Cost'] || 0).toFixed(2)}
-                              </span>
+                        {/* Costs Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-green-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-green-100 rounded-lg">
+                                <DollarSign className="w-4 h-4 text-green-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Costs</h4>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Total Cost:</span>
-                              <span className="font-semibold text-green-600">
-                                ${(selectedMO['Cumulative Cost'] || 0).toFixed(2)}
-                              </span>
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                <span className="text-xs font-semibold text-gray-700">Proj Material:</span>
+                                <span className="font-bold text-xs text-gray-900">
+                                  ${(parseFloat(selectedMO['Projected Material Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
+                                <span className="text-xs font-semibold text-gray-700">Actual Material:</span>
+                                <span className="font-bold text-sm text-green-600">
+                                  ${(parseFloat(selectedMO['Actual Material Cost'] || selectedMO['Used Material Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                <span className="text-xs font-semibold text-gray-700">Proj Labor:</span>
+                                <span className="font-bold text-xs text-gray-900">
+                                  ${(parseFloat(selectedMO['Projected Labor Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
+                                <span className="text-xs font-semibold text-gray-700">Actual Labor:</span>
+                                <span className="font-bold text-sm text-green-600">
+                                  ${(parseFloat(selectedMO['Actual Labor Cost'] || selectedMO['Used Labor Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                <span className="text-xs font-semibold text-gray-700">Proj Overhead:</span>
+                                <span className="font-bold text-xs text-gray-900">
+                                  ${(parseFloat(selectedMO['Projected Overhead Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
+                                <span className="text-xs font-semibold text-gray-700">Actual Overhead:</span>
+                                <span className="font-bold text-sm text-green-600">
+                                  ${(parseFloat(selectedMO['Actual Overhead Cost'] || selectedMO['Used Overhead Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-2.5 border-2 border-green-300 mt-2">
+                                <span className="text-xs font-bold text-green-900">Total:</span>
+                                <span className="font-bold text-base text-green-700">
+                                  ${(parseFloat(selectedMO['Cumulative Cost'] || selectedMO['Total Material Cost'] || 0)).toFixed(2)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
 
+                      {/* Dates & Timeline - Compact Card */}
+                      <div className="bg-gradient-to-br from-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="p-1.5 bg-indigo-100 rounded-lg">
+                            <Calendar className="w-4 h-4 text-indigo-600" />
+                          </div>
+                          <h4 className="font-bold text-sm text-slate-900">Dates & Timeline</h4>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                          {selectedMO['Order Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                              <div className="text-xs text-gray-500 mb-0.5">Order Date</div>
+                              <div className="font-semibold text-xs text-gray-900">{selectedMO['Order Date']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Release Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
+                              <div className="text-xs text-blue-600 mb-1">Release Date</div>
+                              <div className="font-semibold text-blue-700">{selectedMO['Release Date']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Start Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-green-200">
+                              <div className="text-xs text-green-600 mb-1">Start Date</div>
+                              <div className="font-semibold text-green-700">{selectedMO['Start Date']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Completion Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
+                              <div className="text-xs text-purple-600 mb-1">Completion Date</div>
+                              <div className="font-semibold text-purple-700">{selectedMO['Completion Date']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Close Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
+                              <div className="text-xs text-gray-600 mb-1">Close Date</div>
+                              <div className="font-semibold text-gray-700">{selectedMO['Close Date']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Last Maintained'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
+                              <div className="text-xs text-gray-600 mb-1">Last Maintained</div>
+                              <div className="font-semibold text-gray-700">{selectedMO['Last Maintained']}</div>
+                            </div>
+                          )}
+                          {selectedMO['Sales Order Ship Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
+                              <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
+                              <div className="font-semibold text-orange-700">{selectedMO['Sales Order Ship Date']}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Customer & Sales Information - Compact Card */}
+                      {(selectedMO['Customer'] || selectedMO['Sales Order No.'] || selectedMO['Sales Item No.'] || selectedMO['Priority'] || selectedMO['Operation Count']) && (
+                        <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="p-1.5 bg-blue-100 rounded-lg">
+                              <Users className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <h4 className="font-bold text-sm text-slate-900">Customer & Sales Info</h4>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {selectedMO['Customer'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                                <div className="text-xs text-gray-500 mb-0.5">Customer</div>
+                                <div className="font-semibold text-xs text-gray-900">{selectedMO['Customer']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Sales Order No.'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
+                                <div className="text-xs text-blue-600 mb-1">Sales Order</div>
+                                <div className="font-semibold text-blue-700">#{selectedMO['Sales Order No.']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Sales Order Detail No.'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
+                                <div className="text-xs text-gray-500 mb-1">SO Detail</div>
+                                <div className="font-semibold text-gray-900">{selectedMO['Sales Order Detail No.']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Sales Item No.'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
+                                <div className="text-xs text-gray-500 mb-1">Sales Item</div>
+                                <div className="font-semibold text-gray-900">{selectedMO['Sales Item No.']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Sales Location'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
+                                <div className="text-xs text-gray-500 mb-1">Sales Location</div>
+                                <div className="font-semibold text-gray-900">{selectedMO['Sales Location']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Sales Transfer Quantity'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
+                                <div className="text-xs text-gray-500 mb-1">Transfer Qty</div>
+                                <div className="font-semibold text-gray-900">{selectedMO['Sales Transfer Quantity']?.toLocaleString()}</div>
+                              </div>
+                            )}
+                            {selectedMO['Priority'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
+                                <div className="text-xs text-orange-600 mb-1">Priority</div>
+                                <div className="font-semibold text-orange-700">{selectedMO['Priority']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Operation Count'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
+                                <div className="text-xs text-purple-600 mb-1">Operations</div>
+                                <div className="font-semibold text-purple-700">{selectedMO['Operation Count']}</div>
+                              </div>
+                            )}
+                            {selectedMO['Work Order Reference Count'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
+                                <div className="text-xs text-indigo-600 mb-1">Work Orders</div>
+                                <div className="font-semibold text-indigo-700">{selectedMO['Work Order Reference Count']}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* R/E Fields Section */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-6">
-                        <h4 className="font-semibold text-slate-900 mb-4">📝 Manufacturing Order Fields (R/E)</h4>
+                      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                          <FileText className="w-5 h-5 text-gray-600" />
+                          <h4 className="font-semibold text-slate-900">Manufacturing Order Fields (R/E)</h4>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Read-Only Fields */}
                           <div>
@@ -2538,33 +2864,139 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* MO Components & Materials Tab */}
                   {moActiveTab === 'details' && (
                     <div className="space-y-6">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-900 mb-2">🔧 Manufacturing Order Components</h4>
-                        <p className="text-sm text-blue-700">
-                          Materials and components required for MO #{selectedMO['Mfg. Order No.']}
-                        </p>
-                      </div>
+                      {/* BOM Information Section */}
+                      {(() => {
+                        const buildItemNo = selectedMO['Build Item No.'];
+                        const bomHeaders = (data['BillsOfMaterial.json'] || []).filter((bom: any) => 
+                          bom['Item No.'] === buildItemNo
+                        );
+                        const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
+                          bom['Parent Item No.'] === buildItemNo
+                        );
+
+                        if (bomHeaders.length > 0 || bomDetails.length > 0) {
+                          return (
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-5 mb-6 shadow-sm">
+                              <div className="flex items-center gap-2 mb-3">
+                                <ClipboardList className="w-5 h-5 text-indigo-600" />
+                                <h4 className="font-semibold text-indigo-900">Bill of Materials (BOM) Information</h4>
+                                <span className="ml-auto text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
+                                  Build Item: {buildItemNo}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                {bomHeaders[0] && (
+                                  <>
+                                    <div>
+                                      <span className="text-indigo-700 font-medium">Revision:</span>
+                                      <span className="ml-2 text-indigo-900">{bomHeaders[0]['Revision No.'] || '—'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-indigo-700 font-medium">Build Qty:</span>
+                                      <span className="ml-2 text-indigo-900">{bomHeaders[0]['Build Quantity']?.toLocaleString() || '—'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-indigo-700 font-medium">Components:</span>
+                                      <span className="ml-2 text-indigo-900">{bomDetails.length}</span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {(() => {
                         // Get MO Details from real data
-                        const moDetails = (data['ManufacturingOrderDetails.json'] || []).filter((detail: any) => 
+                        const allMoDetails = (data['ManufacturingOrderDetails.json'] || []).filter((detail: any) => 
                           detail['Mfg. Order No.'] === selectedMO['Mfg. Order No.']
                         );
 
-                        console.log('🔧 MO Details for', selectedMO['Mfg. Order No.'], ':', moDetails);
+                        // Get inventory items for stock lookup
+                        const inventoryItems = data['CustomAlert5.json'] || [];
 
-                        if (moDetails.length === 0) {
+                        console.log('🔧 MO Details for', selectedMO['Mfg. Order No.'], ':', allMoDetails);
+
+                        if (allMoDetails.length === 0) {
                           return (
-                            <div className="text-center py-8 text-gray-500">
-                              <div className="text-4xl mb-2">📦</div>
-                              <div>No component details found</div>
+                            <div className="text-center py-12 text-gray-500">
+                              <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                              <div className="font-medium text-lg mb-1">No component details found</div>
                               <div className="text-sm">This MO may not have detailed component breakdown in the system</div>
                             </div>
                           );
                         }
 
+                        // DEDUPLICATE: Group by Component Item No. and sum quantities using plain object
+                        const componentMap: Record<string, any> = {};
+                        
+                        allMoDetails.forEach((detail: any) => {
+                          const componentItemNo = detail['Component Item No.'] || detail['Item No.'] || '';
+                          if (!componentItemNo) return;
+
+                          if (componentMap[componentItemNo]) {
+                            // Sum quantities for duplicate components
+                            const existing = componentMap[componentItemNo];
+                            existing.requiredQty += parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0);
+                            existing.issuedQty += parseFloat(detail['Released Qty.'] || detail['Issued Qty'] || detail['Issued'] || 0);
+                            existing.materialCost += parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0);
+                            existing.totalCost += (parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0) * 
+                                                  parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0));
+                            // Keep the first location found, or combine if needed
+                            if (!existing.sourceLocation && detail['Source Location']) {
+                              existing.sourceLocation = detail['Source Location'];
+                            } else if (detail['Source Location'] && existing.sourceLocation !== detail['Source Location']) {
+                              existing.sourceLocation = `${existing.sourceLocation}, ${detail['Source Location']}`;
+                            }
+                            // Keep description from first entry
+                            if (!existing.description) {
+                              existing.description = detail['Non-stocked Item Description'] || detail['Description'] || detail['Item Description'] || '';
+                            }
+                          } else {
+                            // First occurrence of this component
+                            const requiredQty = parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0);
+                            const issuedQty = parseFloat(detail['Released Qty.'] || detail['Issued Qty'] || detail['Issued'] || 0);
+                            const unitCost = parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0);
+                            
+                            componentMap[componentItemNo] = {
+                              componentItemNo,
+                              description: detail['Non-stocked Item Description'] || detail['Description'] || detail['Item Description'] || '',
+                              requiredQty,
+                              issuedQty,
+                              materialCost: unitCost,
+                              totalCost: requiredQty * unitCost,
+                              sourceLocation: detail['Source Location'] || detail['Location'] || detail['Location No.'] || '',
+                              detail // Keep reference to original detail for other fields
+                            };
+                          }
+                        });
+
+                        // Convert object to array for display
+                        const moDetails = Object.values(componentMap);
+
                         return (
-                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                          <>
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Wrench className="w-5 h-5 text-blue-600" />
+                                    <h4 className="font-semibold text-blue-900">Manufacturing Order Components</h4>
+                                  </div>
+                                  <p className="text-sm text-blue-700">
+                                    Materials and components required for MO #{selectedMO['Mfg. Order No.']}
+                                    {allMoDetails.length > moDetails.length && (
+                                      <span className="ml-2 text-blue-600">
+                                        ({allMoDetails.length} entries consolidated into {moDetails.length} unique components)
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead className="bg-gray-50">
@@ -2574,26 +3006,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <th className="text-right p-3 font-medium text-gray-700">Required Qty</th>
                                     <th className="text-right p-3 font-medium text-gray-700">Issued Qty</th>
                                     <th className="text-right p-3 font-medium text-gray-700">Remaining</th>
+                                    <th className="text-right p-3 font-medium text-gray-700">Available Stock</th>
+                                    <th className="text-right p-3 font-medium text-gray-700">Shortage</th>
                                     <th className="text-right p-3 font-medium text-gray-700">Unit Cost</th>
                                     <th className="text-right p-3 font-medium text-gray-700">Total Cost</th>
                                     <th className="text-left p-3 font-medium text-gray-700">Location</th>
+                                    <th className="text-left p-3 font-medium text-gray-700">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {moDetails.map((detail: any, index: number) => {
-                                    const requiredQty = parseFloat(detail['Required Qty'] || detail['Quantity'] || 0);
-                                    const issuedQty = parseFloat(detail['Issued Qty'] || detail['Issued'] || 0);
-                                    const unitCost = parseFloat(detail['Unit Cost'] || detail['Cost'] || 0);
+                                    const componentItemNo = detail.componentItemNo;
+                                    const requiredQty = detail.requiredQty;
+                                    const issuedQty = detail.issuedQty;
+                                    const unitCost = detail.requiredQty > 0 ? detail.totalCost / detail.requiredQty : detail.materialCost;
                                     const remainingQty = requiredQty - issuedQty;
-                                    const totalCost = requiredQty * unitCost;
+                                    const totalCost = detail.totalCost;
+
+                                    // Find inventory item for stock levels
+                                    const inventoryItem = inventoryItems.find((item: any) => 
+                                      item['Item No.'] === componentItemNo
+                                    );
+                                    const availableStock = parseFloat(inventoryItem?.['Available'] || inventoryItem?.['On Hand'] || inventoryItem?.['Stock'] || 0);
+                                    const shortage = Math.max(0, remainingQty - availableStock);
+                                    const hasShortage = shortage > 0;
+                                    const stockStatus = availableStock >= remainingQty ? 'sufficient' : 
+                                                      availableStock > 0 ? 'low' : 'out';
+
+                                    // Get description from inventory if not in detail
+                                    const description = detail.description || inventoryItem?.['Description'] || '—';
 
                                     return (
-                                      <tr key={index} className="border-b border-gray-100 hover:bg-blue-50">
+                                      <tr key={index} className={`border-b border-gray-100 hover:bg-blue-50 ${
+                                        hasShortage ? 'bg-red-50' : ''
+                                      }`}>
                                         <td className="p-3 font-mono text-blue-600 font-medium">
-                                          {detail['Item No.'] || detail['Component Item'] || '—'}
+                                          {componentItemNo || '—'}
                                         </td>
                                         <td className="p-3 text-gray-700">
-                                          {detail['Description'] || detail['Item Description'] || '—'}
+                                          {description}
                                         </td>
                                         <td className="p-3 text-right font-medium">
                                           {requiredQty > 0 ? requiredQty.toLocaleString() : '—'}
@@ -2604,6 +3055,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <td className="p-3 text-right font-medium text-orange-600">
                                           {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
                                         </td>
+                                        <td className={`p-3 text-right font-medium ${
+                                          stockStatus === 'sufficient' ? 'text-green-600' :
+                                          stockStatus === 'low' ? 'text-yellow-600' :
+                                          'text-red-600'
+                                        }`}>
+                                          {availableStock > 0 ? availableStock.toLocaleString() : '0'}
+                                        </td>
+                                        <td className={`p-3 text-right font-medium font-bold ${
+                                          hasShortage ? 'text-red-600' : 'text-green-600'
+                                        }`}>
+                                          {hasShortage ? `-${shortage.toLocaleString()}` : '✓'}
+                                        </td>
                                         <td className="p-3 text-right font-mono">
                                           {unitCost > 0 ? `$${unitCost.toFixed(2)}` : '—'}
                                         </td>
@@ -2611,7 +3074,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           {totalCost > 0 ? `$${totalCost.toFixed(2)}` : '—'}
                                         </td>
                                         <td className="p-3 text-gray-600">
-                                          {detail['Location'] || detail['Location No.'] || '—'}
+                                          {detail.sourceLocation || '—'}
+                                        </td>
+                                        <td className="p-3">
+                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
+                                            stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-red-100 text-red-700'
+                                          }`}>
+                                            {stockStatus === 'sufficient' ? '✓ In Stock' :
+                                             stockStatus === 'low' ? '⚠ Low Stock' :
+                                             '✗ Out of Stock'}
+                                          </span>
                                         </td>
                                       </tr>
                                     );
@@ -2620,20 +3094,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </table>
                             </div>
                             
-                            {/* Summary */}
+                            {/* Enhanced Summary */}
                             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-3">
                                 {(() => {
                                   const totalComponents = moDetails.length;
                                   const totalRequiredQty = moDetails.reduce((sum: number, detail: any) => 
-                                    sum + parseFloat(detail['Required Qty'] || detail['Quantity'] || 0), 0);
+                                    sum + detail.requiredQty, 0);
                                   const totalIssuedQty = moDetails.reduce((sum: number, detail: any) => 
-                                    sum + parseFloat(detail['Issued Qty'] || detail['Issued'] || 0), 0);
-                                  const totalCost = moDetails.reduce((sum: number, detail: any) => {
-                                    const qty = parseFloat(detail['Required Qty'] || detail['Quantity'] || 0);
-                                    const cost = parseFloat(detail['Unit Cost'] || detail['Cost'] || 0);
-                                    return sum + (qty * cost);
-                                  }, 0);
+                                    sum + detail.issuedQty, 0);
+                                  const totalCost = moDetails.reduce((sum: number, detail: any) => 
+                                    sum + detail.totalCost, 0);
+
+                                  // Calculate stock shortages
+                                  const componentsWithShortage = moDetails.filter((detail: any) => {
+                                    const componentItemNo = detail.componentItemNo;
+                                    const remainingQty = detail.requiredQty - detail.issuedQty;
+                                    const inventoryItem = inventoryItems.find((item: any) => item['Item No.'] === componentItemNo);
+                                    const availableStock = parseFloat(inventoryItem?.['Available'] || inventoryItem?.['On Hand'] || 0);
+                                    return remainingQty > availableStock;
+                                  }).length;
 
                                   return (
                                     <>
@@ -2653,12 +3133,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <div className="font-semibold text-green-600">${totalCost.toFixed(2)}</div>
                                         <div className="text-gray-600">Material Cost</div>
                                       </div>
+                                      <div className="text-center">
+                                        <div className={`font-semibold ${componentsWithShortage > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                          {componentsWithShortage}
+                                        </div>
+                                        <div className="text-gray-600">Stock Shortages</div>
+                                      </div>
                                     </>
                                   );
                                 })()}
                               </div>
                             </div>
                           </div>
+                          </>
                         );
                       })()}
                     </div>
@@ -2667,8 +3154,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* MO Operations & Routing Tab */}
                   {moActiveTab === 'routings' && (
                     <div className="space-y-6">
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-900 mb-2">⚙️ Manufacturing Operations & Routing</h4>
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Cog className="w-5 h-5 text-purple-600" />
+                          <h4 className="font-semibold text-purple-900">Manufacturing Operations & Routing</h4>
+                        </div>
                         <p className="text-sm text-purple-700">
                           Work centers, operations, and routing details for MO #{selectedMO['Mfg. Order No.']}
                         </p>
@@ -2684,9 +3174,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                         if (moRoutings.length === 0) {
                           return (
-                            <div className="text-center py-8 text-gray-500">
-                              <div className="text-4xl mb-2">⚙️</div>
-                              <div>No routing operations found</div>
+                            <div className="text-center py-12 text-gray-500">
+                              <Cog className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                              <div className="font-medium text-lg mb-1">No routing operations found</div>
                               <div className="text-sm">This MO may not have detailed routing information in the system</div>
                             </div>
                           );
@@ -2799,8 +3289,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* Pegged SOs Tab */}
                   {moActiveTab === 'pegged' && (
                     <div className="space-y-6">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-900 mb-2">🔗 Pegged Sales Orders</h4>
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link2 className="w-5 h-5 text-blue-600" />
+                          <h4 className="font-semibold text-blue-900">Pegged Sales Orders</h4>
+                        </div>
                         <p className="text-sm text-blue-700">
                           Sales Orders that will be covered by this Manufacturing Order
                         </p>
@@ -2874,9 +3367,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </div>
                               ))
                             ) : (
-                              <div className="text-center py-8 text-gray-500">
-                                <div className="text-4xl mb-2">🔍</div>
-                                <div>No matching Sales Orders found</div>
+                              <div className="text-center py-12 text-gray-500">
+                                <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <div className="font-medium text-lg mb-1">No matching Sales Orders found</div>
                                 <div className="text-sm">This MO may not be pegged to any SOs</div>
                               </div>
                             );
@@ -2886,75 +3379,107 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
                 </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Enhanced Purchase Order Details Modal */}
           {showPODetails && selectedPO && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto border border-gray-200">
-                {/* Professional PO Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-6 py-4 rounded-t-lg border-b border-blue-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-bold">Purchase Order Details</h3>
-                      <p className="text-blue-100">PO #{selectedPO['PO No.']} - {selectedPO['Supplier No.'] || selectedPO['Name']}</p>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
+                {/* Decorative gradient overlay */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600"></div>
+                <div className="overflow-y-auto max-h-[95vh]">
+                {/* Ultra Modern PO Header */}
+                <div className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 text-white px-8 py-6 border-b-4 border-blue-800/50 shadow-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
+                        <ShoppingBag className="w-10 h-10 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Order Details</h3>
+                        <p className="text-blue-100 text-base mt-1.5 font-medium">
+                          PO #{selectedPO['PO No.']} - {selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.'] || 'Unknown Supplier'}
+                          {selectedPO['Description'] && (
+                            <span className="ml-3 text-blue-200">• {selectedPO['Description']}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() => setShowPODetails(false)}
-                      className="text-white/80 hover:text-white text-2xl font-bold"
+                      className="text-white/90 hover:text-white hover:bg-white/20 rounded-xl p-3 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110"
+                      aria-label="Close"
                     >
-                      ×
+                      <X className="w-7 h-7" />
                     </button>
                   </div>
                 </div>
 
-                <div className="p-6">
-                  {/* Tabs */}
-                  <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+                <div className="p-4 bg-gradient-to-br from-gray-50 to-white">
+                  {/* Modern Tabs */}
+                  <div className="flex space-x-2 mb-4 border-b border-gray-200">
                     <button
                       onClick={() => setPoActiveTab('overview')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        poActiveTab === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        poActiveTab === 'overview' 
+                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      📋 PO Overview
+                      <ClipboardList className="w-4 h-4" />
+                      PO Overview
                     </button>
                     <button
                       onClick={() => setPoActiveTab('lineitems')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        poActiveTab === 'lineitems' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        poActiveTab === 'lineitems' 
+                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      📦 Line Items
+                      <Package className="w-4 h-4" />
+                      Line Items
                     </button>
                     <button
                       onClick={() => setPoActiveTab('costs')}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        poActiveTab === 'costs' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        poActiveTab === 'costs' 
+                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      💰 Additional Costs
+                      <DollarSign className="w-4 h-4" />
+                      Additional Costs
                     </button>
                   </div>
 
                   {/* PO Overview Tab */}
                   {poActiveTab === 'overview' && (
-                    <div className="space-y-6">
-                      {/* Header Information */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">📊 Status & Progress</h4>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">Status:</span>
-                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                selectedPO['Status'] === 0 ? 'bg-green-100 text-green-800' :
-                                selectedPO['Status'] === 1 ? 'bg-yellow-100 text-yellow-800' :
-                                selectedPO['Status'] === 2 ? 'bg-gray-100 text-gray-800' :
-                                selectedPO['Status'] === 3 ? 'bg-red-100 text-red-800' :
-                                'bg-blue-100 text-blue-800'
+                    <div className="space-y-3">
+                      {/* Header Information - Compact Modern Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Status Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-blue-100 rounded-lg">
+                                <BarChartIcon className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Status</h4>
+                            </div>
+                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                              <span className="text-xs font-semibold text-gray-700">Status:</span>
+                              <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
+                                selectedPO['Status'] === 0 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                                selectedPO['Status'] === 1 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
+                                selectedPO['Status'] === 2 ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white' :
+                                selectedPO['Status'] === 3 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' :
+                                'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
                               }`}>
                                 {selectedPO['Status'] === 0 ? 'Open' :
                                  selectedPO['Status'] === 1 ? 'Pending' :
@@ -2962,86 +3487,147 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                  selectedPO['Status'] === 3 ? 'Cancelled' : 'Unknown'}
                               </span>
                             </div>
+                            {selectedPO['Revision'] && (
+                              <div className="mt-2 flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                <span className="text-xs font-semibold text-gray-700">Revision:</span>
+                                <span className="font-bold text-xs text-gray-900">{selectedPO['Revision']}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">💰 Financial Summary</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Total Amount:</span>
-                              <span className="font-semibold">${(selectedPO['Total Amount'] || 0).toLocaleString()}</span>
+                        {/* Financial Summary Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-green-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-green-100 rounded-lg">
+                                <DollarSign className="w-4 h-4 text-green-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Financial Summary</h4>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Invoiced:</span>
-                              <span className="font-semibold text-orange-600">${(selectedPO['Invoiced Amount'] || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Received:</span>
-                              <span className="font-semibold text-blue-600">${(selectedPO['Received Amount'] || 0).toLocaleString()}</span>
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                <span className="text-xs font-semibold text-gray-700">Total Amount:</span>
+                                <span className="font-bold text-sm text-gray-900">${(parseFloat(selectedPO['Total Amount'] || selectedPO['Total'] || 0)).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
+                                <span className="text-xs font-semibold text-gray-700">Invoiced:</span>
+                                <span className="font-bold text-sm text-orange-600">${(parseFloat(selectedPO['Invoiced Amount'] || selectedPO['Total Invoiced'] || 0)).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                                <span className="text-xs font-semibold text-gray-700">Received:</span>
+                                <span className="font-bold text-sm text-blue-600">${(parseFloat(selectedPO['Received Amount'] || selectedPO['Total Received'] || 0)).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-2.5 border-2 border-green-300 mt-2">
+                                <span className="text-xs font-bold text-green-900">Remaining:</span>
+                                <span className="font-bold text-base text-green-700">
+                                  ${((parseFloat(selectedPO['Total Amount'] || selectedPO['Total'] || 0)) - (parseFloat(selectedPO['Invoiced Amount'] || selectedPO['Total Invoiced'] || 0))).toFixed(2)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3">📅 Dates & Terms</h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Order Date:</span>
-                              <span className="font-semibold">{selectedPO['Order Date'] || '—'}</span>
+                        {/* Dates & Terms Card */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-200/20 rounded-full -mr-12 -mt-12"></div>
+                          <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-indigo-100 rounded-lg">
+                                <Calendar className="w-4 h-4 text-indigo-600" />
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Dates & Terms</h4>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Terms:</span>
-                              <span className="font-semibold">{selectedPO['Terms'] || '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Currency:</span>
-                              <span className="font-semibold">{selectedPO['Source Currency'] || selectedPO['Home Currency'] || '—'}</span>
+                            <div className="space-y-1.5">
+                              {selectedPO['Order Date'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Order Date:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Order Date']}</span>
+                                </div>
+                              )}
+                              {selectedPO['Terms'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Terms:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Terms']}</span>
+                                </div>
+                              )}
+                              {(selectedPO['Source Currency'] || selectedPO['Home Currency']) && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Currency:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Source Currency'] || selectedPO['Home Currency']}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Additional PO Fields */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-6">
-                        <h4 className="font-semibold text-slate-900 mb-4">📝 Purchase Order Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <h5 className="text-sm font-medium text-gray-700 mb-3">Vendor Information</h5>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Supplier:</span>
-                                <span className="font-mono">{selectedPO['Supplier No.'] || selectedPO['Name'] || '—'}</span>
+                      {/* Additional PO Fields - Compact Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Vendor Information Card */}
+                        {(selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Buyer'] || selectedPO['Contact']) && (
+                          <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-blue-100 rounded-lg">
+                                <Users className="w-4 h-4 text-blue-600" />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Buyer:</span>
-                                <span>{selectedPO['Buyer'] || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Contact:</span>
-                                <span>{selectedPO['Contact'] || '—'}</span>
-                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Vendor Information</h4>
+                            </div>
+                            <div className="space-y-1.5">
+                              {(selectedPO['Supplier No.'] || selectedPO['Name']) && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
+                                  <span className="text-xs font-semibold text-gray-700">Supplier:</span>
+                                  <span className="font-bold text-xs text-gray-900 font-mono">{selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']}</span>
+                                </div>
+                              )}
+                              {selectedPO['Buyer'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Buyer:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Buyer']}</span>
+                                </div>
+                              )}
+                              {selectedPO['Contact'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Contact:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Contact']}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
+                        )}
 
-                          <div>
-                            <h5 className="text-sm font-medium text-gray-700 mb-3">Shipping Information</h5>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Ship Via:</span>
-                                <span>{selectedPO['Ship Via'] || '—'}</span>
+                        {/* Shipping Information Card */}
+                        {(selectedPO['Ship Via'] || selectedPO['FOB'] || selectedPO['Freight']) && (
+                          <div className="bg-gradient-to-br from-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="p-1.5 bg-purple-100 rounded-lg">
+                                <Truck className="w-4 h-4 text-purple-600" />
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">FOB:</span>
-                                <span>{selectedPO['FOB'] || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Freight:</span>
-                                <span>${(selectedPO['Freight'] || 0).toLocaleString()}</span>
-                              </div>
+                              <h4 className="font-bold text-sm text-slate-900">Shipping Information</h4>
+                            </div>
+                            <div className="space-y-1.5">
+                              {selectedPO['Ship Via'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
+                                  <span className="text-xs font-semibold text-gray-700">Ship Via:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Ship Via']}</span>
+                                </div>
+                              )}
+                              {selectedPO['FOB'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">FOB:</span>
+                                  <span className="font-bold text-xs text-gray-900">{selectedPO['FOB']}</span>
+                                </div>
+                              )}
+                              {selectedPO['Freight'] && (
+                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
+                                  <span className="text-xs font-semibold text-gray-700">Freight:</span>
+                                  <span className="font-bold text-xs text-gray-900">${(parseFloat(selectedPO['Freight'] || 0)).toFixed(2)}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -3390,40 +3976,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
                 </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
-            <div className="space-y-6">
-              {/* Purchase Orders - Enterprise Header */}
-              <div className="bg-white border-b border-gray-200 shadow-sm">
+            <div className="space-y-4">
+              {/* Modern Purchase Orders Header */}
+              <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-700 text-white shadow-2xl">
                 <div className="max-w-7xl mx-auto px-6 py-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg shadow-lg">
-                        <ShoppingBag className="w-7 h-7 text-white" />
-                    </div>
+                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
+                        <ShoppingBag className="w-10 h-10 text-white" />
+                      </div>
                       <div className="flex items-center gap-4">
                         <div>
-                          <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
-                          <p className="text-sm text-gray-600 mt-1">Procurement and vendor management</p>
+                          <h1 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Orders</h1>
+                          <p className="text-blue-100 text-base mt-1.5 font-medium">Procurement and vendor management</p>
                         </div>
                         <button
                           onClick={() => setShowPRModal(true)}
-                          className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                          className="inline-flex items-center px-4 py-2 bg-orange-500/90 backdrop-blur-sm border border-orange-300/50 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-orange-500 transition-all duration-200"
                         >
                           📝 Purchase Requisitions
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                      <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
                         <Download className="w-4 h-4 mr-2" />
                         Export
                       </button>
-                      <button className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
                         <Plus className="w-4 h-4 mr-2" />
                         New PO
                       </button>
@@ -3432,78 +4019,62 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
 
-              {/* Purchase Order Metrics Dashboard */}
+              {/* Modern Purchase Order Metrics Dashboard */}
               <div className="max-w-7xl mx-auto px-4 py-4">
-                
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-4">
                   {/* Total Purchase Orders */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <ShoppingBag className="h-5 w-5 text-blue-600" />
-                          </div>
+                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-blue-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-blue-100 rounded-lg">
+                          <ShoppingBag className="w-4 h-4 text-blue-600" />
                         </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Total Purchase Orders</dt>
-                            <dd className="text-xl font-bold text-gray-900">
-                      {data?.['PurchaseOrders.json']?.length || 0}
-                            </dd>
-                          </dl>
-                    </div>
-                  </div>
+                        <dt className="text-xs font-semibold text-gray-700">Total POs</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
+                        {data?.['PurchaseOrders.json']?.length || 0}
+                      </dd>
                     </div>
                   </div>
 
                   {/* PO Line Items */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                            <Package2 className="h-5 w-5 text-green-600" />
-                          </div>
+                  <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-green-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-green-100 rounded-lg">
+                          <Package2 className="w-4 h-4 text-green-600" />
                         </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">PO Line Items</dt>
-                            <dd className="text-xl font-bold text-gray-900">
-                      {data?.['PurchaseOrderDetails.json']?.length || 0}
-                            </dd>
-                          </dl>
-                    </div>
-                  </div>
+                        <dt className="text-xs font-semibold text-gray-700">PO Line Items</dt>
+                      </div>
+                      <dd className="text-2xl font-bold text-gray-900">
+                        {data?.['PurchaseOrderDetails.json']?.length || 0}
+                      </dd>
                     </div>
                   </div>
 
                   {/* Active Vendors */}
-                  <div className="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Users className="h-5 w-5 text-purple-600" />
-                          </div>
+                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-200/20 rounded-full -mr-10 -mt-10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-purple-100 rounded-lg">
+                          <Users className="w-4 h-4 text-purple-600" />
                         </div>
-                        <div className="ml-4 w-0 flex-1">
-                          <dl>
-                            <dt className="text-xs font-medium text-gray-500 truncate uppercase tracking-wide">Active Vendors</dt>
-                            <dd className="text-xl font-bold text-gray-900">
-                      {new Set(data?.['PurchaseOrders.json']?.map((po: any) => po.Vendor).filter(Boolean)).size || 0}
-                            </dd>
-                          </dl>
-                    </div>
+                        <dt className="text-xs font-semibold text-gray-700">Active Vendors</dt>
                       </div>
+                      <dd className="text-2xl font-bold text-gray-900">
+                        {new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}
+                      </dd>
                     </div>
                   </div>
                 </div>
 
-                {/* Purchase Orders Table */}
+                {/* Modern Purchase Orders Table */}
                 {data?.['PurchaseOrders.json'] && Array.isArray(data['PurchaseOrders.json']) && data['PurchaseOrders.json'].length > 0 && (
-                  <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                  <div className="bg-white shadow-lg rounded-xl border-2 border-blue-200/50 overflow-hidden">
+                    <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200/50">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center space-x-4">
                         <div className="text-sm text-gray-600">
@@ -3550,13 +4121,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setPoSearchQuery(e.target.value);
                               setPoCurrentPage(1); // Reset to first page when searching
                             }}
-                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            className="w-full pl-10 pr-3 py-2.5 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm shadow-sm bg-white/90 backdrop-blur-sm"
                           />
                         </div>
                         <select
                           value={poSortField}
                           onChange={(e) => setPoSortField(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                          className="px-3 py-2.5 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
                         >
                           <option value="PO No.">Sort by PO Number</option>
                           <option value="Supplier No.">Sort by Supplier</option>
@@ -3566,7 +4137,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </select>
                         <button
                           onClick={() => setPoSortDirection(poSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                          className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
                         >
                           {poSortDirection === 'asc' ? '↑' : '↓'}
                         </button>
@@ -3574,18 +4145,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     <div className="overflow-x-auto max-h-[700px] shadow-inner">
                       <table className="w-full text-sm">
-                        <thead className="bg-gradient-to-r from-blue-100 to-indigo-200 sticky top-0 shadow-sm">
+                        <thead className="bg-gradient-to-r from-blue-100 via-indigo-100 to-blue-100 sticky top-0 shadow-md border-b-2 border-blue-200/50">
                           <tr>
                             {getAvailablePOColumns.map((col, index) => (
                               <th 
                                 key={col.key}
-                                className={`p-2 font-medium text-gray-700 min-w-[80px] ${
+                                className={`p-3 font-semibold text-gray-800 min-w-[80px] border-r border-blue-200/30 ${
                                   col.key === 'Total Amount' || col.key === 'Invoiced Amount' || col.key === 'Received Amount' || col.key === 'Freight' ||
                                   col.key === 'totalOrderedQty' || col.key === 'totalReceivedQty' || col.key === 'remainingQty'
                                     ? 'text-right' : 'text-left'
                                 } ${
                                   ['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)
-                                    ? 'cursor-pointer hover:bg-gray-100' : ''
+                                    ? 'cursor-pointer hover:bg-blue-100/50 transition-colors' : ''
                                 }`}
                                 onClick={() => {
                                   if (['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)) {
@@ -4674,6 +5245,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   >
                     {showBOMPlanning ? '📊 Hide BOM Planning' : '📊 Show BOM Planning'}
                   </button>
+                  
+                  {/* Cart Toggle Button */}
+                  <button 
+                    onClick={() => setShowBomCart(!showBomCart)}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                      showBomCart 
+                        ? 'bg-orange-600 text-white shadow-xl' 
+                        : bomCart.length > 0 
+                          ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 ring-2 ring-orange-400' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    🛒 PR Cart
+                    {bomCart.length > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        {bomCart.length}
+                      </span>
+                    )}
+                  </button>
+                  
                   <div className="text-sm text-slate-600">
                     {(() => {
                       const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
@@ -4685,6 +5276,181 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     })()}
                   </div>
                 </div>
+                
+                {/* BOM Cart Panel - Shows when cart has items or is toggled open */}
+                {showBomCart && (
+                  <div className="mb-6 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border-2 border-orange-200 p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-bold text-orange-800 flex items-center gap-2">
+                        🛒 Batch PR Generation Cart
+                        <span className="text-sm font-normal text-orange-600">
+                          (Add multiple items, generate PRs grouped by supplier)
+                        </span>
+                      </h4>
+                      {bomCart.length > 0 && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Clear all items from cart?')) {
+                              setBomCart([]);
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+                    
+                    {bomCart.length === 0 ? (
+                      <div className="text-center py-6 text-gray-500">
+                        <div className="text-3xl mb-2">📦</div>
+                        <div>No items in cart. Select an item below and click "Add to Cart"</div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Cart Items */}
+                        <div className="space-y-2 mb-4">
+                          {bomCart.map((item, index) => (
+                            <div key={`${item.item_no}-${index}`} className="flex items-center justify-between bg-white rounded-lg p-3 border border-orange-200">
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">{item.item_no}</div>
+                                <div className="text-sm text-gray-600">{item.description}</div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-500">Qty:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={item.qty}
+                                    onChange={(e) => {
+                                      const newQty = parseInt(e.target.value) || 1;
+                                      setBomCart(prev => prev.map((c, i) => 
+                                        i === index ? { ...c, qty: newQty } : c
+                                      ));
+                                    }}
+                                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center font-medium"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setBomCart(prev => prev.filter((_, i) => i !== index));
+                                  }}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Remove from cart"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Generate PRs Button */}
+                        <button
+                          onClick={async () => {
+                            if (bomCart.length === 0) {
+                              alert('Please add items to the cart first');
+                              return;
+                            }
+                            
+                            setBomPRLoading(true);
+                            
+                            try {
+                              const response = await fetch('/api/pr/create-from-bom', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  user_info: {
+                                    name: currentUser?.name || 'Unknown User',
+                                    department: 'Sales',
+                                    justification: `Batch BOM Planning - ${bomCart.length} items: ${bomCart.map(i => i.item_no).join(', ')}`
+                                  },
+                                  selected_items: bomCart.map(item => ({
+                                    item_no: item.item_no,
+                                    qty: item.qty
+                                  })),
+                                  location: '62TODD'
+                                })
+                              });
+                              
+                              const contentType = response.headers.get('content-type');
+                              if (contentType && contentType.includes('application/json')) {
+                                const result = await response.json();
+                                if (result.error) {
+                                  alert(`Error: ${result.error}`);
+                                  return;
+                                }
+                                if (result.message) {
+                                  alert(result.message);
+                                  return;
+                                }
+                              }
+                              
+                              if (!response.ok) {
+                                throw new Error('Failed to generate PRs');
+                              }
+                              
+                              const blob = await response.blob();
+                              const contentDisposition = response.headers.get('content-disposition');
+                              let filename = 'PRs-Batch';
+                              if (contentDisposition) {
+                                const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                                if (match) filename = match[1];
+                              }
+                              
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = filename;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                              
+                              if (filename.endsWith('.zip')) {
+                                alert(`✅ Generated batch PRs (grouped by supplier) for ${bomCart.length} items!\nDownloaded: ${filename}`);
+                              } else {
+                                alert(`✅ Generated PR for ${bomCart.length} items (single supplier)\nDownloaded: ${filename}`);
+                              }
+                              
+                              // Clear cart after successful generation
+                              setBomCart([]);
+                              
+                            } catch (error) {
+                              console.error('Batch PR generation error:', error);
+                              alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                            } finally {
+                              setBomPRLoading(false);
+                            }
+                          }}
+                          disabled={bomPRLoading || bomCart.length === 0}
+                          className={`w-full py-3 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                            bomPRLoading || bomCart.length === 0
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 shadow-lg hover:shadow-xl'
+                          }`}
+                        >
+                          {bomPRLoading ? (
+                            <>
+                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Generating Batch PRs...
+                            </>
+                          ) : (
+                            <>
+                              🚀 Generate PRs for {bomCart.length} Item{bomCart.length !== 1 ? 's' : ''} (Grouped by Supplier)
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* BOM Planning Content */}
                 {showBOMPlanning && (
@@ -4782,111 +5548,150 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="text-sm text-gray-600">{selectedBomItem["Description"]}</div>
                             </div>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 console.log('Generate PR button clicked!');
-                                
-                                // Get all short items from BOM
-                                const bomDetails = data['BillOfMaterialDetails.json'] || [];
-                                const items = data['CustomAlert5.json'] || [];
-                                
-                                console.log('BOM Details:', bomDetails.length);
-                                console.log('Items:', items.length);
                                 console.log('Selected BOM Item:', selectedBomItem);
                                 console.log('BOM Quantity:', bomQuantity);
                                 
-                                // Get BOM components for selected item
-                                const components = bomDetails.filter((bom: any) => 
-                                  bom["Parent Item No."] === selectedBomItem["Item No."]
-                                );
+                                if (!selectedBomItem || !bomQuantity) {
+                                  alert('Please select an item and enter a quantity');
+                                  return;
+                                }
                                 
-                                console.log('Components found:', components.length);
+                                setBomPRLoading(true);
                                 
-                                // Create item lookup for normalization
-                                const itemLookup: { [key: string]: any } = {};
-                                items.forEach((item: any) => {
-                                  const normalizedId = (item["Item No."] || '').toString().trim().toUpperCase();
-                                  if (normalizedId) {
-                                    itemLookup[normalizedId] = item;
-                                  }
-                                });
-                                
-                                // Process components to find short items
-                                const shortItems: any[] = [];
-                                const processedItems = new Set<string>();
-                                
-                                const processComponents = (components: any[], level = 0, parentMultiplier = 1) => {
-                                  components.forEach((bom: any) => {
-                                    const componentItem = itemLookup[(bom["Component Item No."] || '').toString().trim().toUpperCase()];
-                                    
-                                    if (!componentItem) return;
-                                    
-                                    const itemKey = `${componentItem["Item No."]}-${level}`;
-                                    if (processedItems.has(itemKey)) return;
-                                    processedItems.add(itemKey);
-                                    
-                                    const baseQuantity = parseStockValue(bom["Required Quantity"] || 0);
-                                    const perUnit = baseQuantity * parentMultiplier;
-                                    const totalRequired = perUnit * bomQuantity;
-                                    const available = parseStockValue(componentItem["Stock"] || 0);
-                                    const shortfall = Math.max(0, totalRequired - available);
-                                    
-                                    console.log(`Item: ${componentItem["Item No."]} - Required: ${totalRequired}, Available: ${available}, Shortfall: ${shortfall}`);
-                                    
-                                    // Only add items that are short
-                                    if (shortfall > 0) {
-                                      // Use the recent cost from inventory data
-                                      const recentCost = parseFloat(componentItem["Recent Cost"]?.replace('$', '').replace(',', '') || '0');
-                                      
-                                      shortItems.push({
-                                        item_no: componentItem["Item No."],
-                                        description: componentItem["Description"],
-                                        quantity: shortfall,
-                                        unit: componentItem["Base Unit of Measure"] || componentItem["Unit of Measure"] || componentItem["Stocking Units"] || 'EA',
-                                        unit_price: recentCost,
-                                        current_stock: available.toString(),
-                                        required: totalRequired
-                                      });
-                                    }
-                                    
-                                    // Check sub-components if assembled
-                                    const isAssembled = bomDetails.some((b: any) => 
-                                      b["Parent Item No."] === componentItem["Item No."]
-                                    );
-                                    if (isAssembled) {
-                                      const subComponents = bomDetails.filter((b: any) => 
-                                        b["Parent Item No."] === componentItem["Item No."]
-                                      );
-                                      processComponents(subComponents, level + 1, baseQuantity);
-                                    }
+                                try {
+                                  // Call the new backend endpoint for BOM-based PR generation
+                                  const response = await fetch('/api/pr/create-from-bom', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      user_info: {
+                                        name: currentUser?.name || 'Unknown User',
+                                        department: 'Sales',
+                                        justification: `BOM Planning - ${selectedBomItem["Item No."]} x ${bomQuantity}`
+                                      },
+                                      selected_items: [
+                                        { item_no: selectedBomItem["Item No."], qty: bomQuantity }
+                                      ],
+                                      location: '62TODD'
+                                    })
                                   });
-                                };
-                                
-                                processComponents(components);
-                                
-                                console.log('Short items found:', shortItems.length);
-                                console.log('Short items:', shortItems);
-                                
-                                // Open PR modal with short items pre-filled
-                                if (shortItems.length > 0) {
-                                  console.log('Opening PR modal with short items');
-                                  console.log('Setting selectedItems to:', shortItems);
-                                  // Set the selected items for PR generation
-                                  setSelectedItems(shortItems);
-                                  console.log('Setting showPRModal to true');
-                                  // Open the PR modal
-                                  setShowPRModal(true);
-                                  console.log('showPRModal state should now be true');
-                                } else {
-                                  console.log('No short items found');
-                                  alert('No items are short - all components are available!');
+                                  
+                                  // Check for JSON error response
+                                  const contentType = response.headers.get('content-type');
+                                  if (contentType && contentType.includes('application/json')) {
+                                    const result = await response.json();
+                                    if (result.error) {
+                                      alert(`Error: ${result.error}`);
+                                      return;
+                                    }
+                                    if (result.message) {
+                                      alert(result.message);
+                                      return;
+                                    }
+                                  }
+                                  
+                                  if (!response.ok) {
+                                    throw new Error('Failed to generate PRs');
+                                  }
+                                  
+                                  // Download the file
+                                  const blob = await response.blob();
+                                  
+                                  // Get filename from response headers
+                                  const contentDisposition = response.headers.get('content-disposition');
+                                  let filename = 'PR-Download';
+                                  if (contentDisposition) {
+                                    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                                    if (match) filename = match[1];
+                                  }
+                                  
+                                  // Create download link
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = filename;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(url);
+                                  
+                                  // Show success message
+                                  if (filename.endsWith('.zip')) {
+                                    alert(`✅ Generated multiple PRs (grouped by supplier) - Downloaded as ${filename}`);
+                                  } else {
+                                    alert(`✅ Generated Purchase Requisition - Downloaded as ${filename}`);
+                                  }
+                                  
+                                } catch (error) {
+                                  console.error('PR generation error:', error);
+                                  alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                } finally {
+                                  setBomPRLoading(false);
                                 }
                               }}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+                              disabled={bomPRLoading}
+                              className={`${bomPRLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2`}
+                            >
+                              {bomPRLoading ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Generating PRs...
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  Generate PR Now
+                                </>
+                              )}
+                            </button>
+                            
+                            {/* Add to Cart Button */}
+                            <button
+                              onClick={() => {
+                                if (!selectedBomItem || !bomQuantity) {
+                                  alert('Please select an item and enter a quantity');
+                                  return;
+                                }
+                                
+                                // Check if item already in cart
+                                const existingIndex = bomCart.findIndex(c => c.item_no === selectedBomItem["Item No."]);
+                                if (existingIndex >= 0) {
+                                  // Update quantity
+                                  setBomCart(prev => prev.map((c, i) => 
+                                    i === existingIndex ? { ...c, qty: c.qty + bomQuantity } : c
+                                  ));
+                                  alert(`Updated: ${selectedBomItem["Item No."]} - added ${bomQuantity} more (total: ${bomCart[existingIndex].qty + bomQuantity})`);
+                                } else {
+                                  // Add new item
+                                  setBomCart(prev => [...prev, {
+                                    item_no: selectedBomItem["Item No."],
+                                    description: selectedBomItem["Description"] || '',
+                                    qty: bomQuantity
+                                  }]);
+                                  alert(`Added to cart: ${selectedBomItem["Item No."]} × ${bomQuantity}`);
+                                }
+                                
+                                // Show cart if not visible
+                                setShowBomCart(true);
+                              }}
+                              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                               </svg>
-                              Generate PR for Short Items
+                              Add to Cart
+                              {bomCart.length > 0 && (
+                                <span className="bg-red-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                                  {bomCart.length}
+                                </span>
+                              )}
                             </button>
                           </div>
                         </div>
