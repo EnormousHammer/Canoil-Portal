@@ -620,8 +620,12 @@ def get_recent_purchase_price(item_no, limit=5):
 
 def get_supplier_info(supplier_no):
     """
-    Get supplier information from most recent PO
-    Uses PurchaseOrders.json as primary source
+    Get supplier information from most recent PO.
+    
+    Strategy:
+    1. Get basic info (Name, Contact) from PurchaseOrders.json
+    2. Get extended info (Email, Phone, Address) from PurchaseOrderAdditionalCostsTaxes.json
+    3. ONLY use data from matching Supplier No. - NO guessing or mixing
     
     Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
@@ -646,13 +650,20 @@ def get_supplier_info(supplier_no):
         
         print(f"[PR] ✅ Found supplier info: {most_recent_po.get('Name', '')} ({len(supplier_pos)} POs)")
         
-        return {
+        # Build base info from PurchaseOrders.json
+        info = {
             'supplier_no': supplier_no,
             'name': most_recent_po.get('Name', ''),
             'contact': most_recent_po.get('Contact', ''),
-            'phone': most_recent_po.get('Phone', ''),
-            'email': most_recent_po.get('Email', ''),
-            'terms': most_recent_po.get('Terms', ''),
+            'phone': '',  # Will try to get from extended data
+            'email': '',  # Will try to get from extended data
+            'address': '',
+            'city': '',
+            'province': '',
+            'postal': '',
+            'country': '',
+            'terms': '',
+            'fax': '',
             'po_count': len(supplier_pos),
             'last_order_date': most_recent_po.get('Order Date', ''),
             'last_po_no': most_recent_po.get('PO No.', ''),
@@ -660,6 +671,59 @@ def get_supplier_info(supplier_no):
             'currency': most_recent_po.get('Home Currency', ''),
             'total_amount': most_recent_po.get('Total Amount', 0)
         }
+        
+        # Try to get extended info (email, phone, address) from PurchaseOrderAdditionalCostsTaxes.json
+        # This file has complete supplier contact details for some POs
+        try:
+            extended_data = load_json_from_gdrive('PurchaseOrderAdditionalCostsTaxes.json')
+            
+            if extended_data:
+                # Find records for THIS supplier only (no mixing!)
+                supplier_extended = [
+                    e for e in extended_data 
+                    if e.get('Supplier No.') == supplier_no
+                ]
+                
+                if supplier_extended:
+                    # Sort by Purchase Order Id (descending) to get most recent
+                    supplier_extended.sort(
+                        key=lambda x: x.get('Purchase Order Id', ''), 
+                        reverse=True
+                    )
+                    most_recent_extended = supplier_extended[0]
+                    
+                    # Update with extended info - ONLY from same supplier's record
+                    email = most_recent_extended.get('E-mail', '')
+                    phone = most_recent_extended.get('Telephone', '')
+                    
+                    if email:
+                        info['email'] = email
+                        print(f"[PR]   📧 Email found: {email}")
+                    if phone:
+                        info['phone'] = phone
+                        print(f"[PR]   📞 Phone found: {phone}")
+                    
+                    # Also get address info
+                    info['address'] = most_recent_extended.get('Address 1', '')
+                    info['city'] = most_recent_extended.get('City', '')
+                    info['province'] = most_recent_extended.get('State/Province', '')
+                    info['postal'] = most_recent_extended.get('Zip/Postal', '')
+                    info['country'] = most_recent_extended.get('Country', '')
+                    info['fax'] = most_recent_extended.get('Fax', '')
+                    info['terms'] = most_recent_extended.get('Terms', '')
+                    
+                    # Use contact from extended if available (more recent)
+                    extended_contact = most_recent_extended.get('Contact', '')
+                    if extended_contact:
+                        info['contact'] = extended_contact
+                    
+                    print(f"[PR]   ✅ Extended info loaded from PO #{most_recent_extended.get('Purchase Order Id', '')}")
+                else:
+                    print(f"[PR]   ℹ️ No extended info in AdditionalCostsTaxes for {supplier_no}")
+        except Exception as ext_err:
+            print(f"[PR]   ⚠️ Could not load extended supplier info: {ext_err}")
+        
+        return info
         
     except Exception as e:
         print(f"Error getting supplier info for {supplier_no}: {e}")
@@ -884,7 +948,7 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
     cell_values['I13'] = date_needed.strftime('%Y-%m-%d')  # Date Needed
     
     # === SUPPLIER INFO ===
-    # Only use verified data from the same PO - don't mix sources
+    # Only use verified data from the same supplier - properly linked, no guessing
     if supplier_info:
         # B9: Vendor Name (from most recent PO for this supplier)
         supplier_name = supplier_info.get('name', '')
@@ -894,13 +958,42 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
         elif supplier_no:
             cell_values['B9'] = supplier_no  # Fallback to code if no name
         
-        # B11: Leave blank - don't guess contact info that might be from different POs
-        # User can fill this in manually if needed
+        # B11: Contact Name (from verified supplier data)
+        contact = supplier_info.get('contact', '')
+        if contact:
+            cell_values['B11'] = contact
         
         # B13: Lead Time
         cell_values['B13'] = f"{lead_days} days"
         
-        # C11: Leave blank - don't guess email/terms that might be inconsistent
+        # C11: Email (from verified PurchaseOrderAdditionalCostsTaxes)
+        email = supplier_info.get('email', '')
+        if email:
+            cell_values['C11'] = email
+        
+        # Phone (if there's a cell for it in template)
+        phone = supplier_info.get('phone', '')
+        if phone:
+            cell_values['C13'] = phone  # Add phone next to lead time
+        
+        # Build address string if available
+        address_parts = []
+        if supplier_info.get('address'):
+            address_parts.append(supplier_info['address'])
+        city_province = []
+        if supplier_info.get('city'):
+            city_province.append(supplier_info['city'])
+        if supplier_info.get('province'):
+            city_province.append(supplier_info['province'])
+        if city_province:
+            address_parts.append(', '.join(city_province))
+        if supplier_info.get('postal'):
+            address_parts.append(supplier_info['postal'])
+        
+        # Put address in a visible cell if available
+        if address_parts:
+            # Could add to notes or another cell if template supports it
+            pass  # Template may not have address cell - keeping for reference
     
     # === LINE ITEMS (Rows 16-29, max 14 items) ===
     start_row = 16
