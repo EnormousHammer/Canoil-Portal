@@ -12,6 +12,18 @@ export default defineConfig({
     port: 5001,
     host: true,
     open: false,
-    strictPort: true
+    strictPort: true,
+    hmr: {
+      clientPort: 5001,
+      protocol: 'ws',
+      host: 'localhost'
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
 }); 
