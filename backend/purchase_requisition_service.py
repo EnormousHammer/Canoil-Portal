@@ -645,18 +645,55 @@ def get_recent_purchase_price(item_no, limit=5):
         return []
 
 
+def load_supplier_contacts_lookup():
+    """
+    Load manually-maintained supplier contacts lookup file.
+    This file can be edited to add/update contact info for suppliers
+    that don't have complete data in MISys.
+    
+    Returns: dict of supplier_no -> contact info
+    """
+    try:
+        lookup_file = os.path.join(_current_dir, 'supplier_contacts.json')
+        if os.path.exists(lookup_file):
+            with open(lookup_file, 'r', encoding='utf-8') as f:
+                suppliers = json.load(f)
+            # Convert list to dict for fast lookup
+            return {s.get('supplier_no'): s for s in suppliers if s.get('supplier_no')}
+        return {}
+    except Exception as e:
+        print(f"[PR] ⚠️ Could not load supplier_contacts.json: {e}")
+        return {}
+
+
 def get_supplier_info(supplier_no):
     """
-    Get supplier information from most recent PO.
+    Get supplier information from multiple sources with priority:
     
-    Strategy:
-    1. Get basic info (Name, Contact) from PurchaseOrders.json
-    2. Get extended info (Email, Phone, Address) from PurchaseOrderAdditionalCostsTaxes.json
-    3. ONLY use data from matching Supplier No. - NO guessing or mixing
+    Priority Order:
+    1. supplier_contacts.json (manually-maintained lookup - highest priority)
+    2. PurchaseOrderAdditionalCostsTaxes.json (extended data from MISys)
+    3. PurchaseOrders.json (basic data from MISys)
+    
+    For each field, use the first source that has data.
+    This allows manual overrides while still using MISys as default.
     
     Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
     try:
+        # FIRST: Check manually-maintained lookup file for overrides
+        lookup = load_supplier_contacts_lookup()
+        manual_override = lookup.get(supplier_no)
+        if manual_override:
+            # Check if this entry has real data (not just empty strings)
+            has_real_data = any([
+                manual_override.get('email'),
+                manual_override.get('phone'),
+                manual_override.get('address')
+            ])
+            if has_real_data:
+                print(f"[PR] 📋 Using manual override for {supplier_no}")
+        
         # Load PO data using the unified loader
         pos = load_json_from_gdrive('PurchaseOrders.json')
         
@@ -749,6 +786,40 @@ def get_supplier_info(supplier_no):
                     print(f"[PR]   ℹ️ No extended info in AdditionalCostsTaxes for {supplier_no}")
         except Exception as ext_err:
             print(f"[PR]   ⚠️ Could not load extended supplier info: {ext_err}")
+        
+        # FINALLY: Apply manual overrides from supplier_contacts.json
+        # This allows manual data entry to fill gaps or correct errors
+        if manual_override:
+            override_applied = False
+            
+            # Only override fields that have values in the lookup file
+            if manual_override.get('email') and not info.get('email'):
+                info['email'] = manual_override['email']
+                override_applied = True
+            if manual_override.get('phone') and not info.get('phone'):
+                info['phone'] = manual_override['phone']
+                override_applied = True
+            if manual_override.get('contact') and not info.get('contact'):
+                info['contact'] = manual_override['contact']
+                override_applied = True
+            if manual_override.get('address') and not info.get('address'):
+                info['address'] = manual_override['address']
+                override_applied = True
+            if manual_override.get('city') and not info.get('city'):
+                info['city'] = manual_override['city']
+                override_applied = True
+            if manual_override.get('province') and not info.get('province'):
+                info['province'] = manual_override['province']
+                override_applied = True
+            if manual_override.get('postal') and not info.get('postal'):
+                info['postal'] = manual_override['postal']
+                override_applied = True
+            if manual_override.get('country') and not info.get('country'):
+                info['country'] = manual_override['country']
+                override_applied = True
+            
+            if override_applied:
+                print(f"[PR]   📋 Applied manual contact overrides from supplier_contacts.json")
         
         return info
         
