@@ -633,6 +633,15 @@ def get_item_master(item_no):
         items = load_items()
         for item in items:
             if item.get('Item No.') == item_no:
+                # Parse conversion factor (can be string or number)
+                conv_factor = item.get('Units Conversion Factor', 1)
+                if isinstance(conv_factor, str):
+                    try:
+                        conv_factor = float(conv_factor.replace(',', '')) if conv_factor else 1
+                    except:
+                        conv_factor = 1
+                conv_factor = float(conv_factor) if conv_factor else 1
+                
                 return {
                     'item_no': item_no,
                     'description': item.get('Description', ''),
@@ -640,6 +649,7 @@ def get_item_master(item_no):
                     'preferred_supplier': item.get('Preferred Supplier Number', ''),
                     'purchasing_units': item.get('Purchasing Units', 'EA'),
                     'stocking_units': item.get('Stocking Units', 'EA'),
+                    'units_conversion_factor': conv_factor,  # Stocking units per purchasing unit
                     'recent_cost': item.get('Recent Cost', 0),
                     'order_lead_days': item.get('Order Lead (Days)', 7),
                     'reorder_quantity': item.get('Reorder Quantity', 0),
@@ -706,6 +716,12 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
             item_type = item_data.get('item_type', 0)
             # Item Type 0 = Raw Material/Purchased
             if item_type == 0:
+                # Skip empty tote/IBC containers
+                item_upper = parent_item_no.upper()
+                if 'TOTE' in item_upper or 'IBC' in item_upper or item_upper.startswith('PLASTICTOTE'):
+                    print(f"    ⏭️ Skipping empty container (no BOM): {parent_item_no}")
+                    return []
+                
                 print(f"    → Purchased item (no BOM): {parent_item_no}")
                 return [{
                     'item_no': parent_item_no,
@@ -714,6 +730,8 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
                     'item_type': 'Raw Material',
                     'preferred_supplier': item_data.get('preferred_supplier', ''),
                     'purchasing_units': item_data.get('purchasing_units', 'EA'),
+                    'stocking_units': item_data.get('stocking_units', 'EA'),
+                    'units_conversion_factor': item_data.get('units_conversion_factor', 1),
                     'order_lead_days': item_data.get('order_lead_days', 7)
                 }]
         return []
@@ -763,10 +781,12 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
             components.append({
                 'item_no': component_no,
                 'description': component_data.get('description', ''),
-                'qty_needed': qty_needed,
+                'qty_needed': qty_needed,  # In stocking units (kg, L, etc.)
                 'item_type': 'Raw Material',
                 'preferred_supplier': component_data.get('preferred_supplier', ''),
                 'purchasing_units': component_data.get('purchasing_units', 'EA'),
+                'stocking_units': component_data.get('stocking_units', 'EA'),
+                'units_conversion_factor': component_data.get('units_conversion_factor', 1),
                 'order_lead_days': component_data.get('order_lead_days', 7)
             })
     
@@ -978,33 +998,49 @@ def create_pr_from_bom():
             shortfall = max(0, qty_needed - stock)
             
             if shortfall > 0:
-                # Get most recent PO price
+                # Get unit conversion info
+                stocking_units = comp.get('stocking_units', 'EA')
+                purchasing_units = comp.get('purchasing_units', 'EA')
+                conversion_factor = comp.get('units_conversion_factor', 1)
+                
+                # Convert shortfall from stocking units to purchasing units
+                # e.g., if shortfall is 1000 kg and conversion is 180 (kg per drum), order 6 drums
+                if conversion_factor and conversion_factor > 0:
+                    # Shortfall in stocking units / conversion factor = qty in purchasing units
+                    order_qty_raw = shortfall / conversion_factor
+                    # Round up - can't order partial drums/pails/etc.
+                    import math
+                    order_qty = math.ceil(order_qty_raw)
+                else:
+                    order_qty = shortfall
+                
+                # Get most recent PO price (price is per purchasing unit)
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
                 if recent_prices:
                     unit_price = recent_prices[0].get('unit_price', 0)
                     last_po_date = recent_prices[0].get('order_date', '')
-                    purchase_unit = recent_prices[0].get('purchase_unit', comp.get('purchasing_units', 'EA'))
                 else:
                     # Fallback to item master recent cost
                     item_data = get_item_master(item_no)
                     unit_price = item_data.get('recent_cost', 0) if item_data else 0
                     last_po_date = ''
-                    purchase_unit = comp.get('purchasing_units', 'EA')
                 
                 short_items.append({
                     'item_no': item_no,
                     'description': comp['description'],
-                    'qty_needed': qty_needed,
+                    'qty_needed': qty_needed,  # In stocking units
                     'stock': stock,
-                    'shortfall': shortfall,
-                    'order_qty': shortfall,  # Order the shortfall amount
+                    'shortfall': shortfall,  # In stocking units
+                    'order_qty': order_qty,  # In purchasing units (converted!)
                     'unit_price': unit_price,
                     'last_po_date': last_po_date,
                     'preferred_supplier': comp.get('preferred_supplier', ''),
-                    'purchasing_units': purchase_unit,
+                    'purchasing_units': purchasing_units,
+                    'stocking_units': stocking_units,
+                    'conversion_factor': conversion_factor,
                     'order_lead_days': comp.get('order_lead_days', 7)
                 })
-                print(f"  ⚠️ SHORT: {item_no} | Need: {round(qty_needed, 2)} | Have: {round(stock, 2)} | Order: {round(shortfall, 2)}")
+                print(f"  ⚠️ SHORT: {item_no} | Need: {round(qty_needed, 2)} {stocking_units} | Have: {round(stock, 2)} | Order: {order_qty} {purchasing_units}")
             else:
                 print(f"  ✅ OK: {item_no} | Need: {round(qty_needed, 2)} | Have: {round(stock, 2)}")
         
@@ -1150,13 +1186,18 @@ def create_pr_from_bom():
                 shortfall = item.get('shortfall', 0)
                 order_qty = item.get('order_qty', 0)
                 unit_price = item.get('unit_price', 0)
+                stocking_units = item.get('stocking_units', 'EA')
+                purchasing_units = item.get('purchasing_units', 'EA')
+                conversion_factor = item.get('conversion_factor', 1)
                 line_total = order_qty * unit_price
                 supplier_total += line_total
                 
                 report_lines.append(f"  Item: {item_no}")
                 report_lines.append(f"    Description: {description}")
-                report_lines.append(f"    Needed: {round(qty_needed, 2):,.2f} | In Stock: {round(stock, 2):,.2f} | Short: {round(shortfall, 2):,.2f}")
-                report_lines.append(f"    Order Qty: {round(order_qty, 2):,.2f} x ${unit_price:,.2f} = ${line_total:,.2f}")
+                report_lines.append(f"    Needed: {round(qty_needed, 2):,.2f} {stocking_units} | In Stock: {round(stock, 2):,.2f} {stocking_units} | Short: {round(shortfall, 2):,.2f} {stocking_units}")
+                if conversion_factor and conversion_factor != 1:
+                    report_lines.append(f"    Conversion: 1 {purchasing_units} = {conversion_factor} {stocking_units}")
+                report_lines.append(f"    Order: {int(order_qty)} {purchasing_units} x ${unit_price:,.2f} = ${line_total:,.2f}")
                 report_lines.append("")
             
             report_lines.append(f"  SUPPLIER TOTAL: ${supplier_total:,.2f}")
