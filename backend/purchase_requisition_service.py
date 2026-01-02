@@ -2,6 +2,7 @@
 Purchase Requisition Service
 Auto-fills requisition forms from PO data with Excel generation
 Uses DIRECT XML editing to preserve all template structure (drawings, images, etc.)
+Supports BOTH local G: Drive AND Cloud Run (Google Drive API)
 """
 
 from flask import Blueprint, jsonify, request, send_file
@@ -21,6 +22,108 @@ GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Mi
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
+
+# Cloud Run detection
+IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
+
+# Cache for Google Drive data to avoid repeated API calls
+_gdrive_data_cache = {}
+_gdrive_cache_time = None
+_GDRIVE_CACHE_DURATION = 300  # 5 minutes
+
+
+def get_google_drive_service():
+    """Get Google Drive service from app.py - lazy initialization"""
+    try:
+        import sys
+        if 'app' in sys.modules:
+            app_module = sys.modules['app']
+            gds_func = getattr(app_module, 'get_google_drive_service', None)
+            if gds_func:
+                return gds_func()
+    except Exception as e:
+        print(f"[PR] Error getting Google Drive service: {e}")
+    return None
+
+
+def load_json_from_gdrive(file_name):
+    """
+    Load a JSON file - works on BOTH local G: Drive AND Cloud Run (Google Drive API)
+    
+    On local: Reads from G: Drive file system
+    On Cloud Run: Uses Google Drive API to download the file
+    
+    Returns: List/Dict of JSON data, or [] if not found
+    """
+    global _gdrive_data_cache, _gdrive_cache_time
+    
+    # Check cache first (for Cloud Run - avoids repeated API calls)
+    if _gdrive_cache_time:
+        cache_age = (datetime.now() - _gdrive_cache_time).total_seconds()
+        if cache_age < _GDRIVE_CACHE_DURATION and file_name in _gdrive_data_cache:
+            print(f"[PR] Using cached data for {file_name}")
+            return _gdrive_data_cache[file_name]
+    
+    try:
+        latest = get_latest_folder()
+        if not latest:
+            print(f"[PR] No latest folder found")
+            return []
+        
+        if IS_CLOUD_RUN:
+            # Cloud Run: Use Google Drive API
+            print(f"[PR] ☁️ Cloud Run: Loading {file_name} via Google Drive API")
+            service = get_google_drive_service()
+            if not service or not service.authenticated:
+                print(f"[PR] ❌ Google Drive service not available")
+                return []
+            
+            # Find the shared drive and folder
+            from google_drive_service import SHARED_DRIVE_NAME, BASE_FOLDER_PATH
+            
+            drive_id = service.find_shared_drive(SHARED_DRIVE_NAME)
+            if not drive_id:
+                print(f"[PR] ❌ Shared drive not found: {SHARED_DRIVE_NAME}")
+                return []
+            
+            base_folder_id = service.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
+            if not base_folder_id:
+                print(f"[PR] ❌ Base folder not found: {BASE_FOLDER_PATH}")
+                return []
+            
+            # Find the latest date folder
+            latest_folder_id, latest_folder_name = service.get_latest_folder(base_folder_id, drive_id)
+            if not latest_folder_id:
+                print(f"[PR] ❌ Latest folder not found")
+                return []
+            
+            # Load the specific file
+            data = service.load_specific_files(latest_folder_id, drive_id, [file_name])
+            file_data = data.get(file_name, [])
+            
+            # Cache for future use
+            _gdrive_data_cache[file_name] = file_data
+            _gdrive_cache_time = datetime.now()
+            
+            print(f"[PR] ✅ Loaded {file_name}: {len(file_data) if isinstance(file_data, list) else 'object'}")
+            return file_data
+        else:
+            # Local: Read from G: Drive file system
+            file_path = os.path.join(GDRIVE_BASE, latest, file_name)
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    print(f"[PR] ✅ Loaded {file_name} from local: {len(data) if isinstance(data, list) else 'object'}")
+                    return data
+            else:
+                print(f"[PR] ⚠️ File not found: {file_path}")
+                return []
+                
+    except Exception as e:
+        print(f"[PR] ❌ Error loading {file_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 
 # Excel XML namespace
@@ -253,81 +356,123 @@ def get_latest_folder():
 
 
 def load_items():
-    """Load items from latest folder"""
-    latest = get_latest_folder()
-    if not latest:
-        return []
-    
-    items_file = os.path.join(GDRIVE_BASE, latest, 'Items.json')
-    if os.path.exists(items_file):
-        with open(items_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+    """Load items from latest folder - works on BOTH local and Cloud Run"""
+    return load_json_from_gdrive('Items.json')
 
 
 def load_po_data(po_number):
-    """Load merged PO data"""
-    latest = get_latest_folder()
-    if not latest:
+    """Load merged PO data - currently only works on local due to folder structure"""
+    # Note: Merged PO files are in a subfolder which is more complex to load via API
+    # For now, we'll fall back to building from raw data if needed
+    
+    if IS_CLOUD_RUN:
+        # On Cloud Run, build PO data from raw files
+        pos = load_json_from_gdrive('PurchaseOrders.json')
+        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+        
+        if not pos or not po_details:
+            return None
+        
+        # Find the PO header
+        po_header = next((po for po in pos if po.get('PO No.') == po_number), None)
+        if not po_header:
+            return None
+        
+        # Find the PO details
+        details = [d for d in po_details if d.get('PO No.') == po_number]
+        
+        # Build a merged structure similar to the local merged files
+        return {
+            'PO_Number': po_number,
+            'Supplier': {
+                'Supplier_No': po_header.get('Supplier No.', ''),
+                'Name': po_header.get('Name', ''),
+                'Contact': po_header.get('Contact', ''),
+            },
+            'Order_Info': {
+                'Order_Date': po_header.get('Order Date', ''),
+                'Terms': po_header.get('Terms', ''),
+                'Buyer': po_header.get('Buyer', ''),
+            },
+            'Financial': {
+                'Total_Amount': po_header.get('Total Amount', 0),
+            },
+            'Line_Items': [{
+                'Item_No': d.get('Item No.', ''),
+                'Description': d.get('Description', ''),
+                'Pricing': {
+                    'Unit_Cost': d.get('Unit Price', 0),
+                    'Quantity_Ordered': d.get('Ordered', 0),
+                    'Purchase_Unit_of_Measure': d.get('Purchase U/M', 'EA'),
+                }
+            } for d in details]
+        }
+    else:
+        # Local: Load from merged files
+        latest = get_latest_folder()
+        if not latest:
+            return None
+        
+        merged_folder = os.path.join(GDRIVE_BASE, latest, 'MERGED_POS', 'individual_pos')
+        po_file = os.path.join(merged_folder, f'PO_{po_number}.json')
+        
+        if os.path.exists(po_file):
+            with open(po_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
         return None
-    
-    merged_folder = os.path.join(GDRIVE_BASE, latest, 'MERGED_POS', 'individual_pos')
-    po_file = os.path.join(merged_folder, f'PO_{po_number}.json')
-    
-    if os.path.exists(po_file):
-        with open(po_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return None
 
 
 def get_inventory_data(item_no):
     """Get current inventory data for an item from CustomAlert5.json
     
-    On Cloud Run, this returns None since local G: drive is not accessible.
-    The frontend passes stock data from the already-loaded inventory data.
+    Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
     try:
-        # Check if we're on Cloud Run - local G: drive not accessible
-        is_cloud_run = os.getenv('K_SERVICE') is not None
-        if is_cloud_run:
-            # On Cloud Run, skip local file reads - frontend provides stock data
-            return None
+        inventory_data = load_json_from_gdrive('CustomAlert5.json')
         
-        # Local environment - read from G: drive
-        if not os.path.exists(GDRIVE_BASE):
+        if not inventory_data:
             return None
-            
-        latest = get_latest_folder()
-        if not latest:
-            return None
-            
-        folder_path = os.path.join(GDRIVE_BASE, latest)
-        custom_alert_file = os.path.join(folder_path, 'CustomAlert5.json')
-        
-        if not os.path.exists(custom_alert_file):
-            return None
-        
-        with open(custom_alert_file, 'r', encoding='utf-8') as f:
-            inventory_data = json.load(f)
         
         # Find the item in inventory data
         for item in inventory_data:
             if item.get('Item No.') == item_no:
+                # Helper to parse cost values (can be string like "$1,234.56" or number)
+                def parse_cost(value, default=0):
+                    if value is None:
+                        return default
+                    if isinstance(value, (int, float)):
+                        return float(value)
+                    if isinstance(value, str):
+                        return float(value.replace('$', '').replace(',', '')) if value else default
+                    return default
+                
+                # Helper to parse numeric values (can have commas like "9,093.000000")
+                def parse_number(value, default=0):
+                    if value is None:
+                        return default
+                    if isinstance(value, (int, float)):
+                        return float(value)
+                    if isinstance(value, str):
+                        # Remove commas and dollar signs
+                        cleaned = value.replace('$', '').replace(',', '').strip()
+                        return float(cleaned) if cleaned else default
+                    return default
+                
                 return {
-                    'stock': float(item.get('Stock', 0)),
-                    'wip': float(item.get('WIP', 0)),
-                    'reserve': float(item.get('Reserve', 0)),
-                    'on_order': float(item.get('On Order', 0)),
-                    'minimum': float(item.get('Minimum', 0)),
-                    'maximum': float(item.get('Maximum', 0)),
-                    'reorder_level': float(item.get('Reorder Level', 0)),
-                    'reorder_quantity': float(item.get('Reorder Quantity', 0)),
-                    'recent_cost': float(item.get('Recent Cost', 0).replace('$', '').replace(',', '')) if item.get('Recent Cost') else 0,
-                    'average_cost': float(item.get('Average Cost', 0).replace('$', '').replace(',', '')) if item.get('Average Cost') else 0,
-                    'landed_cost': float(item.get('Landed Cost', 0).replace('$', '').replace(',', '')) if item.get('Landed Cost') else 0,
+                    'stock': parse_number(item.get('Stock')),
+                    'wip': parse_number(item.get('WIP')),
+                    'reserve': parse_number(item.get('Reserve')),
+                    'on_order': parse_number(item.get('On Order')),
+                    'minimum': parse_number(item.get('Minimum')),
+                    'maximum': parse_number(item.get('Maximum')),
+                    'reorder_level': parse_number(item.get('Reorder Level')),
+                    'reorder_quantity': parse_number(item.get('Reorder Quantity')),
+                    'recent_cost': parse_cost(item.get('Recent Cost')),
+                    'average_cost': parse_cost(item.get('Average Cost')),
+                    'landed_cost': parse_cost(item.get('Landed Cost')),
                     'stocking_units': item.get('Stocking Units', ''),
                     'purchasing_units': item.get('Purchasing Units', ''),
-                    'units_conversion_factor': float(item.get('Units Conversion Factor', 1).replace(',', '')) if item.get('Units Conversion Factor') else 1
+                    'units_conversion_factor': parse_cost(item.get('Units Conversion Factor'), 1)
                 }
         
         return None
@@ -340,42 +485,28 @@ def get_recent_purchase_price(item_no, limit=5):
     """
     Get recent purchase prices for an item from PO details
     Returns list of recent purchases sorted by date (most recent first)
+    
+    Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
     try:
-        latest = get_latest_folder()
-        if not latest:
+        # Load PO data using the unified loader
+        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+        pos = load_json_from_gdrive('PurchaseOrders.json')
+        
+        if not po_details or not pos:
+            print(f"[PR] PO data not available for pricing lookup")
             return []
-        
-        folder_path = os.path.join(GDRIVE_BASE, latest)
-        po_details_file = os.path.join(folder_path, 'PurchaseOrderDetails.json')
-        po_file = os.path.join(folder_path, 'PurchaseOrders.json')
-        
-        if not os.path.exists(po_details_file) or not os.path.exists(po_file):
-            return []
-        
-        with open(po_details_file, 'r', encoding='utf-8') as f:
-            po_details = json.load(f)
-        
-        with open(po_file, 'r', encoding='utf-8') as f:
-            pos = json.load(f)
         
         # Create a lookup for PO headers by PO number
         po_lookup = {po.get('PO No.'): po for po in pos}
         
         # Find all purchases for this item
         item_purchases = []
-        print(f"[DEBUG] Looking for item: {item_no}")
-        print(f"[DEBUG] Total PO details records: {len(po_details)}")
-        print(f"[DEBUG] Total PO headers: {len(pos)}")
         
         for detail in po_details:
             if detail.get('Item No.') == item_no:
                 po_no = detail.get('PO No.')
                 po_header = po_lookup.get(po_no, {})
-                
-                print(f"[DEBUG] Found item {item_no} in PO {po_no}")
-                print(f"[DEBUG] Unit Price: {detail.get('Unit Price', 0)}")
-                print(f"[DEBUG] Supplier: {po_header.get('Name', '')}")
                 
                 purchase = {
                     'item_no': item_no,  # Include the item number
@@ -397,99 +528,50 @@ def get_recent_purchase_price(item_no, limit=5):
         # Sort by order date (most recent first)
         item_purchases.sort(key=lambda x: x.get('order_date', ''), reverse=True)
         
-        # Return the most recent purchase (limit=1 for latest price)
-        return item_purchases[:1] if item_purchases else []
+        # Return the most recent purchase(s)
+        return item_purchases[:limit] if item_purchases else []
         
     except Exception as e:
         print(f"Error getting recent prices for {item_no}: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
 def get_supplier_info(supplier_no):
     """
     Get supplier information from most recent PO
-    First tries merged PO data (more complete), then falls back to PurchaseOrders.json
+    Uses PurchaseOrders.json as primary source
+    
+    Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
     try:
-        latest = get_latest_folder()
-        if not latest:
+        # Load PO data using the unified loader
+        pos = load_json_from_gdrive('PurchaseOrders.json')
+        
+        if not pos:
+            print(f"[PR] PurchaseOrders.json not available")
             return None
-        
-        folder_path = os.path.join(GDRIVE_BASE, latest)
-        
-        # FIRST: Try to get supplier info from merged PO data (more complete)
-        merged_folder = os.path.join(folder_path, 'MERGED_POS', 'individual_pos')
-        if os.path.exists(merged_folder):
-            # Find all merged PO files for this supplier
-            merged_pos = []
-            for filename in os.listdir(merged_folder):
-                if filename.startswith('PO_') and filename.endswith('.json'):
-                    try:
-                        po_file = os.path.join(merged_folder, filename)
-                        with open(po_file, 'r', encoding='utf-8') as f:
-                            merged_po = json.load(f)
-                        
-                        # Check if this PO is for the supplier we're looking for
-                        supplier = merged_po.get('Supplier', {})
-                        if supplier.get('Supplier_No') == supplier_no:
-                            merged_pos.append(merged_po)
-                    except Exception as e:
-                        print(f"Error reading merged PO file {filename}: {e}")
-                        continue
-            
-            if merged_pos:
-                # Sort by Order Date (most recent first)
-                merged_pos.sort(key=lambda x: x.get('Order_Info', {}).get('Order_Date', ''), reverse=True)
-                most_recent_po = merged_pos[0]
-                
-                supplier = most_recent_po.get('Supplier', {})
-                order_info = most_recent_po.get('Order_Info', {})
-                financial = most_recent_po.get('Financial', {})
-                
-                print(f"✅ Found supplier info from merged PO data: {supplier.get('Name', '')}")
-                
-                return {
-                    'supplier_no': supplier_no,
-                    'name': supplier.get('Name', ''),
-                    'contact': supplier.get('Contact', ''),
-                    'phone': supplier.get('Phone', '') or supplier.get('Phone_No', '') or supplier.get('Telephone', ''),
-                    'email': supplier.get('Email', ''),
-                    'terms': order_info.get('Terms', ''),
-                    'po_count': len(merged_pos),
-                    'last_order_date': order_info.get('Order_Date', ''),
-                    'last_po_no': most_recent_po.get('PO_Number', ''),
-                    'buyer': order_info.get('Buyer', ''),
-                    'currency': financial.get('Currency', {}).get('Home_Currency', ''),
-                    'total_amount': financial.get('Total_Amount', 0)
-                }
-        
-        # FALLBACK: Use PurchaseOrders.json if merged data not available
-        po_file = os.path.join(folder_path, 'PurchaseOrders.json')
-        
-        if not os.path.exists(po_file):
-            return None
-        
-        with open(po_file, 'r', encoding='utf-8') as f:
-            pos = json.load(f)
         
         # Find most recent PO for this supplier
         supplier_pos = [po for po in pos if po.get('Supplier No.') == supplier_no]
         
         if not supplier_pos:
+            print(f"[PR] No POs found for supplier: {supplier_no}")
             return None
         
         # Sort by Order Date (most recent first)
         supplier_pos.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
         most_recent_po = supplier_pos[0]
         
-        print(f"✅ Found supplier info from PurchaseOrders.json: {most_recent_po.get('Name', '')}")
+        print(f"[PR] ✅ Found supplier info: {most_recent_po.get('Name', '')} ({len(supplier_pos)} POs)")
         
         return {
             'supplier_no': supplier_no,
             'name': most_recent_po.get('Name', ''),
             'contact': most_recent_po.get('Contact', ''),
-            'phone': most_recent_po.get('Phone', ''),  # This field might not exist
-            'email': most_recent_po.get('Email', ''),  # This field might not exist
+            'phone': most_recent_po.get('Phone', ''),
+            'email': most_recent_po.get('Email', ''),
             'terms': most_recent_po.get('Terms', ''),
             'po_count': len(supplier_pos),
             'last_order_date': most_recent_po.get('Order Date', ''),
@@ -504,6 +586,530 @@ def get_supplier_info(supplier_no):
         import traceback
         traceback.print_exc()
         return None
+
+
+# ============================================================================
+# BOM EXPLOSION FUNCTIONS - For Multi-Item, Multi-Supplier PR Generation
+# ============================================================================
+
+def load_bom_details():
+    """Load Bill of Materials from latest extraction folder - works on BOTH local and Cloud Run"""
+    return load_json_from_gdrive('BillOfMaterialDetails.json')
+
+
+def get_item_master(item_no):
+    """Get item master data including preferred supplier and item type"""
+    try:
+        items = load_items()
+        for item in items:
+            if item.get('Item No.') == item_no:
+                return {
+                    'item_no': item_no,
+                    'description': item.get('Description', ''),
+                    'item_type': item.get('Item Type', 0),  # 0=Purchased/Raw, 1=Assembled
+                    'preferred_supplier': item.get('Preferred Supplier Number', ''),
+                    'purchasing_units': item.get('Purchasing Units', 'EA'),
+                    'stocking_units': item.get('Stocking Units', 'EA'),
+                    'recent_cost': item.get('Recent Cost', 0),
+                    'order_lead_days': item.get('Order Lead (Days)', 7),
+                    'reorder_quantity': item.get('Reorder Quantity', 0),
+                    'minimum': item.get('Minimum', 0),
+                    'reorder_level': item.get('Reorder Level', 0)
+                }
+        return None
+    except Exception as e:
+        print(f"Error getting item master for {item_no}: {e}")
+        return None
+
+
+def get_stock_level(item_no, location='62TODD'):
+    """Get current stock level from CustomAlert5.json"""
+    try:
+        inventory = get_inventory_data(item_no)
+        if inventory:
+            stock = inventory.get('stock', 0)
+            # Handle string values with commas
+            if isinstance(stock, str):
+                stock = float(stock.replace(',', ''))
+            return float(stock)
+        return 0
+    except Exception as e:
+        print(f"Error getting stock level for {item_no}: {e}")
+        return 0
+
+
+def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None):
+    """
+    Recursively explode BOM to get all purchasable raw materials.
+    
+    Handles:
+    - Assembled items (Item Type = 1) → recursively explode
+    - Formula/Blend items (Item Type = 2) → recursively explode (has raw material components)
+    - Raw Materials (Item Type = 0) → add to purchase list
+    - Phantoms (qty = 0) → skip
+    - Labor items → skip
+    
+    Returns: List of {item_no, description, qty_needed, item_type, preferred_supplier, ...}
+    """
+    # Prevent infinite recursion
+    if _visited is None:
+        _visited = set()
+    if parent_item_no in _visited:
+        print(f"  ⚠️ Circular BOM reference detected: {parent_item_no}")
+        return []
+    _visited.add(parent_item_no)
+    
+    if max_depth <= 0:
+        print(f"  ⚠️ Max BOM depth reached for: {parent_item_no}")
+        return []
+    
+    # Load BOM data
+    all_bom = load_bom_details()
+    
+    # Find BOM lines for this parent
+    bom_lines = [b for b in all_bom if b.get('Parent Item No.') == parent_item_no]
+    
+    if not bom_lines:
+        # No BOM - check if this is a purchased item
+        item_data = get_item_master(parent_item_no)
+        if item_data:
+            item_type = item_data.get('item_type', 0)
+            # Item Type 0 = Raw Material/Purchased
+            if item_type == 0:
+                print(f"    → Purchased item (no BOM): {parent_item_no}")
+                return [{
+                    'item_no': parent_item_no,
+                    'description': item_data.get('description', ''),
+                    'qty_needed': parent_qty,
+                    'item_type': 'Raw Material',
+                    'preferred_supplier': item_data.get('preferred_supplier', ''),
+                    'purchasing_units': item_data.get('purchasing_units', 'EA'),
+                    'order_lead_days': item_data.get('order_lead_days', 7)
+                }]
+        return []
+    
+    components = []
+    for line in bom_lines:
+        component_no = line.get('Component Item No.', '')
+        required_qty = float(line.get('Required Quantity', 0))
+        
+        # Skip phantom lines (qty = 0)
+        if required_qty == 0:
+            continue
+        
+        # Skip labor items
+        if component_no.upper().startswith('LABOR'):
+            continue
+        
+        qty_needed = required_qty * parent_qty
+        
+        # Get component item data
+        component_data = get_item_master(component_no)
+        if not component_data:
+            print(f"    ⚠️ Component not found in item master: {component_no}")
+            continue
+        
+        item_type = component_data.get('item_type', 0)
+        
+        # Item Type: 0 = Raw Material/Purchased, 1 = Assembled, 2 = Formula/Blend
+        if item_type in (1, 2):  # Assembled or Formula - recursively explode
+            type_name = "assembled" if item_type == 1 else "formula"
+            print(f"    📦 Exploding {type_name}: {component_no} (qty: {round(qty_needed, 4)})")
+            sub_components = explode_bom_recursive(
+                component_no, 
+                qty_needed, 
+                max_depth - 1,
+                _visited.copy()
+            )
+            components.extend(sub_components)
+        else:  # Raw Material (item_type == 0) - add to purchase list
+            components.append({
+                'item_no': component_no,
+                'description': component_data.get('description', ''),
+                'qty_needed': qty_needed,
+                'item_type': 'Raw Material',
+                'preferred_supplier': component_data.get('preferred_supplier', ''),
+                'purchasing_units': component_data.get('purchasing_units', 'EA'),
+                'order_lead_days': component_data.get('order_lead_days', 7)
+            })
+    
+    return components
+
+
+def aggregate_components(components):
+    """
+    Aggregate same components from multiple BOMs.
+    If the same item appears in multiple products, sum the quantities.
+    """
+    aggregated = {}
+    for comp in components:
+        item_no = comp['item_no']
+        if item_no in aggregated:
+            # Sum quantities
+            aggregated[item_no]['qty_needed'] += comp['qty_needed']
+        else:
+            aggregated[item_no] = comp.copy()
+    
+    return list(aggregated.values())
+
+
+def build_pr_cell_values(user_info, items, supplier_info, lead_days):
+    """
+    Build cell values dictionary for PR template.
+    
+    CRITICAL: Only fills text cells. NEVER touches:
+    - Formulas (I5 Request ID, I16-I29 line totals, I30 grand total)
+    - Images/logos
+    - Signatures at the bottom
+    - Any merged cells structure
+    """
+    cell_values = {}
+    today = datetime.now()
+    
+    # === HEADER INFO ===
+    cell_values['I7'] = user_info.get('name', '')  # Requested By
+    cell_values['I9'] = user_info.get('department', 'Sales')  # Department
+    cell_values['B5'] = user_info.get('justification', 'Stock Replenishment')  # Justification
+    
+    # === DATES ===
+    cell_values['I11'] = today.strftime('%Y-%m-%d')  # Date Requested
+    date_needed = today + timedelta(days=lead_days)
+    cell_values['I13'] = date_needed.strftime('%Y-%m-%d')  # Date Needed
+    
+    # === SUPPLIER INFO ===
+    if supplier_info:
+        # B9: Vendor Name
+        supplier_name = supplier_info.get('name', '')
+        if supplier_name:
+            cell_values['B9'] = supplier_name
+        
+        # B11: Contact with phone
+        contact = supplier_info.get('contact', '')
+        phone = supplier_info.get('phone', '')
+        if contact and phone:
+            cell_values['B11'] = f"{contact} | {phone}"
+        elif contact:
+            cell_values['B11'] = contact
+        elif phone:
+            cell_values['B11'] = phone
+        
+        # B13: Lead Time
+        cell_values['B13'] = f"{lead_days} days"
+        
+        # C11: Email or Terms
+        email = supplier_info.get('email', '')
+        terms = supplier_info.get('terms', '')
+        if email:
+            cell_values['C11'] = email
+        elif terms:
+            cell_values['C11'] = f"Terms: {terms}"
+    
+    # === LINE ITEMS (Rows 16-29, max 14 items) ===
+    start_row = 16
+    max_items = 14  # Template has rows 16-29
+    
+    for idx, item in enumerate(items[:max_items]):
+        row = start_row + idx
+        
+        # B: Item Number
+        cell_values[f'B{row}'] = item.get('item_no', '')
+        
+        # C: Description
+        cell_values[f'C{row}'] = item.get('description', '')
+        
+        # D: Inventory Turnover (leave blank for now)
+        # cell_values[f'D{row}'] = ''
+        
+        # E: Current Stock
+        stock = item.get('stock', '')
+        if stock != '':
+            cell_values[f'E{row}'] = str(round(float(stock), 2))
+        
+        # F: Purchasing Unit
+        cell_values[f'F{row}'] = item.get('purchasing_units', 'EA')
+        
+        # G: Quantity to Order
+        order_qty = item.get('order_qty', 0)
+        cell_values[f'G{row}'] = str(int(round(order_qty))) if order_qty else '0'
+        
+        # H: Unit Price (from most recent PO)
+        unit_price = item.get('unit_price', 0)
+        if unit_price:
+            cell_values[f'H{row}'] = str(round(float(unit_price), 2))
+        
+        # I: Total - DO NOT SET - Template has formula =G*H
+    
+    # Clear unused rows (set to empty string so template stays clean)
+    num_items = len(items[:max_items])
+    for row in range(start_row + num_items, 30):
+        for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+            cell_values[f'{col}{row}'] = ''
+    
+    return cell_values
+
+
+@pr_service.route('/api/pr/create-from-bom', methods=['POST'])
+def create_pr_from_bom():
+    """
+    Generate multiple Purchase Requisitions from BOM explosion.
+    
+    Handles:
+    - Multiple finished goods (e.g., customer order with 5 products)
+    - Recursive BOM explosion (formulas/assembled items)
+    - Grouping by supplier
+    - One PR per supplier
+    - Most recent PO price for each item
+    
+    Input JSON:
+    {
+        "user_info": {
+            "name": "John Doe",
+            "department": "Sales", 
+            "justification": "Customer Order #12345"
+        },
+        "selected_items": [
+            {"item_no": "CC SAE30 4T12X600 CASE", "qty": 5},
+            {"item_no": "CC 10W40 4L CASE", "qty": 10}
+        ],
+        "location": "62TODD"
+    }
+    
+    Output: 
+    - Single .xlsx if only one supplier
+    - .zip file containing multiple .xlsx files if multiple suppliers
+    """
+    try:
+        data = request.get_json()
+        user_info = data.get('user_info', {})
+        selected_items = data.get('selected_items', [])
+        location = data.get('location', '62TODD')
+        
+        print("\n" + "="*80)
+        print("🔄 BOM-BASED PR GENERATION")
+        print("="*80)
+        print(f"User: {user_info.get('name', 'N/A')}")
+        print(f"Department: {user_info.get('department', 'N/A')}")
+        print(f"Justification: {user_info.get('justification', 'N/A')}")
+        print(f"Selected Items: {len(selected_items)}")
+        for item in selected_items:
+            print(f"  - {item.get('item_no')} x {item.get('qty')}")
+        print("="*80 + "\n")
+        
+        if not selected_items:
+            return jsonify({"error": "No items provided"}), 400
+        
+        # ========================================
+        # STEP 1: Explode BOMs for all selected items
+        # ========================================
+        print("📦 Step 1: Exploding BOMs...")
+        all_components = []
+        for item in selected_items:
+            item_no = item.get('item_no', '')
+            qty = float(item.get('qty', 1))
+            
+            print(f"\n  Exploding: {item_no} (Qty: {qty})")
+            components = explode_bom_recursive(item_no, qty)
+            print(f"    → Found {len(components)} purchasable components")
+            
+            all_components.extend(components)
+        
+        print(f"\n  Total raw components: {len(all_components)}")
+        
+        if not all_components:
+            return jsonify({
+                "error": "No purchasable components found in BOM",
+                "message": "The selected items may not have BOMs or all components are assembled items"
+            }), 400
+        
+        # ========================================
+        # STEP 2: Aggregate quantities for same items
+        # ========================================
+        print("\n📦 Step 2: Aggregating components...")
+        aggregated = aggregate_components(all_components)
+        print(f"  Unique components after aggregation: {len(aggregated)}")
+        
+        # ========================================
+        # STEP 3: Get stock levels and determine shortfall
+        # ========================================
+        print("\n📦 Step 3: Checking stock levels...")
+        short_items = []
+        for comp in aggregated:
+            item_no = comp['item_no']
+            qty_needed = comp['qty_needed']
+            
+            stock = get_stock_level(item_no, location)
+            shortfall = max(0, qty_needed - stock)
+            
+            if shortfall > 0:
+                # Get most recent PO price
+                recent_prices = get_recent_purchase_price(item_no, limit=1)
+                if recent_prices:
+                    unit_price = recent_prices[0].get('unit_price', 0)
+                    last_po_date = recent_prices[0].get('order_date', '')
+                    purchase_unit = recent_prices[0].get('purchase_unit', comp.get('purchasing_units', 'EA'))
+                else:
+                    # Fallback to item master recent cost
+                    item_data = get_item_master(item_no)
+                    unit_price = item_data.get('recent_cost', 0) if item_data else 0
+                    last_po_date = ''
+                    purchase_unit = comp.get('purchasing_units', 'EA')
+                
+                short_items.append({
+                    'item_no': item_no,
+                    'description': comp['description'],
+                    'qty_needed': qty_needed,
+                    'stock': stock,
+                    'shortfall': shortfall,
+                    'order_qty': shortfall,  # Order the shortfall amount
+                    'unit_price': unit_price,
+                    'last_po_date': last_po_date,
+                    'preferred_supplier': comp.get('preferred_supplier', ''),
+                    'purchasing_units': purchase_unit,
+                    'order_lead_days': comp.get('order_lead_days', 7)
+                })
+                print(f"  ⚠️ SHORT: {item_no} | Need: {round(qty_needed, 2)} | Have: {round(stock, 2)} | Order: {round(shortfall, 2)}")
+            else:
+                print(f"  ✅ OK: {item_no} | Need: {round(qty_needed, 2)} | Have: {round(stock, 2)}")
+        
+        if not short_items:
+            return jsonify({
+                "success": True,
+                "message": "All items are in stock - no PRs needed",
+                "files": []
+            }), 200
+        
+        # ========================================
+        # STEP 4: Group by supplier
+        # ========================================
+        print("\n📦 Step 4: Grouping by supplier...")
+        by_supplier = {}
+        no_supplier = []
+        
+        for item in short_items:
+            supplier = item.get('preferred_supplier', '')
+            if supplier:
+                if supplier not in by_supplier:
+                    by_supplier[supplier] = []
+                by_supplier[supplier].append(item)
+            else:
+                no_supplier.append(item)
+        
+        print(f"  Suppliers found: {len(by_supplier)}")
+        for supplier, items_list in by_supplier.items():
+            print(f"    - {supplier}: {len(items_list)} items")
+        if no_supplier:
+            print(f"  ⚠️ Items without supplier: {len(no_supplier)}")
+        
+        # ========================================
+        # STEP 5: Generate one PR per supplier
+        # ========================================
+        print("\n📦 Step 5: Generating PR files...")
+        generated_files = []
+        warnings = []
+        
+        if not os.path.exists(PR_TEMPLATE):
+            return jsonify({"error": f"Template not found: {PR_TEMPLATE}"}), 404
+        
+        for supplier_no, items_list in by_supplier.items():
+            print(f"\n  Creating PR for: {supplier_no} ({len(items_list)} items)")
+            
+            # Get supplier details
+            supplier_info = get_supplier_info(supplier_no)
+            if supplier_info:
+                print(f"    Supplier Name: {supplier_info.get('name', 'N/A')}")
+            else:
+                print(f"    ⚠️ Supplier info not found, using supplier code only")
+                supplier_info = {'name': supplier_no, 'supplier_no': supplier_no}
+            
+            # Calculate max lead time for this supplier's items
+            max_lead_days = max(item.get('order_lead_days', 7) for item in items_list)
+            
+            # Handle more than 14 items (create multiple PRs)
+            item_batches = [items_list[i:i+14] for i in range(0, len(items_list), 14)]
+            
+            for batch_num, batch in enumerate(item_batches):
+                # Build cell values
+                cell_values = build_pr_cell_values(
+                    user_info=user_info,
+                    items=batch,
+                    supplier_info=supplier_info,
+                    lead_days=max_lead_days
+                )
+                
+                # Generate Excel using direct XML (preserves template 100%)
+                pr_output = fill_excel_directly(PR_TEMPLATE, cell_values)
+                
+                # Generate filename
+                supplier_name_safe = re.sub(r'[^\w\-]', '_', supplier_no)[:30]
+                filename = f"PR-{datetime.now().strftime('%Y-%m-%d')}-{supplier_name_safe}"
+                if len(item_batches) > 1:
+                    filename += f"-Part{batch_num + 1}"
+                filename += ".xlsx"
+                
+                generated_files.append({
+                    'supplier_no': supplier_no,
+                    'supplier_name': supplier_info.get('name', supplier_no) if supplier_info else supplier_no,
+                    'filename': filename,
+                    'data': pr_output,
+                    'item_count': len(batch)
+                })
+                
+                print(f"    ✅ Generated: {filename}")
+        
+        # Add warnings for items without suppliers
+        for item in no_supplier:
+            warnings.append(f"No preferred supplier for: {item['item_no']} - Please assign manually")
+        
+        # ========================================
+        # STEP 6: Return files
+        # ========================================
+        print(f"\n📦 Step 6: Returning {len(generated_files)} PR file(s)...")
+        
+        if len(generated_files) == 0:
+            return jsonify({
+                "success": False,
+                "message": "No PRs generated - all items missing suppliers",
+                "warnings": warnings
+            }), 400
+        
+        elif len(generated_files) == 1:
+            # Single file - return directly
+            file = generated_files[0]
+            print(f"\n✅ SUCCESS: Generated single PR for {file['supplier_name']}")
+            return send_file(
+                file['data'],
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=file['filename']
+            )
+        
+        else:
+            # Multiple files - return as ZIP
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file in generated_files:
+                    file['data'].seek(0)
+                    zf.writestr(file['filename'], file['data'].read())
+            
+            zip_buffer.seek(0)
+            zip_filename = f"PRs-{datetime.now().strftime('%Y-%m-%d')}-{len(generated_files)}_Suppliers.zip"
+            
+            print(f"\n✅ SUCCESS: Generated ZIP with {len(generated_files)} PRs")
+            if warnings:
+                print(f"⚠️ Warnings: {warnings}")
+            
+            return send_file(
+                zip_buffer,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name=zip_filename
+            )
+        
+    except Exception as e:
+        print(f"❌ Error in create_pr_from_bom: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 @pr_service.route('/api/pr/search-items', methods=['GET'])
