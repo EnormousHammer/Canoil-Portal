@@ -208,23 +208,39 @@ def fill_excel_directly(template_path, cell_values):
                 if v is not None:
                     cell.remove(v)
             else:
-                # It's a value - store as inline string
-                cell.set('t', 'inlineStr')
-                # Remove old value element
-                if v is not None:
-                    cell.remove(v)
+                # Check if value is numeric
+                is_numeric = False
+                try:
+                    float(str(value).replace(',', ''))
+                    is_numeric = True
+                except (ValueError, TypeError):
+                    is_numeric = False
+                
                 # Remove old formula if exists
                 f = cell.find(f'{{{XLSX_NS}}}f')
                 if f is not None:
                     cell.remove(f)
-                # Add inline string
+                
+                # Remove old inline string if exists
                 is_elem = cell.find(f'{{{XLSX_NS}}}is')
-                if is_elem is None:
+                if is_elem is not None:
+                    cell.remove(is_elem)
+                
+                if is_numeric:
+                    # Store as number - no type attribute, just value
+                    if 't' in cell.attrib:
+                        del cell.attrib['t']
+                    if v is None:
+                        v = etree.SubElement(cell, f'{{{XLSX_NS}}}v')
+                    v.text = str(float(str(value).replace(',', '')))
+                else:
+                    # Store as inline string
+                    cell.set('t', 'inlineStr')
+                    if v is not None:
+                        cell.remove(v)
                     is_elem = etree.SubElement(cell, f'{{{XLSX_NS}}}is')
-                t_elem = is_elem.find(f'{{{XLSX_NS}}}t')
-                if t_elem is None:
                     t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
-                t_elem.text = str(value)
+                    t_elem.text = str(value)
         else:
             # Create new cell - need to find or create the row first
             if row_num not in row_map:
@@ -243,11 +259,25 @@ def fill_excel_directly(template_path, cell_values):
             
             row = row_map[row_num]
             
-            # Create new cell with inline string
-            new_cell = etree.Element(f'{{{XLSX_NS}}}c', r=ref, t='inlineStr')
-            is_elem = etree.SubElement(new_cell, f'{{{XLSX_NS}}}is')
-            t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
-            t_elem.text = str(value)
+            # Check if value is numeric
+            is_numeric = False
+            try:
+                float(str(value).replace(',', ''))
+                is_numeric = True
+            except (ValueError, TypeError):
+                is_numeric = False
+            
+            if is_numeric:
+                # Create new cell with numeric value
+                new_cell = etree.Element(f'{{{XLSX_NS}}}c', r=ref)
+                v_elem = etree.SubElement(new_cell, f'{{{XLSX_NS}}}v')
+                v_elem.text = str(float(str(value).replace(',', '')))
+            else:
+                # Create new cell with inline string
+                new_cell = etree.Element(f'{{{XLSX_NS}}}c', r=ref, t='inlineStr')
+                is_elem = etree.SubElement(new_cell, f'{{{XLSX_NS}}}is')
+                t_elem = etree.SubElement(is_elem, f'{{{XLSX_NS}}}t')
+                t_elem.text = str(value)
             
             # Insert cell in correct column position
             col_num = col_to_num(col_letter)
@@ -1068,6 +1098,86 @@ def create_pr_from_bom():
             warnings.append(f"No preferred supplier for: {item['item_no']} - Please assign manually")
         
         # ========================================
+        # STEP 5.5: Generate Shortage Report
+        # ========================================
+        print("\n📦 Step 5.5: Generating shortage report...")
+        report_lines = []
+        report_lines.append("=" * 80)
+        report_lines.append("PURCHASE REQUISITION - SHORTAGE REPORT")
+        report_lines.append("=" * 80)
+        report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append(f"Requested By: {user_info.get('name', 'N/A')}")
+        report_lines.append(f"Justification: {user_info.get('justification', 'N/A')}")
+        report_lines.append(f"Lead Time: {user_info.get('lead_time', 7)} days")
+        report_lines.append("")
+        
+        # Summary section
+        report_lines.append("-" * 80)
+        report_lines.append("SUMMARY")
+        report_lines.append("-" * 80)
+        report_lines.append(f"Items Ordered: {len(selected_items)}")
+        report_lines.append(f"Total Short Components: {len(short_items)}")
+        report_lines.append(f"Unique Suppliers: {len(by_supplier)}")
+        report_lines.append(f"Items Without Supplier: {len(no_supplier)}")
+        report_lines.append("")
+        
+        # Selected items section
+        report_lines.append("-" * 80)
+        report_lines.append("ITEMS ORDERED")
+        report_lines.append("-" * 80)
+        for item in selected_items:
+            report_lines.append(f"  • {item.get('item_no')} x {item.get('qty')}")
+        report_lines.append("")
+        
+        # Shortage details by supplier
+        report_lines.append("-" * 80)
+        report_lines.append("SHORTAGE DETAILS BY SUPPLIER")
+        report_lines.append("-" * 80)
+        
+        for supplier_no, items_list in by_supplier.items():
+            supplier_info = get_supplier_info(supplier_no)
+            supplier_name = supplier_info.get('name', supplier_no) if supplier_info else supplier_no
+            
+            report_lines.append(f"\n📦 SUPPLIER: {supplier_name} ({supplier_no})")
+            report_lines.append("  " + "-" * 70)
+            
+            supplier_total = 0
+            for item in items_list:
+                item_no = item.get('item_no', '')
+                description = item.get('description', '')[:40]
+                qty_needed = item.get('qty_needed', 0)
+                stock = item.get('stock', 0)
+                shortfall = item.get('shortfall', 0)
+                order_qty = item.get('order_qty', 0)
+                unit_price = item.get('unit_price', 0)
+                line_total = order_qty * unit_price
+                supplier_total += line_total
+                
+                report_lines.append(f"  Item: {item_no}")
+                report_lines.append(f"    Description: {description}")
+                report_lines.append(f"    Needed: {round(qty_needed, 2):,.2f} | In Stock: {round(stock, 2):,.2f} | Short: {round(shortfall, 2):,.2f}")
+                report_lines.append(f"    Order Qty: {round(order_qty, 2):,.2f} x ${unit_price:,.2f} = ${line_total:,.2f}")
+                report_lines.append("")
+            
+            report_lines.append(f"  SUPPLIER TOTAL: ${supplier_total:,.2f}")
+        
+        # Items without supplier
+        if no_supplier:
+            report_lines.append(f"\n⚠️ ITEMS WITHOUT SUPPLIER (Need Manual Assignment)")
+            report_lines.append("  " + "-" * 70)
+            for item in no_supplier:
+                report_lines.append(f"  • {item.get('item_no')} - {item.get('description', '')[:50]}")
+                report_lines.append(f"    Short: {round(item.get('shortfall', 0), 2):,.2f}")
+        
+        report_lines.append("")
+        report_lines.append("=" * 80)
+        report_lines.append("END OF REPORT")
+        report_lines.append("=" * 80)
+        
+        shortage_report = "\n".join(report_lines)
+        print("  ✅ Shortage report generated")
+        
+        # ========================================
         # STEP 6: Return files
         # ========================================
         print(f"\n📦 Step 6: Returning {len(generated_files)} PR file(s)...")
@@ -1080,23 +1190,37 @@ def create_pr_from_bom():
             }), 400
         
         elif len(generated_files) == 1:
-            # Single file - return directly
-            file = generated_files[0]
-            print(f"\n✅ SUCCESS: Generated single PR for {file['supplier_name']}")
+            # Single file - return as ZIP with report
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                file = generated_files[0]
+                file['data'].seek(0)
+                zf.writestr(file['filename'], file['data'].read())
+                # Add shortage report
+                report_filename = f"Shortage_Report_{datetime.now().strftime('%Y-%m-%d')}.txt"
+                zf.writestr(report_filename, shortage_report)
+            
+            zip_buffer.seek(0)
+            zip_filename = f"PR-{datetime.now().strftime('%Y-%m-%d')}-{file['supplier_name'][:20]}.zip"
+            
+            print(f"\n✅ SUCCESS: Generated ZIP with PR and shortage report")
             return send_file(
-                file['data'],
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                zip_buffer,
+                mimetype='application/zip',
                 as_attachment=True,
-                download_name=file['filename']
+                download_name=zip_filename
             )
         
         else:
-            # Multiple files - return as ZIP
+            # Multiple files - return as ZIP with report
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for file in generated_files:
                     file['data'].seek(0)
                     zf.writestr(file['filename'], file['data'].read())
+                # Add shortage report
+                report_filename = f"Shortage_Report_{datetime.now().strftime('%Y-%m-%d')}.txt"
+                zf.writestr(report_filename, shortage_report)
             
             zip_buffer.seek(0)
             zip_filename = f"PRs-{datetime.now().strftime('%Y-%m-%d')}-{len(generated_files)}_Suppliers.zip"
