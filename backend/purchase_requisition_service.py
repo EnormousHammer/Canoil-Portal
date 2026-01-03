@@ -14,6 +14,14 @@ import zipfile
 import re
 from lxml import etree
 
+# Google Cloud Storage for persistent storage on Cloud Run
+try:
+    from google.cloud import storage
+    GCS_AVAILABLE = True
+except ImportError:
+    GCS_AVAILABLE = False
+    print("[PR] ⚠️ google-cloud-storage not available - using local storage only")
+
 pr_service = Blueprint('pr_service', __name__)
 
 # Use environment variable for path (works for both local and Cloud Run)
@@ -32,55 +40,70 @@ _gdrive_cache_time = None
 _GDRIVE_CACHE_DURATION = 300  # 5 minutes
 
 # PR History storage
-# Use /tmp on Cloud Run (read-only filesystem), backend folder locally
-def _get_pr_history_path():
-    """Get the appropriate path for PR history based on environment"""
-    # Check if we're on Cloud Run (read-only filesystem)
-    if os.environ.get('K_SERVICE') or os.environ.get('CLOUD_RUN'):
-        # Cloud Run - use /tmp
-        return '/tmp/pr_history.json'
-    else:
-        # Local - use backend folder
-        return os.path.join(_current_dir, 'pr_history.json')
-
+# Uses Google Cloud Storage on Cloud Run for persistence, local file otherwise
+GCS_BUCKET_NAME = 'canoil-portal-data'
+GCS_PR_HISTORY_BLOB = 'pr_history.json'
 PR_HISTORY_RETENTION_DAYS = 30
 
 # In-memory cache for PR history (survives across requests in same container)
 _pr_history_cache = None
 
 
+def _get_gcs_client():
+    """Get GCS client if available"""
+    if GCS_AVAILABLE and IS_CLOUD_RUN:
+        try:
+            return storage.Client()
+        except Exception as e:
+            print(f"[PR] ⚠️ Could not create GCS client: {e}")
+    return None
+
+
 def load_pr_history():
-    """Load PR history from JSON file or cache"""
+    """Load PR history from GCS (Cloud Run) or local file"""
     global _pr_history_cache
     
     try:
-        pr_history_file = _get_pr_history_path()
+        history = []
         
-        # Try to load from file first
-        if os.path.exists(pr_history_file):
-            with open(pr_history_file, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-            # Filter to last 30 days
+        # On Cloud Run, try GCS first
+        if IS_CLOUD_RUN and GCS_AVAILABLE:
+            try:
+                client = _get_gcs_client()
+                if client:
+                    bucket = client.bucket(GCS_BUCKET_NAME)
+                    blob = bucket.blob(GCS_PR_HISTORY_BLOB)
+                    if blob.exists():
+                        content = blob.download_as_text()
+                        history = json.loads(content)
+                        print(f"[PR] ✅ Loaded PR history from GCS ({len(history)} records)")
+            except Exception as gcs_err:
+                print(f"[PR] ⚠️ Could not load from GCS: {gcs_err}")
+        else:
+            # Local - use file
+            local_file = os.path.join(_current_dir, 'pr_history.json')
+            if os.path.exists(local_file):
+                with open(local_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+        
+        # Filter to last 30 days
+        if history:
             cutoff = datetime.now() - timedelta(days=PR_HISTORY_RETENTION_DAYS)
             cutoff_str = cutoff.strftime('%Y-%m-%d')
             history = [h for h in history if h.get('date', '') >= cutoff_str]
-            _pr_history_cache = history
-            return history
         
-        # If no file, return cache or empty
-        if _pr_history_cache is not None:
-            return _pr_history_cache
-        return []
+        _pr_history_cache = history
+        return history
+        
     except Exception as e:
         print(f"[PR] Error loading PR history: {e}")
-        # Return cache if available
         if _pr_history_cache is not None:
             return _pr_history_cache
         return []
 
 
 def save_pr_history(history):
-    """Save PR history to JSON file and cache"""
+    """Save PR history to GCS (Cloud Run) or local file"""
     global _pr_history_cache
     
     try:
@@ -92,16 +115,33 @@ def save_pr_history(history):
         # Always update cache
         _pr_history_cache = history
         
-        # Try to save to file
-        pr_history_file = _get_pr_history_path()
-        with open(pr_history_file, 'w', encoding='utf-8') as f:
-            json.dump(history, f, indent=2, ensure_ascii=False)
-        print(f"[PR] ✅ Saved PR history to {pr_history_file}")
-        return True
+        # On Cloud Run, save to GCS
+        if IS_CLOUD_RUN and GCS_AVAILABLE:
+            try:
+                client = _get_gcs_client()
+                if client:
+                    bucket = client.bucket(GCS_BUCKET_NAME)
+                    blob = bucket.blob(GCS_PR_HISTORY_BLOB)
+                    blob.upload_from_string(
+                        json.dumps(history, indent=2, ensure_ascii=False),
+                        content_type='application/json'
+                    )
+                    print(f"[PR] ✅ Saved PR history to GCS ({len(history)} records)")
+                    return True
+            except Exception as gcs_err:
+                print(f"[PR] ⚠️ Could not save to GCS: {gcs_err}")
+                return False
+        else:
+            # Local - use file
+            local_file = os.path.join(_current_dir, 'pr_history.json')
+            with open(local_file, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            print(f"[PR] ✅ Saved PR history to {local_file}")
+            return True
+            
     except Exception as e:
-        print(f"[PR] ⚠️ Could not save PR history to file (using cache only): {e}")
-        # Even if file save fails, cache is updated
-        return True
+        print(f"[PR] ⚠️ Could not save PR history: {e}")
+        return False
 
 
 def add_pr_to_history(pr_record):
