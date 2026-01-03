@@ -263,6 +263,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [prHistory, setPRHistory] = useState<any[]>([]);
   const [prHistoryLoading, setPRHistoryLoading] = useState(false);
   
+  // Redo PR Modal State
+  const [showRedoPRModal, setShowRedoPRModal] = useState(false);
+  const [redoPRData, setRedoPRData] = useState<{
+    originalPR: any;
+    items: Array<{item_no: string; qty: number; originalQty: number}>;
+    justification: string;
+    requestedBy: string;
+    leadTime: number;
+  } | null>(null);
+  const [redoPRGenerating, setRedoPRGenerating] = useState(false);
+  
   // Customer details pagination state
   const [moPageSize, setMoPageSize] = useState(25);
   const [moCurrentPage, setMoCurrentPage] = useState(1);
@@ -5491,6 +5502,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <th className="text-center py-2 px-3 font-semibold text-indigo-900">Suppliers</th>
                               <th className="text-center py-2 px-3 font-semibold text-indigo-900">PRs</th>
                               <th className="text-right py-2 px-3 font-semibold text-indigo-900">Value</th>
+                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -5533,6 +5545,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </td>
                                 <td className="py-3 px-3 text-right font-medium text-gray-900">
                                   ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    onClick={() => {
+                                      setRedoPRData({
+                                        originalPR: pr,
+                                        items: (pr.items_requested || []).map((item: any) => ({
+                                          item_no: item.item_no,
+                                          qty: item.qty,
+                                          originalQty: item.qty
+                                        })),
+                                        justification: pr.justification || '',
+                                        requestedBy: pr.user || '',
+                                        leadTime: pr.lead_time || 7
+                                      });
+                                      setShowRedoPRModal(true);
+                                    }}
+                                    className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+                                    title="Regenerate PRs with editable quantities"
+                                  >
+                                    🔄 Redo
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -8973,6 +9007,242 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 font-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {bomPRLoading ? 'Generating...' : '🚀 Generate PRs'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redo PR Modal - Regenerate PRs with editable quantities */}
+      {showRedoPRModal && redoPRData && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 px-6 py-4">
+              <h3 className="text-xl font-bold text-white">🔄 Regenerate Purchase Requisitions</h3>
+              <p className="text-indigo-100 text-sm mt-1">
+                Edit quantities and regenerate PRs from: {redoPRData.originalPR?.date} {redoPRData.originalPR?.time}
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Justification */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Justification <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={redoPRData.justification}
+                  onChange={(e) => setRedoPRData({...redoPRData, justification: e.target.value})}
+                  placeholder="e.g., Customer Order #12345, Stock Replenishment, etc."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                  rows={2}
+                />
+              </div>
+              
+              {/* Requested By and Lead Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Requested By <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={redoPRData.requestedBy}
+                    onChange={(e) => setRedoPRData({...redoPRData, requestedBy: e.target.value})}
+                    placeholder="Your name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lead Time (days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={redoPRData.leadTime}
+                    onChange={(e) => setRedoPRData({...redoPRData, leadTime: parseInt(e.target.value) || 7})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Items List - Editable */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Items to Order ({redoPRData.items.length})
+                </label>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left py-2 px-3 font-medium text-gray-700">Item Number</th>
+                        <th className="text-center py-2 px-3 font-medium text-gray-700 w-32">Quantity</th>
+                        <th className="text-center py-2 px-3 font-medium text-gray-700 w-20">Original</th>
+                        <th className="text-center py-2 px-3 font-medium text-gray-700 w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {redoPRData.items.map((item, index) => (
+                        <tr key={index} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-3 font-mono text-xs text-gray-800">{item.item_no}</td>
+                          <td className="py-2 px-3 text-center">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.qty}
+                              onChange={(e) => {
+                                const newItems = [...redoPRData.items];
+                                newItems[index].qty = parseInt(e.target.value) || 1;
+                                setRedoPRData({...redoPRData, items: newItems});
+                              }}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-center text-gray-500 text-xs">
+                            {item.originalQty}
+                            {item.qty !== item.originalQty && (
+                              <span className={`ml-1 ${item.qty > item.originalQty ? 'text-green-600' : 'text-red-600'}`}>
+                                ({item.qty > item.originalQty ? '+' : ''}{item.qty - item.originalQty})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <button
+                              onClick={() => {
+                                const newItems = redoPRData.items.filter((_, i) => i !== index);
+                                setRedoPRData({...redoPRData, items: newItems});
+                              }}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {redoPRData.items.length === 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                      No items to order. Add items or cancel.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  setShowRedoPRModal(false);
+                  setRedoPRData(null);
+                }}
+                className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!redoPRData.justification.trim()) {
+                    alert('Please enter a justification for purchase');
+                    return;
+                  }
+                  if (!redoPRData.requestedBy.trim()) {
+                    alert('Please enter who requested this purchase');
+                    return;
+                  }
+                  if (redoPRData.items.length === 0) {
+                    alert('No items to order');
+                    return;
+                  }
+                  
+                  setRedoPRGenerating(true);
+                  
+                  try {
+                    const response = await fetch(getApiUrl('/api/pr/create-from-bom'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        user_info: {
+                          name: redoPRData.requestedBy,
+                          department: 'Sales',
+                          justification: redoPRData.justification,
+                          lead_time: redoPRData.leadTime
+                        },
+                        selected_items: redoPRData.items.map(item => ({
+                          item_no: item.item_no,
+                          qty: item.qty
+                        })),
+                        location: '62TODD'
+                      })
+                    });
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                      const result = await response.json();
+                      if (result.error) {
+                        alert(`Error: ${result.error}`);
+                        return;
+                      }
+                      if (result.message) {
+                        alert(result.message);
+                        return;
+                      }
+                    }
+                    
+                    if (!response.ok) {
+                      throw new Error('Failed to generate PRs');
+                    }
+                    
+                    const blob = await response.blob();
+                    const contentDisposition = response.headers.get('content-disposition');
+                    let filename = 'PRs-Batch-Redo';
+                    if (contentDisposition) {
+                      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                      if (match) filename = match[1];
+                    }
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    alert(`✅ Regenerated PRs for ${redoPRData.items.length} items!\nDownloaded: ${filename}`);
+                    
+                    setShowRedoPRModal(false);
+                    setRedoPRData(null);
+                    
+                    // Refresh PR history
+                    fetchPRHistory();
+                    
+                  } catch (error) {
+                    console.error('Redo PR generation error:', error);
+                    alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  } finally {
+                    setRedoPRGenerating(false);
+                  }
+                }}
+                disabled={redoPRGenerating || redoPRData.items.length === 0}
+                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-700 text-white rounded-lg hover:from-indigo-700 hover:to-purple-800 font-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {redoPRGenerating ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  <>🚀 Regenerate PRs ({redoPRData.items.length} items)</>
+                )}
               </button>
             </div>
           </div>
