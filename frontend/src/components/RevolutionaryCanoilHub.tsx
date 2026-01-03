@@ -889,7 +889,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const fetchPRHistory = async () => {
     setPRHistoryLoading(true);
     try {
-      const response = await fetch(`${getApiUrl()}/api/pr/history`);
+      const response = await fetch(getApiUrl('/api/pr/history'));
       if (response.ok) {
         const data = await response.json();
         setPRHistory(data.history || []);
