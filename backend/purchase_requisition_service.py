@@ -2232,9 +2232,9 @@ def get_supplier_details(supplier_no):
                 'note': 'Please enter supplier details manually'
             }), 404
             
-        # Add note about address availability
-        supplier_info['note'] = 'Supplier address not available in system - please enter manually'
-        supplier_info['address'] = {} # Explicitly set empty address so frontend knows to prompt
+        # Add note only if address is actually missing
+        if not supplier_info.get('address'):
+            supplier_info['note'] = 'Supplier address not available in system - please enter manually'
         
         return jsonify(supplier_info)
         
