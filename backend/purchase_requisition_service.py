@@ -29,7 +29,7 @@ pr_service = Blueprint('pr_service', __name__)
 GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions")
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
-PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-2025-06-09-Lanxess.xlsx')
+PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-Template-Clean.xlsx')
 
 # Cloud Run detection
 IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
@@ -1185,12 +1185,12 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
         if supplier_info.get('postal'):
             address_parts.append(supplier_info['postal'])
         
-        # B7 or similar cell for address - set even if empty to clear old data
-        # Note: Check template to confirm correct cell for address
-        # cell_values['B7'] = ', '.join(address_parts) if address_parts else ''
+        # C9: Supplier Address (multi-line)
+        cell_values['C9'] = '\n'.join(address_parts) if address_parts else ''
     else:
         # No supplier info at all - still clear all supplier cells!
         cell_values['B9'] = ''   # Vendor name
+        cell_values['C9'] = ''   # Address
         cell_values['B11'] = ''  # Contact
         cell_values['B13'] = f"{lead_days} days"  # Lead time
         cell_values['C11'] = ''  # Email
