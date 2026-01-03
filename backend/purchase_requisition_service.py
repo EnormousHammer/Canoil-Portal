@@ -787,39 +787,39 @@ def get_supplier_info(supplier_no):
         except Exception as ext_err:
             print(f"[PR]   ⚠️ Could not load extended supplier info: {ext_err}")
         
-        # FINALLY: Apply manual overrides from supplier_contacts.json
-        # This allows manual data entry to fill gaps or correct errors
+        # FINALLY: Apply data from supplier_contacts.json (our primary source from MISys full export)
+        # This is the most complete and accurate source - ALWAYS use it when available
         if manual_override:
             override_applied = False
             
-            # Only override fields that have values in the lookup file
-            if manual_override.get('email') and not info.get('email'):
+            # ALWAYS use supplier_contacts.json data when available (it's our primary source)
+            if manual_override.get('email'):
                 info['email'] = manual_override['email']
                 override_applied = True
-            if manual_override.get('phone') and not info.get('phone'):
+            if manual_override.get('phone'):
                 info['phone'] = manual_override['phone']
                 override_applied = True
-            if manual_override.get('contact') and not info.get('contact'):
+            if manual_override.get('contact'):
                 info['contact'] = manual_override['contact']
                 override_applied = True
-            if manual_override.get('address') and not info.get('address'):
+            if manual_override.get('address'):
                 info['address'] = manual_override['address']
                 override_applied = True
-            if manual_override.get('city') and not info.get('city'):
+            if manual_override.get('city'):
                 info['city'] = manual_override['city']
                 override_applied = True
-            if manual_override.get('province') and not info.get('province'):
+            if manual_override.get('province'):
                 info['province'] = manual_override['province']
                 override_applied = True
-            if manual_override.get('postal') and not info.get('postal'):
+            if manual_override.get('postal'):
                 info['postal'] = manual_override['postal']
                 override_applied = True
-            if manual_override.get('country') and not info.get('country'):
+            if manual_override.get('country'):
                 info['country'] = manual_override['country']
                 override_applied = True
             
             if override_applied:
-                print(f"[PR]   📋 Applied manual contact overrides from supplier_contacts.json")
+                print(f"[PR]   📋 Applied supplier data from supplier_contacts.json")
         
         return info
         
