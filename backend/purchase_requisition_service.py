@@ -372,6 +372,35 @@ def fill_excel_directly(template_path, cell_values):
     if formula_cells_cleared > 0:
         print(f"[PR] 🔄 Cleared cached values from {formula_cells_cleared} formula cells for recalculation")
     
+    # Modify workbook.xml to force Excel to recalculate all formulas on open
+    # This fixes the issue where formulas show wrong values until you click and press Enter
+    if 'xl/workbook.xml' in files:
+        try:
+            workbook_xml = etree.fromstring(files['xl/workbook.xml'])
+            wb_ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+            
+            # Find or create calcPr element
+            calc_pr = workbook_xml.find(f'{{{wb_ns}}}calcPr')
+            if calc_pr is None:
+                # Create calcPr element
+                calc_pr = etree.Element(f'{{{wb_ns}}}calcPr')
+                workbook_xml.append(calc_pr)
+            
+            # Set fullCalcOnLoad to force recalculation on open
+            calc_pr.set('fullCalcOnLoad', '1')
+            calc_pr.set('calcMode', 'auto')
+            
+            # Save back to files dict
+            files['xl/workbook.xml'] = etree.tostring(
+                workbook_xml,
+                xml_declaration=True,
+                encoding='UTF-8',
+                standalone='yes'
+            )
+            print("[PR] 🔄 Set fullCalcOnLoad=1 in workbook.xml to force formula recalculation on open")
+        except Exception as e:
+            print(f"[PR] ⚠️ Could not modify workbook.xml for auto-calc: {e}")
+    
     # Serialize back to XML
     files['xl/worksheets/sheet1.xml'] = etree.tostring(
         sheet_xml, 
