@@ -32,41 +32,76 @@ _gdrive_cache_time = None
 _GDRIVE_CACHE_DURATION = 300  # 5 minutes
 
 # PR History storage
-PR_HISTORY_FILE = os.path.join(_current_dir, 'pr_history.json')
+# Use /tmp on Cloud Run (read-only filesystem), backend folder locally
+def _get_pr_history_path():
+    """Get the appropriate path for PR history based on environment"""
+    # Check if we're on Cloud Run (read-only filesystem)
+    if os.environ.get('K_SERVICE') or os.environ.get('CLOUD_RUN'):
+        # Cloud Run - use /tmp
+        return '/tmp/pr_history.json'
+    else:
+        # Local - use backend folder
+        return os.path.join(_current_dir, 'pr_history.json')
+
 PR_HISTORY_RETENTION_DAYS = 30
+
+# In-memory cache for PR history (survives across requests in same container)
+_pr_history_cache = None
 
 
 def load_pr_history():
-    """Load PR history from JSON file"""
+    """Load PR history from JSON file or cache"""
+    global _pr_history_cache
+    
     try:
-        if os.path.exists(PR_HISTORY_FILE):
-            with open(PR_HISTORY_FILE, 'r', encoding='utf-8') as f:
+        pr_history_file = _get_pr_history_path()
+        
+        # Try to load from file first
+        if os.path.exists(pr_history_file):
+            with open(pr_history_file, 'r', encoding='utf-8') as f:
                 history = json.load(f)
             # Filter to last 30 days
             cutoff = datetime.now() - timedelta(days=PR_HISTORY_RETENTION_DAYS)
             cutoff_str = cutoff.strftime('%Y-%m-%d')
             history = [h for h in history if h.get('date', '') >= cutoff_str]
+            _pr_history_cache = history
             return history
+        
+        # If no file, return cache or empty
+        if _pr_history_cache is not None:
+            return _pr_history_cache
         return []
     except Exception as e:
         print(f"[PR] Error loading PR history: {e}")
+        # Return cache if available
+        if _pr_history_cache is not None:
+            return _pr_history_cache
         return []
 
 
 def save_pr_history(history):
-    """Save PR history to JSON file"""
+    """Save PR history to JSON file and cache"""
+    global _pr_history_cache
+    
     try:
         # Filter to last 30 days before saving
         cutoff = datetime.now() - timedelta(days=PR_HISTORY_RETENTION_DAYS)
         cutoff_str = cutoff.strftime('%Y-%m-%d')
         history = [h for h in history if h.get('date', '') >= cutoff_str]
         
-        with open(PR_HISTORY_FILE, 'w', encoding='utf-8') as f:
+        # Always update cache
+        _pr_history_cache = history
+        
+        # Try to save to file
+        pr_history_file = _get_pr_history_path()
+        with open(pr_history_file, 'w', encoding='utf-8') as f:
             json.dump(history, f, indent=2, ensure_ascii=False)
+        print(f"[PR] ✅ Saved PR history to {pr_history_file}")
         return True
     except Exception as e:
-        print(f"[PR] Error saving PR history: {e}")
-        return False
+        print(f"[PR] ⚠️ Could not save PR history to file (using cache only): {e}")
+        # Even if file save fails, cache is updated
+        return True
 
 
 def add_pr_to_history(pr_record):
