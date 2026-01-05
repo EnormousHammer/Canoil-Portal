@@ -5522,9 +5522,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               // Get components - prioritize short_items_detail (actual PR Excel items) over component_breakdown
                               // short_items_detail = items that go on the Excel (raw materials that are SHORT)
                               // component_breakdown = all exploded components (including those in stock)
-                              // items_requested = parent items selected (NOT the formula components)
+                              // items_requested = parent items selected (fallback for old PRs)
                               const hasFullData = pr.short_items_detail?.length > 0 || pr.component_breakdown?.length > 0;
-                              const components = pr.short_items_detail || pr.component_breakdown || [];
+                              const components = pr.short_items_detail || pr.component_breakdown || pr.items_requested || [];
                               
                               return (
                                 <React.Fragment key={pr.id || index}>
@@ -5702,11 +5702,55 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             </div>
                                           </>
                                         ) : (
-                                          <div className="text-center py-6 text-gray-500">
-                                            <div className="text-4xl mb-2">📋</div>
-                                            <div className="font-medium">Component breakdown not available for this old PR</div>
-                                            <div className="text-sm mt-1">Click <strong>🔄 Redo</strong> to regenerate with full component details</div>
-                                          </div>
+                                          <>
+                                            <div className="mb-3 flex justify-between items-center">
+                                              <h5 className="font-bold text-blue-800 flex items-center gap-2">
+                                                📦 Items Ordered
+                                                <span className="text-sm font-normal text-orange-600">
+                                                  (Parent items - click Redo for full raw material breakdown)
+                                                </span>
+                                              </h5>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const headers = "Item No.\tQty";
+                                                  const rows = components.map((c: any) => {
+                                                    return `${c.item_no || ''}\t${c.qty ?? c.qty_needed ?? ''}`;
+                                                  }).join('\n');
+                                                  navigator.clipboard.writeText(`${headers}\n${rows}`);
+                                                  alert('✅ Copied to clipboard!');
+                                                }}
+                                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
+                                              >
+                                                📋 Copy for Excel
+                                              </button>
+                                            </div>
+                                            
+                                            <div className="bg-white rounded-lg border border-blue-200 overflow-hidden">
+                                              <table className="w-full text-sm">
+                                                <thead className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                                                  <tr>
+                                                    <th className="text-left px-3 py-2 font-semibold">Item No.</th>
+                                                    <th className="text-right px-3 py-2 font-semibold">Qty Ordered</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {components.map((comp: any, idx: number) => (
+                                                    <tr key={idx} className={`border-t border-gray-200 ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                                                      <td className="px-3 py-2 font-mono font-bold text-gray-900">{comp.item_no}</td>
+                                                      <td className="px-3 py-2 text-right text-lg font-bold text-blue-700">
+                                                        {(comp.qty ?? comp.qty_needed ?? 0).toLocaleString()}
+                                                      </td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                            
+                                            <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                                              ⚠️ This is an older PR - showing parent items only. Click <strong>🔄 Redo</strong> to see full raw material component breakdown with stock levels.
+                                            </div>
+                                          </>
                                         )}
                                       </td>
                                     </tr>
