@@ -5519,8 +5519,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 setExpandedPRHistory(newSet);
                               };
                               
-                              // Get components - use new fields or fallback to items_requested
-                              const components = pr.component_breakdown || pr.short_items_detail || pr.items_requested || [];
+                              // Get components - prioritize short_items_detail (actual PR Excel items) over component_breakdown
+                              // short_items_detail = items that go on the Excel (raw materials that are SHORT)
+                              // component_breakdown = all exploded components (including those in stock)
+                              // items_requested = parent items selected (NOT the formula components)
+                              const hasFullData = pr.short_items_detail?.length > 0 || pr.component_breakdown?.length > 0;
+                              const components = pr.short_items_detail || pr.component_breakdown || [];
                               
                               return (
                                 <React.Fragment key={pr.id || index}>
@@ -5590,126 +5594,120 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </td>
                                   </tr>
                                   
-                                  {/* Expanded Component Breakdown - Copy-Paste Friendly for Excel */}
+                                  {/* Expanded Component Breakdown - Total Components Needed for Batch */}
                                   {isExpanded && (
                                     <tr>
                                       <td colSpan={9} className="bg-blue-50 px-4 py-4">
-                                        <div className="mb-3 flex justify-between items-center">
-                                          <h5 className="font-bold text-blue-800 flex items-center gap-2">
-                                            📦 Component Breakdown for Full Batch
-                                            <span className="text-sm font-normal text-blue-600">
-                                              ({components.length} components)
-                                            </span>
-                                          </h5>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // Build tab-separated text for Excel
-                                              const headers = "Item No.\tDescription\tQty Needed\tUnit\tStock\tShortfall\tOrder Qty\tSupplier";
-                                              const rows = components.map((c: any) => {
-                                                const itemNo = c.item_no || '';
-                                                const desc = (c.description || '').replace(/\t/g, ' ');
-                                                const qtyNeeded = c.qty_needed ?? c.qty ?? '';
-                                                const unit = c.stocking_units || c.unit || 'EA';
-                                                const stock = c.stock ?? '';
-                                                const shortfall = c.shortfall ?? '';
-                                                const orderQty = c.order_qty ?? '';
-                                                const supplier = c.preferred_supplier || '';
-                                                return `${itemNo}\t${desc}\t${qtyNeeded}\t${unit}\t${stock}\t${shortfall}\t${orderQty}\t${supplier}`;
-                                              }).join('\n');
-                                              const text = `${headers}\n${rows}`;
-                                              navigator.clipboard.writeText(text);
-                                              alert('✅ Copied to clipboard! Paste into Excel.');
-                                            }}
-                                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
-                                          >
-                                            📋 Copy for Excel
-                                          </button>
-                                        </div>
-                                        
-                                        {/* Excel-friendly table */}
-                                        <div className="bg-white rounded-lg border border-blue-200 overflow-x-auto">
-                                          <table className="w-full text-xs font-mono">
-                                            <thead className="bg-blue-100">
-                                              <tr>
-                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Item No.</th>
-                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Description</th>
-                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Qty Needed</th>
-                                                <th className="text-center px-2 py-2 font-semibold text-blue-900">Unit</th>
-                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Stock</th>
-                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Shortfall</th>
-                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Order Qty</th>
-                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Supplier</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>
-                                              {components.map((comp: any, idx: number) => {
-                                                const isShort = comp.is_short || (comp.shortfall && comp.shortfall > 0);
-                                                const isToteOrIBC = (comp.item_no || '').toUpperCase().includes('TOTE') || 
-                                                                    (comp.item_no || '').toUpperCase().includes('IBC');
-                                                return (
-                                                  <tr 
-                                                    key={idx} 
-                                                    className={`border-t border-blue-100 ${isShort ? 'bg-red-50' : ''} ${isToteOrIBC ? 'bg-yellow-50' : ''}`}
-                                                  >
-                                                    <td className="px-2 py-1.5 text-gray-900 font-medium">
-                                                      {isToteOrIBC && <span title="TOTE/IBC Container">📦 </span>}
-                                                      {comp.item_no}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-gray-700 max-w-xs truncate" title={comp.description}>
-                                                      {comp.description || '-'}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-right font-bold text-blue-700">
-                                                      {(comp.qty_needed ?? comp.qty ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center text-gray-600">
-                                                      {comp.stocking_units || comp.unit || 'EA'}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-right text-gray-600">
-                                                      {comp.stock !== undefined ? comp.stock.toLocaleString() : '-'}
-                                                    </td>
-                                                    <td className={`px-2 py-1.5 text-right font-medium ${isShort ? 'text-red-600' : 'text-gray-600'}`}>
-                                                      {comp.shortfall !== undefined ? comp.shortfall.toLocaleString() : '-'}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-right font-bold text-green-700">
-                                                      {comp.order_qty !== undefined ? comp.order_qty.toLocaleString() : '-'}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-gray-600">
-                                                      {comp.preferred_supplier || '-'}
-                                                    </td>
+                                        {hasFullData ? (
+                                          <>
+                                            <div className="mb-3 flex justify-between items-center">
+                                              <h5 className="font-bold text-blue-800 flex items-center gap-2">
+                                                📦 Total Components Needed for This Batch
+                                                <span className="text-sm font-normal text-blue-600">
+                                                  ({components.length} raw materials to order)
+                                                </span>
+                                              </h5>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  // Build tab-separated text for Excel - simple format
+                                                  const headers = "Item No.\tDescription\tTotal Needed\tUnit\tIn Stock\tShort\tOrder Qty\tSupplier";
+                                                  const rows = components.map((c: any) => {
+                                                    const itemNo = c.item_no || '';
+                                                    const desc = (c.description || '').replace(/\t/g, ' ');
+                                                    const qtyNeeded = c.qty_needed ?? c.qty ?? '';
+                                                    const unit = c.stocking_units || c.unit || 'EA';
+                                                    const stock = c.stock ?? '';
+                                                    const shortfall = c.shortfall ?? '';
+                                                    const orderQty = c.order_qty ?? '';
+                                                    const supplier = c.preferred_supplier || '';
+                                                    return `${itemNo}\t${desc}\t${qtyNeeded}\t${unit}\t${stock}\t${shortfall}\t${orderQty}\t${supplier}`;
+                                                  }).join('\n');
+                                                  const text = `${headers}\n${rows}`;
+                                                  navigator.clipboard.writeText(text);
+                                                  alert('✅ Copied to clipboard! Paste into Excel.');
+                                                }}
+                                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
+                                              >
+                                                📋 Copy for Excel
+                                              </button>
+                                            </div>
+                                            
+                                            {/* Clean Component List - What Goes on the PR Excel */}
+                                            <div className="bg-white rounded-lg border border-blue-200 overflow-hidden">
+                                              <table className="w-full text-sm">
+                                                <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                                                  <tr>
+                                                    <th className="text-left px-3 py-2 font-semibold">Component (Raw Material)</th>
+                                                    <th className="text-right px-3 py-2 font-semibold">TOTAL NEEDED</th>
+                                                    <th className="text-center px-3 py-2 font-semibold">Unit</th>
+                                                    <th className="text-right px-3 py-2 font-semibold">In Stock</th>
+                                                    <th className="text-right px-3 py-2 font-semibold">SHORT</th>
+                                                    <th className="text-right px-3 py-2 font-semibold">Order Qty</th>
+                                                    <th className="text-left px-3 py-2 font-semibold">Supplier</th>
                                                   </tr>
-                                                );
-                                              })}
-                                            </tbody>
-                                            <tfoot className="bg-blue-100 font-semibold">
-                                              <tr>
-                                                <td colSpan={2} className="px-2 py-2 text-blue-900">TOTALS</td>
-                                                <td className="px-2 py-2 text-right text-blue-900">
-                                                  {components.reduce((sum: number, c: any) => sum + (c.qty_needed ?? c.qty ?? 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                                </td>
-                                                <td></td>
-                                                <td></td>
-                                                <td className="px-2 py-2 text-right text-red-700">
-                                                  {components.reduce((sum: number, c: any) => sum + (c.shortfall ?? 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                                </td>
-                                                <td className="px-2 py-2 text-right text-green-700">
-                                                  {components.reduce((sum: number, c: any) => sum + (c.order_qty ?? 0), 0).toLocaleString()}
-                                                </td>
-                                                <td></td>
-                                              </tr>
-                                            </tfoot>
-                                          </table>
-                                        </div>
-                                        
-                                        {/* Legend */}
-                                        <div className="mt-2 flex gap-4 text-xs text-gray-600">
-                                          <span className="flex items-center gap-1">
-                                            <span className="w-3 h-3 bg-red-50 border border-red-200 rounded"></span> Short items
-                                          </span>
-                                          <span className="flex items-center gap-1">
-                                            <span className="w-3 h-3 bg-yellow-50 border border-yellow-200 rounded"></span> 📦 TOTE/IBC containers
-                                          </span>
-                                        </div>
+                                                </thead>
+                                                <tbody>
+                                                  {components.map((comp: any, idx: number) => {
+                                                    const isToteOrIBC = (comp.item_no || '').toUpperCase().includes('TOTE') || 
+                                                                        (comp.item_no || '').toUpperCase().includes('IBC');
+                                                    const shortfall = comp.shortfall ?? 0;
+                                                    return (
+                                                      <tr 
+                                                        key={idx} 
+                                                        className={`border-t border-gray-200 ${isToteOrIBC ? 'bg-yellow-50' : idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                                                      >
+                                                        <td className="px-3 py-2">
+                                                          <div className="font-mono font-bold text-gray-900">
+                                                            {isToteOrIBC && <span className="text-yellow-600">📦 </span>}
+                                                            {comp.item_no}
+                                                          </div>
+                                                          <div className="text-xs text-gray-500 truncate max-w-xs">{comp.description || ''}</div>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-right">
+                                                          <span className="text-lg font-bold text-blue-700">
+                                                            {(comp.qty_needed ?? comp.qty ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                          </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center text-gray-600 font-medium">
+                                                          {comp.stocking_units || comp.unit || 'EA'}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-right text-gray-700">
+                                                          {comp.stock !== undefined ? comp.stock.toLocaleString() : '-'}
+                                                        </td>
+                                                        <td className={`px-3 py-2 text-right font-bold ${shortfall > 0 ? 'text-red-600 bg-red-50' : 'text-green-600'}`}>
+                                                          {shortfall > 0 ? shortfall.toLocaleString() : '✓ OK'}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-right font-bold text-green-700">
+                                                          {comp.order_qty !== undefined && comp.order_qty > 0 ? comp.order_qty.toLocaleString() : '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-gray-600 text-xs">
+                                                          {comp.preferred_supplier || '-'}
+                                                        </td>
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                            
+                                            {/* Legend */}
+                                            <div className="mt-2 flex gap-4 text-xs text-gray-600">
+                                              <span className="flex items-center gap-1">
+                                                <span className="w-3 h-3 bg-yellow-50 border border-yellow-300 rounded"></span> 📦 TOTE/IBC container
+                                              </span>
+                                              <span className="flex items-center gap-1">
+                                                <span className="w-3 h-3 bg-red-50 border border-red-300 rounded"></span> Short (needs ordering)
+                                              </span>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="text-center py-6 text-gray-500">
+                                            <div className="text-4xl mb-2">📋</div>
+                                            <div className="font-medium">Component breakdown not available for this old PR</div>
+                                            <div className="text-sm mt-1">Click <strong>🔄 Redo</strong> to regenerate with full component details</div>
+                                          </div>
+                                        )}
                                       </td>
                                     </tr>
                                   )}
