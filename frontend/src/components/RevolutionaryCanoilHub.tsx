@@ -262,6 +262,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showPRHistory, setShowPRHistory] = useState(false);
   const [prHistory, setPRHistory] = useState<any[]>([]);
   const [prHistoryLoading, setPRHistoryLoading] = useState(false);
+  const [expandedPRHistory, setExpandedPRHistory] = useState<Set<string>>(new Set());
   
   // Redo PR Modal State
   const [showRedoPRModal, setShowRedoPRModal] = useState(false);
@@ -5506,70 +5507,215 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </tr>
                           </thead>
                           <tbody>
-                            {prHistory.map((pr: any, index: number) => (
-                              <tr 
-                                key={pr.id || index} 
-                                className="border-b border-indigo-100 hover:bg-indigo-50 transition-colors"
-                              >
-                                <td className="py-3 px-3 font-medium text-gray-900">{pr.date}</td>
-                                <td className="py-3 px-3 text-gray-600">{pr.time}</td>
-                                <td className="py-3 px-3 text-gray-800">{pr.user}</td>
-                                <td className="py-3 px-3 text-gray-600 max-w-xs truncate" title={pr.justification}>
-                                  {pr.justification?.length > 30 ? `${pr.justification.substring(0, 30)}...` : pr.justification}
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                                    {pr.items_requested?.length || 0}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  <div className="flex flex-wrap gap-1 justify-center">
-                                    {pr.suppliers?.slice(0, 3).map((s: any, i: number) => (
-                                      <span 
-                                        key={i} 
-                                        className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium"
-                                        title={s.supplier_name}
-                                      >
-                                        {s.supplier_no?.length > 10 ? `${s.supplier_no.substring(0, 10)}...` : s.supplier_no}
-                                      </span>
-                                    ))}
-                                    {pr.suppliers?.length > 3 && (
-                                      <span className="text-gray-500 text-xs">+{pr.suppliers.length - 3}</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                                    {pr.total_prs_generated || 0}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-right font-medium text-gray-900">
-                                  ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  <button
-                                    onClick={() => {
-                                      setRedoPRData({
-                                        originalPR: pr,
-                                        items: (pr.items_requested || []).map((item: any) => ({
-                                          item_no: item.item_no,
-                                          qty: item.qty,
-                                          originalQty: item.qty
-                                        })),
-                                        justification: pr.justification || '',
-                                        requestedBy: pr.user || '',
-                                        leadTime: pr.lead_time || 7
-                                      });
-                                      setShowRedoPRModal(true);
-                                    }}
-                                    className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
-                                    title="Regenerate PRs with editable quantities"
+                            {prHistory.map((pr: any, index: number) => {
+                              const isExpanded = expandedPRHistory.has(pr.id || `pr-${index}`);
+                              const toggleExpand = () => {
+                                const newSet = new Set(expandedPRHistory);
+                                if (isExpanded) {
+                                  newSet.delete(pr.id || `pr-${index}`);
+                                } else {
+                                  newSet.add(pr.id || `pr-${index}`);
+                                }
+                                setExpandedPRHistory(newSet);
+                              };
+                              
+                              // Get components - use new fields or fallback to items_requested
+                              const components = pr.component_breakdown || pr.short_items_detail || pr.items_requested || [];
+                              
+                              return (
+                                <React.Fragment key={pr.id || index}>
+                                  <tr 
+                                    className="border-b border-indigo-100 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                    onClick={toggleExpand}
                                   >
-                                    🔄 Redo
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                                    <td className="py-3 px-3 font-medium text-gray-900">
+                                      <span className="mr-2">{isExpanded ? '▼' : '▶'}</span>
+                                      {pr.date}
+                                    </td>
+                                    <td className="py-3 px-3 text-gray-600">{pr.time}</td>
+                                    <td className="py-3 px-3 text-gray-800">{pr.user}</td>
+                                    <td className="py-3 px-3 text-gray-600 max-w-xs truncate" title={pr.justification}>
+                                      {pr.justification?.length > 30 ? `${pr.justification.substring(0, 30)}...` : pr.justification}
+                                    </td>
+                                    <td className="py-3 px-3 text-center">
+                                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                                        {components.length || pr.items_requested?.length || 0}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-3 text-center">
+                                      <div className="flex flex-wrap gap-1 justify-center">
+                                        {pr.suppliers?.slice(0, 3).map((s: any, i: number) => (
+                                          <span 
+                                            key={i} 
+                                            className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium"
+                                            title={s.supplier_name}
+                                          >
+                                            {s.supplier_no?.length > 10 ? `${s.supplier_no.substring(0, 10)}...` : s.supplier_no}
+                                          </span>
+                                        ))}
+                                        {pr.suppliers?.length > 3 && (
+                                          <span className="text-gray-500 text-xs">+{pr.suppliers.length - 3}</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3 text-center">
+                                      <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                                        {pr.total_prs_generated || 0}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-3 text-right font-medium text-gray-900">
+                                      ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => {
+                                          setRedoPRData({
+                                            originalPR: pr,
+                                            items: (pr.items_requested || []).map((item: any) => ({
+                                              item_no: item.item_no,
+                                              qty: item.qty,
+                                              originalQty: item.qty
+                                            })),
+                                            justification: pr.justification || '',
+                                            requestedBy: pr.user || '',
+                                            leadTime: pr.lead_time || 7
+                                          });
+                                          setShowRedoPRModal(true);
+                                        }}
+                                        className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+                                        title="Regenerate PRs with editable quantities"
+                                      >
+                                        🔄 Redo
+                                      </button>
+                                    </td>
+                                  </tr>
+                                  
+                                  {/* Expanded Component Breakdown - Copy-Paste Friendly for Excel */}
+                                  {isExpanded && (
+                                    <tr>
+                                      <td colSpan={9} className="bg-blue-50 px-4 py-4">
+                                        <div className="mb-3 flex justify-between items-center">
+                                          <h5 className="font-bold text-blue-800 flex items-center gap-2">
+                                            📦 Component Breakdown for Full Batch
+                                            <span className="text-sm font-normal text-blue-600">
+                                              ({components.length} components)
+                                            </span>
+                                          </h5>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              // Build tab-separated text for Excel
+                                              const headers = "Item No.\tDescription\tQty Needed\tUnit\tStock\tShortfall\tOrder Qty\tSupplier";
+                                              const rows = components.map((c: any) => {
+                                                const itemNo = c.item_no || '';
+                                                const desc = (c.description || '').replace(/\t/g, ' ');
+                                                const qtyNeeded = c.qty_needed ?? c.qty ?? '';
+                                                const unit = c.stocking_units || c.unit || 'EA';
+                                                const stock = c.stock ?? '';
+                                                const shortfall = c.shortfall ?? '';
+                                                const orderQty = c.order_qty ?? '';
+                                                const supplier = c.preferred_supplier || '';
+                                                return `${itemNo}\t${desc}\t${qtyNeeded}\t${unit}\t${stock}\t${shortfall}\t${orderQty}\t${supplier}`;
+                                              }).join('\n');
+                                              const text = `${headers}\n${rows}`;
+                                              navigator.clipboard.writeText(text);
+                                              alert('✅ Copied to clipboard! Paste into Excel.');
+                                            }}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
+                                          >
+                                            📋 Copy for Excel
+                                          </button>
+                                        </div>
+                                        
+                                        {/* Excel-friendly table */}
+                                        <div className="bg-white rounded-lg border border-blue-200 overflow-x-auto">
+                                          <table className="w-full text-xs font-mono">
+                                            <thead className="bg-blue-100">
+                                              <tr>
+                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Item No.</th>
+                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Description</th>
+                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Qty Needed</th>
+                                                <th className="text-center px-2 py-2 font-semibold text-blue-900">Unit</th>
+                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Stock</th>
+                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Shortfall</th>
+                                                <th className="text-right px-2 py-2 font-semibold text-blue-900">Order Qty</th>
+                                                <th className="text-left px-2 py-2 font-semibold text-blue-900">Supplier</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {components.map((comp: any, idx: number) => {
+                                                const isShort = comp.is_short || (comp.shortfall && comp.shortfall > 0);
+                                                const isToteOrIBC = (comp.item_no || '').toUpperCase().includes('TOTE') || 
+                                                                    (comp.item_no || '').toUpperCase().includes('IBC');
+                                                return (
+                                                  <tr 
+                                                    key={idx} 
+                                                    className={`border-t border-blue-100 ${isShort ? 'bg-red-50' : ''} ${isToteOrIBC ? 'bg-yellow-50' : ''}`}
+                                                  >
+                                                    <td className="px-2 py-1.5 text-gray-900 font-medium">
+                                                      {isToteOrIBC && <span title="TOTE/IBC Container">📦 </span>}
+                                                      {comp.item_no}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-gray-700 max-w-xs truncate" title={comp.description}>
+                                                      {comp.description || '-'}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-right font-bold text-blue-700">
+                                                      {(comp.qty_needed ?? comp.qty ?? 0).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-center text-gray-600">
+                                                      {comp.stocking_units || comp.unit || 'EA'}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-right text-gray-600">
+                                                      {comp.stock !== undefined ? comp.stock.toLocaleString() : '-'}
+                                                    </td>
+                                                    <td className={`px-2 py-1.5 text-right font-medium ${isShort ? 'text-red-600' : 'text-gray-600'}`}>
+                                                      {comp.shortfall !== undefined ? comp.shortfall.toLocaleString() : '-'}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-right font-bold text-green-700">
+                                                      {comp.order_qty !== undefined ? comp.order_qty.toLocaleString() : '-'}
+                                                    </td>
+                                                    <td className="px-2 py-1.5 text-gray-600">
+                                                      {comp.preferred_supplier || '-'}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                            <tfoot className="bg-blue-100 font-semibold">
+                                              <tr>
+                                                <td colSpan={2} className="px-2 py-2 text-blue-900">TOTALS</td>
+                                                <td className="px-2 py-2 text-right text-blue-900">
+                                                  {components.reduce((sum: number, c: any) => sum + (c.qty_needed ?? c.qty ?? 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                </td>
+                                                <td></td>
+                                                <td></td>
+                                                <td className="px-2 py-2 text-right text-red-700">
+                                                  {components.reduce((sum: number, c: any) => sum + (c.shortfall ?? 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="px-2 py-2 text-right text-green-700">
+                                                  {components.reduce((sum: number, c: any) => sum + (c.order_qty ?? 0), 0).toLocaleString()}
+                                                </td>
+                                                <td></td>
+                                              </tr>
+                                            </tfoot>
+                                          </table>
+                                        </div>
+                                        
+                                        {/* Legend */}
+                                        <div className="mt-2 flex gap-4 text-xs text-gray-600">
+                                          <span className="flex items-center gap-1">
+                                            <span className="w-3 h-3 bg-red-50 border border-red-200 rounded"></span> Short items
+                                          </span>
+                                          <span className="flex items-center gap-1">
+                                            <span className="w-3 h-3 bg-yellow-50 border border-yellow-200 rounded"></span> 📦 TOTE/IBC containers
+                                          </span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                         

@@ -1032,11 +1032,8 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
             item_type = item_data.get('item_type', 0)
             # Item Type 0 = Raw Material/Purchased
             if item_type == 0:
-                # Skip empty tote/IBC containers
-                item_upper = parent_item_no.upper()
-                if 'TOTE' in item_upper or 'IBC' in item_upper or item_upper.startswith('PLASTICTOTE'):
-                    print(f"    ⏭️ Skipping empty container (no BOM): {parent_item_no}")
-                    return []
+                # NOTE: Do NOT skip TOTE/IBC containers - they are real components
+                # within formulas and need to be ordered like any other raw material
                 
                 print(f"    → Purchased item (no BOM): {parent_item_no}")
                 return [{
@@ -1087,12 +1084,8 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
             )
             components.extend(sub_components)
         else:  # Raw Material (item_type == 0) - add to purchase list
-            # Skip empty tote/IBC containers - these are packaging not raw materials
-            # Only skip if Item Type 0 (purchased) AND name contains TOTE/IBC
-            component_upper = component_no.upper()
-            if 'TOTE' in component_upper or 'IBC' in component_upper or component_upper.startswith('PLASTICTOTE'):
-                print(f"    ⏭️ Skipping empty container (Item Type 0): {component_no}")
-                continue
+            # NOTE: Do NOT skip TOTE/IBC containers - they are real components
+            # within formulas and need to be ordered like any other raw material
             
             components.append({
                 'item_no': component_no,
@@ -1576,6 +1569,34 @@ def create_pr_from_bom():
                 for item in short_items
             )
             
+            # Build full component breakdown for history (includes TOTE/IBC)
+            component_breakdown = []
+            for comp in aggregated:
+                component_breakdown.append({
+                    'item_no': comp['item_no'],
+                    'description': comp.get('description', ''),
+                    'qty_needed': round(comp['qty_needed'], 4),
+                    'stocking_units': comp.get('stocking_units', 'EA'),
+                    'purchasing_units': comp.get('purchasing_units', 'EA'),
+                    'is_short': any(s['item_no'] == comp['item_no'] for s in short_items)
+                })
+            
+            # Build short items detail for history
+            short_items_detail = []
+            for item in short_items:
+                short_items_detail.append({
+                    'item_no': item['item_no'],
+                    'description': item.get('description', ''),
+                    'qty_needed': round(item['qty_needed'], 4),
+                    'stock': round(item.get('stock', 0), 4),
+                    'shortfall': round(item.get('shortfall', 0), 4),
+                    'order_qty': item.get('order_qty', 0),
+                    'unit_price': round(item.get('unit_price', 0), 2),
+                    'stocking_units': item.get('stocking_units', 'EA'),
+                    'purchasing_units': item.get('purchasing_units', 'EA'),
+                    'preferred_supplier': item.get('preferred_supplier', '')
+                })
+            
             pr_record = {
                 'id': pr_id,
                 'date': datetime.now().strftime('%Y-%m-%d'),
@@ -1591,7 +1612,10 @@ def create_pr_from_bom():
                 'items_without_supplier': len(no_supplier),
                 'total_value': round(total_value, 2),
                 'status': 'completed',
-                'files': [f.get('filename') for f in generated_files]
+                'files': [f.get('filename') for f in generated_files],
+                # NEW: Full component breakdown for batch planning
+                'component_breakdown': component_breakdown,
+                'short_items_detail': short_items_detail
             }
             
             add_pr_to_history(pr_record)

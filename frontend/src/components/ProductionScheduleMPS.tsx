@@ -790,6 +790,62 @@ export function ProductionScheduleMPS() {
                           }) ? '⚠ Material Shortage' : '✓ Materials OK'}
                         </span>
                       </div>
+                      
+                      {/* Formula/Component Summary - Total Quantities Needed */}
+                      <div className="bg-blue-500/10 border-t border-blue-500/30 px-4 py-3">
+                        <h4 className="text-blue-400 font-bold text-sm mb-3 flex items-center gap-2">
+                          📊 Formula Summary - Total Components Needed
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="bg-slate-800/50 rounded-lg p-3">
+                            <div className="text-slate-400 text-xs mb-1">TOTAL REQUIRED</div>
+                            <div className="text-white font-bold text-lg">
+                              {selectedOrder.materials
+                                .filter(m => m.required_qty > 0)
+                                .reduce((sum, m) => sum + m.required_qty, 0)
+                                .toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-slate-500 text-xs mt-1">across all components</div>
+                          </div>
+                          <div className="bg-slate-800/50 rounded-lg p-3">
+                            <div className="text-slate-400 text-xs mb-1">TOTAL REMAINING</div>
+                            <div className="text-yellow-400 font-bold text-lg">
+                              {selectedOrder.materials
+                                .filter(m => m.required_qty > 0)
+                                .reduce((sum, m) => {
+                                  const remaining = Math.max(0, m.required_qty - m.completed_qty);
+                                  return sum + remaining;
+                                }, 0)
+                                .toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-slate-500 text-xs mt-1">still needed to complete</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-700/50">
+                          <div className="text-slate-400 text-xs mb-2 font-semibold">COMPONENT BREAKDOWN:</div>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {selectedOrder.materials
+                              .filter(m => m.required_qty > 0)
+                              .map((mat, idx) => {
+                                const remaining = Math.max(0, mat.required_qty - mat.completed_qty);
+                                return (
+                                  <div key={idx} className="flex justify-between items-center text-xs bg-slate-800/30 rounded px-2 py-1">
+                                    <span className="text-slate-300 font-mono">{mat.component_item_no}</span>
+                                    <div className="flex gap-3">
+                                      <span className="text-slate-400">
+                                        Need: <span className="text-white font-semibold">{mat.required_qty.toLocaleString()}</span>
+                                      </span>
+                                      <span className="text-yellow-400">
+                                        Left: <span className="font-semibold">{remaining.toLocaleString()}</span>
+                                      </span>
+                                      <span className="text-slate-500">{mat.unit}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">
