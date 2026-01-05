@@ -943,6 +943,32 @@ def load_bom_details():
     return load_json_from_gdrive('BillOfMaterialDetails.json')
 
 
+def get_current_bom_revision(item_no):
+    """
+    Get the current BOM revision for an item from CustomAlert5.json.
+    
+    Items can have multiple BOM revisions (0, 1, 2, etc.) but only ONE is "current".
+    This function returns the current revision number so we use the correct BOM.
+    
+    Returns: revision number as string (e.g., "0", "1") or None if not found
+    """
+    try:
+        inventory_data = load_json_from_gdrive('CustomAlert5.json')
+        if not inventory_data:
+            return None
+        
+        for item in inventory_data:
+            if item.get('Item No.') == item_no:
+                revision = item.get('Current BOM Revision')
+                if revision is not None:
+                    return str(revision)  # Ensure it's a string for comparison
+                return None
+        return None
+    except Exception as e:
+        print(f"Error getting current BOM revision for {item_no}: {e}")
+        return None
+
+
 def get_item_master(item_no):
     """Get item master data including preferred supplier and item type"""
     try:
@@ -1022,8 +1048,28 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
     # Load BOM data
     all_bom = load_bom_details()
     
-    # Find BOM lines for this parent
-    bom_lines = [b for b in all_bom if b.get('Parent Item No.') == parent_item_no]
+    # Get the CURRENT BOM revision for this item (items can have multiple revisions)
+    current_revision = get_current_bom_revision(parent_item_no)
+    
+    # Find BOM lines for this parent, filtered by current revision
+    if current_revision is not None:
+        # Filter by both parent item AND current revision
+        bom_lines = [b for b in all_bom 
+                     if b.get('Parent Item No.') == parent_item_no 
+                     and str(b.get('Revision No.', '0')) == current_revision]
+        print(f"    📋 Using BOM Revision {current_revision} for: {parent_item_no}")
+    else:
+        # No revision info - fall back to all lines (legacy behavior)
+        # But prefer revision "0" if multiple revisions exist
+        all_parent_lines = [b for b in all_bom if b.get('Parent Item No.') == parent_item_no]
+        revisions = set(str(b.get('Revision No.', '0')) for b in all_parent_lines)
+        if len(revisions) > 1:
+            # Multiple revisions exist but no current revision info - use highest
+            max_rev = max(revisions)
+            bom_lines = [b for b in all_parent_lines if str(b.get('Revision No.', '0')) == max_rev]
+            print(f"    ⚠️ No current revision set for {parent_item_no}, using highest: {max_rev}")
+        else:
+            bom_lines = all_parent_lines
     
     if not bom_lines:
         # No BOM - check if this is a purchased item
