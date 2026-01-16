@@ -5573,12 +5573,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                                       <button
                                         onClick={() => {
+                                          // Use short_items_detail (actual PR items) or component_breakdown (all components) or fallback to items_requested
+                                          const itemsToUse = pr.short_items_detail || pr.component_breakdown || pr.items_requested || [];
+                                          
                                           setRedoPRData({
                                             originalPR: pr,
-                                            items: (pr.items_requested || []).map((item: any) => ({
-                                              item_no: item.item_no,
-                                              qty: item.qty,
-                                              originalQty: item.qty
+                                            items: itemsToUse.map((item: any) => ({
+                                              item_no: item.item_no || item['Item No.'] || '',
+                                              qty: item.order_qty || item.qty || item.qty_needed || 1,
+                                              originalQty: item.order_qty || item.qty || item.qty_needed || 1
                                             })),
                                             justification: pr.justification || '',
                                             requestedBy: pr.user || '',

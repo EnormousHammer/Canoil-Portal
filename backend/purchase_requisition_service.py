@@ -1165,6 +1165,50 @@ def aggregate_components(components):
     return list(aggregated.values())
 
 
+def calculate_inventory_days(last_po_date_str):
+    """
+    Calculate days since last order date.
+    
+    Args:
+        last_po_date_str: Order date string (various formats possible)
+    
+    Returns:
+        Number of days since last order, or empty string if date not available/parseable
+    """
+    if not last_po_date_str:
+        return ''
+    
+    try:
+        today = datetime.now()
+        
+        # Try common date formats
+        date_formats = [
+            '%Y-%m-%d',           # 2025-01-15
+            '%m/%d/%Y',            # 01/15/2025
+            '%d/%m/%Y',            # 15/01/2025
+            '%Y-%m-%d %H:%M:%S',   # 2025-01-15 10:30:00
+            '%m/%d/%y',            # 01/15/25
+            '%d/%m/%y',            # 15/01/25
+        ]
+        
+        last_order_date = None
+        for fmt in date_formats:
+            try:
+                last_order_date = datetime.strptime(str(last_po_date_str).strip(), fmt)
+                break
+            except ValueError:
+                continue
+        
+        if last_order_date:
+            days_diff = (today - last_order_date).days
+            return str(days_diff) if days_diff >= 0 else ''
+        else:
+            return ''
+    except Exception as e:
+        print(f"[PR] Error calculating inventory days from '{last_po_date_str}': {e}")
+        return ''
+
+
 def build_pr_cell_values(user_info, items, supplier_info, lead_days):
     """
     Build cell values dictionary for PR template.
@@ -1248,8 +1292,10 @@ def build_pr_cell_values(user_info, items, supplier_info, lead_days):
         # C: Description
         cell_values[f'C{row}'] = item.get('description', '')
         
-        # D: Inventory Turnover (leave blank for now)
-        # cell_values[f'D{row}'] = ''
+        # D: Inventory Days (days since last order)
+        last_po_date = item.get('last_po_date', '')
+        inventory_days = calculate_inventory_days(last_po_date)
+        cell_values[f'D{row}'] = inventory_days
         
         # E: Current Stock
         stock = item.get('stock', '')
