@@ -1549,9 +1549,50 @@ def create_pr_from_bom():
                 
                 print(f"    ✅ Generated: {filename}")
         
-        # Add warnings for items without suppliers
-        for item in no_supplier:
-            warnings.append(f"No preferred supplier for: {item['item_no']} - Please assign manually")
+        # Generate PR for items without suppliers (empty supplier info)
+        if no_supplier:
+            print(f"\n  Creating PR for items without supplier ({len(no_supplier)} items)")
+            
+            # Use empty supplier info
+            supplier_info = None  # Will result in empty supplier fields
+            
+            # Calculate max lead time for these items
+            max_lead_days = max(item.get('order_lead_days', 7) for item in no_supplier) if no_supplier else 7
+            
+            # Handle more than 14 items (create multiple PRs)
+            item_batches = [no_supplier[i:i+14] for i in range(0, len(no_supplier), 14)]
+            
+            for batch_num, batch in enumerate(item_batches):
+                # Build cell values with empty supplier info
+                cell_values = build_pr_cell_values(
+                    user_info=user_info,
+                    items=batch,
+                    supplier_info=supplier_info,  # None = empty supplier fields
+                    lead_days=max_lead_days
+                )
+                
+                # Generate Excel using direct XML (preserves template 100%)
+                pr_output = fill_excel_directly(PR_TEMPLATE, cell_values)
+                
+                # Generate filename
+                filename = f"PR-{datetime.now().strftime('%Y-%m-%d')}-NO-SUPPLIER"
+                if len(item_batches) > 1:
+                    filename += f"-Part{batch_num + 1}"
+                filename += ".xlsx"
+                
+                generated_files.append({
+                    'supplier_no': 'NO-SUPPLIER',
+                    'supplier_name': 'No Supplier Assigned',
+                    'filename': filename,
+                    'data': pr_output,
+                    'item_count': len(batch)
+                })
+                
+                print(f"    ✅ Generated: {filename} (no supplier assigned)")
+            
+            # Add warnings for items without suppliers
+            for item in no_supplier:
+                warnings.append(f"No preferred supplier for: {item['item_no']} - Please assign supplier manually")
         
         # ========================================
         # STEP 5.5: Generate Shortage Report
@@ -1574,7 +1615,7 @@ def create_pr_from_bom():
         report_lines.append(f"Items Ordered: {len(selected_items)}")
         report_lines.append(f"Total Short Components: {len(short_items)}")
         report_lines.append(f"Unique Suppliers: {len(by_supplier)}")
-        report_lines.append(f"Items Without Supplier: {len(no_supplier)}")
+        report_lines.append(f"Items Without Supplier: {len(no_supplier)} (PR generated with empty supplier - manual assignment needed)")
         report_lines.append("")
         
         # Selected items section
@@ -1622,13 +1663,27 @@ def create_pr_from_bom():
             
             report_lines.append(f"  SUPPLIER TOTAL: ${supplier_total:,.2f}")
         
-        # Items without supplier
+        # Items without supplier (PR generated with empty supplier)
         if no_supplier:
-            report_lines.append(f"\n⚠️ ITEMS WITHOUT SUPPLIER (Need Manual Assignment)")
+            report_lines.append(f"\n⚠️ ITEMS WITHOUT SUPPLIER (PR Generated - Supplier Needs Manual Assignment)")
             report_lines.append("  " + "-" * 70)
             for item in no_supplier:
-                report_lines.append(f"  • {item.get('item_no')} - {item.get('description', '')[:50]}")
-                report_lines.append(f"    Short: {round(item.get('shortfall', 0), 2):,.2f}")
+                item_no = item.get('item_no', '')
+                description = item.get('description', '')[:40]
+                qty_needed = item.get('qty_needed', 0)
+                stock = item.get('stock', 0)
+                shortfall = item.get('shortfall', 0)
+                order_qty = item.get('order_qty', 0)
+                unit_price = item.get('unit_price', 0)
+                stocking_units = item.get('stocking_units', 'EA')
+                purchasing_units = item.get('purchasing_units', 'EA')
+                line_total = order_qty * unit_price
+                
+                report_lines.append(f"  Item: {item_no}")
+                report_lines.append(f"    Description: {description}")
+                report_lines.append(f"    Needed: {round(qty_needed, 2):,.2f} {stocking_units} | In Stock: {round(stock, 2):,.2f} {stocking_units} | Short: {round(shortfall, 2):,.2f} {stocking_units}")
+                report_lines.append(f"    Order: {int(order_qty)} {purchasing_units} x ${unit_price:,.2f} = ${line_total:,.2f}")
+                report_lines.append("")
         
         report_lines.append("")
         report_lines.append("=" * 80)
