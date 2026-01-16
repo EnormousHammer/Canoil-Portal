@@ -91,6 +91,104 @@ def get_uploads_dir():
         result = os.path.join(current_dir, 'uploads', 'logistics')
     
     return result
+
+def get_document_folder_structure(so_data: dict) -> dict:
+    """
+    Generate folder structure for documents: CompanyName_SO_PO_Date with HTML Format and PDF Format subfolders
+    
+    Args:
+        so_data: Sales order data dictionary
+        
+    Returns:
+        Dictionary with:
+            - base_folder: Full path to the main folder (CompanyName_SO_PO_Date)
+            - html_folder: Full path to HTML Format subfolder
+            - pdf_folder: Full path to PDF Format subfolder
+            - folder_name: Just the folder name (for display)
+    """
+    # Get company name
+    company_name = (
+        so_data.get('customer_name', '') or
+        so_data.get('billing_address', {}).get('company', '') or
+        so_data.get('billing_address', {}).get('company_name', '') or
+        so_data.get('ship_to', {}).get('company', '') or
+        so_data.get('shipping_address', {}).get('company', '') or
+        'Unknown'
+    )
+    
+    # Clean company name for folder name (remove invalid characters)
+    clean_company = company_name.replace('/', '-').replace('\\', '-').replace(':', '-')
+    clean_company = clean_company.replace('*', '-').replace('?', '-').replace('"', '-')
+    clean_company = clean_company.replace('<', '-').replace('>', '-').replace('|', '-')
+    clean_company = clean_company.strip()
+    
+    # Get SO number
+    so_number = so_data.get('so_number', 'Unknown')
+    
+    # Get PO number
+    po_number = so_data.get('po_number', '') or so_data.get('order_details', {}).get('po_number', '')
+    
+    # Get date - prefer order_date, then ship_date, then current date
+    date_str = ''
+    if so_data.get('order_date'):
+        try:
+            order_date = so_data.get('order_date')
+            if isinstance(order_date, str):
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
+                    try:
+                        parsed = datetime.strptime(order_date, fmt)
+                        date_str = parsed.strftime('%Y%m%d')
+                        break
+                    except:
+                        continue
+                if not date_str:
+                    date_str = order_date[:10].replace('-', '') if len(order_date) >= 10 else datetime.now().strftime('%Y%m%d')
+            else:
+                date_str = str(order_date)[:10].replace('-', '') if len(str(order_date)) >= 10 else datetime.now().strftime('%Y%m%d')
+        except:
+            date_str = datetime.now().strftime('%Y%m%d')
+    elif so_data.get('ship_date'):
+        try:
+            ship_date = so_data.get('ship_date')
+            if isinstance(ship_date, str):
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
+                    try:
+                        parsed = datetime.strptime(ship_date, fmt)
+                        date_str = parsed.strftime('%Y%m%d')
+                        break
+                    except:
+                        continue
+                if not date_str:
+                    date_str = ship_date[:10].replace('-', '') if len(ship_date) >= 10 else datetime.now().strftime('%Y%m%d')
+            else:
+                date_str = str(ship_date)[:10].replace('-', '') if len(str(ship_date)) >= 10 else datetime.now().strftime('%Y%m%d')
+        except:
+            date_str = datetime.now().strftime('%Y%m%d')
+    else:
+        date_str = datetime.now().strftime('%Y%m%d')
+    
+    # Build folder name: CompanyName_SO{SO}_PO{PO}_{Date}
+    if po_number:
+        folder_name = f"{clean_company}_SO{so_number}_PO{po_number}_{date_str}"
+    else:
+        folder_name = f"{clean_company}_SO{so_number}_{date_str}"
+    
+    # Get base uploads directory
+    uploads_dir = get_uploads_dir()
+    base_folder = os.path.join(uploads_dir, folder_name)
+    html_folder = os.path.join(base_folder, 'HTML Format')
+    pdf_folder = os.path.join(base_folder, 'PDF Format')
+    
+    # Create folders if they don't exist
+    os.makedirs(html_folder, exist_ok=True)
+    os.makedirs(pdf_folder, exist_ok=True)
+    
+    return {
+        'base_folder': base_folder,
+        'html_folder': html_folder,
+        'pdf_folder': pdf_folder,
+        'folder_name': folder_name
+    }
 import PyPDF2
 try:
     from openai import OpenAI
@@ -4546,6 +4644,12 @@ def generate_all_documents():
         # Dangerous goods info (will be updated by smart generator)
         dangerous_goods_info = {'has_dangerous_goods': False}
         
+        # Create folder structure for this order
+        folder_structure = get_document_folder_structure(so_data)
+        print(f"\n📁 Document folder structure created: {folder_structure['folder_name']}")
+        print(f"   HTML Format: {folder_structure['html_folder']}")
+        print(f"   PDF Format: {folder_structure['pdf_folder']}")
+        
         # Create timestamp ONCE for all documents
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
@@ -4553,6 +4657,7 @@ def generate_all_documents():
         if requested_docs.get('bol', True):
             try:
                 from new_bol_generator import populate_new_bol_html
+                from playwright_pdf_converter import html_to_pdf_sync
                 
                 print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
                 # Use email_analysis instead of email_shipping to ensure skid_info is included
@@ -4564,21 +4669,32 @@ def generate_all_documents():
                 print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
                 bol_html = populate_new_bol_html(so_data, bol_email_data)
                 bol_filename = generate_document_filename("BOL", so_data, '.html')
-                uploads_dir = get_uploads_dir()
-                bol_filepath = os.path.join(uploads_dir, bol_filename)
                 
-                print(f"DEBUG: BOL filepath: {bol_filepath}")
-                os.makedirs(os.path.dirname(bol_filepath), exist_ok=True)
-                with open(bol_filepath, 'w', encoding='utf-8') as f:
+                # Save HTML version in HTML Format folder
+                bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
+                with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(bol_html)
-                print(f"DEBUG: BOL file created successfully")
+                print(f"DEBUG: BOL HTML file created: {bol_html_filepath}")
+                
+                # Generate and save PDF version in PDF Format folder
+                bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
+                bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
+                bol_pdf_success = False
+                try:
+                    bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
+                    if bol_pdf_success:
+                        print(f"DEBUG: BOL PDF file created: {bol_pdf_filepath}")
+                except Exception as pdf_err:
+                    print(f"WARNING: BOL PDF generation error: {pdf_err}")
                 
                 results['bol'] = {
                     'success': True,
                     'filename': bol_filename,
-                    'download_url': f'/download/logistics/{bol_filename}'
+                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{bol_filename}',
+                    'pdf_file': bol_pdf_filename if bol_pdf_success else None,
+                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{bol_pdf_filename}' if bol_pdf_success else None
                 }
-                print(f"✅ BOL generated: {bol_filename}")
+                print(f"✅ BOL generated: {bol_filename} (HTML) and {bol_pdf_filename if bol_pdf_success else 'PDF failed'}")
                 
             except Exception as e:
                 print(f"❌ BOL generation error: {e}")
@@ -4593,20 +4709,35 @@ def generate_all_documents():
         if requested_docs.get('packing_slip', True):
             try:
                 from packing_slip_html_generator import generate_packing_slip_html
+                from playwright_pdf_converter import html_to_pdf_sync
+                
                 ps_html = generate_packing_slip_html(so_data, email_shipping, items)
                 ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
-                uploads_dir = get_uploads_dir()
-                ps_filepath = os.path.join(uploads_dir, ps_filename)
                 
-                with open(ps_filepath, 'w', encoding='utf-8') as f:
+                # Save HTML version in HTML Format folder
+                ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
+                with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(ps_html)
+                
+                # Generate and save PDF version in PDF Format folder
+                ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
+                ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
+                ps_pdf_success = False
+                try:
+                    ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
+                    if ps_pdf_success:
+                        print(f"DEBUG: Packing Slip PDF file created: {ps_pdf_filepath}")
+                except Exception as pdf_err:
+                    print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
                 
                 results['packing_slip'] = {
                     'success': True,
                     'filename': ps_filename,
-                    'download_url': f'/download/logistics/{ps_filename}'
+                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ps_filename}',
+                    'pdf_file': ps_pdf_filename if ps_pdf_success else None,
+                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ps_pdf_filename}' if ps_pdf_success else None
                 }
-                print(f"✅ Packing Slip generated: {ps_filename}")
+                print(f"✅ Packing Slip generated: {ps_filename} (HTML) and {ps_pdf_filename if ps_pdf_success else 'PDF failed'}")
                 
             except Exception as e:
                 print(f"❌ Packing Slip generation error: {e}")
@@ -4663,27 +4794,26 @@ def generate_all_documents():
                 if is_cross_border:
                     print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
                     from commercial_invoice_html_generator import generate_commercial_invoice_html
+                    from playwright_pdf_converter import html_to_pdf_sync
+                    
                     ci_html = generate_commercial_invoice_html(
                         so_data, 
                         items, 
                         email_analysis
                     )
-                    uploads_dir = get_uploads_dir()
-                    os.makedirs(uploads_dir, exist_ok=True)
                     
-                    # Save HTML file
+                    # Save HTML file in HTML Format folder
                     ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
-                    ci_html_filepath = os.path.join(uploads_dir, ci_html_filename)
+                    ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
                     with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ci_html)
                     
-                    # Generate PDF file
+                    # Generate and save PDF file in PDF Format folder
                     ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-                    ci_pdf_filepath = os.path.join(uploads_dir, ci_pdf_filename)
+                    ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
                     
                     ci_pdf_success = False
                     try:
-                        from playwright_pdf_converter import html_to_pdf_sync
                         ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
                         if ci_pdf_success:
                             print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
@@ -4693,16 +4823,14 @@ def generate_all_documents():
                     results['commercial_invoice'] = {
                         'success': True,
                         'filename': ci_html_filename,
-                        'download_url': f'/download/logistics/{ci_html_filename}',
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ci_html_filename}',
                         'file_type': 'html',
-                        'reason': f'Generated for cross-border shipment to {destination_country}'
+                        'reason': f'Generated for cross-border shipment to {destination_country}',
+                        'pdf_file': ci_pdf_filename if ci_pdf_success else None,
+                        'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ci_pdf_filename}' if ci_pdf_success else None
                     }
                     
-                    if ci_pdf_success:
-                        results['commercial_invoice']['pdf_file'] = ci_pdf_filename
-                        results['commercial_invoice']['pdf_download_url'] = f'/download/logistics/{ci_pdf_filename}'
-                    
-                    print(f"✅ Commercial Invoice generated: {ci_html_filename}")
+                    print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML) and {ci_pdf_filename if ci_pdf_success else 'PDF failed'}")
                 else:
                     print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
                     results['commercial_invoice'] = {
@@ -4747,14 +4875,12 @@ def generate_all_documents():
                         
                         # Create new filename with new format
                         new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
-                        # Use absolute path to avoid nested directory issues
-                        uploads_dir = get_uploads_dir()
-                        new_dg_path = os.path.join(uploads_dir, new_dg_filename)
+                        # Save in PDF Format folder (even though it's .docx, it's a document format)
+                        new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
                         
                         print(f"   Target path: {new_dg_path}")
                         
-                        # Copy file to uploads folder
-                        os.makedirs(os.path.dirname(new_dg_path), exist_ok=True)
+                        # Copy file to PDF Format folder
                         shutil.copy2(dg_filepath, new_dg_path)
                         
                         print(f"   Copy successful: {os.path.exists(new_dg_path)}")
@@ -4762,7 +4888,7 @@ def generate_all_documents():
                         dg_results.append({
                             'success': True,
                             'filename': new_dg_filename,
-                            'download_url': f'/download/logistics/{new_dg_filename}',
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{new_dg_filename}',
                             'product': dg_original_filename  # Contains product name
                         })
                         print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
@@ -4783,15 +4909,14 @@ def generate_all_documents():
                         clean_product = product_name.replace(' ', '_').replace('/', '_')
                         new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
                         
-                        # Copy SDS with new name
-                        uploads_dir = get_uploads_dir()
-                        new_sds_path = os.path.join(uploads_dir, new_sds_filename)
+                        # Copy SDS with new name to PDF Format folder
+                        new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
                         shutil.copy2(sds_path, new_sds_path)
                         
                         sds_results.append({
                             'success': True,
                             'filename': new_sds_filename,
-                            'download_url': f'/download/logistics/{new_sds_filename}',
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{new_sds_filename}',
                             'product': product_name
                         })
                         print(f"✅ SDS renamed: {new_sds_filename}")
@@ -4811,15 +4936,14 @@ def generate_all_documents():
                         clean_product = product_name.replace(' ', '_').replace('/', '_')
                         new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
                         
-                        # Copy COFA with new name
-                        uploads_dir = get_uploads_dir()
-                        new_cofa_path = os.path.join(uploads_dir, new_cofa_filename)
+                        # Copy COFA with new name to PDF Format folder
+                        new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
                         shutil.copy2(cofa_path, new_cofa_path)
                         
                         cofa_results.append({
                             'success': True,
                             'filename': new_cofa_filename,
-                            'download_url': f'/download/logistics/{new_cofa_filename}',
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{new_cofa_filename}',
                             'product': product_name,
                             'batch': batch
                         })
@@ -4858,14 +4982,15 @@ def generate_all_documents():
             if is_usa_shipment:
                 print(f"   USA shipment to {destination_country} - TSCA required")
                 
-                tsca_result = generate_tsca_certification(so_data, items, email_analysis)
+                # Generate TSCA and save to PDF Format folder
+                tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
                 
                 if tsca_result:
                     tsca_filepath, tsca_filename = tsca_result
                     results['tsca_certification'] = {
                         'success': True,
                         'filename': tsca_filename,
-                        'download_url': f'/download/logistics/{tsca_filename}',
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{tsca_filename}',
                         'note': 'TSCA Certification for US shipments'
                     }
                     print(f"   ✅ TSCA Certification generated: {tsca_filename}")
@@ -4920,16 +5045,14 @@ def generate_all_documents():
                     import shutil
                     so_number = so_data.get('so_number', 'Unknown')
                     aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
-                    uploads_dir = get_uploads_dir()
-                    aec_path = os.path.join(uploads_dir, aec_filename)
+                    aec_path = os.path.join(folder_structure['pdf_folder'], aec_filename)
                     
-                    os.makedirs(os.path.dirname(aec_path), exist_ok=True)
                     shutil.copy2(aec_source, aec_path)
                     
                     results['aec_affidavit'] = {
                         'success': True,
                         'filename': aec_filename,
-                        'download_url': f'/download/logistics/{aec_filename}',
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{aec_filename}',
                         'note': 'AEC Manufacturer\'s Affidavit for steel containers'
                     }
                     print(f"   ✅ AEC Affidavit included: {aec_filename}")
@@ -4995,26 +5118,24 @@ def generate_all_documents():
             if usmca_check['requires_usmca']:
                 print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
                 
-                # Source USMCA form (already signed)
+                # Source USMCA form (2026 version - already signed)
                 # Use relative path that works in Docker
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
                 
                 if os.path.exists(usmca_source):
-                    # Copy to uploads folder - USMCA is a blank template, use simple name
+                    # Copy to PDF Format folder - USMCA is a blank template, use simple name
                     import shutil
                     so_number = so_data.get('so_number', 'Unknown')
                     usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
-                    uploads_dir = get_uploads_dir()
-                    usmca_path = os.path.join(uploads_dir, usmca_filename)
+                    usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
                     
-                    os.makedirs(os.path.dirname(usmca_path), exist_ok=True)
                     shutil.copy2(usmca_source, usmca_path)
                     
                     results['usmca_certificate'] = {
                         'success': True,
                         'filename': usmca_filename,
-                        'download_url': f'/download/logistics/{usmca_filename}',
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{usmca_filename}',
                         'note': 'Pre-signed USMCA form (ready for printing)',
                         'matching_items': len(usmca_check['matching_items']),
                         'items_list': [f"{item['item_code']} (HTS {item['hts_code']})" 
@@ -5057,20 +5178,18 @@ def generate_all_documents():
                 dn_result = generate_delivery_note(so_data, items, booking_number)
                 
                 if dn_result.get('success'):
-                    # Move to uploads folder with consistent naming
+                    # Move to PDF Format folder with consistent naming
                     import shutil
                     dn_original_path = dn_result['filepath']
                     dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
-                    uploads_dir = get_uploads_dir()
-                    dn_new_path = os.path.join(uploads_dir, dn_filename)
+                    dn_new_path = os.path.join(folder_structure['pdf_folder'], dn_filename)
                     
-                    os.makedirs(os.path.dirname(dn_new_path), exist_ok=True)
                     shutil.copy2(dn_original_path, dn_new_path)
                     
                     results['delivery_note'] = {
                         'success': True,
                         'filename': dn_filename,
-                        'download_url': f'/download/logistics/{dn_filename}',
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{dn_filename}',
                         'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
                     }
                     print(f"   ✅ Delivery Note generated: {dn_filename}")
@@ -5099,15 +5218,14 @@ def generate_all_documents():
                         if os.path.exists(drc_source):
                             so_number = so_data.get('so_number', 'Unknown')
                             drc_filename = f"REACH_Conformity_SO{so_number}.docx"
-                            uploads_dir = get_uploads_dir()
-                            drc_path = os.path.join(uploads_dir, drc_filename)
+                            drc_path = os.path.join(folder_structure['pdf_folder'], drc_filename)
                             
                             shutil.copy2(drc_source, drc_path)
                             
                             results['reach_conformity'] = {
                                 'success': True,
                                 'filename': drc_filename,
-                                'download_url': f'/download/logistics/{drc_filename}',
+                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{drc_filename}',
                                 'note': 'Declaration of REACH Conformity for MOV Long Life (for printing)'
                             }
                             print(f"   ✅ REACH Conformity included: {drc_filename}")

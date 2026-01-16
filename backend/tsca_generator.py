@@ -65,7 +65,7 @@ def clean_batch_number_for_tsca(batch: str) -> str:
 
 
 def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, Any]], 
-                                 email_analysis: Dict[str, Any] = None) -> tuple:
+                                 email_analysis: Dict[str, Any] = None, target_folder: str = None) -> tuple:
     """
     Generate TSCA Certification by filling the PDF form
     
@@ -155,11 +155,21 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     writer.add_page(reader.pages[0])
     
     # Prepare form fields to update
-    # Set date to current date automatically
-    current_date = datetime.now().strftime('%Y-%m-%d')
+    # Set date to current date automatically - try multiple formats
+    now = datetime.now()
+    current_date_iso = now.strftime('%Y-%m-%d')
+    current_date_us = now.strftime('%m/%d/%Y')
+    current_date_long = now.strftime('%B %d, %Y')
     
     fields_to_update = {
-        'date': current_date,  # Auto-fill with current date
+        # Try multiple date field name variations and formats
+        'date': current_date_us,  # Most PDF forms expect MM/DD/YYYY
+        'Date': current_date_us,
+        'DATE': current_date_us,
+        'certification_date': current_date_us,
+        'Certification Date': current_date_us,
+        'date_iso': current_date_iso,  # Also try ISO format
+        'date_long': current_date_long,  # Also try long format
         'reference number': f"SO {so_data.get('so_number', '')}",
         # Certifier information - Haron Alhakimi
         # Try multiple possible field name variations to ensure overwrite
@@ -186,7 +196,7 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
         fields_to_update[field_name] = ''
     
     print(f"\n>> Updating fields:")
-    print(f"   Date: {current_date} (auto-filled with current date)")
+    print(f"   Date: {current_date_us} (auto-filled with current date - MM/DD/YYYY format)")
     print(f"   Reference: SO {so_data.get('so_number', '')}")
     print(f"   Products filled: {len(product_lines)}")
     
@@ -200,10 +210,15 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     so_number = so_data.get('so_number', 'Unknown')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_filename = f"TSCA_Certification_SO{so_number}_{timestamp}.pdf"
-    # Use absolute path to avoid nested directory issues
-    from logistics_automation import get_uploads_dir
-    uploads_dir = get_uploads_dir()
-    output_filepath = os.path.join(uploads_dir, output_filename)
+    
+    # Use target_folder if provided, otherwise use default uploads directory
+    if target_folder:
+        output_filepath = os.path.join(target_folder, output_filename)
+    else:
+        # Use absolute path to avoid nested directory issues
+        from logistics_automation import get_uploads_dir
+        uploads_dir = get_uploads_dir()
+        output_filepath = os.path.join(uploads_dir, output_filename)
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
