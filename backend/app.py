@@ -1591,7 +1591,7 @@ CORS(app, resources={
 
 # Enable GZIP compression - reduces 70MB → ~10MB
 Compress(app)
-print("✅ GZIP compression enabled")
+print("GZIP compression enabled")
 
 # Register logistics automation blueprint
 if LOGISTICS_AVAILABLE:
@@ -1718,9 +1718,9 @@ USE_GOOGLE_DRIVE_API = IS_CLOUD_RUN or os.getenv('USE_GOOGLE_DRIVE_API', 'false'
 google_drive_service = None
 
 if IS_CLOUD_RUN:
-    print("☁️ Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
+    print("Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
 else:
-    print("💻 Running locally - G: Drive will be used if accessible")
+    print("Running locally - G: Drive will be used if accessible")
 
 def get_google_drive_service():
     """Lazy initialization of Google Drive service - only when actually needed"""
@@ -1734,27 +1734,27 @@ def get_google_drive_service():
     
     # Initialize only when first needed
     try:
-        print("🔄 Initializing Google Drive API service (lazy load)...")
+        print("Initializing Google Drive API service (lazy load)...")
         from google_drive_service import GoogleDriveService
         google_drive_service = GoogleDriveService()
         if google_drive_service.authenticate():
-            print("✅ Google Drive API service initialized successfully")
+            print("Google Drive API service initialized successfully")
             return google_drive_service
         else:
-            print("⚠️ Google Drive API authentication failed - will fall back to G: Drive if available")
+            print("WARNING: Google Drive API authentication failed - will fall back to G: Drive if available")
             google_drive_service = None
             return None
     except Exception as e:
-        print(f"⚠️ Failed to initialize Google Drive service: {e}")
+        print(f"WARNING: Failed to initialize Google Drive service: {e}")
         import traceback
         traceback.print_exc()
         google_drive_service = None
         return None
 
 if USE_GOOGLE_DRIVE_API:
-    print("ℹ️ Google Drive API enabled - will initialize when needed")
+    print("Google Drive API enabled - will initialize when needed")
 else:
-    print("ℹ️ Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
+    print("Google Drive API not enabled (USE_GOOGLE_DRIVE_API=false or not set)")
 
 # G: Drive base paths - EXACT paths where data is located
 GDRIVE_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"

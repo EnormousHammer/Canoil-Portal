@@ -17,26 +17,26 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 # Import after encoding setup
 try:
     from asgiref.wsgi import WsgiToAsgi
-    print("✅ asgiref.wsgi imported successfully")
+    print("asgiref.wsgi imported successfully")
 except ImportError as e:
-    print(f"❌ Failed to import asgiref.wsgi: {e}")
+    print(f"ERROR: Failed to import asgiref.wsgi: {e}")
     print("   Run: pip install asgiref")
     sys.exit(1)
 
 try:
     from app import app
-    print("✅ Flask app imported successfully")
+    print("Flask app imported successfully")
     
     # Check if running on Cloud Run
     is_cloud_run = os.getenv('K_SERVICE') is not None
     if is_cloud_run:
-        print("☁️ Running on Cloud Run - server will start even if data preload fails")
+        print("Running on Cloud Run - server will start even if data preload fails")
     else:
-        print("💻 Running locally")
+        print("Running locally")
     
     # PRELOAD DATA ON STARTUP - Warm up cache immediately (non-blocking)
     # CRITICAL: Never block server startup - always start server even if preload fails
-    print("🔄 Preloading data cache on startup (non-blocking)...")
+    print("Preloading data cache on startup (non-blocking)...")
     try:
         import threading
         def preload_data():
@@ -44,7 +44,7 @@ try:
             try:
                 import time
                 time.sleep(3)  # Wait for app to fully initialize and server to start
-                print("📥 Starting background data preload...")
+                print("Starting background data preload...")
                 # Directly call the data loading function (faster than HTTP)
                 with app.test_request_context('/api/data'):
                     from app import get_all_data
@@ -53,7 +53,7 @@ try:
                         # Check if it's a Flask Response object
                         status = getattr(response, 'status_code', None)
                         if status == 200 or status is None:
-                            print("✅ Data preloaded successfully - cache is warm!")
+                            print("Data preloaded successfully - cache is warm!")
                             # Try to get data size
                             try:
                                 import json
@@ -64,30 +64,30 @@ try:
                             except:
                                 pass
                         else:
-                            print(f"⚠️ Data preload returned status {status} (server still running)")
+                            print(f"WARNING: Data preload returned status {status} (server still running)")
                     else:
-                        print("⚠️ Data preload returned None (server still running)")
+                        print("WARNING: Data preload returned None (server still running)")
             except Exception as e:
-                print(f"⚠️ Background preload failed (non-critical - server still running): {e}")
+                print(f"WARNING: Background preload failed (non-critical - server still running): {e}")
                 import traceback
                 traceback.print_exc()
         
         # Start preload in background thread (non-blocking)
         preload_thread = threading.Thread(target=preload_data, daemon=True)
         preload_thread.start()
-        print("✅ Background data preload started (server will start regardless of preload status)")
+        print("Background data preload started (server will start regardless of preload status)")
     except Exception as e:
-        print(f"⚠️ Could not start preload thread (non-critical - server will still start): {e}")
+        print(f"WARNING: Could not start preload thread (non-critical - server will still start): {e}")
         import traceback
         traceback.print_exc()
         
 except ImportError as e:
-    print(f"❌ Failed to import Flask app: {e}")
+    print(f"ERROR: Failed to import Flask app: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
 except Exception as e:
-    print(f"❌ Error initializing Flask app: {e}")
+    print(f"ERROR: Error initializing Flask app: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -95,9 +95,9 @@ except Exception as e:
 try:
     import hypercorn.asyncio
     import asyncio
-    print("✅ Hypercorn imported successfully")
+    print("Hypercorn imported successfully")
 except ImportError as e:
-    print(f"❌ Failed to import hypercorn: {e}")
+    print(f"ERROR: Failed to import hypercorn: {e}")
     print("   Run: pip install hypercorn")
     sys.exit(1)
 
@@ -118,21 +118,21 @@ config.errorlog = "-"  # Log to stderr
 # Enable HTTP/2 (removes 32MB response limit)
 config.h2 = True
 
-print(f"🚀 Starting Hypercorn with HTTP/2 support on {bind_address}")
-print(f"✅ Flask app wrapped with WsgiToAsgi adapter")
-print(f"✅ HTTP/2 enabled - 32MB response limit removed")
-print(f"✅ Server will accept requests immediately (data may still be loading in background)")
+print(f"Starting Hypercorn with HTTP/2 support on {bind_address}")
+print(f"Flask app wrapped with WsgiToAsgi adapter")
+print(f"HTTP/2 enabled - 32MB response limit removed")
+print(f"Server will accept requests immediately (data may still be loading in background)")
 
 # Run Hypercorn
 try:
     print("="*60)
-    print("🌐 SERVER IS NOW ACCEPTING REQUESTS")
+    print("SERVER IS NOW ACCEPTING REQUESTS")
     print("="*60)
     asyncio.run(hypercorn.asyncio.serve(asgi_app, config))
 except KeyboardInterrupt:
-    print("\n🛑 Shutting down Hypercorn...")
+    print("\nShutting down Hypercorn...")
 except Exception as e:
-    print(f"❌ Error starting Hypercorn: {e}")
+    print(f"ERROR: Error starting Hypercorn: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)

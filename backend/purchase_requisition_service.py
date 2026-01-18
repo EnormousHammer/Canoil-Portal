@@ -20,7 +20,7 @@ try:
     GCS_AVAILABLE = True
 except ImportError:
     GCS_AVAILABLE = False
-    print("[PR] ⚠️ google-cloud-storage not available - using local storage only")
+    print("[PR] WARNING: google-cloud-storage not available - using local storage only")
 
 pr_service = Blueprint('pr_service', __name__)
 
