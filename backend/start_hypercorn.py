@@ -27,15 +27,23 @@ try:
     from app import app
     print("✅ Flask app imported successfully")
     
-    # PRELOAD DATA ON STARTUP - Warm up cache immediately
-    print("🔄 Preloading data cache on startup...")
+    # Check if running on Cloud Run
+    is_cloud_run = os.getenv('K_SERVICE') is not None
+    if is_cloud_run:
+        print("☁️ Running on Cloud Run - server will start even if data preload fails")
+    else:
+        print("💻 Running locally")
+    
+    # PRELOAD DATA ON STARTUP - Warm up cache immediately (non-blocking)
+    # CRITICAL: Never block server startup - always start server even if preload fails
+    print("🔄 Preloading data cache on startup (non-blocking)...")
     try:
         import threading
         def preload_data():
             """Preload data in background thread to warm up cache"""
             try:
                 import time
-                time.sleep(2)  # Wait for app to fully initialize
+                time.sleep(3)  # Wait for app to fully initialize and server to start
                 print("📥 Starting background data preload...")
                 # Directly call the data loading function (faster than HTTP)
                 with app.test_request_context('/api/data'):
@@ -56,18 +64,22 @@ try:
                             except:
                                 pass
                         else:
-                            print(f"⚠️ Data preload returned status {status}")
+                            print(f"⚠️ Data preload returned status {status} (server still running)")
                     else:
-                        print("⚠️ Data preload returned None")
+                        print("⚠️ Data preload returned None (server still running)")
             except Exception as e:
-                print(f"⚠️ Background preload failed (non-critical): {e}")
+                print(f"⚠️ Background preload failed (non-critical - server still running): {e}")
+                import traceback
+                traceback.print_exc()
         
         # Start preload in background thread (non-blocking)
         preload_thread = threading.Thread(target=preload_data, daemon=True)
         preload_thread.start()
-        print("✅ Background data preload started")
+        print("✅ Background data preload started (server will start regardless of preload status)")
     except Exception as e:
-        print(f"⚠️ Could not start preload thread (non-critical): {e}")
+        print(f"⚠️ Could not start preload thread (non-critical - server will still start): {e}")
+        import traceback
+        traceback.print_exc()
         
 except ImportError as e:
     print(f"❌ Failed to import Flask app: {e}")
@@ -109,9 +121,13 @@ config.h2 = True
 print(f"🚀 Starting Hypercorn with HTTP/2 support on {bind_address}")
 print(f"✅ Flask app wrapped with WsgiToAsgi adapter")
 print(f"✅ HTTP/2 enabled - 32MB response limit removed")
+print(f"✅ Server will accept requests immediately (data may still be loading in background)")
 
 # Run Hypercorn
 try:
+    print("="*60)
+    print("🌐 SERVER IS NOW ACCEPTING REQUESTS")
+    print("="*60)
     asyncio.run(hypercorn.asyncio.serve(asgi_app, config))
 except KeyboardInterrupt:
     print("\n🛑 Shutting down Hypercorn...")
