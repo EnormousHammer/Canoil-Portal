@@ -1413,10 +1413,9 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         if email_weight:
             field_values['shippingWeight'] = email_weight
     
-    # Calculate grand total from SO total_amount
-    if so_data.get('total_amount'):
-        field_values['grandTotal'] = f"${so_data.get('total_amount'):.2f}"
-        print(f"DEBUG: CI - Grand Total from SO: ${so_data.get('total_amount'):.2f}")
+    # NOTE: Grand total will be calculated AFTER items are processed (after steel separation)
+    # This ensures the total matches the actual line items shown on the invoice
+    # See below where physical_items is finalized
     
     if total_freight > 0:
         print(f"DEBUG: CI - Total Freight added to field_values: ${total_freight:.2f}")
@@ -1604,6 +1603,18 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
     # Replace physical_items with adjusted items + steel items
     physical_items = adjusted_items + steel_items
     print(f">> After steel separation: {len(adjusted_items)} products + {len(steel_items)} steel line items")
+    
+    # Calculate grand total from ACTUAL line items shown (not SO total which includes freight/brokerage)
+    calculated_grand_total = 0.0
+    for item in physical_items:
+        item_qty = float(item.get('quantity', 0))
+        item_price = float(item.get('unit_price', 0))
+        item_total = item_qty * item_price
+        calculated_grand_total += item_total
+        print(f"   Item total: {item.get('description', '')[:30]} = {item_qty} x ${item_price:.2f} = ${item_total:.2f}")
+    
+    field_values['grandTotal'] = f"${calculated_grand_total:,.2f}"
+    print(f">> Calculated Grand Total from line items: ${calculated_grand_total:,.2f}")
     
     # NEW TEMPLATE: Handle class-based items table with dynamic rows
     items_tbody = soup.find('tbody', id='itemsBody')
