@@ -1,12 +1,36 @@
 """
-PERFECT HTML to PDF converter using Playwright
-GUARANTEED identical formatting to manual Ctrl+P
+HTML to PDF converter with multiple backends:
+1. Playwright (best quality, requires browser)
+2. WeasyPrint (fallback, no browser needed)
 """
-import asyncio
-from playwright.async_api import async_playwright
 import os
 import tempfile
 import time
+
+# Track which PDF backend is available
+PLAYWRIGHT_AVAILABLE = False
+WEASYPRINT_AVAILABLE = False
+
+# Try to import Playwright
+try:
+    import asyncio
+    from playwright.async_api import async_playwright
+    PLAYWRIGHT_AVAILABLE = True
+    print("[OK] Playwright PDF converter available")
+except ImportError as e:
+    print(f"[WARN] Playwright not available: {e} - will try WeasyPrint")
+
+# Try to import WeasyPrint as fallback
+try:
+    from weasyprint import HTML, CSS
+    WEASYPRINT_AVAILABLE = True
+    print("[OK] WeasyPrint PDF converter available (fallback)")
+except ImportError as e:
+    print(f"[WARN] WeasyPrint not available: {e}")
+
+if not PLAYWRIGHT_AVAILABLE and not WEASYPRINT_AVAILABLE:
+    print("[ERROR] No PDF converter available! Documents will be HTML only.")
+
 
 async def html_to_pdf_playwright(html_content, output_pdf_path):
     """
@@ -61,12 +85,46 @@ async def html_to_pdf_playwright(html_content, output_pdf_path):
         print(f"Playwright PDF generation failed: {e}")
         return False
 
-def html_to_pdf_sync(html_content, output_pdf_path):
+
+def html_to_pdf_weasyprint(html_content, output_pdf_path):
     """
-    Synchronous wrapper for async Playwright function
+    Convert HTML to PDF using WeasyPrint - fallback when Playwright unavailable
     """
     try:
-        return asyncio.run(html_to_pdf_playwright(html_content, output_pdf_path))
+        # WeasyPrint can render HTML directly
+        html_doc = HTML(string=html_content)
+        
+        # Generate PDF
+        html_doc.write_pdf(output_pdf_path)
+        
+        print(f"[OK] WeasyPrint PDF generated: {output_pdf_path}")
+        return True
+        
     except Exception as e:
-        print(f"Error in sync PDF conversion: {e}")
+        print(f"WeasyPrint PDF generation failed: {e}")
+        import traceback
+        traceback.print_exc()
         return False
+
+
+def html_to_pdf_sync(html_content, output_pdf_path):
+    """
+    Synchronous wrapper - tries Playwright first, falls back to WeasyPrint
+    """
+    # Try Playwright first (best quality)
+    if PLAYWRIGHT_AVAILABLE:
+        try:
+            result = asyncio.run(html_to_pdf_playwright(html_content, output_pdf_path))
+            if result:
+                return True
+            print("[WARN] Playwright failed, trying WeasyPrint fallback...")
+        except Exception as e:
+            print(f"[WARN] Playwright error: {e}, trying WeasyPrint fallback...")
+    
+    # Fallback to WeasyPrint
+    if WEASYPRINT_AVAILABLE:
+        return html_to_pdf_weasyprint(html_content, output_pdf_path)
+    
+    # No PDF converter available
+    print("[ERROR] No PDF converter available - cannot generate PDF")
+    return False

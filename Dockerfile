@@ -1,7 +1,7 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies required by pdfplumber, Pillow, and other packages
+# Install system dependencies required by pdfplumber, Pillow, Playwright, WeasyPrint
 RUN apt-get update && apt-get install -y \
     libpoppler-cpp-dev \
     poppler-utils \
@@ -17,6 +17,26 @@ RUN apt-get update && apt-get install -y \
     tk-dev \
     gcc \
     g++ \
+    # WeasyPrint dependencies
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    # Playwright dependencies
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -27,6 +47,9 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# Install Playwright browsers (Chromium only for smaller image)
+RUN playwright install chromium --with-deps || echo "Playwright browser install failed - will use WeasyPrint fallback"
 
 # Copy the entire backend directory
 COPY backend /app/backend
@@ -40,11 +63,11 @@ WORKDIR /app/backend
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=utf-8
+# Tell Render this is a cloud environment (skip G: Drive checks)
+ENV RENDER=true
 
 # Expose port (Render sets PORT via environment variable, default 10000)
 EXPOSE 10000
 
 # Start the application with Hypercorn (supports HTTP/2)
-# Use Hypercorn for HTTP/2 support on Cloud Run
 CMD ["sh", "-c", "cd /app/backend && python start_hypercorn.py"]
-

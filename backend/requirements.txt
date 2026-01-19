@@ -2,10 +2,9 @@ Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-Compress==1.14
 openai>=1.54.0
-httpx>=0.27.2,<0.28.0  # Pin httpx to version compatible with OpenAI (0.28+ removed proxies parameter)
-pdfminer.six>=20250506  # Required for pdfplumber
-pypdfium2>=4.18.0  # Optional but recommended for pdfplumber
-# Force reinstall to fix Render cache issues
+httpx>=0.27.2,<0.28.0
+pdfminer.six>=20250506
+pypdfium2>=4.18.0
 python-dotenv==1.0.0
 pandas==2.0.3
 openpyxl==3.1.2
@@ -23,5 +22,7 @@ google-api-python-client>=2.100.0
 google-cloud-storage>=2.10.0
 gunicorn==21.2.0
 hypercorn==0.14.4
-asgiref>=3.7.0  # Required for WsgiToAsgi adapter (Flask to ASGI)
-schedule>=1.2.0  # Required for so_background_refresh
+asgiref>=3.7.0
+schedule>=1.2.0
+playwright>=1.40.0
+weasyprint>=60.0

@@ -1712,13 +1712,18 @@ Return ONLY the JSON, no explanations."""
 
 # Google Drive API - LAZY INITIALIZATION (only when needed, not on startup)
 # This prevents startup failures if Google Drive API has issues
-# CRITICAL: On Cloud Run, ALWAYS use Google Drive API (G: Drive is NEVER accessible)
+# CRITICAL: On Cloud Run/Render, ALWAYS use Google Drive API (G: Drive is NEVER accessible)
 IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
-USE_GOOGLE_DRIVE_API = IS_CLOUD_RUN or os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+IS_RENDER = os.getenv('RENDER') is not None or os.getenv('RENDER_SERVICE_ID') is not None
+IS_CLOUD_ENVIRONMENT = IS_CLOUD_RUN or IS_RENDER
+USE_GOOGLE_DRIVE_API = IS_CLOUD_ENVIRONMENT or os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
 google_drive_service = None
 
-if IS_CLOUD_RUN:
-    print("Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
+if IS_CLOUD_ENVIRONMENT:
+    if IS_RENDER:
+        print("Running on Render - Google Drive API will be used (G: Drive not accessible)")
+    else:
+        print("Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
 else:
     print("Running locally - G: Drive will be used if accessible")
 
