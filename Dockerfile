@@ -1,8 +1,8 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies required by pdfplumber, Pillow, Playwright, WeasyPrint
-RUN apt-get update && apt-get install -y \
+# Install system dependencies required by pdfplumber, Pillow, WeasyPrint
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpoppler-cpp-dev \
     poppler-utils \
     libjpeg-dev \
@@ -13,8 +13,6 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     libharfbuzz-dev \
     libfribidi-dev \
-    tcl-dev \
-    tk-dev \
     gcc \
     g++ \
     # WeasyPrint dependencies
@@ -23,20 +21,6 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf2.0-0 \
     libffi-dev \
     shared-mime-info \
-    # Playwright dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -45,11 +29,8 @@ WORKDIR /app
 # Copy backend requirements
 COPY backend/requirements.txt /app/backend/requirements.txt
 
-# Install Python dependencies
+# Install Python dependencies (without playwright - use weasyprint only)
 RUN pip install --no-cache-dir -r backend/requirements.txt
-
-# Install Playwright browsers (Chromium only for smaller image)
-RUN playwright install chromium --with-deps || echo "Playwright browser install failed - will use WeasyPrint fallback"
 
 # Copy the entire backend directory
 COPY backend /app/backend
