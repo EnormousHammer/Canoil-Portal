@@ -1,5 +1,5 @@
 services:
-  # Backend Python Flask Service
+  # Backend Python Flask Service (Frontend is on Vercel)
   - type: web
     name: canoil-portal-backend
     env: docker
@@ -19,26 +19,9 @@ services:
         value: MiSys/Misys Extracted Data/API Extractions
       - key: GOOGLE_DRIVE_SALES_ORDERS_PATH
         value: Sales_CSR/Customer Orders/Sales Orders
-      # IMPORTANT: Add these tokens to persist authentication across restarts
-      # Run: python backend/extract_tokens_for_render.py
-      # Then add the values manually in Render dashboard
-      # - key: GOOGLE_DRIVE_TOKEN
-      #   value: (paste JSON token here)
-      # - key: GMAIL_TOKEN
-      #   value: (paste JSON token here)
-
-  # Frontend React Vite Service
-  - type: web
-    name: canoil-portal-frontend
-    env: static
-    plan: pro
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    headers:
-      - path: /*
-        name: X-Robots-Tag
-        value: noindex
-    envVars:
-      - key: VITE_API_URL
-        value: https://canoil-portal-backend.onrender.com
-        # This will be automatically set to your backend URL after deployment
+      - key: FLASK_ENV
+        value: production
+      # IMPORTANT: Add these secrets manually in Render dashboard:
+      # - GOOGLE_DRIVE_SA_JSON (your service account JSON)
+      # - GOOGLE_DRIVE_TOKEN (OAuth token if using OAuth)
+      # - GMAIL_TOKEN (Gmail OAuth token if using Gmail)

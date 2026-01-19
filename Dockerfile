@@ -41,8 +41,8 @@ WORKDIR /app/backend
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=utf-8
 
-# Expose port (Cloud Run sets PORT=8080 via environment variable)
-EXPOSE 8080
+# Expose port (Render sets PORT via environment variable, default 10000)
+EXPOSE 10000
 
 # Start the application with Hypercorn (supports HTTP/2)
 # Use Hypercorn for HTTP/2 support on Cloud Run
