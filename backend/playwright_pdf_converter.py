@@ -1,40 +1,14 @@
 """
-HTML to PDF converter using WeasyPrint
-Simple, reliable, no browser needed
+HTML to PDF converter - DISABLED on Render (returns HTML only)
+PDF generation requires browser/WeasyPrint which adds complexity to Docker
+Documents are generated as HTML - users can print to PDF from browser
 """
 import os
 
-# Track if WeasyPrint is available
-WEASYPRINT_AVAILABLE = False
-
-try:
-    from weasyprint import HTML
-    WEASYPRINT_AVAILABLE = True
-    print("[OK] WeasyPrint PDF converter available")
-except ImportError as e:
-    print(f"[ERROR] WeasyPrint not available: {e}")
-
-
 def html_to_pdf_sync(html_content, output_pdf_path):
     """
-    Convert HTML to PDF using WeasyPrint
+    PDF generation disabled on cloud - returns False
+    HTML files are still generated and can be printed to PDF from browser
     """
-    if not WEASYPRINT_AVAILABLE:
-        print("[ERROR] WeasyPrint not available - cannot generate PDF")
-        return False
-    
-    try:
-        # WeasyPrint can render HTML directly
-        html_doc = HTML(string=html_content)
-        
-        # Generate PDF
-        html_doc.write_pdf(output_pdf_path)
-        
-        print(f"[OK] PDF generated: {os.path.basename(output_pdf_path)}")
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] PDF generation failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    print(f"[INFO] PDF generation skipped on cloud - HTML file available for browser print")
+    return False
