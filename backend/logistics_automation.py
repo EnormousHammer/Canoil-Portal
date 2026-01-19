@@ -4237,13 +4237,58 @@ def generate_bol():
 def download_file(filepath):
     """Download generated logistics files automatically - Forces download dialog
     Supports nested paths like: folder_name/HTML Format/filename.html
+    Also supports ZIP downloads: folder_name.zip (creates ZIP of entire folder)
     """
+    import zipfile
+    import shutil
+    
     try:
         uploads_dir = get_uploads_dir()
+        print(f"📥 Download request for: {filepath}")
+        
+        # Check if this is a ZIP request for a folder
+        if filepath.endswith('.zip'):
+            folder_name = filepath[:-4]  # Remove .zip extension
+            folder_path = os.path.join(uploads_dir, folder_name)
+            print(f"📦 ZIP request for folder: {folder_name}")
+            print(f"📁 Folder path: {folder_path}")
+            print(f"📁 Folder exists: {os.path.exists(folder_path)}")
+            
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                # Create ZIP file in memory
+                zip_path = os.path.join(uploads_dir, f"{folder_name}.zip")
+                
+                # Create the ZIP file
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(folder_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            # Calculate archive name (relative path within ZIP)
+                            arcname = os.path.relpath(file_path, uploads_dir)
+                            zipf.write(file_path, arcname)
+                            print(f"   Added to ZIP: {arcname}")
+                
+                print(f"✅ ZIP created: {zip_path}")
+                
+                # Send the ZIP file
+                response = send_file(
+                    zip_path,
+                    as_attachment=True,
+                    download_name=f"{folder_name}.zip",
+                    mimetype='application/zip'
+                )
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = '*'
+                return response
+            else:
+                print(f"❌ Folder not found: {folder_path}")
+                return jsonify({'error': f'Folder not found: {folder_name}'}), 404
+        
+        # Regular file download
         # filepath can be just filename or nested path like "folder/subfolder/file.html"
         full_path = os.path.join(uploads_dir, filepath)
         filename = os.path.basename(filepath)
-        print(f"📥 Download request for: {filepath}")
         print(f"📁 Full path: {full_path}")
         print(f"📁 File exists: {os.path.exists(full_path)}")
         
@@ -5439,7 +5484,9 @@ def generate_all_documents():
             'dangerous_goods_detected': has_dg,
             'dangerous_goods_info': dangerous_goods_info,
             'usmca_required': has_usmca,
-            'summary': summary_message
+            'summary': summary_message,
+            'folder_name': folder_structure['folder_name'],
+            'zip_download_url': f'/download/logistics/{folder_structure["folder_name"]}.zip'
         })
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
