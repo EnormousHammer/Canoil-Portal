@@ -1,13 +1,12 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies including wkhtmltopdf for PDF generation
+# Install system dependencies (minimal - no PDF generation on server)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpoppler-cpp-dev \
     poppler-utils \
-    wkhtmltopdf \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

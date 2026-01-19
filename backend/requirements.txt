@@ -22,4 +22,3 @@ gunicorn==21.2.0
 hypercorn==0.14.4
 asgiref>=3.7.0
 schedule>=1.2.0
-pdfkit>=1.0.0
