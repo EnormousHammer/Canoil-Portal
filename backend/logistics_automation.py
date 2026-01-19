@@ -4233,17 +4233,21 @@ def generate_bol():
 
 # Routes are already defined above, removing duplicates
 
-@logistics_bp.route('/download/logistics/<filename>', methods=['GET', 'OPTIONS'])
-def download_file(filename):
-    """Download generated logistics files automatically - Forces download dialog"""
+@logistics_bp.route('/download/logistics/<path:filepath>', methods=['GET', 'OPTIONS'])
+def download_file(filepath):
+    """Download generated logistics files automatically - Forces download dialog
+    Supports nested paths like: folder_name/HTML Format/filename.html
+    """
     try:
         uploads_dir = get_uploads_dir()
-        filepath = os.path.join(uploads_dir, filename)
-        print(f"📥 Download request for: {filename}")
-        print(f"📁 File path: {filepath}")
-        print(f"📁 File exists: {os.path.exists(filepath)}")
+        # filepath can be just filename or nested path like "folder/subfolder/file.html"
+        full_path = os.path.join(uploads_dir, filepath)
+        filename = os.path.basename(filepath)
+        print(f"📥 Download request for: {filepath}")
+        print(f"📁 Full path: {full_path}")
+        print(f"📁 File exists: {os.path.exists(full_path)}")
         
-        if os.path.exists(filepath):
+        if os.path.exists(full_path):
             # Determine mimetype based on file extension
             mimetype = 'application/octet-stream'  # Default to force download
             
@@ -4271,7 +4275,7 @@ def download_file(filename):
             # Create response with CORS headers
             from flask import Response
             response = send_file(
-                filepath, 
+                full_path, 
                 as_attachment=True,  # This forces download dialog
                 download_name=filename,
                 mimetype=mimetype
@@ -4284,8 +4288,8 @@ def download_file(filename):
             
             return response
         else:
-            print(f"❌ File not found: {filepath}")
-            return jsonify({'error': f'File not found: {filename}'}), 404
+            print(f"❌ File not found: {full_path}")
+            return jsonify({'error': f'File not found: {filepath}'}), 404
     except Exception as e:
         print(f"❌ Error serving file {filename}: {e}")
         import traceback
