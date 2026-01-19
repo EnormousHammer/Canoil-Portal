@@ -1,19 +1,43 @@
 """
-HTML to PDF converter - Server-side PDF generation disabled
-PDFs should be generated client-side by printing HTML to PDF
+HTML to PDF converter using pdfkit (wkhtmltopdf)
 """
 import os
 
-# PDF generation is disabled on server due to Docker complexity
 PDFKIT_AVAILABLE = False
 
-print("[INFO] Server-side PDF generation disabled - use browser Print to PDF for HTML documents")
+try:
+    import pdfkit
+    PDFKIT_AVAILABLE = True
+    print("[OK] pdfkit PDF converter available")
+except ImportError as e:
+    print(f"[WARN] pdfkit not available: {e}")
 
 
 def html_to_pdf_sync(html_content, output_pdf_path):
     """
-    PDF generation disabled on server.
-    Returns False - client should use browser Print to PDF.
+    Convert HTML to PDF using pdfkit (wkhtmltopdf)
     """
-    print("[INFO] PDF generation skipped - use browser Print to PDF")
-    return False
+    if not PDFKIT_AVAILABLE:
+        print("[ERROR] pdfkit not available - cannot generate PDF")
+        return False
+    
+    try:
+        options = {
+            'page-size': 'Letter',
+            'margin-top': '0.5in',
+            'margin-right': '0.5in',
+            'margin-bottom': '0.5in',
+            'margin-left': '0.5in',
+            'encoding': 'UTF-8',
+            'no-outline': None,
+            'enable-local-file-access': None,
+            'print-media-type': None
+        }
+        
+        pdfkit.from_string(html_content, output_pdf_path, options=options)
+        print(f"[OK] PDF generated: {os.path.basename(output_pdf_path)}")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] PDF generation failed: {e}")
+        return False
