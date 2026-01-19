@@ -3552,13 +3552,27 @@ def process_email():
                         # Debug: Show what we're comparing
                         print(f"   🔍 COMPARING: Email='{item_desc}' vs SO='{so_desc}'")
                         
+                        # Normalize descriptions for comparison (remove extra spaces, handle variations)
+                        item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
+                        so_desc_normalized = ' '.join(so_desc.split())
+                        
                         # Exact match check
-                        exact_match_1 = item_desc in so_desc
-                        exact_match_2 = so_desc in item_desc
+                        exact_match_1 = item_desc_normalized in so_desc_normalized
+                        exact_match_2 = so_desc_normalized in item_desc_normalized
+                        
+                        # Also check if all words from email item appear in SO description
+                        email_words = set(item_desc_normalized.split())
+                        so_words = set(so_desc_normalized.split())
+                        # Remove common packaging words for comparison
+                        packaging_words = {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L'}
+                        email_core_words = email_words - packaging_words
+                        word_match = email_core_words and email_core_words.issubset(so_words)
+                        
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
+                        print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
                         
-                        if exact_match_1 or exact_match_2:
+                        if exact_match_1 or exact_match_2 or word_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
@@ -3616,20 +3630,34 @@ def process_email():
                             print(f"   ✅ EXACT MATCH: '{item_desc}' = '{so_desc}'")
                             break
                         
-                        # MOV Extra matching - handle "MOV Extra 0" vs "MOVEXT0DRM" or "MOV Extra 0 - Drums"
+                        # MOV product matching - handle all MOV variants:
+                        # - "MOV Extra 0" vs "MOVEXT0DRM" or "MOV Extra 0 - Drums"
+                        # - "MOV LONG LIFE 0" vs "MOV LONG LIFE 0 55kg KEG"
                         # CRITICAL: Check this BEFORE smart matching to avoid matching "MOV Extra 1" with "MOV Extra 0"
                         if 'MOV' in item_desc and 'MOV' in so_desc:
-                            # Extract numbers from both
                             import re
+                            # First check: Does email description appear in SO description? (handles "MOV LONG LIFE 0" in "MOV LONG LIFE 0 55kg KEG")
+                            if item_desc in so_desc:
+                                matched = True
+                                matched_so_item = so_item
+                                match_details = f"MOV product exact match: {item_desc} found in {so_desc}"
+                                print(f"   ✅ MOV EXACT MATCH: '{item_desc}' found in '{so_desc}'")
+                                break
+                            
+                            # Second check: Extract numbers and match by product number
                             email_nums = re.findall(r'\d+', item_desc)
                             so_nums = re.findall(r'\d+', so_desc)
                             # If both have MOV and share a number, it's a match
                             if email_nums and so_nums and any(e_num in so_desc for e_num in email_nums):
-                                matched = True
-                                matched_so_item = so_item
-                                match_details = f"MOV product matched by number: {item_desc} = {so_desc}"
-                                print(f"   ✅ MOV MATCH: '{item_desc}' = '{so_desc}' (shared number: {[n for n in email_nums if n in so_desc][0]})")
-                                break
+                                # Additional check: Make sure the product type matches (LONG LIFE vs Extra)
+                                email_type = 'LONG LIFE' if 'LONG LIFE' in item_desc else ('EXTRA' if 'EXTRA' in item_desc else 'MOV')
+                                so_type = 'LONG LIFE' if 'LONG LIFE' in so_desc else ('EXTRA' if 'EXTRA' in so_desc else 'MOV')
+                                if email_type == so_type or email_type == 'MOV' or so_type == 'MOV':
+                                    matched = True
+                                    matched_so_item = so_item
+                                    match_details = f"MOV product matched by number: {item_desc} = {so_desc}"
+                                    print(f"   ✅ MOV MATCH: '{item_desc}' = '{so_desc}' (shared number: {[n for n in email_nums if n in so_desc][0]})")
+                                    break
                         
                         # Direct VSG fix - if email has VSG and SO has VSG, it's a match
                         if 'VSG' in item_desc and 'VSG' in so_desc:
