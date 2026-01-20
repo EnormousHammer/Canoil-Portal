@@ -2287,7 +2287,6 @@ const LogisticsAutomation: React.FC = () => {
 
             {/* Email Items from Parsing - NEW SECTION - Hide in No SO Mode */}
             {processingMode !== 'no_so' && result.email_data?.items && result.email_data.items.length > 0 && (
-            {result.email_data?.items && result.email_data.items.length > 0 && (
               <div className="bg-white border-l-4 border-l-orange-500 border-t border-r border-b border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
                   <div className="flex items-center justify-between">
