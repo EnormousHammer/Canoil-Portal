@@ -971,7 +971,16 @@ const LogisticsAutomation: React.FC = () => {
           documents: data.documents || [],
           folder_name: data.folder_name
         });
-        setDocuments(data.documents || []);
+        
+        // Map backend document format to frontend format
+        const mappedDocuments: GeneratedDocument[] = (data.documents || []).map((doc: any) => ({
+          type: doc.document_type || doc.type || 'Document',
+          filename: doc.filename || '',
+          download_url: doc.download_url || '',
+          generated_at: new Date().toISOString()
+        }));
+        
+        setDocuments(mappedDocuments);
         console.log('✅ Manual documents generated successfully');
       } else {
         setError(data.error || 'Failed to generate documents');
@@ -2634,12 +2643,16 @@ const LogisticsAutomation: React.FC = () => {
                 <div key={index} className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all">
                       <div className="flex items-center justify-between">
                           <div className="flex-1">
-                      <h3 className="font-bold text-slate-900 capitalize text-sm mb-1">{doc.type.replace('_', ' ')}</h3>
-                      <p className="text-xs text-slate-600 font-mono bg-white px-2 py-1 rounded inline-block border border-slate-200">{doc.filename}</p>
+                      <h3 className="font-bold text-slate-900 capitalize text-sm mb-1">{(doc.type || 'Document').replace('_', ' ')}</h3>
+                      <p className="text-xs text-slate-600 font-mono bg-white px-2 py-1 rounded inline-block border border-slate-200">{doc.filename || 'Unknown'}</p>
                     </div>
                     <button
                       onClick={async () => {
                         try {
+                          if (!doc.download_url) {
+                            throw new Error('Download URL is missing');
+                          }
+                          
                           console.log(`📥 Downloading: ${doc.filename}`);
                           console.log(`🔗 URL: ${doc.download_url}`);
                           
