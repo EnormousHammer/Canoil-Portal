@@ -1729,7 +1729,8 @@ const LogisticsAutomation: React.FC = () => {
         {/* Enterprise Results Display */}
         {result && (
           <div className="space-y-5">
-            {/* Header with Status */}
+            {/* Header with Status - Hide in No SO Mode */}
+            {processingMode !== 'no_so' && (
             <div className="bg-gradient-to-br from-white via-white to-blue-50/30 border border-slate-200 rounded-lg shadow-sm p-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-500/5 to-blue-500/5 rounded-full blur-3xl"></div>
               <div className="flex items-center justify-between relative">
