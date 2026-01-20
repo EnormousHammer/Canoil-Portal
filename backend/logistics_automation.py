@@ -5016,7 +5016,7 @@ def generate_manual_documents():
             errors.append(f"BOL generation failed: {str(e)}")
             results['bol'] = {'success': False, 'error': str(e)}
         
-            # Generate Packing Slip
+        # Generate Packing Slip
         try:
             from packing_slip_html_generator import generate_packing_slip_html
             from playwright_pdf_converter import html_to_pdf_sync
