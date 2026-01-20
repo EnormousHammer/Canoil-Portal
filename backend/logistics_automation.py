@@ -5022,10 +5022,15 @@ def generate_manual_documents():
             bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
             bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
             bol_pdf_success = False
+            bol_pdf_error = None
             try:
                 bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
+                if not bol_pdf_success:
+                    bol_pdf_error = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
+                    print(f"WARNING: BOL PDF generation failed: {bol_pdf_error}")
             except Exception as pdf_err:
-                print(f"WARNING: BOL PDF generation error: {pdf_err}")
+                bol_pdf_error = str(pdf_err)
+                print(f"WARNING: BOL PDF generation error: {bol_pdf_error}")
             
             results['bol'] = {
                 'success': True,
