@@ -5032,9 +5032,10 @@ def generate_manual_documents():
                 'filename': bol_filename,
                 'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{bol_filename}',
                 'pdf_file': bol_pdf_filename if bol_pdf_success else None,
-                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{bol_pdf_filename}' if bol_pdf_success else None
+                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{bol_pdf_filename}' if bol_pdf_success else None,
+                'pdf_error': bol_pdf_error if not bol_pdf_success else None
             }
-            print(f"✅ BOL generated: {bol_filename}")
+            print(f"✅ BOL generated: {bol_filename}" + (f" (PDF: {bol_pdf_error})" if bol_pdf_error else " (HTML + PDF)"))
         except Exception as e:
             print(f"❌ BOL generation error: {e}")
             traceback.print_exc()
@@ -5058,61 +5059,70 @@ def generate_manual_documents():
             ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
             ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
             ps_pdf_success = False
+            ps_pdf_error = None
             try:
                 ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
+                if not ps_pdf_success:
+                    ps_pdf_error = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
+                    print(f"WARNING: Packing Slip PDF generation failed: {ps_pdf_error}")
             except Exception as pdf_err:
-                print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
+                ps_pdf_error = str(pdf_err)
+                print(f"WARNING: Packing Slip PDF generation error: {ps_pdf_error}")
             
             results['packing_slip'] = {
                 'success': True,
                 'filename': ps_filename,
                 'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ps_filename}',
                 'pdf_file': ps_pdf_filename if ps_pdf_success else None,
-                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ps_pdf_filename}' if ps_pdf_success else None
+                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ps_pdf_filename}' if ps_pdf_success else None,
+                'pdf_error': ps_pdf_error if not ps_pdf_success else None
             }
-            print(f"✅ Packing Slip generated: {ps_filename}")
+            print(f"✅ Packing Slip generated: {ps_filename}" + (f" (PDF: {ps_pdf_error})" if ps_pdf_error else " (HTML + PDF)"))
         except Exception as e:
             print(f"❌ Packing Slip generation error: {e}")
             traceback.print_exc()
             errors.append(f"Packing Slip generation failed: {str(e)}")
             results['packing_slip'] = {'success': False, 'error': str(e)}
         
-        # Generate Commercial Invoice if cross-border
+        # Generate Commercial Invoice (always generate, not just cross-border)
         destination_country = consignee.get('country', 'Canada').upper()
-        is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
-        
-        if is_cross_border:
+        try:
+            from commercial_invoice_html_generator import generate_commercial_invoice_html
+            from playwright_pdf_converter import html_to_pdf_sync
+            
+            ci_html = generate_commercial_invoice_html(so_data, formatted_items, email_analysis)
+            ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
+            ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
+            with open(ci_html_filepath, 'w', encoding='utf-8') as f:
+                f.write(ci_html)
+            
+            ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+            ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
+            ci_pdf_success = False
+            pdf_error_msg = None
             try:
-                from commercial_invoice_html_generator import generate_commercial_invoice_html
-                from playwright_pdf_converter import html_to_pdf_sync
-                
-                ci_html = generate_commercial_invoice_html(so_data, formatted_items, email_analysis)
-                ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
-                ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
-                with open(ci_html_filepath, 'w', encoding='utf-8') as f:
-                    f.write(ci_html)
-                
-                ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-                ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
-                ci_pdf_success = False
-                try:
-                    ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
-                except Exception as pdf_error:
-                    print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
-                
-                results['commercial_invoice'] = {
-                    'success': True,
-                    'filename': ci_html_filename,
-                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ci_html_filename}',
-                    'pdf_file': ci_pdf_filename if ci_pdf_success else None,
-                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ci_pdf_filename}' if ci_pdf_success else None
-                }
-                print(f"✅ Commercial Invoice generated: {ci_html_filename}")
-            except Exception as e:
-                print(f"❌ Commercial Invoice generation error: {e}")
-                traceback.print_exc()
-                errors.append(f"Commercial Invoice generation failed: {str(e)}")
-                results['commercial_invoice'] = {'success': False, 'error': str(e)}
+                ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                if not ci_pdf_success:
+                    pdf_error_msg = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
+                    print(f"WARNING: Commercial invoice PDF generation failed: {pdf_error_msg}")
+            except Exception as pdf_error:
+                pdf_error_msg = str(pdf_error)
+                print(f"WARNING: Commercial invoice PDF generation error: {pdf_error_msg}")
+            
+            results['commercial_invoice'] = {
+                'success': True,
+                'filename': ci_html_filename,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ci_html_filename}',
+                'pdf_file': ci_pdf_filename if ci_pdf_success else None,
+                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ci_pdf_filename}' if ci_pdf_success else None,
+                'pdf_error': pdf_error_msg if not ci_pdf_success else None
+            }
+            print(f"✅ Commercial Invoice generated: {ci_html_filename}" + (f" (PDF: {pdf_error_msg})" if pdf_error_msg else " (HTML + PDF)"))
+        except Exception as e:
+            print(f"❌ Commercial Invoice generation error: {e}")
+            traceback.print_exc()
+            errors.append(f"Commercial Invoice generation failed: {str(e)}")
+            results['commercial_invoice'] = {'success': False, 'error': str(e)}
         
         # Generate TSCA if USA shipment
         if destination_country in ['USA', 'US', 'UNITED STATES']:
