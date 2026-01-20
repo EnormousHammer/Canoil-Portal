@@ -1049,6 +1049,70 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
             carrier_input['value'] = carrier_value
             print(f"   Set carrier (brokerage): {carrier_value}")
     
+    # Extract shipper address from billing_address or sold_to
+    print(f"\n>> Extracting shipper address...")
+    shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+    shipper = {
+        'name': (shipper_addr.get('company_name', '') or 
+                shipper_addr.get('company', '') or 
+                'Canoil Canada Ltd'),  # Default to Canoil if not provided
+        'street': shipper_addr.get('street', '') or shipper_addr.get('address', ''),
+        'city': shipper_addr.get('city', ''),
+        'province': shipper_addr.get('province', '') or shipper_addr.get('state', ''),
+        'postal': (shipper_addr.get('postal_code', '') or 
+                  shipper_addr.get('postal', '') or 
+                  shipper_addr.get('zip', ''))
+    }
+    
+    # If individual fields are empty, try to parse full_address
+    if not shipper['street'] and shipper_addr.get('full_address'):
+        gpt_parsed = parse_address_with_gpt(shipper_addr['full_address'], shipper['name'])
+        if gpt_parsed['street']:
+            shipper['street'] = gpt_parsed['street']
+        if gpt_parsed['city']:
+            shipper['city'] = gpt_parsed['city']
+        if gpt_parsed['state']:
+            shipper['province'] = gpt_parsed['state']
+        if gpt_parsed['postal']:
+            shipper['postal'] = gpt_parsed['postal']
+    
+    print(f"   Shipper: {shipper['name']}")
+    print(f"   Street: {shipper['street']}")
+    print(f"   City: {shipper['city']}")
+    print(f"   Province: {shipper['province']}")
+    print(f"   Postal: {shipper['postal']}")
+    
+    # Populate shipper fields in template
+    print(f"\n>> Filling shipper address fields...")
+    shipper_table = soup.find('table', class_='shipper-table')
+    if shipper_table:
+        all_strongs_in_table = shipper_table.find_all('strong')
+        for strong in all_strongs_in_table:
+            text = strong.get_text().strip()
+            next_input = strong.find_next('input', {'type': 'text'})
+            
+            if next_input:
+                if 'Shipper\'s Name' in text or 'Shipper' in text:
+                    if shipper['name']:
+                        next_input['value'] = shipper['name']
+                        print(f"   ✅ Set shipper name: {shipper['name']}")
+                elif 'Street Number' in text or 'Street' in text:
+                    if shipper['street']:
+                        next_input['value'] = shipper['street']
+                        print(f"   ✅ Set shipper street: {shipper['street']}")
+                elif text == 'City:':
+                    if shipper['city']:
+                        next_input['value'] = shipper['city']
+                        print(f"   ✅ Set shipper city: {shipper['city']}")
+                elif 'Prov' in text and 'State' in text:
+                    if shipper['province']:
+                        next_input['value'] = shipper['province']
+                        print(f"   ✅ Set shipper province: {shipper['province']}")
+                elif 'Postal' in text or 'Zip' in text:
+                    if shipper['postal']:
+                        next_input['value'] = shipper['postal']
+                        print(f"   ✅ Set shipper postal: {shipper['postal']}")
+    
     # Populate consignee fields - ROBUST approach with multiple fallbacks
     print(f"\n>> Filling consignee address fields...")
     print(f"   Name: {consignee['name']}")
