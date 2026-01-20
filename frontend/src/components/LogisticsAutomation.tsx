@@ -63,7 +63,10 @@ const LogisticsAutomation: React.FC = () => {
   
   // Auto-detection state
   const [autoDetection, setAutoDetection] = useState<any>(null);
-  const [processingMode, setProcessingMode] = useState<'auto' | 'manual'>('auto');
+  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so'>('auto');
+  
+  // Manual text input state - just a simple text field
+  const [manualText, setManualText] = useState('');
   
   // AES Steel Certificate Reminder popup
   const [showAesSteelReminder, setShowAesSteelReminder] = useState(false);
@@ -938,6 +941,49 @@ const LogisticsAutomation: React.FC = () => {
     }
   };
 
+  const processManualText = async () => {
+    if (!manualText.trim()) {
+      setError('Please paste shipping information text');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setDocuments([]);
+    
+    try {
+      const response = await fetch(getApiUrl('/api/logistics/generate-manual'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text_input: manualText
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setResult({
+          success: true,
+          documents: data.documents || [],
+          folder_name: data.folder_name
+        });
+        setDocuments(data.documents || []);
+        console.log('✅ Manual documents generated successfully');
+      } else {
+        setError(data.error || 'Failed to generate documents');
+      }
+    } catch (err) {
+      console.error('❌ Manual generation error:', err);
+      setError('Network error: ' + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const startNewShipment = () => {
     setEmailText('');
     setSoFile(null);
@@ -946,6 +992,7 @@ const LogisticsAutomation: React.FC = () => {
     setError('');
     setAutoDetection(null);
     setProcessingMode('auto');
+    setManualText('');
   };
 
   return (
@@ -1126,6 +1173,16 @@ const LogisticsAutomation: React.FC = () => {
                 >
                   📁 Manual
                 </button>
+                <button
+                  onClick={() => setProcessingMode('no_so')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    processingMode === 'no_so'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  📝 No SO Mode
+                </button>
               </div>
               
               {/* Start New Shipment button */}
@@ -1143,7 +1200,8 @@ const LogisticsAutomation: React.FC = () => {
           </div>
         </div>
 
-        {/* Compact Email Input - Prominently at Top */}
+        {/* Compact Email Input - Prominently at Top - Hide in no_so mode */}
+        {processingMode !== 'no_so' && (
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Mail className="w-5 h-5 text-blue-600" />
@@ -1223,6 +1281,7 @@ const LogisticsAutomation: React.FC = () => {
             )}
           </div>
         </div>
+        )}
                 
         {/* Compact SO File Upload - Only show in manual mode */}
         {processingMode === 'manual' && (
@@ -1238,6 +1297,54 @@ const LogisticsAutomation: React.FC = () => {
               onChange={(e) => setSoFile(e.target.files?.[0] || null)}
               className="w-full p-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 text-sm"
             />
+          </div>
+        )}
+        
+        {/* No SO Mode - Simple Text Area */}
+        {processingMode === 'no_so' && (
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Package className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Paste Shipping Information</h2>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Paste all shipping information here. AI will extract shipper, consignee, items, weights, skids, carrier, PO number, and more.
+            </p>
+            
+            <textarea
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              placeholder="Example: Ship from Canoil, Calgary, AB to ABC Company, 123 Main St, Toronto, ON. 2 drums of MOV Extra 0, batch WH5H01G002, 460 kg total, 1 skid 45×45×40 inches. Carrier: Manitoulin. PO: 12345"
+              className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all text-gray-700 placeholder-gray-400 text-sm"
+              rows={8}
+              autoFocus
+            />
+            
+            {/* Generate Button */}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={processManualText}
+                disabled={loading || !manualText.trim()}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                  loading || !manualText.trim()
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    AI Processing...
+                  </>
+                ) : (
+                  <>
+                    <Truck className="w-4 h-4" />
+                    Generate Documents
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
                 

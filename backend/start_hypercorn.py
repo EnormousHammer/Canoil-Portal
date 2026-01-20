@@ -101,8 +101,9 @@ except ImportError as e:
     print("   Run: pip install hypercorn")
     sys.exit(1)
 
-# Get port from environment (Cloud Run sets PORT=8080)
-port = int(os.environ.get('PORT', 8080))
+# Get port from environment (Cloud Run sets PORT=8080, Render sets PORT dynamically)
+# Render automatically sets PORT, so use that if available, otherwise default to 10000
+port = int(os.environ.get('PORT', 10000))
 bind_address = f'0.0.0.0:{port}'
 
 # Wrap Flask (WSGI) app for ASGI server

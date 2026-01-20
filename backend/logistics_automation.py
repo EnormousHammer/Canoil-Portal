@@ -1097,6 +1097,60 @@ def parse_email_deterministic(email_text: str) -> dict:
     
     return data
 
+def parse_text_with_gpt4(prompt_text, retry_count=0):
+    """Parse text input using GPT-4o to extract logistics information (for manual text input)"""
+    try:
+        # Get OpenAI client (lazy loading)
+        openai_client = get_openai_client()
+        if not openai_client:
+            print("OpenAI not available - cannot parse text")
+            return None
+            
+        print(f"✅ GPT-4o client available - Parsing text with GPT-4o (attempt {retry_count + 1})...")
+        
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a logistics data extraction assistant. Extract shipping information from text and return valid JSON only."},
+                {"role": "user", "content": prompt_text}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        print(f"📥 GPT Response (first 200 chars): {result_text[:200]}...")
+        
+        # Clean up the response (remove markdown code blocks if present)
+        if result_text.startswith('```json'):
+            result_text = result_text[7:]
+        if result_text.startswith('```'):
+            result_text = result_text[3:]
+        if result_text.endswith('```'):
+            result_text = result_text[:-3]
+        result_text = result_text.strip()
+        
+        # Parse JSON response
+        parsed = json.loads(result_text)
+        print(f"✅ Successfully parsed text input")
+        return parsed
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON decode error: {e}")
+        print(f"   Response text: {result_text[:500] if 'result_text' in locals() else 'N/A'}")
+        if retry_count < 2:
+            print(f"   Retrying... (attempt {retry_count + 2})")
+            return parse_text_with_gpt4(prompt_text, retry_count + 1)
+        return None
+    except Exception as e:
+        print(f"❌ Error parsing text with GPT: {e}")
+        import traceback
+        traceback.print_exc()
+        if retry_count < 2:
+            print(f"   Retrying... (attempt {retry_count + 2})")
+            return parse_text_with_gpt4(prompt_text, retry_count + 1)
+        return None
+
 def parse_email_with_gpt4(email_text, retry_count=0):
     """Parse email content using GPT-4o to extract ALL logistics information with retry logic"""
     try:
@@ -4619,6 +4673,462 @@ def generate_dangerous_goods_only():
             'success': False,
             'error': str(e)
         }), 500
+
+@logistics_bp.route('/api/logistics/generate-manual', methods=['POST', 'OPTIONS'])
+def generate_manual_documents():
+    """Generate logistics documents from text input - AI parses everything (no SO number required)"""
+    # Handle OPTIONS preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response, 200
+    
+    try:
+        print("\n📋 === GENERATING MANUAL LOGISTICS DOCUMENTS FROM TEXT ===")
+        data = request.get_json()
+        
+        if data is None:
+            return jsonify({
+                'success': False,
+                'error': 'No data received. Make sure Content-Type is application/json'
+            }), 400
+        
+        # Get text input
+        text_input = data.get('text_input', '').strip()
+        
+        if not text_input:
+            return jsonify({
+                'success': False,
+                'error': 'Text input is required'
+            }), 400
+        
+        print(f"📝 Parsing text input with AI (length: {len(text_input)} chars)...")
+        
+        # Use GPT to parse the text input
+        parse_prompt = f"""
+        Parse this shipping information text and extract all logistics details. Extract:
+        - Shipper (from): company name, address, city, state/province, postal code, country
+        - Consignee (to): company name, address, city, state/province, postal code, country, contact person if mentioned
+        - Items: product descriptions, quantities, units (drum/pail/case/keg/tote/box), batch numbers
+        - Weights: total weight, weight unit (kg/lbs), weight per pallet if mentioned
+        - Skids/Pallets: count, dimensions (e.g., "45×45×40 inches")
+        - Carrier: shipping company name
+        - PO Number: purchase order number if mentioned
+        - Special instructions: any delivery or shipping notes
+        
+        Text Input:
+        {text_input}
+        
+        Return as JSON with this structure:
+        {{
+            "shipper": {{
+                "company": "company name",
+                "address": "street address",
+                "city": "city",
+                "state": "state/province",
+                "postal": "postal code",
+                "country": "country (default: Canada if not specified)",
+                "phone": "phone if mentioned",
+                "email": "email if mentioned",
+                "contact_person": "contact name if mentioned"
+            }},
+            "consignee": {{
+                "company": "company name",
+                "address": "street address",
+                "city": "city",
+                "state": "state/province",
+                "postal": "postal code",
+                "country": "country (default: Canada if not specified)",
+                "phone": "phone if mentioned",
+                "email": "email if mentioned",
+                "contact_person": "contact name if mentioned"
+            }},
+            "items": [
+                {{
+                    "description": "product name/description",
+                    "quantity": "number as string",
+                    "unit": "drum/pail/case/keg/tote/box",
+                    "batch_number": "batch number if mentioned"
+                }}
+            ],
+            "weights": {{
+                "total_weight": "weight number as string",
+                "weight_unit": "kg or lbs",
+                "weight_per_pallet": "weight per pallet if mentioned"
+            }},
+            "skids": {{
+                "count": "number as string",
+                "dimensions": "dimensions if mentioned (e.g., 45×45×40 inches)",
+                "pieces": "total pieces if mentioned"
+            }},
+            "carrier": "carrier name if mentioned",
+            "po_number": "PO number if mentioned",
+            "special_instructions": "any special instructions or notes"
+        }}
+        
+        IMPORTANT:
+        - If shipper info is not provided, assume Canoil as shipper with default Canadian address
+        - Extract all items mentioned, even if multiple products
+        - If country is not specified, default to "Canada"
+        - Extract batch numbers for each item if mentioned
+        - Be thorough - extract all available information
+        """
+        
+        # Parse with GPT
+        parsed_data = parse_text_with_gpt4(parse_prompt)
+        
+        if not parsed_data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to parse text input. Please provide clearer information.'
+            }), 400
+        
+        print(f"✅ Parsed data: Shipper={parsed_data.get('shipper', {}).get('company')}, Consignee={parsed_data.get('consignee', {}).get('company')}")
+        
+        # Extract parsed data
+        shipper = parsed_data.get('shipper', {})
+        consignee = parsed_data.get('consignee', {})
+        items = parsed_data.get('items', [])
+        weights = parsed_data.get('weights', {})
+        skids = parsed_data.get('skids', {})
+        carrier = parsed_data.get('carrier', '')
+        po_number = parsed_data.get('po_number', '')
+        special_instructions = parsed_data.get('special_instructions', '')
+        
+        # Default shipper to Canoil if not provided
+        if not shipper.get('company'):
+            shipper = {
+                'company': 'Canoil',
+                'address': '',
+                'city': 'Calgary',
+                'state': 'AB',
+                'postal': '',
+                'country': 'Canada'
+            }
+        
+        # Validate required fields
+        if not shipper.get('company') or not consignee.get('company'):
+            return jsonify({
+                'success': False,
+                'error': 'Shipper and Consignee company names are required'
+            }), 400
+        
+        if not items or len(items) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one item is required'
+            }), 400
+        
+        # Format items properly for document generators
+        formatted_items = []
+        for item in items:
+            formatted_item = {
+                'description': item.get('description', ''),
+                'quantity': str(item.get('quantity', '')),
+                'unit': item.get('unit', 'drum'),
+                'batch_number': item.get('batch_number', ''),
+                'item_code': item.get('item_code', ''),
+                'hts_code': item.get('hts_code', ''),
+                'country_of_origin': item.get('country_of_origin', 'Canada')
+            }
+            formatted_items.append(formatted_item)
+        
+        # Create minimal so_data structure from manual input
+        so_data = {
+            'so_number': 'MANUAL',  # Use 'MANUAL' as placeholder
+            'po_number': po_number,
+            'customer_name': consignee.get('company', ''),
+            'order_date': datetime.now().strftime('%Y-%m-%d'),
+            'ship_date': datetime.now().strftime('%Y-%m-%d'),
+            'items': formatted_items,
+            'billing_address': {
+                'company_name': shipper.get('company', ''),
+                'contact_person': shipper.get('contact_person', ''),
+                'street': shipper.get('address', ''),
+                'city': shipper.get('city', ''),
+                'province': shipper.get('state', ''),
+                'postal_code': shipper.get('postal', ''),
+                'country': shipper.get('country', 'Canada'),
+                'phone': shipper.get('phone', ''),
+                'email': shipper.get('email', ''),
+                'full_address': f"{shipper.get('address', '')}, {shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}, {shipper.get('country', 'Canada')}"
+            },
+            'shipping_address': {
+                'company_name': consignee.get('company', ''),
+                'contact_person': consignee.get('contact_person', ''),
+                'street': consignee.get('address', ''),
+                'city': consignee.get('city', ''),
+                'province': consignee.get('state', ''),
+                'postal_code': consignee.get('postal', ''),
+                'country': consignee.get('country', 'Canada'),
+                'phone': consignee.get('phone', ''),
+                'email': consignee.get('email', ''),
+                'full_address': f"{consignee.get('address', '')}, {consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}, {consignee.get('country', 'Canada')}"
+            },
+            'sold_to': {
+                'company_name': shipper.get('company', ''),
+                'contact_person': shipper.get('contact_person', ''),
+                'address': shipper.get('address', ''),
+                'phone': shipper.get('phone', ''),
+                'email': shipper.get('email', '')
+            },
+            'ship_to': {
+                'company_name': consignee.get('company', ''),
+                'contact_person': consignee.get('contact_person', ''),
+                'address': consignee.get('address', ''),
+                'phone': consignee.get('phone', ''),
+                'email': consignee.get('email', ''),
+                'country': consignee.get('country', 'Canada')
+            }
+        }
+        
+        # Create email_analysis structure from manual input
+        email_analysis = {
+            'total_weight': f"{weights.get('total_weight', '')} {weights.get('weight_unit', 'kg')}",
+            'pallet_count': skids.get('count', 1),
+            'pallet_dimensions': skids.get('dimensions', ''),
+            'pieces_count': skids.get('pieces', sum(int(item.get('quantity', 0)) for item in items)),
+            'carrier': carrier,
+            'special_instructions': special_instructions,
+            'skid_info': f"{skids.get('count', 1)} skid(s)" + (f", {skids.get('dimensions', '')}" if skids.get('dimensions') else ''),
+            'destination_country': consignee.get('country', 'Canada')
+        }
+        
+        # Create folder structure
+        folder_structure = get_document_folder_structure(so_data)
+        print(f"\n📁 Document folder structure created: {folder_structure['folder_name']}")
+        
+        # Now call the existing generate_all_documents logic with our manual data
+        # We'll reuse the same generation code but with manual data
+        results = {}
+        errors = []
+        dangerous_goods_info = {'has_dangerous_goods': False}
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # Generate BOL
+        try:
+            from new_bol_generator import populate_new_bol_html
+            from playwright_pdf_converter import html_to_pdf_sync
+            
+            bol_html = populate_new_bol_html(so_data, email_analysis)
+            bol_filename = generate_document_filename("BOL", so_data, '.html')
+            
+            # Save HTML version
+            bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
+            with open(bol_html_filepath, 'w', encoding='utf-8') as f:
+                f.write(bol_html)
+            
+            # Generate and save PDF version
+            bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
+            bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
+            bol_pdf_success = False
+            try:
+                bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
+            except Exception as pdf_err:
+                print(f"WARNING: BOL PDF generation error: {pdf_err}")
+            
+            results['bol'] = {
+                'success': True,
+                'filename': bol_filename,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{bol_filename}',
+                'pdf_file': bol_pdf_filename if bol_pdf_success else None,
+                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{bol_pdf_filename}' if bol_pdf_success else None
+            }
+            print(f"✅ BOL generated: {bol_filename}")
+        except Exception as e:
+            print(f"❌ BOL generation error: {e}")
+            traceback.print_exc()
+            errors.append(f"BOL generation failed: {str(e)}")
+            results['bol'] = {'success': False, 'error': str(e)}
+        
+            # Generate Packing Slip
+        try:
+            from packing_slip_html_generator import generate_packing_slip_html
+            from playwright_pdf_converter import html_to_pdf_sync
+            
+            ps_html = generate_packing_slip_html(so_data, email_analysis, formatted_items)
+            ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
+            
+            # Save HTML version
+            ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
+            with open(ps_html_filepath, 'w', encoding='utf-8') as f:
+                f.write(ps_html)
+            
+            # Generate and save PDF version
+            ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
+            ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
+            ps_pdf_success = False
+            try:
+                ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
+            except Exception as pdf_err:
+                print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
+            
+            results['packing_slip'] = {
+                'success': True,
+                'filename': ps_filename,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ps_filename}',
+                'pdf_file': ps_pdf_filename if ps_pdf_success else None,
+                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ps_pdf_filename}' if ps_pdf_success else None
+            }
+            print(f"✅ Packing Slip generated: {ps_filename}")
+        except Exception as e:
+            print(f"❌ Packing Slip generation error: {e}")
+            traceback.print_exc()
+            errors.append(f"Packing Slip generation failed: {str(e)}")
+            results['packing_slip'] = {'success': False, 'error': str(e)}
+        
+        # Generate Commercial Invoice if cross-border
+        destination_country = consignee.get('country', 'Canada').upper()
+        is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
+        
+        if is_cross_border:
+            try:
+                from commercial_invoice_html_generator import generate_commercial_invoice_html
+                from playwright_pdf_converter import html_to_pdf_sync
+                
+                ci_html = generate_commercial_invoice_html(so_data, formatted_items, email_analysis)
+                ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
+                ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
+                with open(ci_html_filepath, 'w', encoding='utf-8') as f:
+                    f.write(ci_html)
+                
+                ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+                ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
+                ci_pdf_success = False
+                try:
+                    ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                except Exception as pdf_error:
+                    print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
+                
+                results['commercial_invoice'] = {
+                    'success': True,
+                    'filename': ci_html_filename,
+                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/HTML Format/{ci_html_filename}',
+                    'pdf_file': ci_pdf_filename if ci_pdf_success else None,
+                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{ci_pdf_filename}' if ci_pdf_success else None
+                }
+                print(f"✅ Commercial Invoice generated: {ci_html_filename}")
+            except Exception as e:
+                print(f"❌ Commercial Invoice generation error: {e}")
+                traceback.print_exc()
+                errors.append(f"Commercial Invoice generation failed: {str(e)}")
+                results['commercial_invoice'] = {'success': False, 'error': str(e)}
+        
+        # Generate TSCA if USA shipment
+        if destination_country in ['USA', 'US', 'UNITED STATES']:
+            try:
+                from tsca_generator import generate_tsca_certification
+                tsca_result = generate_tsca_certification(so_data, formatted_items, email_analysis, target_folder=folder_structure['pdf_folder'])
+                if tsca_result:
+                    tsca_filepath, tsca_filename = tsca_result
+                    results['tsca_certification'] = {
+                        'success': True,
+                        'filename': tsca_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{tsca_filename}',
+                        'note': 'TSCA Certification for US shipments'
+                    }
+                    print(f"✅ TSCA Certification generated: {tsca_filename}")
+            except Exception as e:
+                print(f"❌ TSCA generation error: {e}")
+                traceback.print_exc()
+                errors.append(f"TSCA generation failed: {str(e)}")
+                results['tsca_certification'] = {'success': False, 'error': str(e)}
+        
+        # Check for USMCA
+        has_usmca = False
+        try:
+            from usmca_hts_codes import check_items_for_usmca
+            usmca_check = check_items_for_usmca(formatted_items, destination_country, so_data)
+            if usmca_check['requires_usmca']:
+                import shutil
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                if os.path.exists(usmca_source):
+                    so_number = 'MANUAL'
+                    usmca_filename = f"USMCA_Certificate_{po_number or 'MANUAL'}.pdf"
+                    usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
+                    shutil.copy2(usmca_source, usmca_path)
+                    results['usmca_certificate'] = {
+                        'success': True,
+                        'filename': usmca_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/PDF Format/{usmca_filename}',
+                        'note': 'Pre-signed USMCA form (ready for printing)'
+                    }
+                    has_usmca = True
+                    print(f"✅ USMCA Certificate included: {usmca_filename}")
+        except Exception as e:
+            print(f"❌ USMCA generation error: {e}")
+            traceback.print_exc()
+            errors.append(f"USMCA generation failed: {str(e)}")
+            results['usmca_certificate'] = {'success': False, 'error': str(e)}
+        
+        # Build documents array
+        documents = []
+        if results.get('bol', {}).get('success'):
+            documents.append({
+                'document_type': 'Bill of Lading (BOL)',
+                'filename': results['bol']['filename'],
+                'download_url': results['bol']['download_url']
+            })
+        if results.get('packing_slip', {}).get('success'):
+            documents.append({
+                'document_type': 'Packing Slip',
+                'filename': results['packing_slip']['filename'],
+                'download_url': results['packing_slip']['download_url']
+            })
+        if results.get('commercial_invoice', {}).get('success'):
+            documents.append({
+                'document_type': 'Commercial Invoice',
+                'filename': results['commercial_invoice']['filename'],
+                'download_url': results['commercial_invoice']['download_url']
+            })
+        if results.get('tsca_certification', {}).get('success'):
+            documents.append({
+                'document_type': 'TSCA Certification',
+                'filename': results['tsca_certification']['filename'],
+                'download_url': results['tsca_certification']['download_url']
+            })
+        if results.get('usmca_certificate', {}).get('success'):
+            documents.append({
+                'document_type': 'USMCA Certificate',
+                'filename': results['usmca_certificate']['filename'],
+                'download_url': results['usmca_certificate']['download_url']
+            })
+        
+        response = jsonify({
+            'success': len(documents) > 0,
+            'documents': documents,
+            'documents_generated': len(documents),
+            'results': results,
+            'errors': errors,
+            'folder_name': folder_structure['folder_name'],
+            'summary': f"Generated {len(documents)} documents successfully from manual input"
+        })
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        return response
+        
+    except Exception as e:
+        print(f"❌ ERROR: Error in generate_manual_documents: {e}")
+        traceback.print_exc()
+        error_details = {
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'documents': [],
+            'documents_generated': 0,
+            'errors': [f"Main error: {str(e)}"],
+            'summary': f"Manual document generation failed: {str(e)}"
+        }
+        response = jsonify(error_details)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept'
+        return response, 500
 
 @logistics_bp.route('/api/logistics/generate-all-documents', methods=['POST', 'OPTIONS'])
 def generate_all_documents():

@@ -7,8 +7,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
-      - key: PORT
-        value: 10000
+      # PORT is automatically set by Render - don't override it
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: USE_GOOGLE_DRIVE_API
