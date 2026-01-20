@@ -5147,19 +5147,36 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             })
                           });
                           
-                          if (response.ok) {
-                            const blob = await response.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `Logistics_Documents_${logisticsData.soNumber || 'export'}.zip`;
-                            link.click();
-                            window.URL.revokeObjectURL(url);
-                            alert('✅ Documents generated successfully!');
-                          } else {
-                            const error = await response.text();
-                            alert(`❌ Error generating documents:\n${error}`);
+                          const responseText = await response.text();
+                          let data: any = null;
+                          try {
+                            data = JSON.parse(responseText);
+                          } catch (parseError) {
+                            throw new Error(`Backend returned non-JSON response: ${responseText.substring(0, 200)}`);
                           }
+
+                          if (!response.ok || !data.success) {
+                            const errorMsg = data.error || data.summary || response.statusText || 'Failed to generate documents';
+                            throw new Error(errorMsg);
+                          }
+
+                          if (!data.zip_download_url) {
+                            throw new Error('ZIP download URL missing from response');
+                          }
+
+                          const zipResponse = await fetch(getApiUrl(data.zip_download_url));
+                          if (!zipResponse.ok) {
+                            throw new Error(`ZIP download failed: ${zipResponse.status} ${zipResponse.statusText}`);
+                          }
+
+                          const blob = await zipResponse.blob();
+                          const url = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `${data.folder_name || `Logistics_Documents_${logisticsData.soNumber || 'export'}`}.zip`;
+                          link.click();
+                          window.URL.revokeObjectURL(url);
+                          alert('✅ Documents generated successfully!');
                         } catch (error) {
                           alert(`❌ Error: ${error.message}`);
                         }

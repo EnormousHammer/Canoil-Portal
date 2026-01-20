@@ -783,38 +783,87 @@ const LogisticsAutomation: React.FC = () => {
         
         setDocuments(prev => [...prev, ...newDocs]);
         console.log(`✅ Generated ${newDocs.length} documents successfully`);
-        
-        // Download files using fetch to force actual downloads (not just opening)
-        newDocs.forEach((doc, index) => {
-          setTimeout(async () => {
-            console.log(`📥 Downloading ${index + 1}/${newDocs.length}: ${doc.filename}`);
-            
-            try {
-              // Fetch the file as a blob
-              const fileResponse = await fetch(getApiUrl(doc.download_url));
-              const blob = await fileResponse.blob();
-              
-              // Create a blob URL and trigger download
-              const blobUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = blobUrl;
-              link.download = doc.filename; // This forces download dialog
-              link.style.display = 'none';
-              document.body.appendChild(link);
-              link.click();
-              
-              // Cleanup
-              setTimeout(() => {
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(blobUrl);
-              }, 100);
-              
-              console.log(`✅ Downloaded: ${doc.filename}`);
-            } catch (err) {
-              console.error(`❌ Failed to download ${doc.filename}:`, err);
+
+        // Prefer a single ZIP download so the user gets a folder with all HTML/PDFs inside
+        const zipDownloadUrl = data.zip_download_url;
+        if (zipDownloadUrl) {
+          try {
+            const zipResponse = await fetch(getApiUrl(zipDownloadUrl));
+            if (!zipResponse.ok) {
+              throw new Error(`ZIP download failed: ${zipResponse.status} ${zipResponse.statusText}`);
             }
-          }, index * 800); // 800ms delay between downloads
-        });
+
+            const zipBlob = await zipResponse.blob();
+            const zipBlobUrl = window.URL.createObjectURL(zipBlob);
+            const link = document.createElement('a');
+            link.href = zipBlobUrl;
+            link.download = `${data.folder_name || 'Logistics_Documents'}.zip`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+
+            setTimeout(() => {
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(zipBlobUrl);
+            }, 100);
+          } catch (zipError) {
+            console.error('❌ ZIP download failed, falling back to per-file downloads:', zipError);
+
+            // Fallback: download files one-by-one if ZIP fails
+            newDocs.forEach((doc, index) => {
+              setTimeout(async () => {
+                console.log(`📥 Downloading ${index + 1}/${newDocs.length}: ${doc.filename}`);
+
+                try {
+                  const fileResponse = await fetch(getApiUrl(doc.download_url));
+                  const blob = await fileResponse.blob();
+
+                  const blobUrl = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = doc.filename;
+                  link.style.display = 'none';
+                  document.body.appendChild(link);
+                  link.click();
+
+                  setTimeout(() => {
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+                  }, 100);
+                } catch (err) {
+                  console.error(`❌ Failed to download ${doc.filename}:`, err);
+                }
+              }, index * 800);
+            });
+          }
+        } else {
+          // No ZIP URL provided; keep legacy per-file download behavior
+          newDocs.forEach((doc, index) => {
+            setTimeout(async () => {
+              console.log(`📥 Downloading ${index + 1}/${newDocs.length}: ${doc.filename}`);
+
+              try {
+                const fileResponse = await fetch(getApiUrl(doc.download_url));
+                const blob = await fileResponse.blob();
+
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = doc.filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+
+                setTimeout(() => {
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(blobUrl);
+                }, 100);
+              } catch (err) {
+                console.error(`❌ Failed to download ${doc.filename}:`, err);
+              }
+            }, index * 800);
+          });
+        }
       } else {
         const errorMsg = data.error || data.summary || 'Failed to generate documents';
         setError(errorMsg);
