@@ -4707,28 +4707,31 @@ def generate_manual_documents():
         
         print(f"📝 Parsing text input with AI (length: {len(text_input)} chars)...")
         
-        # Use GPT to parse the text input
+        # Use GPT to parse the text input with much smarter logic
         parse_prompt = f"""
-        Parse this shipping information text and extract all logistics details. Extract:
-        - Shipper (from): company name, address, city, state/province, postal code, country
-        - Consignee (to): company name, address, city, state/province, postal code, country, contact person if mentioned
-        - Items: product descriptions, quantities, units (drum/pail/case/keg/tote/box), batch numbers
-        - Weights: total weight, weight unit (kg/lbs), weight per pallet if mentioned
-        - Skids/Pallets: count, dimensions (e.g., "45×45×40 inches")
-        - Carrier: shipping company name
-        - PO Number: purchase order number if mentioned
-        - Special instructions: any delivery or shipping notes
+        You are a logistics expert parsing shipping information. Extract ALL details accurately.
+        
+        CRITICAL RULES:
+        1. "Going from" = SHIPPER (who is sending/shipping FROM)
+        2. "Going to" = CONSIGNEE (who is receiving TO)
+        3. If text says "Going from: [Company A]" and "Going to: [Company B]", then:
+           - Shipper = Company A (the FROM address)
+           - Consignee = Company B (the TO address)
+        4. NEVER assume Canoil is the shipper unless explicitly stated
+        5. If multiple orders/materials are mentioned, extract ALL items separately
+        6. Match weights, pallets, and quantities to the correct items
+        7. Extract release numbers, delivery numbers, customer POs, sales orders if mentioned
         
         Text Input:
         {text_input}
         
-        Return as JSON with this structure:
+        Extract and return as JSON with this EXACT structure:
         {{
             "shipper": {{
-                "company": "company name",
-                "address": "street address",
-                "city": "city",
-                "state": "state/province",
+                "company": "EXTRACT from 'Going from:' section - the company name sending the shipment",
+                "address": "full street address from 'Going from:' section",
+                "city": "city name",
+                "state": "province/state abbreviation (e.g., ON, AB, BC)",
                 "postal": "postal code",
                 "country": "country (default: Canada if not specified)",
                 "phone": "phone if mentioned",
@@ -4736,10 +4739,10 @@ def generate_manual_documents():
                 "contact_person": "contact name if mentioned"
             }},
             "consignee": {{
-                "company": "company name",
-                "address": "street address",
-                "city": "city",
-                "state": "state/province",
+                "company": "EXTRACT from 'Going to:' section - the company name receiving the shipment",
+                "address": "full street address from 'Going to:' section",
+                "city": "city name",
+                "state": "province/state abbreviation (e.g., ON, AB, BC)",
                 "postal": "postal code",
                 "country": "country (default: Canada if not specified)",
                 "phone": "phone if mentioned",
@@ -4748,33 +4751,80 @@ def generate_manual_documents():
             }},
             "items": [
                 {{
-                    "description": "product name/description",
-                    "quantity": "number as string",
-                    "unit": "drum/pail/case/keg/tote/box",
-                    "batch_number": "batch number if mentioned"
+                    "description": "product/material name (e.g., 'Material G-2015-2', 'G-2032-0', product code)",
+                    "quantity": "total quantity as string (e.g., '34' for 34 drums)",
+                    "unit": "unit type: drum, pail, case, keg, tote, box, or pieces",
+                    "batch_number": "batch number if mentioned",
+                    "sales_order": "sales order number if mentioned for this item",
+                    "delivery_number": "delivery number if mentioned for this item",
+                    "customer_po": "customer PO number if mentioned for this item",
+                    "release_number": "release number if mentioned for this item"
                 }}
             ],
             "weights": {{
-                "total_weight": "weight number as string",
-                "weight_unit": "kg or lbs",
+                "total_weight": "TOTAL gross weight across ALL items as string (sum if multiple items)",
+                "weight_unit": "kg or lbs (extract from text)",
                 "weight_per_pallet": "weight per pallet if mentioned"
             }},
             "skids": {{
-                "count": "number as string",
+                "count": "TOTAL number of pallets/skids across ALL items as string (sum if multiple items)",
                 "dimensions": "dimensions if mentioned (e.g., 45×45×40 inches)",
-                "pieces": "total pieces if mentioned"
+                "pieces": "total pieces count if mentioned"
             }},
-            "carrier": "carrier name if mentioned",
-            "po_number": "PO number if mentioned",
-            "special_instructions": "any special instructions or notes"
+            "carrier": "carrier/shipping company name if mentioned",
+            "po_number": "primary PO number if single PO, or comma-separated if multiple",
+            "release_numbers": "release numbers as array if mentioned (e.g., ['4000599546', '4000603468'])",
+            "special_instructions": "all special instructions, shipping hours, gate instructions, check-in procedures, etc."
         }}
         
-        IMPORTANT:
-        - If shipper info is not provided, assume Canoil as shipper with default Canadian address
-        - Extract all items mentioned, even if multiple products
-        - If country is not specified, default to "Canada"
-        - Extract batch numbers for each item if mentioned
-        - Be thorough - extract all available information
+        EXAMPLES:
+        
+        Example 1:
+        "Going from: LANXESS Canada Co/Cie c/o West Hill 10 Chemical Court SCARBOROUGH ON M1E 2K3 CANADA
+         Going to: Canoil Canada LTD / 62 Todd Road GEORGETOWN-HALTON HILLS ON L7G 4R7 CANADA
+         Material G-2015-2: 34 drums, 9 pallets, 6885 kg"
+        
+        Result:
+        - shipper.company = "LANXESS Canada Co/Cie"
+        - shipper.address = "10 Chemical Court"
+        - shipper.city = "SCARBOROUGH"
+        - shipper.state = "ON"
+        - shipper.postal = "M1E 2K3"
+        - consignee.company = "Canoil Canada LTD"
+        - consignee.address = "62 Todd Road"
+        - consignee.city = "GEORGETOWN-HALTON HILLS"
+        - consignee.state = "ON"
+        - consignee.postal = "L7G 4R7"
+        - items[0].description = "Material G-2015-2"
+        - items[0].quantity = "34"
+        - items[0].unit = "drum"
+        - skids.count = "9"
+        - weights.total_weight = "6885"
+        - weights.weight_unit = "kg"
+        
+        Example 2 (Multiple items):
+        "Material G-2015-2: 34 drums, 9 pallets, 6885 kg
+         Material G-2032-0: 8 totes, 8 pallets, 7680 kg"
+        
+        Result:
+        - items = [
+            {{"description": "Material G-2015-2", "quantity": "34", "unit": "drum"}},
+            {{"description": "Material G-2032-0", "quantity": "8", "unit": "tote"}}
+          ]
+        - skids.count = "17" (9 + 8)
+        - weights.total_weight = "14565" (6885 + 7680)
+        
+        CRITICAL EXTRACTION RULES:
+        - Parse addresses carefully - extract street number, street name, city, province, postal code separately
+        - If "Going from:" and "Going to:" are clearly labeled, use those EXACTLY
+        - Sum pallet counts if multiple items have different pallet counts
+        - Sum weights if multiple items have different weights
+        - Extract ALL items separately - don't combine them
+        - Match sales orders, delivery numbers, POs to the correct items
+        - Extract release numbers as an array if multiple mentioned
+        - Include ALL special instructions (shipping hours, gate procedures, check-in, etc.)
+        
+        Return ONLY valid JSON, no explanations.
         """
         
         # Parse with GPT
@@ -4796,18 +4846,40 @@ def generate_manual_documents():
         skids = parsed_data.get('skids', {})
         carrier = parsed_data.get('carrier', '')
         po_number = parsed_data.get('po_number', '')
+        release_numbers = parsed_data.get('release_numbers', [])
         special_instructions = parsed_data.get('special_instructions', '')
         
-        # Default shipper to Canoil if not provided
-        if not shipper.get('company'):
-            shipper = {
-                'company': 'Canoil',
-                'address': '',
-                'city': 'Calgary',
-                'state': 'AB',
-                'postal': '',
-                'country': 'Canada'
-            }
+        # Validate that we have shipper and consignee
+        if not shipper.get('company') or not consignee.get('company'):
+            return jsonify({
+                'success': False,
+                'error': 'Could not identify shipper (from) and/or consignee (to). Please include "Going from:" and "Going to:" sections.'
+            }), 400
+        
+        # If multiple items have individual pallet counts, sum them
+        if items and len(items) > 1:
+            # Check if items have individual pallet info
+            total_pallets_from_items = 0
+            total_weight_from_items = 0.0
+            for item in items:
+                if item.get('pallets'):
+                    try:
+                        total_pallets_from_items += int(item.get('pallets', 0))
+                    except:
+                        pass
+                if item.get('weight'):
+                    try:
+                        total_weight_from_items += float(item.get('weight', 0))
+                    except:
+                        pass
+            
+            # Use summed values if available
+            if total_pallets_from_items > 0:
+                skids['count'] = str(total_pallets_from_items)
+            if total_weight_from_items > 0:
+                weights['total_weight'] = str(int(total_weight_from_items))
+        
+        print(f"📊 Extracted: {len(items)} items, {skids.get('count', '?')} pallets, {weights.get('total_weight', '?')} {weights.get('weight_unit', 'kg')}")
         
         # Validate required fields
         if not shipper.get('company') or not consignee.get('company'):
@@ -5098,6 +5170,27 @@ def generate_manual_documents():
                 'download_url': results['usmca_certificate']['download_url']
             })
         
+        # Prepare parsed information for display
+        parsed_info = {
+            'shipper': {
+                'company': shipper.get('company', ''),
+                'address': f"{shipper.get('address', '')}, {shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}".strip(),
+                'country': shipper.get('country', 'Canada')
+            },
+            'consignee': {
+                'company': consignee.get('company', ''),
+                'address': f"{consignee.get('address', '')}, {consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}".strip(),
+                'country': consignee.get('country', 'Canada')
+            },
+            'items': items,
+            'weights': weights,
+            'skids': skids,
+            'carrier': carrier,
+            'po_number': po_number,
+            'release_numbers': release_numbers,
+            'special_instructions': special_instructions
+        }
+        
         response = jsonify({
             'success': len(documents) > 0,
             'documents': documents,
@@ -5105,6 +5198,7 @@ def generate_manual_documents():
             'results': results,
             'errors': errors,
             'folder_name': folder_structure['folder_name'],
+            'parsed_info': parsed_info,  # Include parsed info for display
             'summary': f"Generated {len(documents)} documents successfully from manual input"
         })
         response.headers['Access-Control-Allow-Origin'] = '*'

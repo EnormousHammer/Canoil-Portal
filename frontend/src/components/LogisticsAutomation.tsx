@@ -966,10 +966,12 @@ const LogisticsAutomation: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
+        // Store parsed information for display
         setResult({
           success: true,
           documents: data.documents || [],
-          folder_name: data.folder_name
+          folder_name: data.folder_name,
+          parsed_info: data.parsed_info || {}  // Store parsed shipper, consignee, items, weights, etc.
         });
         
         // Map backend document format to frontend format
@@ -982,6 +984,7 @@ const LogisticsAutomation: React.FC = () => {
         
         setDocuments(mappedDocuments);
         console.log('✅ Manual documents generated successfully');
+        console.log('📋 Parsed information:', data.parsed_info);
       } else {
         setError(data.error || 'Failed to generate documents');
       }
@@ -1353,6 +1356,119 @@ const LogisticsAutomation: React.FC = () => {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Display Parsed Information for No SO Mode */}
+        {processingMode === 'no_so' && result && result.parsed_info && (
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl shadow-md p-6 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle className="w-6 h-6 text-blue-600" />
+              <h2 className="text-xl font-bold text-gray-900">Parsed Shipping Information</h2>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Shipper (From) */}
+              <div className="bg-white rounded-lg p-4 border border-blue-200">
+                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-blue-600" />
+                  From (Shipper)
+                </h3>
+                <p className="font-bold text-gray-900">{result.parsed_info.shipper?.company || 'N/A'}</p>
+                <p className="text-sm text-gray-600 mt-1">{result.parsed_info.shipper?.address || ''}</p>
+                <p className="text-sm text-gray-600">{result.parsed_info.shipper?.country || 'Canada'}</p>
+              </div>
+              
+              {/* Consignee (To) */}
+              <div className="bg-white rounded-lg p-4 border border-blue-200">
+                <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-green-600" />
+                  To (Consignee)
+                </h3>
+                <p className="font-bold text-gray-900">{result.parsed_info.consignee?.company || 'N/A'}</p>
+                <p className="text-sm text-gray-600 mt-1">{result.parsed_info.consignee?.address || ''}</p>
+                <p className="text-sm text-gray-600">{result.parsed_info.consignee?.country || 'Canada'}</p>
+              </div>
+            </div>
+            
+            {/* Items */}
+            {result.parsed_info.items && result.parsed_info.items.length > 0 && (
+              <div className="mt-4 bg-white rounded-lg p-4 border border-blue-200">
+                <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-purple-600" />
+                  Items ({result.parsed_info.items.length})
+                </h3>
+                <div className="space-y-2">
+                  {result.parsed_info.items.map((item: any, idx: number) => (
+                    <div key={idx} className="bg-gray-50 rounded p-3 border border-gray-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{item.description || 'N/A'}</p>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                            <span>Qty: <strong>{item.quantity || 'N/A'}</strong> {item.unit || ''}</span>
+                            {item.batch_number && (
+                              <span>Batch: <strong>{item.batch_number}</strong></span>
+                            )}
+                            {item.sales_order && (
+                              <span>SO: <strong>{item.sales_order}</strong></span>
+                            )}
+                            {item.customer_po && (
+                              <span>PO: <strong>{item.customer_po}</strong></span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Weights & Skids */}
+            <div className="mt-4 grid md:grid-cols-2 gap-4">
+              {result.parsed_info.weights && (
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h3 className="font-semibold text-gray-700 mb-2">Total Weight</h3>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {result.parsed_info.weights.total_weight || 'N/A'} {result.parsed_info.weights.weight_unit || 'kg'}
+                  </p>
+                </div>
+              )}
+              
+              {result.parsed_info.skids && (
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <h3 className="font-semibold text-gray-700 mb-2">Pallets/Skids</h3>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {result.parsed_info.skids.count || 'N/A'}
+                  </p>
+                  {result.parsed_info.skids.dimensions && (
+                    <p className="text-sm text-gray-600 mt-1">{result.parsed_info.skids.dimensions}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Additional Info */}
+            <div className="mt-4 bg-white rounded-lg p-4 border border-blue-200">
+              <h3 className="font-semibold text-gray-700 mb-2">Additional Information</h3>
+              <div className="space-y-1 text-sm">
+                {result.parsed_info.carrier && (
+                  <p><strong>Carrier:</strong> {result.parsed_info.carrier}</p>
+                )}
+                {result.parsed_info.po_number && (
+                  <p><strong>PO Number:</strong> {result.parsed_info.po_number}</p>
+                )}
+                {result.parsed_info.release_numbers && result.parsed_info.release_numbers.length > 0 && (
+                  <p><strong>Release Numbers:</strong> {result.parsed_info.release_numbers.join(', ')}</p>
+                )}
+                {result.parsed_info.special_instructions && (
+                  <div className="mt-2">
+                    <p className="font-semibold">Special Instructions:</p>
+                    <p className="text-gray-600 whitespace-pre-wrap">{result.parsed_info.special_instructions}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
