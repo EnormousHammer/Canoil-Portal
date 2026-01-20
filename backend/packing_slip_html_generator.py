@@ -68,7 +68,13 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         print(f"DEBUG: No order_date found, using today's date: {field_values['packing_date']}")
     
     field_values['sales_order_number'] = so_data.get('so_number', '')
-    field_values['shipped_by'] = 'Canoil Canada Ltd'
+    
+    # Shipped By - Use billing_address/sold_to company if available (for No SO Mode), otherwise default to Canoil
+    billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+    shipped_by = (billing_addr.get('company_name', '') or 
+                 billing_addr.get('company', '') or 
+                 'Canoil Canada Ltd')
+    field_values['shipped_by'] = shipped_by
     
     # SCHEDULED SHIP DATE - Use ship date from parsed SO data ONLY - NO FAKE DATA
     ship_date_raw = (
