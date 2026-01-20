@@ -1028,6 +1028,39 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     except:
                         pass
     
+    # EXPORTER INFO - Use billing_address/sold_to if available (for No SO Mode), otherwise default to Canoil
+    # Calculate exporter info BEFORE building field_values dictionary
+    billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+    exporter_name = (billing_addr.get('company_name', '') or 
+                    billing_addr.get('company', '') or 
+                    'Canoil Canada Ltd')
+    
+    # Build exporter address from billing_address if available
+    if billing_addr.get('street') or billing_addr.get('address'):
+        exporter_address_parts = []
+        if billing_addr.get('street'):
+            exporter_address_parts.append(billing_addr['street'])
+        elif billing_addr.get('address'):
+            exporter_address_parts.append(billing_addr['address'])
+        
+        city_prov = []
+        if billing_addr.get('city'):
+            city_prov.append(billing_addr['city'])
+        if billing_addr.get('province') or billing_addr.get('state'):
+            city_prov.append(billing_addr.get('province') or billing_addr.get('state', ''))
+        if city_prov:
+            exporter_address_parts.append(', '.join(city_prov))
+        
+        if billing_addr.get('postal_code') or billing_addr.get('postal'):
+            exporter_address_parts.append(billing_addr.get('postal_code') or billing_addr.get('postal', ''))
+        
+        if billing_addr.get('country'):
+            exporter_address_parts.append(billing_addr['country'])
+        
+        exporter_address = '\n'.join(exporter_address_parts) if exporter_address_parts else '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
+    else:
+        exporter_address = '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
+    
     # NEW TEMPLATE FIELD MAPPING - Based on actual field analysis
     field_values = {
         # HEADER & CONTACT INFO
@@ -1036,41 +1069,10 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         'shipmentRef': f"PO#{so_data.get('po_number', '')}" if so_data.get('po_number') else '',  # Add PO# prefix
         'controlNum': '',  # Leave empty for manual entry
         
-        # EXPORTER INFO - Use billing_address/sold_to if available (for No SO Mode), otherwise default to Canoil
-        billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
-        exporter_name = (billing_addr.get('company_name', '') or 
-                        billing_addr.get('company', '') or 
-                        'Canoil Canada Ltd')
-        
-        # Build exporter address from billing_address if available
-        if billing_addr.get('street') or billing_addr.get('address'):
-            exporter_address_parts = []
-            if billing_addr.get('street'):
-                exporter_address_parts.append(billing_addr['street'])
-            elif billing_addr.get('address'):
-                exporter_address_parts.append(billing_addr['address'])
-            
-            city_prov = []
-            if billing_addr.get('city'):
-                city_prov.append(billing_addr['city'])
-            if billing_addr.get('province') or billing_addr.get('state'):
-                city_prov.append(billing_addr.get('province') or billing_addr.get('state', ''))
-            if city_prov:
-                exporter_address_parts.append(', '.join(city_prov))
-            
-            if billing_addr.get('postal_code') or billing_addr.get('postal'):
-                exporter_address_parts.append(billing_addr.get('postal_code') or billing_addr.get('postal', ''))
-            
-            if billing_addr.get('country'):
-                exporter_address_parts.append(billing_addr['country'])
-            
-            exporter_address = '\n'.join(exporter_address_parts) if exporter_address_parts else '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
-        else:
-            exporter_address = '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
-        
-        field_values['exporterName'] = exporter_name
-        field_values['exporterAddress'] = exporter_address
-        field_values['producerInfo'] = ''  # Leave empty if same as exporter
+        # EXPORTER INFO - Use calculated values from above
+        'exporterName': exporter_name,
+        'exporterAddress': exporter_address,
+        'producerInfo': '',  # Leave empty if same as exporter
         
         # CONSIGNEE & BUYER INFO - from SO addresses (support both field name formats)
         'consigneeInfo': format_consignee_info(
