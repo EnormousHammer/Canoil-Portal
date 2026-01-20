@@ -1848,8 +1848,9 @@ const LogisticsAutomation: React.FC = () => {
                     </div>
                   )}
                 </div>
-                      </div>
-                        </div>
+              </div>
+            </div>
+            )}
 
             {/* PARTIAL SHIPMENT WARNING - STANDALONE BEFORE COMPARISON */}
             {result.so_data?.is_partial_shipment && result.so_data?.line_numbers && (
