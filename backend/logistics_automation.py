@@ -4975,16 +4975,24 @@ def generate_manual_documents():
         }
         
         # Create email_analysis structure from manual input
+        pallet_count = int(skids.get('count', 1) or 1)
+        total_pieces = sum(int(item.get('quantity', 0) or 0) for item in items)
+        
         email_analysis = {
             'total_weight': f"{weights.get('total_weight', '')} {weights.get('weight_unit', 'kg')}",
-            'pallet_count': skids.get('count', 1),
+            'pallet_count': pallet_count,  # Ensure integer
             'pallet_dimensions': skids.get('dimensions', ''),
-            'pieces_count': skids.get('pieces', sum(int(item.get('quantity', 0)) for item in items)),
+            'pieces_count': skids.get('pieces') or total_pieces,
             'carrier': carrier,
             'special_instructions': special_instructions,
-            'skid_info': f"{skids.get('count', 1)} skid(s)" + (f", {skids.get('dimensions', '')}" if skids.get('dimensions') else ''),
-            'destination_country': consignee.get('country', 'Canada')
+            'skid_info': f"{pallet_count} skid(s)" + (f", {skids.get('dimensions', '')}" if skids.get('dimensions') else ''),
+            'destination_country': consignee.get('country', 'Canada'),
+            'release_numbers': release_numbers,
+            'parsed_items': items,  # Store full item details
+            'packaging_type': 'pallet'  # Default to pallet
         }
+        
+        print(f"📋 Email analysis created: {pallet_count} pallets, {weights.get('total_weight', '?')} {weights.get('weight_unit', 'kg')}, {total_pieces} pieces")
         
         # Create folder structure
         folder_structure = get_document_folder_structure(so_data)
