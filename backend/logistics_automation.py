@@ -94,7 +94,7 @@ def get_uploads_dir():
 
 def get_document_folder_structure(so_data: dict) -> dict:
     """
-    Generate folder structure for documents: CompanyName_SO_PO_Date with HTMLs and PDFs subfolders
+    Generate folder structure for documents: CompanyName_SO_PO_Date with HTML Format and PDF Format subfolders
     
     Args:
         so_data: Sales order data dictionary
@@ -102,10 +102,10 @@ def get_document_folder_structure(so_data: dict) -> dict:
     Returns:
         Dictionary with:
             - base_folder: Full path to the main folder (CompanyName_SO_PO_Date)
-            - html_folder: Full path to HTMLs subfolder
-            - pdf_folder: Full path to PDFs subfolder
-            - html_folder_name: Subfolder name for HTMLs
-            - pdf_folder_name: Subfolder name for PDFs
+            - html_folder: Full path to HTML Format subfolder
+            - pdf_folder: Full path to PDF Format subfolder
+            - html_folder_name: Subfolder name for HTML Format
+            - pdf_folder_name: Subfolder name for PDF Format
             - folder_name: Just the folder name (for display)
     """
     # Get company name
@@ -178,8 +178,8 @@ def get_document_folder_structure(so_data: dict) -> dict:
     # Get base uploads directory
     uploads_dir = get_uploads_dir()
     base_folder = os.path.join(uploads_dir, folder_name)
-    html_folder_name = 'HTMLs'
-    pdf_folder_name = 'PDFs'
+    html_folder_name = 'HTML Format'
+    pdf_folder_name = 'PDF Format'
     html_folder = os.path.join(base_folder, html_folder_name)
     pdf_folder = os.path.join(base_folder, pdf_folder_name)
     
@@ -4296,7 +4296,7 @@ def generate_bol():
 @logistics_bp.route('/download/logistics/<path:filepath>', methods=['GET', 'OPTIONS'])
 def download_file(filepath):
     """Download generated logistics files automatically - Forces download dialog
-    Supports nested paths like: folder_name/HTMLs/filename.html
+    Supports nested paths like: folder_name/HTML Format/filename.html
     Also supports ZIP downloads: folder_name.zip (creates ZIP of entire folder)
     """
     import zipfile
@@ -5374,8 +5374,8 @@ def generate_all_documents():
         # Create folder structure for this order
         folder_structure = get_document_folder_structure(so_data)
         print(f"\n📁 Document folder structure created: {folder_structure['folder_name']}")
-        print(f"   HTMLs: {folder_structure['html_folder']}")
-        print(f"   PDFs: {folder_structure['pdf_folder']}")
+        print(f"   HTML Format: {folder_structure['html_folder']}")
+        print(f"   PDF Format: {folder_structure['pdf_folder']}")
         
         # Create timestamp ONCE for all documents
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -5397,13 +5397,13 @@ def generate_all_documents():
                 bol_html = populate_new_bol_html(so_data, bol_email_data)
                 bol_filename = generate_document_filename("BOL", so_data, '.html')
                 
-                # Save HTML version in HTMLs folder
+                # Save HTML version in HTML Format folder
                 bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
                 with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(bol_html)
                 print(f"DEBUG: BOL HTML file created: {bol_html_filepath}")
                 
-                # Generate and save PDF version in PDFs folder
+                # Generate and save PDF version in PDF Format folder
                 bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
                 bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
                 bol_pdf_success = False
@@ -5441,12 +5441,12 @@ def generate_all_documents():
                 ps_html = generate_packing_slip_html(so_data, email_shipping, items)
                 ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
                 
-                # Save HTML version in HTMLs folder
+                # Save HTML version in HTML Format folder
                 ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
                 with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(ps_html)
                 
-                # Generate and save PDF version in PDFs folder
+                # Generate and save PDF version in PDF Format folder
                 ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
                 ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
                 ps_pdf_success = False
@@ -5529,13 +5529,13 @@ def generate_all_documents():
                         email_analysis
                     )
                     
-                    # Save HTML file in HTMLs folder
+                    # Save HTML file in HTML Format folder
                     ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
                     ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
                     with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ci_html)
                     
-                    # Generate and save PDF file in PDFs folder
+                    # Generate and save PDF file in PDF Format folder
                     ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
                     ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
                     
@@ -5602,12 +5602,12 @@ def generate_all_documents():
                         
                         # Create new filename with new format
                         new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
-                        # Save in PDFs folder (even though it's .docx, it's a document format)
+                        # Save in PDF Format folder (even though it's .docx, it's a document format)
                         new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
                         
                         print(f"   Target path: {new_dg_path}")
                         
-                        # Copy file to PDFs folder
+                        # Copy file to PDF Format folder
                         shutil.copy2(dg_filepath, new_dg_path)
                         
                         print(f"   Copy successful: {os.path.exists(new_dg_path)}")
@@ -5636,7 +5636,7 @@ def generate_all_documents():
                         clean_product = product_name.replace(' ', '_').replace('/', '_')
                         new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
                         
-                        # Copy SDS with new name to PDFs folder
+                        # Copy SDS with new name to PDF Format folder
                         new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
                         shutil.copy2(sds_path, new_sds_path)
                         
@@ -5663,7 +5663,7 @@ def generate_all_documents():
                         clean_product = product_name.replace(' ', '_').replace('/', '_')
                         new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
                         
-                        # Copy COFA with new name to PDFs folder
+                        # Copy COFA with new name to PDF Format folder
                         new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
                         shutil.copy2(cofa_path, new_cofa_path)
                         
@@ -5709,7 +5709,7 @@ def generate_all_documents():
             if is_usa_shipment:
                 print(f"   USA shipment to {destination_country} - TSCA required")
                 
-                # Generate TSCA and save to PDFs folder
+                # Generate TSCA and save to PDF Format folder
                 tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
                 
                 if tsca_result:
@@ -5851,7 +5851,7 @@ def generate_all_documents():
                 usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
                 
                 if os.path.exists(usmca_source):
-                    # Copy to PDFs folder - USMCA is a blank template, use simple name
+                    # Copy to PDF Format folder - USMCA is a blank template, use simple name
                     import shutil
                     so_number = so_data.get('so_number', 'Unknown')
                     usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
@@ -5905,7 +5905,7 @@ def generate_all_documents():
                 dn_result = generate_delivery_note(so_data, items, booking_number)
                 
                 if dn_result.get('success'):
-                    # Move to PDFs folder with consistent naming
+                    # Move to PDF Format folder with consistent naming
                     import shutil
                     dn_original_path = dn_result['filepath']
                     dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')

@@ -174,7 +174,8 @@ def extract_addresses_from_layout_text(raw_text):
     
     # Find the "Sold To:" / "Ship To:" header line
     for i, line in enumerate(lines):
-        if 'Sold To:' in line and 'Ship To:' in line:
+        line_lower = line.lower()
+        if 'sold to:' in line_lower or 'ship to:' in line_lower:
             in_address_section = True
             continue
         
