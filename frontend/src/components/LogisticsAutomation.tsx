@@ -1473,8 +1473,8 @@ const LogisticsAutomation: React.FC = () => {
           </div>
         )}
                 
-        {/* Compact Auto-Detection Results */}
-        {autoDetection && (
+        {/* Compact Auto-Detection Results - Hide in No SO Mode */}
+        {autoDetection && processingMode !== 'no_so' && (
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl shadow-md p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -1527,8 +1527,8 @@ const LogisticsAutomation: React.FC = () => {
           </div>
         )}
         
-        {/* Multi-SO Mode Indicator */}
-        {result?.is_multi_so && (
+        {/* Multi-SO Mode Indicator - Hide in No SO Mode */}
+        {result?.is_multi_so && processingMode !== 'no_so' && (
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="bg-blue-100 p-2 rounded-full">
@@ -1595,8 +1595,8 @@ const LogisticsAutomation: React.FC = () => {
           </div>
         )}
 
-        {/* Validation Failed Warning */}
-        {result?.validation_failed && result?.validation_details && (
+        {/* Validation Failed Warning - Hide in No SO Mode */}
+        {result?.validation_failed && result?.validation_details && processingMode !== 'no_so' && (
           <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="bg-red-100 p-2 rounded-full">
@@ -1819,7 +1819,8 @@ const LogisticsAutomation: React.FC = () => {
               </div>
             )}
 
-            {/* Data Comparison Section - NEW */}
+            {/* Data Comparison Section - NEW - Hide in No SO Mode */}
+            {processingMode !== 'no_so' && (
             <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
               <div className="bg-gradient-to-r from-slate-50 to-blue-50/20 px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
@@ -1992,8 +1993,10 @@ const LogisticsAutomation: React.FC = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Main Data Grid */}
+            {/* Main Data Grid - Hide in No SO Mode */}
+            {processingMode !== 'no_so' && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
               {/* Order Information Card */}
               <div className="bg-white border-l-4 border-l-blue-500 border-t border-r border-b border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
@@ -2229,8 +2232,10 @@ const LogisticsAutomation: React.FC = () => {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Email Items from Parsing - NEW SECTION */}
+            {/* Email Items from Parsing - NEW SECTION - Hide in No SO Mode */}
+            {processingMode !== 'no_so' && result.email_data?.items && result.email_data.items.length > 0 && (
             {result.email_data?.items && result.email_data.items.length > 0 && (
               <div className="bg-white border-l-4 border-l-orange-500 border-t border-r border-b border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">

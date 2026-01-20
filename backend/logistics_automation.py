@@ -4902,11 +4902,18 @@ def generate_manual_documents():
                 'quantity': str(item.get('quantity', '')),
                 'unit': item.get('unit', 'drum'),
                 'batch_number': item.get('batch_number', ''),
-                'item_code': item.get('item_code', ''),
+                'item_code': item.get('item_code', '') or item.get('description', ''),  # Use description as item_code if not provided
                 'hts_code': item.get('hts_code', ''),
-                'country_of_origin': item.get('country_of_origin', 'Canada')
+                'country_of_origin': item.get('country_of_origin', 'Canada'),
+                'sales_order': item.get('sales_order', ''),
+                'delivery_number': item.get('delivery_number', ''),
+                'customer_po': item.get('customer_po', '')
             }
             formatted_items.append(formatted_item)
+        
+        print(f"📦 Formatted {len(formatted_items)} items for document generation")
+        for idx, item in enumerate(formatted_items, 1):
+            print(f"   Item {idx}: {item.get('quantity', '?')} {item.get('unit', '?')} of {item.get('description', '?')[:50]}")
         
         # Create minimal so_data structure from manual input
         so_data = {
@@ -4926,7 +4933,12 @@ def generate_manual_documents():
                 'country': shipper.get('country', 'Canada'),
                 'phone': shipper.get('phone', ''),
                 'email': shipper.get('email', ''),
-                'full_address': f"{shipper.get('address', '')}, {shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}, {shipper.get('country', 'Canada')}"
+                'full_address': ', '.join(filter(None, [
+                    shipper.get('address', ''),
+                    shipper.get('city', ''),
+                    f"{shipper.get('state', '')} {shipper.get('postal', '')}".strip(),
+                    shipper.get('country', 'Canada')
+                ]))
             },
             'shipping_address': {
                 'company_name': consignee.get('company', ''),
@@ -4938,7 +4950,12 @@ def generate_manual_documents():
                 'country': consignee.get('country', 'Canada'),
                 'phone': consignee.get('phone', ''),
                 'email': consignee.get('email', ''),
-                'full_address': f"{consignee.get('address', '')}, {consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}, {consignee.get('country', 'Canada')}"
+                'full_address': ', '.join(filter(None, [
+                    consignee.get('address', ''),
+                    consignee.get('city', ''),
+                    f"{consignee.get('state', '')} {consignee.get('postal', '')}".strip(),
+                    consignee.get('country', 'Canada')
+                ]))
             },
             'sold_to': {
                 'company_name': shipper.get('company', ''),
