@@ -5936,95 +5936,93 @@ def generate_all_documents():
                 results['aec_affidavit'] = {'success': False, 'error': str(e)}
         
         # SMART USMCA CERTIFICATE - Check Destination + HTS + COO
+        # NOTE: USMCA is just copying a template PDF, so it should always be checked regardless of pdf_generation_enabled
         has_usmca = False
-        if not pdf_generation_enabled:
-            print("⏭️ USMCA skipped (PDF generation disabled)")
-        else:
-            try:
-                from usmca_hts_codes import check_items_for_usmca
+        try:
+            from usmca_hts_codes import check_items_for_usmca
 
-                print("\n📜 SMART USMCA Check - Validating Destination + HTS + COO...")
+            print("\n📜 SMART USMCA Check - Validating Destination + HTS + COO...")
 
-                # Get destination country
-                destination = (so_data.get('ship_to', {}).get('country', '') or 
-                             so_data.get('shipping_address', {}).get('country', '') or
-                             'Unknown')
+            # Get destination country
+            destination = (so_data.get('ship_to', {}).get('country', '') or 
+                         so_data.get('shipping_address', {}).get('country', '') or
+                         'Unknown')
 
-                print(f"   Destination: {destination}")
+            print(f"   Destination: {destination}")
 
-                # 3-part check: Destination (USA/MX) + HTS (approved) + COO (CA/US/MX)
-                usmca_check = check_items_for_usmca(items, destination, so_data)
+            # 3-part check: Destination (USA/MX) + HTS (approved) + COO (CA/US/MX)
+            usmca_check = check_items_for_usmca(items, destination, so_data)
 
-                print(f"   Items checked: {usmca_check['total_items_checked']}")
-                print(f"   Items matching USMCA: {len(usmca_check['matching_items'])}")
+            print(f"   Items checked: {usmca_check['total_items_checked']}")
+            print(f"   Items matching USMCA: {len(usmca_check['matching_items'])}")
 
-                # Show matching items (all 3 checks pass)
-                if usmca_check['matching_items']:
-                    print("\n   ✅ Items qualifying for USMCA:")
-                    for item in usmca_check['matching_items']:
-                        print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')}")
+            # Show matching items (all 3 checks pass)
+            if usmca_check['matching_items']:
+                print("\n   ✅ Items qualifying for USMCA:")
+                for item in usmca_check['matching_items']:
+                    print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')}")
 
-                # Show blocked items (HTS approved but COO blocks it)
-                if usmca_check.get('blocked_items'):
-                    print("\n   🚫 Items BLOCKED from USMCA:")
-                    for item in usmca_check['blocked_items']:
-                        print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')} ({item.get('reason', 'blocked')})")
+            # Show blocked items (HTS approved but COO blocks it)
+            if usmca_check.get('blocked_items'):
+                print("\n   🚫 Items BLOCKED from USMCA:")
+                for item in usmca_check['blocked_items']:
+                    print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')} ({item.get('reason', 'blocked')})")
 
-                # Show non-matching items (HTS not on approved list)
-                if usmca_check['non_matching_items']:
-                    print("\n   ⚠️ Items with HTS codes NOT on USMCA certificate:")
-                    for item in usmca_check['non_matching_items']:
-                        print(f"      - {item['item_code']}: HTS {item['hts_code']} (not approved)")
+            # Show non-matching items (HTS not on approved list)
+            if usmca_check['non_matching_items']:
+                print("\n   ⚠️ Items with HTS codes NOT on USMCA certificate:")
+                for item in usmca_check['non_matching_items']:
+                    print(f"      - {item['item_code']}: HTS {item['hts_code']} (not approved)")
 
-                # Include USMCA only if we have matching items
-                if usmca_check['requires_usmca']:
-                    print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
+            # Include USMCA only if we have matching items
+            if usmca_check['requires_usmca']:
+                print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
 
-                    # Source USMCA form (2026 version - already signed)
-                    # Use relative path that works in Docker
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    # Try 2026 version first, then fallback to generic name
-                    usmca_2026 = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM 2026.pdf')
-                    usmca_generic = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
-                    usmca_source = usmca_2026 if os.path.exists(usmca_2026) else usmca_generic
+                # Source USMCA form (2026 version - already signed)
+                # Use relative path that works in Docker
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                # Try 2026 version first, then fallback to generic name
+                usmca_2026 = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM 2026.pdf')
+                usmca_generic = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                usmca_source = usmca_2026 if os.path.exists(usmca_2026) else usmca_generic
 
-                    print(f"   📄 Looking for USMCA form at: {usmca_source}")
-                    print(f"   📄 File exists: {os.path.exists(usmca_source)}")
-                    
-                    if os.path.exists(usmca_source):
-                        # Copy to PDF Format folder - USMCA is a blank template, use simple name
-                        import shutil
-                        so_number = so_data.get('so_number', 'Unknown')
-                        usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
-                        usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
+                print(f"   📄 Looking for USMCA form at: {usmca_source}")
+                print(f"   📄 File exists: {os.path.exists(usmca_source)}")
+                
+                if os.path.exists(usmca_source):
+                    # Copy to PDF Format folder - USMCA is a blank template, use simple name
+                    import shutil
+                    so_number = so_data.get('so_number', 'Unknown')
+                    usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
+                    usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
 
-                        shutil.copy2(usmca_source, usmca_path)
-                        print(f"   ✅ Using USMCA form: {os.path.basename(usmca_source)}")
+                    shutil.copy2(usmca_source, usmca_path)
+                    print(f"   ✅ Using USMCA form: {os.path.basename(usmca_source)}")
 
-                        results['usmca_certificate'] = {
-                            'success': True,
-                            'filename': usmca_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{usmca_filename}',
-                            'note': 'Pre-signed USMCA form (ready for printing)',
-                            'matching_items': len(usmca_check['matching_items']),
-                            'items_list': [f"{item['item_code']} (HTS {item['hts_code']})" 
-                                          for item in usmca_check['matching_items']]
-                        }
-                        has_usmca = True
-                        print(f"   ✅ USMCA Certificate included: {usmca_filename}")
-                    else:
-                        print(f"   ❌ USMCA form not found at {usmca_source}")
-                        errors.append(f"USMCA form not found")
-                        results['usmca_certificate'] = {'success': False, 'error': 'Source file not found'}
-                else:
-                    print(f"\n   ⏭️  USMCA Certificate SKIPPED: {usmca_check['reason']}")
-                    has_usmca = False
                     results['usmca_certificate'] = {
-                        'success': False,
-                        'skipped': True,
-                        'reason': usmca_check['reason']
+                        'success': True,
+                        'filename': usmca_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{usmca_filename}',
+                        'note': 'Pre-signed USMCA form (ready for printing)',
+                        'matching_items': len(usmca_check['matching_items']),
+                        'items_list': [f"{item['item_code']} (HTS {item['hts_code']})" 
+                                      for item in usmca_check['matching_items']]
                     }
-            except Exception as e:
+                    has_usmca = True
+                    print(f"   ✅ USMCA Certificate included: {usmca_filename}")
+                else:
+                    print(f"   ❌ USMCA form not found at {usmca_source}")
+                    errors.append(f"USMCA form not found")
+                    results['usmca_certificate'] = {'success': False, 'error': 'Source file not found'}
+            else:
+                print(f"\n   ⏭️  USMCA Certificate SKIPPED: {usmca_check['reason']}")
+                has_usmca = False
+                results['usmca_certificate'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': usmca_check['reason']
+                }
+        except Exception as e:
                 print(f"❌ USMCA generation error: {e}")
                 traceback.print_exc()  # Use module-level traceback
                 errors.append(f"USMCA generation failed: {str(e)}")
