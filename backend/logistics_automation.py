@@ -4965,19 +4965,35 @@ def generate_manual_documents():
         
         # Create minimal so_data structure from manual input
         # Build full addresses properly for document generators
-        shipper_full_address = '\n'.join(filter(None, [
-            shipper.get('address', ''),
-            f"{shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}".strip(', '),
-            shipper.get('country', 'Canada')
-        ]))
-        consignee_full_address = '\n'.join(filter(None, [
-            consignee.get('address', ''),
-            f"{consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}".strip(', '),
-            consignee.get('country', 'Canada')
-        ]))
+        # CRITICAL: Build address line by line, ensuring we have SOMETHING
+        shipper_addr_parts = []
+        if shipper.get('address'):
+            shipper_addr_parts.append(shipper.get('address'))
+        city_state_postal = f"{shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}".strip(', ')
+        if city_state_postal and city_state_postal != ',':
+            shipper_addr_parts.append(city_state_postal)
+        if shipper.get('country'):
+            shipper_addr_parts.append(shipper.get('country'))
+        elif not shipper_addr_parts:  # If nothing else, at least add country
+            shipper_addr_parts.append('Canada')
+        shipper_full_address = '\n'.join(shipper_addr_parts)
+        
+        consignee_addr_parts = []
+        if consignee.get('address'):
+            consignee_addr_parts.append(consignee.get('address'))
+        city_state_postal = f"{consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}".strip(', ')
+        if city_state_postal and city_state_postal != ',':
+            consignee_addr_parts.append(city_state_postal)
+        if consignee.get('country'):
+            consignee_addr_parts.append(consignee.get('country'))
+        elif not consignee_addr_parts:  # If nothing else, at least add country
+            consignee_addr_parts.append('Canada')
+        consignee_full_address = '\n'.join(consignee_addr_parts)
         
         print(f"📍 SHIPPER full address: {shipper_full_address}")
         print(f"📍 CONSIGNEE full address: {consignee_full_address}")
+        print(f"📍 SHIPPER raw data: {shipper}")
+        print(f"📍 CONSIGNEE raw data: {consignee}")
         
         so_data = {
             'so_number': so_number or 'MANUAL',  # Use parsed SO if available

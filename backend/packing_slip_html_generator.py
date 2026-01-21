@@ -150,21 +150,32 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     # Use full_address if available, otherwise use street_address AS-IS (no adding city/province/postal)
     full_addr = billing_addr.get('full_address', '').strip()
-    street = (billing_addr.get('street_address') or billing_addr.get('address') or '').strip()
+    street = (billing_addr.get('street_address') or billing_addr.get('address') or billing_addr.get('street') or '').strip()
+    city = billing_addr.get('city', '').strip()
+    province = billing_addr.get('province') or billing_addr.get('state', '').strip()
+    postal = billing_addr.get('postal_code') or billing_addr.get('postal', '').strip()
+    country = billing_addr.get('country', '').strip()
     
     if full_addr:
         # full_address is the complete address from PDF - filter out company if duplicated
         addr_lines = [line for line in full_addr.split('\n') if line.strip().lower() != company.strip().lower()]
         if addr_lines:
             sold_to_lines.append('\n'.join(addr_lines))
-    elif street:
-        # street_address - filter out company if duplicated
-        if street.strip().lower() != company.strip().lower():
-            sold_to_lines.append(street)
-        # Only add country if it's separate and not already in street
-        country = billing_addr.get('country', '').strip()
-        if country and country.upper() not in street.upper():
-            sold_to_lines.append(country)
+        elif full_addr.strip():  # If filtering removed everything but full_addr has content, use it anyway
+            sold_to_lines.append(full_addr)
+    elif street or city or province or postal:
+        # Build address from individual fields if full_address not available
+        addr_parts = []
+        if street and street.strip().lower() != company.strip().lower():
+            addr_parts.append(street)
+        if city or province or postal:
+            city_prov_postal = f"{city}, {province} {postal}".strip(', ').strip()
+            if city_prov_postal and city_prov_postal != ',':
+                addr_parts.append(city_prov_postal)
+        if country and country.upper() not in ' '.join(addr_parts).upper():
+            addr_parts.append(country)
+        if addr_parts:
+            sold_to_lines.append('\n'.join(addr_parts))
     
     field_values['sold_to'] = '\n'.join(sold_to_lines)
     
@@ -182,20 +193,32 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     # Use full_address if available, otherwise use street_address AS-IS
     ship_full_addr = shipping_addr.get('full_address', '').strip()
-    ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or '').strip()
+    ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street') or '').strip()
+    ship_city = shipping_addr.get('city', '').strip()
+    ship_province = shipping_addr.get('province') or shipping_addr.get('state', '').strip()
+    ship_postal = shipping_addr.get('postal_code') or shipping_addr.get('postal', '').strip()
+    ship_country = shipping_addr.get('country', '').strip()
     
     if ship_full_addr:
         # Filter out company if duplicated
         addr_lines = [line for line in ship_full_addr.split('\n') if line.strip().lower() != ship_company.strip().lower()]
         if addr_lines:
             ship_to_lines.append('\n'.join(addr_lines))
-    elif ship_street:
-        # Filter out company if duplicated
-        if ship_street.strip().lower() != ship_company.strip().lower():
-            ship_to_lines.append(ship_street)
-        ship_country = shipping_addr.get('country', '').strip()
-        if ship_country and ship_country.upper() not in ship_street.upper():
-            ship_to_lines.append(ship_country)
+        elif ship_full_addr.strip():  # If filtering removed everything but full_addr has content, use it anyway
+            ship_to_lines.append(ship_full_addr)
+    elif ship_street or ship_city or ship_province or ship_postal:
+        # Build address from individual fields if full_address not available
+        addr_parts = []
+        if ship_street and ship_street.strip().lower() != ship_company.strip().lower():
+            addr_parts.append(ship_street)
+        if ship_city or ship_province or ship_postal:
+            city_prov_postal = f"{ship_city}, {ship_province} {ship_postal}".strip(', ').strip()
+            if city_prov_postal and city_prov_postal != ',':
+                addr_parts.append(city_prov_postal)
+        if ship_country and ship_country.upper() not in ' '.join(addr_parts).upper():
+            addr_parts.append(ship_country)
+        if addr_parts:
+            ship_to_lines.append('\n'.join(addr_parts))
     
     field_values['ship_to'] = '\n'.join(ship_to_lines)
     

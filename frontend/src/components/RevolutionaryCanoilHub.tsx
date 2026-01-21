@@ -5170,13 +5170,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           }
 
                           const blob = await zipResponse.blob();
-                          const url = window.URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
                           link.download = `${data.folder_name || `Logistics_Documents_${logisticsData.soNumber || 'export'}`}.zip`;
-                          link.click();
-                          window.URL.revokeObjectURL(url);
-                          alert('✅ Documents generated successfully!');
+                            link.click();
+                            window.URL.revokeObjectURL(url);
+                            alert('✅ Documents generated successfully!');
                         } catch (error) {
                           alert(`❌ Error: ${error.message}`);
                         }
