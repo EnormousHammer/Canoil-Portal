@@ -5325,6 +5325,18 @@ def generate_all_documents():
         items = data.get('items', [])
         shipper_override = data.get('shipper_override') or {}
         try:
+            if not shipper_override:
+                # Default to Canoil as shipper unless explicitly overridden
+                shipper_override = {
+                    'company': 'Canoil Canada Ltd.',
+                    'street': '62 Todd Road',
+                    'city': 'Georgetown',
+                    'province': 'ON',
+                    'postal': 'L7G 4R7',
+                    'country': 'Canada'
+                }
+                print("INFO: shipper_override not provided - defaulting to Canoil Canada Ltd.")
+
             if isinstance(shipper_override, dict) and shipper_override:
                 so_data['shipper_override'] = shipper_override
                 email_analysis['shipper_override'] = shipper_override
