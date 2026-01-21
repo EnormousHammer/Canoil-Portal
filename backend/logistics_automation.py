@@ -5867,69 +5867,67 @@ def generate_all_documents():
                 results['tsca_certification'] = {'success': False, 'error': str(e)}
         
         # AEC MANUFACTURER'S AFFIDAVIT - For AEC shipments with steel cans/drums
-        if not pdf_generation_enabled:
-            print("⏭️ AEC Affidavit skipped (PDF generation disabled)")
-        else:
-            try:
-                print("\n📜 Checking if AEC Manufacturer's Affidavit is needed...")
+        # NOTE: AEC Affidavit is just copying a template PDF, so it should always be checked regardless of pdf_generation_enabled
+        try:
+            print("\n📜 Checking if AEC Manufacturer's Affidavit is needed...")
+            
+            # Check if any items are AEC products with steel containers
+            has_aec_steel = False
+            for item in items:
+                item_code = str(item.get('item_code', '')).upper()
+                description = str(item.get('description', '')).upper()
+                unit = str(item.get('unit', '')).upper()
                 
-                # Check if any items are AEC products with steel containers
-                has_aec_steel = False
-                for item in items:
-                    item_code = str(item.get('item_code', '')).upper()
-                    description = str(item.get('description', '')).upper()
-                    unit = str(item.get('unit', '')).upper()
-                    
-                    # Check if it's an AEC product
-                    is_aec_product = 'AEC' in item_code or 'AEC' in description
-                    
-                    # Check if it uses steel container (can or drum)
-                    is_steel_container = any([
-                        'DRUM' in unit or 'DRUM' in description,
-                        'CAN' in unit or 'CASE' in unit,  # Cases often contain cans
-                        'PAIL' in unit or 'PAIL' in description
-                    ])
-                    
-                    if is_aec_product and is_steel_container:
-                        has_aec_steel = True
-                        print(f"   ✅ Found AEC product with steel container: {item.get('description', item_code)}")
-                        break
+                # Check if it's an AEC product
+                is_aec_product = 'AEC' in item_code or 'AEC' in description
                 
-                if has_aec_steel:
-                    # Source AEC affidavit template
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    aec_source = os.path.join(current_dir, 'templates', 'AEC Manufacturer\'s Affidavit', 'AEX_MANUFACTURING AFFIDAVIT.pdf')
+                # Check if it uses steel container (can or drum)
+                is_steel_container = any([
+                    'DRUM' in unit or 'DRUM' in description,
+                    'CAN' in unit or 'CASE' in unit,  # Cases often contain cans
+                    'PAIL' in unit or 'PAIL' in description
+                ])
+                
+                if is_aec_product and is_steel_container:
+                    has_aec_steel = True
+                    print(f"   ✅ Found AEC product with steel container: {item.get('description', item_code)}")
+                    break
+            
+            if has_aec_steel:
+                # Source AEC affidavit template
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                aec_source = os.path.join(current_dir, 'templates', 'AEC Manufacturer\'s Affidavit', 'AEX_MANUFACTURING AFFIDAVIT.pdf')
+                
+                if os.path.exists(aec_source):
+                    import shutil
+                    so_number = so_data.get('so_number', 'Unknown')
+                    aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
+                    aec_path = os.path.join(folder_structure['pdf_folder'], aec_filename)
                     
-                    if os.path.exists(aec_source):
-                        import shutil
-                        so_number = so_data.get('so_number', 'Unknown')
-                        aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
-                        aec_path = os.path.join(folder_structure['pdf_folder'], aec_filename)
-                        
-                        shutil.copy2(aec_source, aec_path)
-                        
-                        results['aec_affidavit'] = {
-                            'success': True,
-                            'filename': aec_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{aec_filename}',
-                            'note': 'AEC Manufacturer\'s Affidavit for steel containers'
-                        }
-                        print(f"   ✅ AEC Affidavit included: {aec_filename}")
-                    else:
-                        print(f"   ⚠️ AEC Affidavit template not found at: {aec_source}")
-                        results['aec_affidavit'] = {
-                            'success': False,
-                            'error': 'Template not found'
-                        }
+                    shutil.copy2(aec_source, aec_path)
+                    
+                    results['aec_affidavit'] = {
+                        'success': True,
+                        'filename': aec_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{aec_filename}',
+                        'note': 'AEC Manufacturer\'s Affidavit for steel containers'
+                    }
+                    print(f"   ✅ AEC Affidavit included: {aec_filename}")
                 else:
-                    print(f"   ⏭️ AEC Affidavit not needed (no AEC products with steel containers)")
+                    print(f"   ⚠️ AEC Affidavit template not found at: {aec_source}")
                     results['aec_affidavit'] = {
                         'success': False,
-                        'skipped': True,
-                        'reason': 'No AEC products with steel containers in this shipment'
+                        'error': 'Template not found'
                     }
-                    
-            except Exception as e:
+            else:
+                print(f"   ⏭️ AEC Affidavit not needed (no AEC products with steel containers)")
+                results['aec_affidavit'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': 'No AEC products with steel containers in this shipment'
+                }
+                
+        except Exception as e:
                 print(f"❌ AEC Affidavit error: {e}")
                 traceback.print_exc()
                 errors.append(f"AEC Affidavit generation failed: {str(e)}")
@@ -6034,39 +6032,42 @@ def generate_all_documents():
             
             print("\n📦 Checking if Delivery Note is needed (Axel France)...")
 
-            if not pdf_generation_enabled:
-                print("   ⏭️  Delivery Note skipped (PDF generation disabled)")
-            elif is_axel_france_order(so_data):
+            if is_axel_france_order(so_data):
                 # Get booking number from request data (user enters via popup)
                 booking_number = data.get('booking_number', '') or data.get('bookingNumber', '')
                 
-                print(f"   Axel France order detected - generating delivery note")
-                print(f"   Booking#: {booking_number or '(not provided)'}")
-                
-                dn_result = generate_delivery_note(so_data, items, booking_number)
-                
-                if dn_result.get('success'):
-                    # Move to PDF Format folder with consistent naming
-                    import shutil
-                    dn_original_path = dn_result['filepath']
-                    dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
-                    dn_new_path = os.path.join(folder_structure['pdf_folder'], dn_filename)
-                    
-                    shutil.copy2(dn_original_path, dn_new_path)
-                    
-                    results['delivery_note'] = {
-                        'success': True,
-                        'filename': dn_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{dn_filename}',
-                        'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
-                    }
-                    print(f"   ✅ Delivery Note generated: {dn_filename}")
+                # DELIVERY NOTE - Generate (respects pdf_generation_enabled)
+                if not pdf_generation_enabled:
+                    print("   ⏭️  Delivery Note skipped (PDF generation disabled)")
                 else:
-                    print(f"   ❌ Delivery Note generation failed: {dn_result.get('error')}")
-                    errors.append(f"Delivery Note: {dn_result.get('error')}")
-                    results['delivery_note'] = {'success': False, 'error': dn_result.get('error')}
+                    print(f"   Axel France order detected - generating delivery note")
+                    print(f"   Booking#: {booking_number or '(not provided)'}")
+                    
+                    dn_result = generate_delivery_note(so_data, items, booking_number)
+                    
+                    if dn_result.get('success'):
+                        # Move to PDF Format folder with consistent naming
+                        import shutil
+                        dn_original_path = dn_result['filepath']
+                        dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
+                        dn_new_path = os.path.join(folder_structure['pdf_folder'], dn_filename)
+                        
+                        shutil.copy2(dn_original_path, dn_new_path)
+                        
+                        results['delivery_note'] = {
+                            'success': True,
+                            'filename': dn_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{dn_filename}',
+                            'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
+                        }
+                        print(f"   ✅ Delivery Note generated: {dn_filename}")
+                    else:
+                        print(f"   ❌ Delivery Note generation failed: {dn_result.get('error')}")
+                        errors.append(f"Delivery Note: {dn_result.get('error')}")
+                        results['delivery_note'] = {'success': False, 'error': dn_result.get('error')}
                 
                 # REACH CONFORMITY (DRC) - Include for Axel France MOV/Long Life products
+                # NOTE: REACH is just copying a template, so it should always be checked regardless of pdf_generation_enabled
                 try:
                     # Check if any items contain MOV or Long Life
                     has_mov_longlife = False
