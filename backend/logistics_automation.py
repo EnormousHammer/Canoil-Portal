@@ -4257,6 +4257,13 @@ def generate_bol():
         so_data = data.get('so_data', {})
         # FIX: Frontend sends email_analysis, not email_shipping - get the correct one
         email_analysis = data.get('email_analysis', {}) or data.get('email_shipping', {}) or data.get('email_data', {})
+        shipper_override = data.get('shipper_override') or {}
+        try:
+            if isinstance(shipper_override, dict) and shipper_override:
+                so_data['shipper_override'] = shipper_override
+                email_analysis['shipper_override'] = shipper_override
+        except Exception as override_err:
+            print(f"WARNING: Failed to apply shipper_override in BOL: {override_err}")
         
         print(f"DEBUG BOL: email_analysis keys: {list(email_analysis.keys())}")
         print(f"DEBUG BOL: skid_info = {email_analysis.get('skid_info')}")
@@ -4410,6 +4417,13 @@ def generate_packing_slip():
         
         so_data = data.get('so_data', {})
         email_shipping = data.get('email_shipping', {})
+        shipper_override = data.get('shipper_override') or {}
+        try:
+            if isinstance(shipper_override, dict) and shipper_override:
+                so_data['shipper_override'] = shipper_override
+                email_shipping['shipper_override'] = shipper_override
+        except Exception as override_err:
+            print(f"WARNING: Failed to apply shipper_override in Packing Slip: {override_err}")
         items = data.get('items', [])
         
         # Use the actual packing slip generator
@@ -4452,6 +4466,13 @@ def generate_commercial_invoice():
         items = data.get('items', [])
         # FIX: Frontend might send email_shipping OR email_analysis - accept both
         email_analysis = data.get('email_analysis', {}) or data.get('email_shipping', {}) or data.get('email_data', {})
+        shipper_override = data.get('shipper_override') or {}
+        try:
+            if isinstance(shipper_override, dict) and shipper_override:
+                so_data['shipper_override'] = shipper_override
+                email_analysis['shipper_override'] = shipper_override
+        except Exception as override_err:
+            print(f"WARNING: Failed to apply shipper_override in Commercial Invoice: {override_err}")
         origin_details = data.get('origin_details', {})
         transaction_details = data.get('transaction_details', {})
         
@@ -5302,6 +5323,14 @@ def generate_all_documents():
         origin_details = data.get('origin_details', {})
         transaction_details = data.get('transaction_details', {})
         items = data.get('items', [])
+        shipper_override = data.get('shipper_override') or {}
+        try:
+            if isinstance(shipper_override, dict) and shipper_override:
+                so_data['shipper_override'] = shipper_override
+                email_analysis['shipper_override'] = shipper_override
+                email_shipping['shipper_override'] = shipper_override
+        except Exception as override_err:
+            print(f"WARNING: Failed to apply shipper_override in generate-all: {override_err}")
         
         # =========================================================================
         # REQUESTED DOCUMENTS - Only generate what the user asked for

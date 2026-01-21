@@ -76,6 +76,13 @@ const LogisticsAutomation: React.FC = () => {
   const [showAxelFrancePopup, setShowAxelFrancePopup] = useState(false);
   const [bookingNumber, setBookingNumber] = useState('');
   
+  // Shipper selection popup
+  const [showShipperPopup, setShowShipperPopup] = useState(false);
+  const [shipperSelectionStep, setShipperSelectionStep] = useState<'confirm' | 'select'>('confirm');
+  const [shipperSearch, setShipperSearch] = useState('');
+  const [selectedShipperKey, setSelectedShipperKey] = useState('');
+  const [shipperOverride, setShipperOverride] = useState<any>(null);
+  
   // History state
   const [showHistory, setShowHistory] = useState(false);
   const [emailHistory, setEmailHistory] = useState<Array<{
@@ -696,11 +703,7 @@ const LogisticsAutomation: React.FC = () => {
     await actualGenerateAllDocuments();
   };
 
-  const generateAllDocuments = async () => {
-    if (!result) return;
-
-    // AEC Manufacturer's Affidavit is now automatically included - no popup needed
-
+  const continueGenerateAllDocuments = async () => {
     // For Axel France orders, show booking number popup
     if (isAxelFranceOrder()) {
       setShowAxelFrancePopup(true);
@@ -708,6 +711,63 @@ const LogisticsAutomation: React.FC = () => {
     }
 
     await actualGenerateAllDocuments();
+  };
+
+  const generateAllDocuments = async () => {
+    if (!result) return;
+
+    // AEC Manufacturer's Affidavit is now automatically included - no popup needed
+
+    // Ask who is shipping before generating documents
+    if (!shipperOverride) {
+      setShowShipperPopup(true);
+      setShipperSelectionStep('confirm');
+      return;
+    }
+
+    await continueGenerateAllDocuments();
+  };
+
+  const canoilShipper = {
+    company: 'Canoil Canada Ltd.',
+    street: '62 Todd Road',
+    city: 'Georgetown',
+    province: 'ON',
+    postal: 'L7G 4R7',
+    country: 'Canada'
+  };
+
+  const getShipperOptions = () => {
+    const options: Array<{ key: string; label: string; data: any }> = [];
+    const seen = new Set<string>();
+
+    const addOption = (label: string, addr: any) => {
+      if (!addr) return;
+      const company = addr.company || addr.company_name || '';
+      const street = addr.street || addr.street_address || addr.address || '';
+      const city = addr.city || '';
+      const province = addr.province || addr.state || '';
+      const postal = addr.postal || addr.postal_code || '';
+      const country = addr.country || '';
+      if (!company && !street) return;
+      const key = `${label}|${company}|${street}|${city}|${province}|${postal}|${country}`.toUpperCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const addressLabel = [street, [city, province].filter(Boolean).join(', '), postal, country]
+        .filter(Boolean)
+        .join(' ');
+      options.push({
+        key,
+        label: `${label}: ${company}${addressLabel ? ` - ${addressLabel}` : ''}`,
+        data: { company, street, city, province, postal, country }
+      });
+    };
+
+    const soData = result?.so_data || {};
+    addOption('Billing (Sold To)', soData.billing_address || soData.sold_to);
+    addOption('Shipping (Ship To)', soData.shipping_address || soData.ship_to);
+
+    return options;
   };
 
   const actualGenerateAllDocuments = async () => {
@@ -730,7 +790,8 @@ const LogisticsAutomation: React.FC = () => {
         email_analysis: result.email_analysis || result.email_data || {},
         items: result.so_data?.items || result.items || [],
         booking_number: bookingNumber || '',  // Axel France booking number
-        requested_documents: result.requested_documents || result.email_data?.requested_documents || null  // Documents user specifically requested in email
+        requested_documents: result.requested_documents || result.email_data?.requested_documents || null,  // Documents user specifically requested in email
+        shipper_override: shipperOverride || null
       };
       
       console.log('📤 Request data being sent:', requestData);
@@ -1054,6 +1115,11 @@ const LogisticsAutomation: React.FC = () => {
     setAutoDetection(null);
     setProcessingMode('auto');
     setManualText('');
+    setShowShipperPopup(false);
+    setShipperSelectionStep('confirm');
+    setShipperSearch('');
+    setSelectedShipperKey('');
+    setShipperOverride(null);
   };
 
   return (
@@ -1138,6 +1204,131 @@ const LogisticsAutomation: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipper Selection Popup */}
+      {showShipperPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-lg mx-4 border-2 border-blue-400">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-blue-100 p-3 rounded-full">
+                <Truck className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Shipper Confirmation</h3>
+            </div>
+
+            {shipperSelectionStep === 'confirm' ? (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800 font-medium mb-2">Is Canoil taking care of this shipment from the Georgetown warehouse?</p>
+                  <p className="text-blue-700 text-sm">
+                    If yes, we will set the Shipper to Canoil Canada Ltd. (62 Todd Road, Georgetown, ON).
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowShipperPopup(false);
+                      setShipperSelectionStep('confirm');
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShipperSelectionStep('select');
+                      setShipperSearch('');
+                      setSelectedShipperKey('');
+                    }}
+                    className="flex-1 px-4 py-2 border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-medium"
+                  >
+                    Someone Else
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShipperOverride(canoilShipper);
+                      setShowShipperPopup(false);
+                      setShipperSelectionStep('confirm');
+                      setTimeout(() => {
+                        continueGenerateAllDocuments();
+                      }, 0);
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                  >
+                    Yes - Canoil
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-amber-800 font-medium mb-2">Select the shipper</p>
+                  <p className="text-amber-700 text-sm">
+                    Choose from the customer addresses found in the SO.
+                  </p>
+                </div>
+
+                <input
+                  type="text"
+                  value={shipperSearch}
+                  onChange={(e) => setShipperSearch(e.target.value)}
+                  placeholder="Search company or address..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+
+                <select
+                  value={selectedShipperKey}
+                  onChange={(e) => setSelectedShipperKey(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select a shipper...</option>
+                  {getShipperOptions()
+                    .filter(option => {
+                      const q = shipperSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return option.label.toLowerCase().includes(q);
+                    })
+                    .map(option => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                </select>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShipperSelectionStep('confirm');
+                      setShipperSearch('');
+                      setSelectedShipperKey('');
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      const option = getShipperOptions().find(o => o.key === selectedShipperKey);
+                      if (!option) return;
+                      setShipperOverride(option.data);
+                      setShowShipperPopup(false);
+                      setShipperSelectionStep('confirm');
+                      setTimeout(() => {
+                        continueGenerateAllDocuments();
+                      }, 0);
+                    }}
+                    disabled={!selectedShipperKey}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-lg font-medium"
+                  >
+                    Use Selected Shipper
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

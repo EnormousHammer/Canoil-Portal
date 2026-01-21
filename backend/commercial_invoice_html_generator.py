@@ -1028,38 +1028,56 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
                     except:
                         pass
     
-    # EXPORTER INFO - Use billing_address/sold_to if available (for No SO Mode), otherwise default to Canoil
+    # EXPORTER INFO - Use shipper_override if provided, otherwise billing_address/sold_to, otherwise Canoil
     # Calculate exporter info BEFORE building field_values dictionary
-    billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
-    exporter_name = (billing_addr.get('company_name', '') or 
-                    billing_addr.get('company', '') or 
-                    'Canoil Canada Ltd')
-    
-    # Build exporter address from billing_address if available
-    if billing_addr.get('street') or billing_addr.get('address'):
-        exporter_address_parts = []
-        if billing_addr.get('street'):
-            exporter_address_parts.append(billing_addr['street'])
-        elif billing_addr.get('address'):
-            exporter_address_parts.append(billing_addr['address'])
-        
-        city_prov = []
-        if billing_addr.get('city'):
-            city_prov.append(billing_addr['city'])
-        if billing_addr.get('province') or billing_addr.get('state'):
-            city_prov.append(billing_addr.get('province') or billing_addr.get('state', ''))
-        if city_prov:
-            exporter_address_parts.append(', '.join(city_prov))
-        
-        if billing_addr.get('postal_code') or billing_addr.get('postal'):
-            exporter_address_parts.append(billing_addr.get('postal_code') or billing_addr.get('postal', ''))
-        
-        if billing_addr.get('country'):
-            exporter_address_parts.append(billing_addr['country'])
-        
+    shipper_override = {}
+    try:
+        shipper_override = email_analysis.get('shipper_override', {}) or so_data.get('shipper_override', {}) or {}
+    except Exception as override_err:
+        print(f"WARNING: Could not read shipper_override for CI: {override_err}")
+        shipper_override = {}
+
+    if isinstance(shipper_override, dict) and (shipper_override.get('company') or shipper_override.get('company_name')):
+        exporter_name = shipper_override.get('company') or shipper_override.get('company_name', 'Canoil Canada Ltd')
+        exporter_address_parts = [
+            shipper_override.get('street') or shipper_override.get('address', ''),
+            ' '.join(filter(None, [shipper_override.get('city', ''), shipper_override.get('province') or shipper_override.get('state', '')])).strip(),
+            shipper_override.get('postal') or shipper_override.get('postal_code', ''),
+            shipper_override.get('country', '')
+        ]
+        exporter_address_parts = [part for part in exporter_address_parts if part]
         exporter_address = '\n'.join(exporter_address_parts) if exporter_address_parts else '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
     else:
-        exporter_address = '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
+        billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+        exporter_name = (billing_addr.get('company_name', '') or 
+                        billing_addr.get('company', '') or 
+                        'Canoil Canada Ltd')
+        
+        # Build exporter address from billing_address if available
+        if billing_addr.get('street') or billing_addr.get('address'):
+            exporter_address_parts = []
+            if billing_addr.get('street'):
+                exporter_address_parts.append(billing_addr['street'])
+            elif billing_addr.get('address'):
+                exporter_address_parts.append(billing_addr['address'])
+            
+            city_prov = []
+            if billing_addr.get('city'):
+                city_prov.append(billing_addr['city'])
+            if billing_addr.get('province') or billing_addr.get('state'):
+                city_prov.append(billing_addr.get('province') or billing_addr.get('state', ''))
+            if city_prov:
+                exporter_address_parts.append(', '.join(city_prov))
+            
+            if billing_addr.get('postal_code') or billing_addr.get('postal'):
+                exporter_address_parts.append(billing_addr.get('postal_code') or billing_addr.get('postal', ''))
+            
+            if billing_addr.get('country'):
+                exporter_address_parts.append(billing_addr['country'])
+            
+            exporter_address = '\n'.join(exporter_address_parts) if exporter_address_parts else '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
+        else:
+            exporter_address = '62 Todd Road\nGeorgetown, ON L7G 4R7\nCanada'
     
     # NEW TEMPLATE FIELD MAPPING - Based on actual field analysis
     field_values = {

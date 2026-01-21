@@ -1049,9 +1049,30 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
             carrier_input['value'] = carrier_value
             print(f"   Set carrier (brokerage): {carrier_value}")
     
-    # Extract shipper address from billing_address or sold_to
+    # Extract shipper address from override (if provided) or billing_address/sold_to
     print(f"\n>> Extracting shipper address...")
-    shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+    shipper_override = {}
+    try:
+        shipper_override = (email_analysis or {}).get('shipper_override') or so_data.get('shipper_override') or {}
+    except Exception as override_err:
+        print(f"WARNING: Could not read shipper_override: {override_err}")
+        shipper_override = {}
+
+    if isinstance(shipper_override, dict) and (shipper_override.get('company') or shipper_override.get('company_name')):
+        shipper_addr = {
+            'company_name': shipper_override.get('company') or shipper_override.get('company_name', ''),
+            'company': shipper_override.get('company') or shipper_override.get('company_name', ''),
+            'street': shipper_override.get('street') or shipper_override.get('address', ''),
+            'address': shipper_override.get('address') or shipper_override.get('street', ''),
+            'city': shipper_override.get('city', ''),
+            'province': shipper_override.get('province') or shipper_override.get('state', ''),
+            'postal_code': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
+            'postal': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
+            'country': shipper_override.get('country', '')
+        }
+        print(f"   Using shipper_override: {shipper_addr.get('company_name')}")
+    else:
+        shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
     shipper = {
         'name': (shipper_addr.get('company_name', '') or 
                 shipper_addr.get('company', '') or 
