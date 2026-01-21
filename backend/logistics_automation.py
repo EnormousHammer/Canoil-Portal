@@ -5682,120 +5682,119 @@ def generate_all_documents():
             dangerous_goods_info['has_dangerous_goods'] = False
         else:
             try:
-            from dangerous_goods_generator import generate_dangerous_goods_declarations
-            
-            print("\n🔴 Checking for dangerous goods...")
-            print(f"DEBUG: Items being checked for DG: {len(items)} items")
-            for idx, item in enumerate(items, 1):
-                print(f"  Item {idx}: Code='{item.get('item_code')}', Desc='{item.get('description')}'")
-            
-            dg_result = generate_dangerous_goods_declarations(so_data, items, email_shipping)
-            
-            if dg_result and dg_result.get('dg_forms'):
-                # Move generated files to uploads/logistics folder
-                import shutil
-                dg_results = []
-                sds_results = []
-                cofa_results = []
+                from dangerous_goods_generator import generate_dangerous_goods_declarations
                 
-                # Process DG Forms - with individual error handling
-                for dg_filepath, dg_original_filename in dg_result['dg_forms']:
-                    try:
-                        print(f"🔍 Processing DG form: {dg_original_filename}")
-                        print(f"   Source path: {dg_filepath}")
-                        print(f"   Source exists: {os.path.exists(dg_filepath)}")
-                        
-                        # Create new filename with new format
-                        new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
-                        # Save in PDF Format folder (even though it's .docx, it's a document format)
-                        new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
-                        
-                        print(f"   Target path: {new_dg_path}")
-                        
-                        # Copy file to PDF Format folder
-                        shutil.copy2(dg_filepath, new_dg_path)
-                        
-                        print(f"   Copy successful: {os.path.exists(new_dg_path)}")
-                        
-                        dg_results.append({
-                            'success': True,
-                            'filename': new_dg_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_dg_filename}',
-                            'product': dg_original_filename  # Contains product name
-                        })
-                        print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
-                    except Exception as dg_err:
-                        print(f"❌ Failed to process DG form {dg_original_filename}: {dg_err}")
-                        traceback.print_exc()  # Use module-level traceback
-                        errors.append(f"DG form {dg_original_filename}: {str(dg_err)}")
-                        # Continue to next DG form
+                print("\n🔴 Checking for dangerous goods...")
+                print(f"DEBUG: Items being checked for DG: {len(items)} items")
+                for idx, item in enumerate(items, 1):
+                    print(f"  Item {idx}: Code='{item.get('item_code')}', Desc='{item.get('description')}'")
                 
-                # Process SDS files - with individual error handling
-                for sds_path, sds_filename, product_name in dg_result.get('sds_files', []):
-                    try:
-                        # Get file extension from original
-                        file_ext = os.path.splitext(sds_filename)[1]
-                        
-                        # Create consistent filename: SDS_ProductName_Date.ext
-                        timestamp_sds = datetime.now().strftime('%Y%m%d')
-                        clean_product = product_name.replace(' ', '_').replace('/', '_')
-                        new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
-                        
-                        # Copy SDS with new name to PDF Format folder
-                        new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
-                        shutil.copy2(sds_path, new_sds_path)
-                        
-                        sds_results.append({
-                            'success': True,
-                            'filename': new_sds_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_sds_filename}',
-                            'product': product_name
-                        })
-                        print(f"✅ SDS renamed: {new_sds_filename}")
-                    except Exception as sds_err:
-                        print(f"❌ Failed to process SDS for {product_name}: {sds_err}")
-                        errors.append(f"SDS {product_name}: {str(sds_err)}")
-                        # Continue to next SDS file
+                dg_result = generate_dangerous_goods_declarations(so_data, items, email_shipping)
                 
-                # Process COFA files - with individual error handling
-                for cofa_path, cofa_filename, product_name, batch in dg_result.get('cofa_files', []):
-                    try:
-                        # Get file extension from original
-                        file_ext = os.path.splitext(cofa_filename)[1]
-                        
-                        # Create consistent filename: COFA_ProductName_Batch_Date.ext
-                        timestamp_cofa = datetime.now().strftime('%Y%m%d')
-                        clean_product = product_name.replace(' ', '_').replace('/', '_')
-                        new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
-                        
-                        # Copy COFA with new name to PDF Format folder
-                        new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
-                        shutil.copy2(cofa_path, new_cofa_path)
-                        
-                        cofa_results.append({
-                            'success': True,
-                            'filename': new_cofa_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_cofa_filename}',
-                            'product': product_name,
-                            'batch': batch
-                        })
-                        print(f"✅ COFA renamed: {new_cofa_filename} (Batch: {batch})")
-                    except Exception as cofa_err:
-                        print(f"❌ Failed to process COFA for {product_name} batch {batch}: {cofa_err}")
-                        errors.append(f"COFA {product_name} batch {batch}: {str(cofa_err)}")
-                        # Continue to next COFA file
-                
-                results['dangerous_goods'] = dg_results
-                results['sds_files'] = sds_results
-                results['cofa_files'] = cofa_results
-                dangerous_goods_info['has_dangerous_goods'] = True
-                dangerous_goods_info['forms_generated'] = len(dg_results)
-                dangerous_goods_info['sds_count'] = len(sds_results)
-                dangerous_goods_info['cofa_count'] = len(cofa_results)
-            else:
-                print("✅ No dangerous goods detected in this shipment")
-                dangerous_goods_info['has_dangerous_goods'] = False
-                
+                if dg_result and dg_result.get('dg_forms'):
+                    # Move generated files to uploads/logistics folder
+                    import shutil
+                    dg_results = []
+                    sds_results = []
+                    cofa_results = []
+                    
+                    # Process DG Forms - with individual error handling
+                    for dg_filepath, dg_original_filename in dg_result['dg_forms']:
+                        try:
+                            print(f"🔍 Processing DG form: {dg_original_filename}")
+                            print(f"   Source path: {dg_filepath}")
+                            print(f"   Source exists: {os.path.exists(dg_filepath)}")
+                            
+                            # Create new filename with new format
+                            new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
+                            # Save in PDF Format folder (even though it's .docx, it's a document format)
+                            new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
+                            
+                            print(f"   Target path: {new_dg_path}")
+                            
+                            # Copy file to PDF Format folder
+                            shutil.copy2(dg_filepath, new_dg_path)
+                            
+                            print(f"   Copy successful: {os.path.exists(new_dg_path)}")
+                            
+                            dg_results.append({
+                                'success': True,
+                                'filename': new_dg_filename,
+                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_dg_filename}',
+                                'product': dg_original_filename  # Contains product name
+                            })
+                            print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
+                        except Exception as dg_err:
+                            print(f"❌ Failed to process DG form {dg_original_filename}: {dg_err}")
+                            traceback.print_exc()  # Use module-level traceback
+                            errors.append(f"DG form {dg_original_filename}: {str(dg_err)}")
+                            # Continue to next DG form
+                    
+                    # Process SDS files - with individual error handling
+                    for sds_path, sds_filename, product_name in dg_result.get('sds_files', []):
+                        try:
+                            # Get file extension from original
+                            file_ext = os.path.splitext(sds_filename)[1]
+                            
+                            # Create consistent filename: SDS_ProductName_Date.ext
+                            timestamp_sds = datetime.now().strftime('%Y%m%d')
+                            clean_product = product_name.replace(' ', '_').replace('/', '_')
+                            new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
+                            
+                            # Copy SDS with new name to PDF Format folder
+                            new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
+                            shutil.copy2(sds_path, new_sds_path)
+                            
+                            sds_results.append({
+                                'success': True,
+                                'filename': new_sds_filename,
+                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_sds_filename}',
+                                'product': product_name
+                            })
+                            print(f"✅ SDS renamed: {new_sds_filename}")
+                        except Exception as sds_err:
+                            print(f"❌ Failed to process SDS for {product_name}: {sds_err}")
+                            errors.append(f"SDS {product_name}: {str(sds_err)}")
+                            # Continue to next SDS file
+                    
+                    # Process COFA files - with individual error handling
+                    for cofa_path, cofa_filename, product_name, batch in dg_result.get('cofa_files', []):
+                        try:
+                            # Get file extension from original
+                            file_ext = os.path.splitext(cofa_filename)[1]
+                            
+                            # Create consistent filename: COFA_ProductName_Batch_Date.ext
+                            timestamp_cofa = datetime.now().strftime('%Y%m%d')
+                            clean_product = product_name.replace(' ', '_').replace('/', '_')
+                            new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
+                            
+                            # Copy COFA with new name to PDF Format folder
+                            new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
+                            shutil.copy2(cofa_path, new_cofa_path)
+                            
+                            cofa_results.append({
+                                'success': True,
+                                'filename': new_cofa_filename,
+                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_cofa_filename}',
+                                'product': product_name,
+                                'batch': batch
+                            })
+                            print(f"✅ COFA renamed: {new_cofa_filename} (Batch: {batch})")
+                        except Exception as cofa_err:
+                            print(f"❌ Failed to process COFA for {product_name} batch {batch}: {cofa_err}")
+                            errors.append(f"COFA {product_name} batch {batch}: {str(cofa_err)}")
+                            # Continue to next COFA file
+                    
+                    results['dangerous_goods'] = dg_results
+                    results['sds_files'] = sds_results
+                    results['cofa_files'] = cofa_results
+                    dangerous_goods_info['has_dangerous_goods'] = True
+                    dangerous_goods_info['forms_generated'] = len(dg_results)
+                    dangerous_goods_info['sds_count'] = len(sds_results)
+                    dangerous_goods_info['cofa_count'] = len(cofa_results)
+                else:
+                    print("✅ No dangerous goods detected in this shipment")
+                    dangerous_goods_info['has_dangerous_goods'] = False
             except Exception as e:
                 print(f"❌ Dangerous Goods generation error: {e}")
                 traceback.print_exc()  # Use module-level traceback
