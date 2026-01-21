@@ -4865,11 +4865,17 @@ def generate_manual_documents():
             }), 400
         
         print(f"✅ Parsed data: Shipper={parsed_data.get('shipper', {}).get('company')}, Consignee={parsed_data.get('consignee', {}).get('company')}")
+        print(f"📦 RAW PARSED DATA FROM GPT:")
+        print(f"   Full parsed_data: {parsed_data}")
         
         # Extract parsed data
         shipper = parsed_data.get('shipper', {})
         consignee = parsed_data.get('consignee', {})
         items = parsed_data.get('items', [])
+        
+        print(f"📍 SHIPPER EXTRACTED: {shipper}")
+        print(f"📍 CONSIGNEE EXTRACTED: {consignee}")
+        print(f"📦 ITEMS EXTRACTED: {items}")
         weights = parsed_data.get('weights', {})
         skids = parsed_data.get('skids', {})
         carrier = parsed_data.get('carrier', '')
@@ -5119,6 +5125,14 @@ def generate_manual_documents():
         try:
             from packing_slip_html_generator import generate_packing_slip_html
             from playwright_pdf_converter import html_to_pdf_sync
+            
+            print(f"\n📋 PACKING SLIP GENERATION - INPUT DATA:")
+            print(f"   so_data['billing_address']: {so_data.get('billing_address', {})}")
+            print(f"   so_data['shipping_address']: {so_data.get('shipping_address', {})}")
+            print(f"   so_data['customer_name']: {so_data.get('customer_name', '')}")
+            print(f"   formatted_items count: {len(formatted_items)}")
+            for idx, item in enumerate(formatted_items, 1):
+                print(f"   Item {idx}: {item}")
             
             ps_html = generate_packing_slip_html(so_data, email_analysis, formatted_items)
             ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
