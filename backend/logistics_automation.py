@@ -4754,6 +4754,8 @@ def generate_manual_documents():
         
         Extract and return as JSON with this EXACT structure:
         {{
+            "so_number": "sales order number if mentioned (just the number, e.g. 3110)",
+            "po_number": "primary PO number if mentioned (e.g. 20260109 or PO-20260109)",
             "shipper": {{
                 "company": "EXTRACT from 'Going from:' section - the company name sending the shipment",
                 "address": "full street address from 'Going from:' section",
@@ -4799,7 +4801,6 @@ def generate_manual_documents():
                 "pieces": "total pieces count if mentioned"
             }},
             "carrier": "carrier/shipping company name if mentioned",
-            "po_number": "primary PO number if single PO, or comma-separated if multiple",
             "release_numbers": "release numbers as array if mentioned (e.g., ['4000599546', '4000603468'])",
             "special_instructions": "all special instructions, shipping hours, gate instructions, check-in procedures, etc."
         }}
@@ -4873,8 +4874,22 @@ def generate_manual_documents():
         skids = parsed_data.get('skids', {})
         carrier = parsed_data.get('carrier', '')
         po_number = parsed_data.get('po_number', '')
+        so_number = parsed_data.get('so_number', '')
         release_numbers = parsed_data.get('release_numbers', [])
         special_instructions = parsed_data.get('special_instructions', '')
+
+        # Fallback: extract SO/PO from raw text if GPT didn't provide them
+        try:
+            if not so_number:
+                so_matches = re.findall(r'(?:\bSO\b|Sales\s*Order)\s*#?:?\s*(\d{3,6})', text_input, re.IGNORECASE)
+                if so_matches:
+                    so_number = so_matches[0]
+            if not po_number:
+                po_match = re.search(r'(?:\bPO\b|P\.?O\.?|Purchase\s*Order)\s*#?:?\s*([A-Za-z0-9-]+)', text_input, re.IGNORECASE)
+                if po_match:
+                    po_number = po_match.group(1)
+        except Exception as parse_err:
+            print(f"WARNING: Manual SO/PO fallback parse failed: {parse_err}")
         
         # Validate that we have shipper and consignee
         if not shipper.get('company') or not consignee.get('company'):
@@ -4944,7 +4959,7 @@ def generate_manual_documents():
         
         # Create minimal so_data structure from manual input
         so_data = {
-            'so_number': 'MANUAL',  # Use 'MANUAL' as placeholder
+            'so_number': so_number or 'MANUAL',  # Use parsed SO if available
             'po_number': po_number,
             'customer_name': consignee.get('company', ''),
             'order_date': datetime.now().strftime('%Y-%m-%d'),
@@ -5011,6 +5026,8 @@ def generate_manual_documents():
             'pallet_dimensions': skids.get('dimensions', ''),
             'pieces_count': skids.get('pieces') or total_pieces,
             'carrier': carrier,
+            'so_number': so_number or '',
+            'po_number': po_number or '',
             'special_instructions': special_instructions,
             'skid_info': f"{pallet_count} skid(s)" + (f", {skids.get('dimensions', '')}" if skids.get('dimensions') else ''),
             'destination_country': consignee.get('country', 'Canada'),
