@@ -140,7 +140,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if customer_name:
         customer_name = re.sub(r'\s*-?\s*PICK\s*UP\s*', '', customer_name, flags=re.IGNORECASE).strip()
     
-    # Build Sold To address - USE EXACTLY WHAT'S IN THE DATA, NO RECONSTRUCTION
+    # Build Sold To address - USE ANY DATA AVAILABLE, NO FILTERING
     billing_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
     
     sold_to_lines = []
@@ -148,38 +148,34 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if company:
         sold_to_lines.append(company.strip())
     
-    # Use full_address if available, otherwise use street_address AS-IS (no adding city/province/postal)
+    # Use full_address if available, otherwise build from individual fields
     full_addr = billing_addr.get('full_address', '').strip()
     street = (billing_addr.get('street_address') or billing_addr.get('address') or billing_addr.get('street') or '').strip()
     city = billing_addr.get('city', '').strip()
     province = billing_addr.get('province') or billing_addr.get('state', '').strip()
     postal = billing_addr.get('postal_code') or billing_addr.get('postal', '').strip()
-    country = billing_addr.get('country', '').strip()
+    country = billing_addr.get('country', 'Canada').strip()
     
     if full_addr:
-        # full_address is the complete address from PDF - filter out company if duplicated
-        addr_lines = [line for line in full_addr.split('\n') if line.strip().lower() != company.strip().lower()]
-        if addr_lines:
-            sold_to_lines.append('\n'.join(addr_lines))
-        elif full_addr.strip():  # If filtering removed everything but full_addr has content, use it anyway
-            sold_to_lines.append(full_addr)
-    elif street or city or province or postal:
-        # Build address from individual fields if full_address not available
+        # Use full_address as-is - don't filter anything
+        sold_to_lines.append(full_addr)
+    else:
+        # Build from individual fields - use whatever exists
         addr_parts = []
-        if street and street.strip().lower() != company.strip().lower():
+        if street:
             addr_parts.append(street)
         if city or province or postal:
             city_prov_postal = f"{city}, {province} {postal}".strip(', ').strip()
             if city_prov_postal and city_prov_postal != ',':
                 addr_parts.append(city_prov_postal)
-        if country and country.upper() not in ' '.join(addr_parts).upper():
+        if country:
             addr_parts.append(country)
         if addr_parts:
             sold_to_lines.append('\n'.join(addr_parts))
     
-    field_values['sold_to'] = '\n'.join(sold_to_lines)
+    field_values['sold_to'] = '\n'.join(sold_to_lines) if sold_to_lines else ''
     
-    # Build Ship To address - USE EXACTLY WHAT'S IN THE DATA, NO RECONSTRUCTION
+    # Build Ship To address - USE ANY DATA AVAILABLE, NO FILTERING
     shipping_addr = so_data.get('shipping_address', {}) or so_data.get('ship_to', {})
     is_pickup_order = shipping_addr.get('is_pickup', False) or so_data.get('is_pickup_order', False)
     
@@ -191,36 +187,32 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     if is_pickup_order:
         ship_to_lines.append("- PICK UP")
     
-    # Use full_address if available, otherwise use street_address AS-IS
+    # Use full_address if available, otherwise build from individual fields
     ship_full_addr = shipping_addr.get('full_address', '').strip()
     ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street') or '').strip()
     ship_city = shipping_addr.get('city', '').strip()
     ship_province = shipping_addr.get('province') or shipping_addr.get('state', '').strip()
     ship_postal = shipping_addr.get('postal_code') or shipping_addr.get('postal', '').strip()
-    ship_country = shipping_addr.get('country', '').strip()
+    ship_country = shipping_addr.get('country', 'Canada').strip()
     
     if ship_full_addr:
-        # Filter out company if duplicated
-        addr_lines = [line for line in ship_full_addr.split('\n') if line.strip().lower() != ship_company.strip().lower()]
-        if addr_lines:
-            ship_to_lines.append('\n'.join(addr_lines))
-        elif ship_full_addr.strip():  # If filtering removed everything but full_addr has content, use it anyway
-            ship_to_lines.append(ship_full_addr)
-    elif ship_street or ship_city or ship_province or ship_postal:
-        # Build address from individual fields if full_address not available
+        # Use full_address as-is - don't filter anything
+        ship_to_lines.append(ship_full_addr)
+    else:
+        # Build from individual fields - use whatever exists
         addr_parts = []
-        if ship_street and ship_street.strip().lower() != ship_company.strip().lower():
+        if ship_street:
             addr_parts.append(ship_street)
         if ship_city or ship_province or ship_postal:
             city_prov_postal = f"{ship_city}, {ship_province} {ship_postal}".strip(', ').strip()
             if city_prov_postal and city_prov_postal != ',':
                 addr_parts.append(city_prov_postal)
-        if ship_country and ship_country.upper() not in ' '.join(addr_parts).upper():
+        if ship_country:
             addr_parts.append(ship_country)
         if addr_parts:
             ship_to_lines.append('\n'.join(addr_parts))
     
-    field_values['ship_to'] = '\n'.join(ship_to_lines)
+    field_values['ship_to'] = '\n'.join(ship_to_lines) if ship_to_lines else ''
     
     # Items - USE COMBINED SO DATA (items parameter) - it has correct sample placement
     # DO NOT use email_shipping.get('items') - that's raw email data without proper sample handling
@@ -233,41 +225,33 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         print(f"DEBUG: SO ITEMS RAW DATA:")
         for i, item in enumerate(items, 1):
             print(f"  Item {i}: {item}")
-        # Fallback to SO items - BULLETPROOF filtering for PRODUCTS ONLY
+        # For No-SO mode, be more permissive - only filter obvious charges
         physical_items = []
         for item in items:
             item_code = item.get('item_code', '').upper()
             description = str(item.get('description', '')).lower()
             
-            # Identify charges/fees by item code patterns
-            is_charge_by_code = any([
-                item_code in ['PALLET', 'FREIGHT', 'BROKERAGE', 'MISC', 'MISCELLANEOUS'],
-                item_code == 'FREIGHT CHARGE',
-                item_code == 'BROKERAGE CHARGE',
-                'CHARGE' in item_code
-            ])
+            # Only filter out OBVIOUS charges - be very permissive
+            is_obvious_charge = (
+                item_code in ['PALLET', 'FREIGHT', 'BROKERAGE'] or
+                item_code == 'FREIGHT CHARGE' or
+                item_code == 'BROKERAGE CHARGE' or
+                (description == 'pallet charge' or description == 'freight charge' or description == 'brokerage charge')
+            )
             
-            # Identify charges/fees by description patterns
-            is_charge_by_description = any([
-                'charge' in description,
-                'freight' in description,
-                'brokerage' in description,
-                'miscellaneous' in description,
-                'misc' in description,
-                'pallet' in description and 'charge' in description,
-                'prepaid' in description,
-                'shipment' in description and ('prepaid' in description or 'add' in description),
-                description.startswith('prepaid'),
-                'add shipment' in description
-            ])
-            
-            # Only include if it's NOT a charge/fee
-            is_actual_product = not (is_charge_by_code or is_charge_by_description)
-            
-            if is_actual_product:
+            # Include everything else - don't filter too aggressively
+            if not is_obvious_charge:
                 physical_items.append(item)
+            else:
+                print(f"DEBUG: Filtered out obvious charge: {item_code} / {description}")
+        
+        # If filtering removed everything, use original items (might be No-SO mode with clean data)
+        if not physical_items and items:
+            print(f"DEBUG: Filtering removed all items, using original items (likely No-SO mode)")
+            physical_items = items
+        
         items_to_show = physical_items[:5]  # Max 5 items (template has 5 pre-defined rows)
-        print(f"DEBUG: Using {len(items_to_show)} SO items")
+        print(f"DEBUG: Using {len(items_to_show)} items for packing slip")
     
     # Populate only the items that exist
     for i, item in enumerate(items_to_show, 1):
@@ -280,6 +264,11 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         print(f"DEBUG: Item {i}: {item.get('description', '')} - Qty: {quantity}")
     
     # Populate ALL fields
+    print(f"\n🔍 DEBUG: PACKING SLIP FIELD_VALUES BEFORE POPULATION:")
+    for key, val in field_values.items():
+        print(f"   {key}: '{val}'")
+    print(f"🔍 Total field_values: {len(field_values)}")
+    
     populated_count = 0
     for field_id, value in field_values.items():
         field = soup.find(id=field_id)
