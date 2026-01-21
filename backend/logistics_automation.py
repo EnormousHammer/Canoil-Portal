@@ -5255,12 +5255,19 @@ def generate_manual_documents():
             if usmca_check['requires_usmca']:
                 import shutil
                 current_dir = os.path.dirname(os.path.abspath(__file__))
-                usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                # Try 2026 version first, then fallback to generic name
+                usmca_2026 = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM 2026.pdf')
+                usmca_generic = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                usmca_source = usmca_2026 if os.path.exists(usmca_2026) else usmca_generic
+                print(f"   📄 Looking for USMCA form at: {usmca_source}")
+                print(f"   📄 File exists: {os.path.exists(usmca_source)}")
+                
                 if os.path.exists(usmca_source):
                     so_number = 'MANUAL'
                     usmca_filename = f"USMCA_Certificate_{po_number or 'MANUAL'}.pdf"
                     usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
                     shutil.copy2(usmca_source, usmca_path)
+                    print(f"   ✅ Using USMCA form: {os.path.basename(usmca_source)}")
                     results['usmca_certificate'] = {
                         'success': True,
                         'filename': usmca_filename,
@@ -5976,8 +5983,14 @@ def generate_all_documents():
                     # Source USMCA form (2026 version - already signed)
                     # Use relative path that works in Docker
                     current_dir = os.path.dirname(os.path.abspath(__file__))
-                    usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                    # Try 2026 version first, then fallback to generic name
+                    usmca_2026 = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM 2026.pdf')
+                    usmca_generic = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+                    usmca_source = usmca_2026 if os.path.exists(usmca_2026) else usmca_generic
 
+                    print(f"   📄 Looking for USMCA form at: {usmca_source}")
+                    print(f"   📄 File exists: {os.path.exists(usmca_source)}")
+                    
                     if os.path.exists(usmca_source):
                         # Copy to PDF Format folder - USMCA is a blank template, use simple name
                         import shutil
@@ -5986,6 +5999,7 @@ def generate_all_documents():
                         usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
 
                         shutil.copy2(usmca_source, usmca_path)
+                        print(f"   ✅ Using USMCA form: {os.path.basename(usmca_source)}")
 
                         results['usmca_certificate'] = {
                             'success': True,
