@@ -4958,6 +4958,21 @@ def generate_manual_documents():
             print(f"   Item {idx}: {item.get('quantity', '?')} {item.get('unit', '?')} of {item.get('description', '?')[:50]}")
         
         # Create minimal so_data structure from manual input
+        # Build full addresses properly for document generators
+        shipper_full_address = '\n'.join(filter(None, [
+            shipper.get('address', ''),
+            f"{shipper.get('city', '')}, {shipper.get('state', '')} {shipper.get('postal', '')}".strip(', '),
+            shipper.get('country', 'Canada')
+        ]))
+        consignee_full_address = '\n'.join(filter(None, [
+            consignee.get('address', ''),
+            f"{consignee.get('city', '')}, {consignee.get('state', '')} {consignee.get('postal', '')}".strip(', '),
+            consignee.get('country', 'Canada')
+        ]))
+        
+        print(f"📍 SHIPPER full address: {shipper_full_address}")
+        print(f"📍 CONSIGNEE full address: {consignee_full_address}")
+        
         so_data = {
             'so_number': so_number or 'MANUAL',  # Use parsed SO if available
             'po_number': po_number,
@@ -4967,54 +4982,63 @@ def generate_manual_documents():
             'items': formatted_items,
             'billing_address': {
                 'company_name': shipper.get('company', ''),
+                'company': shipper.get('company', ''),
                 'contact_person': shipper.get('contact_person', ''),
                 'street': shipper.get('address', ''),
+                'street_address': shipper.get('address', ''),
+                'address': shipper.get('address', ''),
                 'city': shipper.get('city', ''),
                 'province': shipper.get('state', ''),
+                'state': shipper.get('state', ''),
                 'postal_code': shipper.get('postal', ''),
+                'postal': shipper.get('postal', ''),
                 'country': shipper.get('country', 'Canada'),
                 'phone': shipper.get('phone', ''),
                 'email': shipper.get('email', ''),
-                'full_address': ', '.join(filter(None, [
-                    shipper.get('address', ''),
-                    shipper.get('city', ''),
-                    f"{shipper.get('state', '')} {shipper.get('postal', '')}".strip(),
-                    shipper.get('country', 'Canada')
-                ]))
+                'full_address': shipper_full_address
             },
             'shipping_address': {
                 'company_name': consignee.get('company', ''),
+                'company': consignee.get('company', ''),
                 'contact_person': consignee.get('contact_person', ''),
                 'street': consignee.get('address', ''),
+                'street_address': consignee.get('address', ''),
+                'address': consignee.get('address', ''),
                 'city': consignee.get('city', ''),
                 'province': consignee.get('state', ''),
+                'state': consignee.get('state', ''),
                 'postal_code': consignee.get('postal', ''),
+                'postal': consignee.get('postal', ''),
                 'country': consignee.get('country', 'Canada'),
                 'phone': consignee.get('phone', ''),
                 'email': consignee.get('email', ''),
-                'full_address': ', '.join(filter(None, [
-                    consignee.get('address', ''),
-                    consignee.get('city', ''),
-                    f"{consignee.get('state', '')} {consignee.get('postal', '')}".strip(),
-                    consignee.get('country', 'Canada')
-                ]))
+                'full_address': consignee_full_address
             },
             'sold_to': {
                 'company_name': shipper.get('company', ''),
+                'company': shipper.get('company', ''),
                 'contact_person': shipper.get('contact_person', ''),
                 'address': shipper.get('address', ''),
+                'street_address': shipper.get('address', ''),
+                'full_address': shipper_full_address,
                 'phone': shipper.get('phone', ''),
                 'email': shipper.get('email', '')
             },
             'ship_to': {
                 'company_name': consignee.get('company', ''),
+                'company': consignee.get('company', ''),
                 'contact_person': consignee.get('contact_person', ''),
                 'address': consignee.get('address', ''),
+                'street_address': consignee.get('address', ''),
+                'full_address': consignee_full_address,
                 'phone': consignee.get('phone', ''),
                 'email': consignee.get('email', ''),
                 'country': consignee.get('country', 'Canada')
             }
         }
+        
+        print(f"📋 so_data created with billing_address.company_name={so_data['billing_address']['company_name']}")
+        print(f"📋 so_data created with shipping_address.company_name={so_data['shipping_address']['company_name']}")
         
         # Create email_analysis structure from manual input
         pallet_count = int(skids.get('count', 1) or 1)

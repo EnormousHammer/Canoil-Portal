@@ -1,0 +1,750 @@
+2026-01-21T14:45:05Z clientIP="99.209.48.91" requestID="942dba42-c5ab-4772" responseTimeMS=448 responseBytes=2954765 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:05.833043196Z [2026-01-21 14:45:05 +0000] [7] [INFO] 10.16.8.69:40194 - - [21/Jan/2026:14:45:05 +0000] "GET /api/data 1.1" 200 2954397 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:05.833489955Z Loading MPS data from Google Sheets: 1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw
+2026-01-21T14:45:05.833504696Z Using working Google Sheets URL: https://docs.google.com/spreadsheets/d/1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw/export?format=csv
+2026-01-21T14:45:06Z clientIP="99.209.48.91" requestID="ea6b7a08-c3fe-432b" responseTimeMS=929 responseBytes=3110 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06Z clientIP="99.209.48.91" requestID="a3eeb2c0-5418-43d2" responseTimeMS=929 responseBytes=517 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06Z clientIP="99.209.48.91" requestID="bb9cee02-6fc2-4bde" responseTimeMS=1221 responseBytes=3111 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06.330416254Z Success with Google Sheets URL
+2026-01-21T14:45:06.330639728Z Retrieved 56 rows from Google Sheets
+2026-01-21T14:45:06.330653008Z Headers: ['#', 'SO', 'MO', 'WIP', 'WC', 'Status', 'Product', 'C', 'Packaging', 'Req.']...
+2026-01-21T14:45:06.330780971Z SUCCESS: Processed 49 MPS orders from Google Sheets
+2026-01-21T14:45:06.330788441Z Sample order: {'order_number': '1', 'so_number': '3096', 'mo_number': '3819', 'wip': '', 'work_center': 'GL2', 'status': 'Shortage', 'product': 'Lanxess - Petro-Canada Purity FG2 Syn -  (G-2233-2) - No tubes', 'customer_code': '', 'packaging': '3Ã\x9710Ã\x97400 g case', 'required': '432', 'ready': '', 'planned': '25%', 'actual': '0.0%', 'promised': 'Fri, Jan 16', 'start_date': 'Tue, Jan 20', 'end_date': 'Fri, Jan 23', 'duration': '4', 'dtc': '3', 'action_items': ''}
+2026-01-21T14:45:06.335402428Z [2026-01-21 14:45:06 +0000] [7] [INFO] 10.23.87.196:51120 - - [21/Jan/2026:14:45:06 +0000] "GET /api/mps 1.1" 200 2745 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06.337144574Z [2026-01-21 14:45:06 +0000] [7] [INFO] 10.19.255.68:44986 - - [21/Jan/2026:14:45:06 +0000] "GET /api/health 1.1" 200 199 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06.337516532Z Loading MPS data from Google Sheets: 1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw
+2026-01-21T14:45:06.337525242Z Using working Google Sheets URL: https://docs.google.com/spreadsheets/d/1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw/export?format=csv
+2026-01-21T14:45:06.726650669Z Success with Google Sheets URL
+2026-01-21T14:45:06.726906114Z Retrieved 56 rows from Google Sheets
+2026-01-21T14:45:06.726918194Z Headers: ['#', 'SO', 'MO', 'WIP', 'WC', 'Status', 'Product', 'C', 'Packaging', 'Req.']...
+2026-01-21T14:45:06.727028637Z SUCCESS: Processed 49 MPS orders from Google Sheets
+2026-01-21T14:45:06.727034367Z Sample order: {'order_number': '1', 'so_number': '3096', 'mo_number': '3819', 'wip': '', 'work_center': 'GL2', 'status': 'Shortage', 'product': 'Lanxess - Petro-Canada Purity FG2 Syn -  (G-2233-2) - No tubes', 'customer_code': '', 'packaging': '3Ã\x9710Ã\x97400 g case', 'required': '432', 'ready': '', 'planned': '25%', 'actual': '0.0%', 'promised': 'Fri, Jan 16', 'start_date': 'Tue, Jan 20', 'end_date': 'Fri, Jan 23', 'duration': '4', 'dtc': '3', 'action_items': ''}
+2026-01-21T14:45:06.731225274Z [2026-01-21 14:45:06 +0000] [7] [INFO] 10.19.45.65:44388 - - [21/Jan/2026:14:45:06 +0000] "GET /api/mps 1.1" 200 2746 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:06.878855347Z /api/data endpoint called
+2026-01-21T14:45:06.878941649Z SEARCH: Cache check: age=489.7s, duration=3600s, valid=True
+2026-01-21T14:45:06.878945689Z SUCCESS: Returning PRE-SERIALIZED cached response (instant!)
+2026-01-21T14:45:07Z clientIP="99.209.48.91" requestID="164a71fe-8201-4964" responseTimeMS=472 responseBytes=2954765 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:07.327676521Z [2026-01-21 14:45:07 +0000] [7] [INFO] 10.16.8.69:40194 - - [21/Jan/2026:14:45:07 +0000] "GET /api/data 1.1" 200 2954397 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:07.576229272Z 💻 Local development - checking G: Drive: G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders
+2026-01-21T14:45:07.576296523Z ⚠️ G: Drive not accessible: G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders
+2026-01-21T14:45:07.576303083Z 🔄 Falling back to Google Drive API for Sales Orders...
+2026-01-21T14:45:07.576305103Z [INFO] ===== STARTING load_sales_orders_data =====
+2026-01-21T14:45:07.576307143Z [INFO] Searching for Sales_CSR as separate shared drive (ignoring IT_Automation drive_id)
+2026-01-21T14:45:07.576309474Z [INFO] Calling find_shared_drive('Sales_CSR')...
+2026-01-21T14:45:07.578314675Z [INFO] Attempt 1/3 to list shared drives
+2026-01-21T14:45:07.84287613Z [INFO] Searching for shared drive 'Sales_CSR' among 4 drives
+2026-01-21T14:45:07.842900931Z [INFO] Available shared drives:
+2026-01-21T14:45:07.842903791Z    - IT_Automation (ID: 0AM5YTKFJmMBKUk9PVA)
+2026-01-21T14:45:07.842905691Z    - MPS / Shipments  (ID: 0AMATkJyvydcLUk9PVA)
+2026-01-21T14:45:07.842908421Z    - RnD_Technical  (ID: 0ADpHVFqlBzaNUk9PVA)
+2026-01-21T14:45:07.842911391Z    - Sales_CSR (ID: 0AMwceUKIC3FhUk9PVA)
+2026-01-21T14:45:07.842914121Z [OK] Found shared drive: Sales_CSR (ID: 0AMwceUKIC3FhUk9PVA)
+2026-01-21T14:45:07.842932662Z [INFO] find_shared_drive returned: 0AMwceUKIC3FhUk9PVA
+2026-01-21T14:45:07.842935322Z [OK] Found Sales_CSR as separate shared drive (ID: 0AMwceUKIC3FhUk9PVA)
+2026-01-21T14:45:07.842937932Z [INFO] Searching for 'Customer Orders' folder in Sales_CSR drive...
+2026-01-21T14:45:08.140449795Z [OK] Found folder: Customer Orders (ID: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK)
+2026-01-21T14:45:08.140472836Z [OK] Found base folder 'Customer Orders' (ID: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK)
+2026-01-21T14:45:08.140475786Z [INFO] find_folder_by_path returned: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK
+2026-01-21T14:45:08.140478576Z [INFO] Loading ALL orders from Customer Orders (Sales Orders + Purchase Orders + all subfolders)
+2026-01-21T14:45:08.140481926Z [INFO] Loading METADATA ONLY (no PDF parsing)
+2026-01-21T14:45:08.597105732Z [INFO] Found 6 folders under Customer Orders: ['Sales Orders', 'Proforma Invioices', 'Quote Requests', 'Training', 'Purchase Orders', 'Business Process']
+2026-01-21T14:45:08.597127593Z [INFO] ===== STARTING SCAN OF FOLDER: Sales Orders =====
+2026-01-21T14:45:09.129389729Z [INFO] Found 4 status folders: ['New and Revised', 'In Production', 'Cancelled', 'Completed and Closed']
+2026-01-21T14:45:09.12946613Z [INFO] FILTERED to 2 folders: ['New and Revised', 'In Production']
+2026-01-21T14:45:09.129471911Z [INFO] ===== SCANNING FOLDER: New and Revised =====
+2026-01-21T14:45:09.547635084Z [INFO] Found 3 files in New and Revised
+2026-01-21T14:45:09.907970579Z [INFO] Scanning subfolder: New and Revised/Big Red Oil New Orders (depth: 0)
+2026-01-21T14:45:10.535180408Z [INFO] Scan completed in 1.4s for folder: New and Revised
+2026-01-21T14:45:10.536154198Z [OK] Found 3 sales orders (metadata only) from New and Revised
+2026-01-21T14:45:10.536168098Z [INFO] ===== SCANNING FOLDER: In Production =====
+2026-01-21T14:45:11.202580766Z [INFO] Scanning subfolder: In Production/Scheduled (depth: 0)
+2026-01-21T14:45:11.711208189Z [INFO] Found 32 files in In Production/Scheduled
+2026-01-21T14:45:12Z clientIP="99.209.48.91" requestID="40bae278-caa0-4069" responseTimeMS=3 responseBytes=517 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:12Z clientIP="99.209.48.91" requestID="93a734ad-3c89-4b4b" responseTimeMS=4440 responseBytes=2574 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:12.008701912Z [INFO] Scan completed in 1.5s for folder: In Production
+2026-01-21T14:45:12.010850957Z [OK] Found 32 sales orders (metadata only) from In Production
+2026-01-21T14:45:12.010870207Z [OK] Total orders parsed: 35 (Sales: 0, Purchase: 0)
+2026-01-21T14:45:12.010873287Z ✅ Successfully loaded 35 sales orders from Google Drive API
+2026-01-21T14:45:12.012119313Z [2026-01-21 14:45:12 +0000] [7] [INFO] 10.23.91.65:59328 - - [21/Jan/2026:14:45:12 +0000] "GET /api/sales-orders 1.1" 200 2209 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:12.101703844Z [2026-01-21 14:45:12 +0000] [7] [INFO] 10.19.45.65:36174 - - [21/Jan/2026:14:45:12 +0000] "GET /api/health 1.1" 200 199 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:45:33.964841257Z 
+2026-01-21T14:45:33.964869558Z ================================================================================
+2026-01-21T14:45:33.964875018Z EMAIL: === PROCESSING LOGISTICS EMAIL WITH GPT-4o ===
+2026-01-21T14:45:33.964879608Z ================================================================================
+2026-01-21T14:45:33.964883358Z DEBUG: Function called successfully
+2026-01-21T14:45:33.964886728Z DEBUG: Flask request available: True
+2026-01-21T14:45:33.964891588Z DEBUG: Flask jsonify available: True
+2026-01-21T14:45:33.964896048Z DEBUG: Request method: POST
+2026-01-21T14:45:33.964900438Z DEBUG: Request content type: application/json
+2026-01-21T14:45:33.96495959Z DEBUG: Request has data: True
+2026-01-21T14:45:33.965011501Z DEBUG: Parsed JSON from request.is_json path
+2026-01-21T14:45:33.965027781Z EMAIL: LOGISTICS: Email content length: 254 characters
+2026-01-21T14:45:33.965753856Z 📋 SO Detection: Found 1 SO(s): ['3110']
+2026-01-21T14:45:33.96592756Z ⚡ OPTIMIZATION: Quick SO extraction found: 3110 - starting SO data fetch in parallel with GPT parsing...
+2026-01-21T14:45:33.966175755Z SEARCH: LOGISTICS: Looking up SO 3110 by parsing PDF...
+2026-01-21T14:45:33.966181725Z [INFO] LOGISTICS: Got Google Drive service: True, authenticated: True
+2026-01-21T14:45:33.966189545Z [INFO] LOGISTICS: Using Google Drive API to find SO 3110...
+2026-01-21T14:45:33.966453581Z INFO: Parsing email with GPT-4o-mini for multi-item support...
+2026-01-21T14:45:33.96881049Z [INFO] Attempt 1/3 to list shared drives
+2026-01-21T14:45:33.974727274Z SUCCESS: OpenAI client initialized
+2026-01-21T14:45:33.974736954Z ✅ GPT-4o client available - Parsing email with GPT-4o (attempt 1)...
+2026-01-21T14:45:33.974739864Z Email length: 254 characters
+2026-01-21T14:45:33.974742184Z Email preview: Hi Haron,
+2026-01-21T14:45:33.974744154Z 
+2026-01-21T14:45:33.974746304Z 
+2026-01-21T14:45:33.974748284Z 
+2026-01-21T14:45:33.974751084Z Pengxin (Wuhan) Import & Export purchase order number 20260109 (Canoil sales order 3110 attached) is ready to go out the door:
+2026-01-21T14:45:33.974753114Z 
+2026-01-21T14:45:33.974755444Z  
+2026-01-21T14:45:33.974757424Z 
+2026-01-21T14:45:33.974777685Z 2 kegs of MOV LONG LIFE 0
+2026-01-21T14:45:33.974784115Z 
+2026-01-21T14:45:33.974787495Z 130 kg total gross weight, ba...
+2026-01-21T14:45:34.199180451Z [INFO] Searching for shared drive 'Sales_CSR' among 4 drives
+2026-01-21T14:45:34.199203642Z [INFO] Available shared drives:
+2026-01-21T14:45:34.199207512Z    - IT_Automation (ID: 0AM5YTKFJmMBKUk9PVA)
+2026-01-21T14:45:34.199210682Z    - MPS / Shipments  (ID: 0AMATkJyvydcLUk9PVA)
+2026-01-21T14:45:34.199213832Z    - RnD_Technical  (ID: 0ADpHVFqlBzaNUk9PVA)
+2026-01-21T14:45:34.199216312Z    - Sales_CSR (ID: 0AMwceUKIC3FhUk9PVA)
+2026-01-21T14:45:34.199219302Z [OK] Found shared drive: Sales_CSR (ID: 0AMwceUKIC3FhUk9PVA)
+2026-01-21T14:45:34.522142676Z [OK] Found folder: Customer Orders (ID: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK)
+2026-01-21T14:45:34.522164377Z [OK] Found base folder 'Customer Orders' (ID: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK)
+2026-01-21T14:45:34.979934447Z [OK] Found folder: Customer Orders (ID: 1H3aPBy3h7esIftOOvnBPd07CXNBqS_nK)
+2026-01-21T14:45:35.343693684Z [OK] Found folder: Sales Orders (ID: 1dCr5ZgtBvhV7mHM26ldrfHgTRXkU65gq)
+2026-01-21T14:45:35.343721735Z [OK] Found base folder 'Customer Orders/Sales Orders' (ID: 1dCr5ZgtBvhV7mHM26ldrfHgTRXkU65gq)
+2026-01-21T14:45:35.343726875Z [INFO] LOGISTICS: Searching for SO 3110 using Google Drive query (fast search)...
+2026-01-21T14:45:35.723255581Z [OK] LOGISTICS: Found SO file in Google Drive: salesorder_3110.pdf
+2026-01-21T14:45:35.723292372Z [INFO] LOGISTICS: Downloading SO file (attempt 1/3)...
+2026-01-21T14:45:36.44287526Z [OK] LOGISTICS: Download successful (230242 bytes)
+2026-01-21T14:45:36.443520443Z [OK] LOGISTICS: Downloaded SO file to CACHE location: /app/backend/cache/so_pdfs/salesorder_3110.pdf
+2026-01-21T14:45:36.443536804Z LOGISTICS: Parsing SO PDF with GPT-4o based parser (raw_so_extractor)
+2026-01-21T14:45:36.450966539Z ✅ Using raw_so_extractor (GPT-4o) for better address parsing
+2026-01-21T14:45:36.450983349Z DEBUG: Calling parse_sales_order_pdf with file: /app/backend/cache/so_pdfs/salesorder_3110.pdf
+2026-01-21T14:45:36.450987469Z DEBUG: File exists: True
+2026-01-21T14:45:36.45099035Z 
+2026-01-21T14:45:36.45099393Z ================================================================================
+2026-01-21T14:45:36.45101345Z SO PARSER - RAW EXTRACTION + OPENAI STRUCTURING
+2026-01-21T14:45:36.45101774Z Version: 2025-10-12 (Raw + AI)
+2026-01-21T14:45:36.45102045Z ================================================================================
+2026-01-21T14:45:36.4510228Z 
+2026-01-21T14:45:36.504290983Z 
+2026-01-21T14:45:36.504320923Z === DEBUG: extract_addresses_from_tables ===
+2026-01-21T14:45:36.504325473Z Number of tables: 1
+2026-01-21T14:45:36.504328273Z 
+2026-01-21T14:45:36.504331113Z Table 0: 3 rows
+2026-01-21T14:45:36.504334564Z   Row 0: ['Item No.', 'Ordered', 'Unit', 'Description', 'Tax', 'Unit Price', 'Amount']
+2026-01-21T14:45:36.504340144Z   Row 1: ['MOVLL0K55kg\nPallet\nMiscellaneous', '2\n1\n1', 'KEG\nEach\nEach', 'MOV LONG LIFE 0 55kg KEG\nPallet charge\nMiscellaneous Work\nCofA Required\nTrade Terms: EXW | Ship by Air\nSubtotal:', '', '1,437.77\n35.00\n208.68', 'US$2,875.54\nUS$35.00\nUS$208.68\nUS$3,119.22']
+2026-01-21T14:45:36.504343684Z   Row 2: ['Shipped By:\nComment: PO-20260109\nSold By:', None, None, None, None, 'Total Amount', 'US$3,119.22']
+2026-01-21T14:45:36.504345254Z 
+2026-01-21T14:45:36.504347054Z === FINAL EXTRACTED ADDRESSES ===
+2026-01-21T14:45:36.504348994Z SOLD TO:
+2026-01-21T14:45:36.504350634Z 
+2026-01-21T14:45:36.504354374Z 
+2026-01-21T14:45:36.504356084Z SHIP TO:
+2026-01-21T14:45:36.504357694Z 
+2026-01-21T14:45:36.504359424Z =================================
+2026-01-21T14:45:36.504361014Z 
+2026-01-21T14:45:36.504363244Z Table extraction empty - trying layout text extraction...
+2026-01-21T14:45:36.506176632Z 
+2026-01-21T14:45:36.506191702Z === LAYOUT TEXT EXTRACTED ADDRESSES ===
+2026-01-21T14:45:36.506194592Z SOLD TO:
+2026-01-21T14:45:36.506197523Z Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:36.506200012Z Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:45:36.506202523Z Qianjin Village, Hanyang District
+2026-01-21T14:45:36.506204683Z China
+2026-01-21T14:45:36.506206613Z 
+2026-01-21T14:45:36.506208783Z SHIP TO:
+2026-01-21T14:45:36.506211103Z Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:36.506213183Z Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:45:36.506215293Z lock
+2026-01-21T14:45:36.506217463Z Qianjin Village, Hanyang Distric
+2026-01-21T14:45:36.506219623Z , Wuhan
+2026-01-21T14:45:36.506221703Z China
+2026-01-21T14:45:36.506224363Z =======================================
+2026-01-21T14:45:36.506226553Z 
+2026-01-21T14:45:36.506233533Z PRE-EXTRACTED SOLD TO: Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:36.506236683Z Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:45:36.506239273Z Qianjin Village, Hanyang District
+2026-01-21T14:45:36.506242223Z China
+2026-01-21T14:45:36.506245213Z PRE-EXTRACTED SHIP TO: Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:36.506248053Z Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:45:36.506250473Z lock
+2026-01-21T14:45:36.506252653Z Qianjin Village, Hanyang Distric
+2026-01-21T14:45:36.506254864Z , Wuhan
+2026-01-21T14:45:36.506256974Z China
+2026-01-21T14:45:36.514394634Z [OK] OpenAI client initialized (key length: 164 chars)
+2026-01-21T14:45:40.120932245Z 
+2026-01-21T14:45:40.120984216Z ================================================================================
+2026-01-21T14:45:40.120989066Z GPT-4o-mini RAW RESPONSE:
+2026-01-21T14:45:40.120991986Z ================================================================================
+2026-01-21T14:45:40.120994746Z {
+2026-01-21T14:45:40.120998566Z     "so_number": "3110",
+2026-01-21T14:45:40.121001006Z     "so_line_numbers": null,
+2026-01-21T14:45:40.121004437Z     "is_partial_shipment": false,
+2026-01-21T14:45:40.121017317Z     "po_number": "20260109",
+2026-01-21T14:45:40.121021877Z     "company_name": "Pengxin (Wuhan) Import & Export",
+2026-01-21T14:45:40.121024727Z     "contact_person": null,
+2026-01-21T14:45:40.121027367Z     "sold_to_company": null,
+2026-01-21T14:45:40.121029857Z     "ship_to_company": null,
+2026-01-21T14:45:40.121032617Z     "sold_to_address": null,
+2026-01-21T14:45:40.121035367Z     "ship_to_address": null,
+2026-01-21T14:45:40.121038057Z     "items": [
+2026-01-21T14:45:40.121040627Z         {
+2026-01-21T14:45:40.121043147Z             "description": "MOV LONG LIFE 0",
+2026-01-21T14:45:40.121045838Z             "quantity": "2",
+2026-01-21T14:45:40.121048498Z             "unit": "kegs",
+2026-01-21T14:45:40.121050847Z             "batch_number": "WH5B16G031"
+2026-01-21T14:45:40.121053318Z         }
+2026-01-21T14:45:40.121055738Z     ],
+2026-01-21T14:45:40.121058118Z     "total_weight": "130 kg",
+2026-01-21T14:45:40.121060508Z     "pallet_count": 1,
+2026-01-21T14:45:40.121062918Z     "pallet_dimensions": "23.5×45×32 inches",
+2026-01-21T14:45:40.121065298Z     "packaging_type": "pallet",
+2026-01-21T14:45:40.121067748Z     "special_instructions": null,
+2026-01-21T14:45:40.121070208Z     "ship_date": null,
+2026-01-21T14:45:40.121072808Z     "carrier": null,
+2026-01-21T14:45:40.121075888Z     "tracking_number": null,
+2026-01-21T14:45:40.121078648Z     "truck_info": null,
+2026-01-21T14:45:40.121081328Z     "broker_carrier_ref": null,
+2026-01-21T14:45:40.121083748Z     "terms_of_sale": null,
+2026-01-21T14:45:40.121086088Z     "final_destination": null,
+2026-01-21T14:45:40.121088618Z     "customs_broker": null
+2026-01-21T14:45:40.121091038Z }
+2026-01-21T14:45:40.121093699Z ================================================================================
+2026-01-21T14:45:40.121096008Z 
+2026-01-21T14:45:40.121098799Z [OK] Successfully parsed JSON from GPT
+2026-01-21T14:45:40.121101408Z [OK] Extracted SO: 3110
+2026-01-21T14:45:40.121104119Z [OK] Extracted company_name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:40.121107019Z ⚠️ WARNING: GPT did not extract so_line_numbers field!
+2026-01-21T14:45:40.121378814Z ✅ MANUAL EXTRACTION: No line number after SO - FULL SHIPMENT
+2026-01-21T14:45:40.121386885Z 
+2026-01-21T14:45:40.121390365Z 🔍 LINE NUMBER CHECK:
+2026-01-21T14:45:40.121393025Z    so_line_numbers: None
+2026-01-21T14:45:40.121396025Z    is_partial_shipment: False
+2026-01-21T14:45:40.121398445Z 
+2026-01-21T14:45:40.121570568Z ✅ GPT EXTRACTED - Using data AS-IS (no filtering):
+2026-01-21T14:45:40.121587839Z    Batch numbers: WH5B16G031
+2026-01-21T14:45:40.121590639Z    Company name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:45:40.121592439Z    Total items extracted: 1
+2026-01-21T14:45:40.121594179Z    Items with batches: [('MOV LONG LIFE 0', 'WH5B16G031')]
+2026-01-21T14:45:40.121754742Z Successfully parsed email - SO: 3110, Company: Pengxin (Wuhan) Import & Export, Items: 1
+2026-01-21T14:45:40.121787863Z    Packaging type: pallet, Skid info: 1 pallet 23.5×45×32 inches
+2026-01-21T14:45:40.121924726Z 📦 PALLET COUNT FROM EMAIL: 1 (found: ['1'])
+2026-01-21T14:45:40.121930066Z    GPT said: 1
+2026-01-21T14:45:40.121932646Z    skid_info: 1 pallet 23.5×45×32 inches
+2026-01-21T14:45:40.121934856Z 
+2026-01-21T14:45:40.121938296Z ================================================================================
+2026-01-21T14:45:40.121941726Z EMAIL DATA PARSED:
+2026-01-21T14:45:40.121944386Z   SO Number: 3110
+2026-01-21T14:45:40.121946976Z   Line Numbers: None
+2026-01-21T14:45:40.121957526Z   Is Partial Shipment: False
+2026-01-21T14:45:40.121960457Z   PO Number: 20260109
+2026-01-21T14:45:40.121963197Z   Total Weight: 130 kg
+2026-01-21T14:45:40.121965547Z   Pallet Count: 1
+2026-01-21T14:45:40.121990827Z   Pallet Dimensions: 23.5×45×32 inches
+2026-01-21T14:45:40.121994287Z   Carrier: None
+2026-01-21T14:45:40.121996897Z ================================================================================
+2026-01-21T14:45:40.121999297Z 
+2026-01-21T14:45:40.122001727Z EMAIL: LOGISTICS: Found SO number: 3110
+2026-01-21T14:45:40.122004407Z DEBUG: quick_so_number from regex: 3110
+2026-01-21T14:45:40.122006987Z DEBUG: so_number from GPT: 3110
+2026-01-21T14:45:40.122009798Z DEBUG: so_data_promise exists: True
+2026-01-21T14:45:40.122012928Z ⚡ OPTIMIZATION: Using pre-fetched SO data (loaded in parallel with GPT parsing)...
+2026-01-21T14:45:49.070224988Z 
+2026-01-21T14:45:49.070249979Z 🔍 OpenAI Validation: Checking for duplicates and bad parsing...
+2026-01-21T14:46:00.263345074Z ✅ OpenAI validation complete - duplicates removed, addresses cleaned
+2026-01-21T14:46:00.263386645Z DEBUG: parse_sales_order_pdf returned: dict
+2026-01-21T14:46:00.263392715Z DEBUG: so_data keys: ['so_number', 'customer_name', 'order_date', 'ship_date', 'po_number', 'business_number', 'terms', 'sold_to', 'ship_to', 'items', 'subtotal', 'tax', 'total_amount', 'brokerage', 'special_instructions', 'raw_text', 'billing_address', 'shipping_address', 'due_date', 'file_info', 'data_source', 'status']
+2026-01-21T14:46:00.263399225Z DEBUG: so_data status: Parsed
+2026-01-21T14:46:00.263410735Z SUCCESS: LOGISTICS: Original parsing successful - Total: $3,119.22
+2026-01-21T14:46:00.263415846Z 
+2026-01-21T14:46:00.263419975Z Matching HTS codes for items...
+2026-01-21T14:46:00.264956778Z Loaded 56 HTS code entries
+2026-01-21T14:46:00.264969258Z   MATCHED MOVLL0K55kg: HTS 2710.19.3500
+2026-01-21T14:46:00.264973608Z   NO MATCH Miscellaneous: No HTS code found
+2026-01-21T14:46:00.264978138Z 
+2026-01-21T14:46:00.264983678Z DEBUG SO DATA PARSED:
+2026-01-21T14:46:00.264987948Z   SO Number: 3110
+2026-01-21T14:46:00.264992028Z   Customer: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.265001719Z   Items Count: 3
+2026-01-21T14:46:00.265006929Z   Billing Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.265015689Z   Shipping Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.265020169Z   Sold To Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.265024729Z   Ship To Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.26507149Z   Item 1: MOVLL0K55kg - MOV LONG LIFE 0 55kg KEG - 2 KEG - HTS: 2710.19.3500
+2026-01-21T14:46:00.26507834Z   Item 2: Pallet - Pallet charge - 1 Each - HTS: NO HTS
+2026-01-21T14:46:00.26508305Z   Item 3: Miscellaneous - Miscellaneous Work - 1 Each - HTS: NO HTS
+2026-01-21T14:46:00.26509169Z 
+2026-01-21T14:46:00.265464618Z 💾 Cached SO data for 3110 (TTL: 600s)
+2026-01-21T14:46:00.265591691Z DEBUG: SO data status: Found in system
+2026-01-21T14:46:00.265599241Z DEBUG: SO data keys: ['so_number', 'customer_name', 'order_date', 'ship_date', 'po_number', 'business_number', 'terms', 'sold_to', 'ship_to', 'items', 'subtotal', 'tax', 'total_amount', 'brokerage', 'special_instructions', 'raw_text', 'billing_address', 'shipping_address', 'due_date', 'file_info', 'data_source', 'status', 'file_path', 'source']
+2026-01-21T14:46:00.265606481Z 
+2026-01-21T14:46:00.265611151Z 🔍 STARTING ITEM VALIDATION
+2026-01-21T14:46:00.265615731Z    Email has items: True
+2026-01-21T14:46:00.265619492Z    Email items count: 1
+2026-01-21T14:46:00.265622872Z 
+2026-01-21T14:46:00.265637282Z 🔍 DEBUG: SO ITEMS CHECK
+2026-01-21T14:46:00.265653972Z    SO items count: 3
+2026-01-21T14:46:00.265660492Z    SO items type: <class 'list'>
+2026-01-21T14:46:00.265663122Z    SO items is list: True
+2026-01-21T14:46:00.265665662Z    First item type: <class 'dict'>
+2026-01-21T14:46:00.265668593Z    First item keys: ['item_code', 'description', 'quantity', 'unit', 'unit_price', 'total_price', 'hts_code', 'country_of_origin']
+2026-01-21T14:46:00.265671402Z    Item 1: code='MOVLL0K55kg', desc='MOV LONG LIFE 0 55kg KEG', qty='2'
+2026-01-21T14:46:00.265677563Z    Item 2: code='Pallet', desc='Pallet charge', qty='1'
+2026-01-21T14:46:00.265680453Z    Item 3: code='Miscellaneous', desc='Miscellaneous Work', qty='1'
+2026-01-21T14:46:00.265682843Z 
+2026-01-21T14:46:00.265686013Z ✅ FULL SHIPMENT - Validating all items
+2026-01-21T14:46:00.265688583Z    Total SO items to check: 3
+2026-01-21T14:46:00.265694533Z    ✅ ADDED to matching list: 'MOV LONG LIFE 0 55KG KEG' (code: MOVLL0K55KG)
+2026-01-21T14:46:00.265697193Z    ⏭️  SKIPPED (non-product): PALLET CHARGE
+2026-01-21T14:46:00.265699883Z    ✅ ADDED to matching list: 'MISCELLANEOUS WORK' (code: MISCELLANEOUS)
+2026-01-21T14:46:00.265702103Z 
+2026-01-21T14:46:00.265705013Z 📊 SO ITEMS SUMMARY:
+2026-01-21T14:46:00.265707663Z    Items before filter: 3
+2026-01-21T14:46:00.265712943Z    Items after filter: 2
+2026-01-21T14:46:00.265718454Z    SO item names: ['MOV LONG LIFE 0 55KG KEG', 'MISCELLANEOUS WORK']
+2026-01-21T14:46:00.265735224Z    SO item codes: ['MOVLL0K55KG', 'MISCELLANEOUS']
+2026-01-21T14:46:00.265737654Z 
+2026-01-21T14:46:00.265740444Z 📧 EMAIL ITEMS TO MATCH:
+2026-01-21T14:46:00.265743084Z    - 'MOV LONG LIFE 0' (qty: 2)
+2026-01-21T14:46:00.265809345Z 
+2026-01-21T14:46:00.265819966Z 🔍 MATCHING EMAIL ITEM: 'MOV LONG LIFE 0' (qty: 2)
+2026-01-21T14:46:00.265823536Z    Available SO items: ['MOV LONG LIFE 0 55KG KEG', 'MISCELLANEOUS WORK']...
+2026-01-21T14:46:00.265826656Z    🔍 COMPARING: Email='MOV LONG LIFE 0' vs SO='MOV LONG LIFE 0 55KG KEG'
+2026-01-21T14:46:00.265840386Z       Check 1 (email in SO): True
+2026-01-21T14:46:00.265846486Z       Check 2 (SO in email): False
+2026-01-21T14:46:00.265849956Z       Check 3 (word match): True (email words: {'0', 'LONG', 'MOV', 'LIFE'})
+2026-01-21T14:46:00.265911667Z       ✅ DESCRIPTION MATCH: Email=2.0, SO=2.0 (partial shipment OK)
+2026-01-21T14:46:00.265916018Z    ✅ EXACT MATCH: 'MOV LONG LIFE 0' = 'MOV LONG LIFE 0 55KG KEG'
+2026-01-21T14:46:00.265918478Z    📊 QUANTITY CHECK: Email qty='2' (2.0), SO qty='2' (type: int)
+2026-01-21T14:46:00.265921178Z    📊 QUANTITY COMPARISON: Email=2.0, SO=2.0, Diff=0.0
+2026-01-21T14:46:00.265924638Z    ✅ QUANTITY MATCH: Quantity matches: 2.0
+2026-01-21T14:46:00.265927458Z    ✅ MATCHED: Matched with SO item: MOV LONG LIFE 0 55KG KEG
+2026-01-21T14:46:00.265961179Z SUCCESS: LOGISTICS: Email validated successfully against SO 3110
+2026-01-21T14:46:00.265966679Z No dangerous goods detected - standard shipping
+2026-01-21T14:46:00.26601213Z    🔄 BATCH MATCHING: 1 email items → 3 SO items
+2026-01-21T14:46:00.266435178Z    ⚠️ 1 SO items have no batch match
+2026-01-21T14:46:00.266441249Z    Batch matching: 1 matched, 1 unmatched
+2026-01-21T14:46:00.266444039Z    📋 Matching HTS codes for items...
+2026-01-21T14:46:00.267346637Z 
+2026-01-21T14:46:00.267358518Z ============================================================
+2026-01-21T14:46:00.267362078Z 🔍 BROKER DETECTION (SHARED LOGIC):
+2026-01-21T14:46:00.267364818Z    Customer: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.267367698Z    Is Georgia Western: False
+2026-01-21T14:46:00.267378398Z    GPT extracted broker: ''
+2026-01-21T14:46:00.267381298Z    Near North in email/GPT: False
+2026-01-21T14:46:00.267383948Z    Has broker keywords: False
+2026-01-21T14:46:00.267386288Z    Canoil handles brokerage: False
+2026-01-21T14:46:00.267388678Z    SO has freight+brokerage: False
+2026-01-21T14:46:00.267391058Z ============================================================
+2026-01-21T14:46:00.267393829Z    ℹ️ No Near North broker detected - broker section will be empty
+2026-01-21T14:46:00.267396149Z 
+2026-01-21T14:46:00.267398969Z ================================================================================
+2026-01-21T14:46:00.267401959Z SERVER RESTART CHECK
+2026-01-21T14:46:00.267404499Z If you see this message, the server is running LATEST code!
+2026-01-21T14:46:00.26745518Z Timestamp: 2026-01-21 14:46:00.267305
+2026-01-21T14:46:00.26746317Z ================================================================================
+2026-01-21T14:46:00.26746616Z 
+2026-01-21T14:46:00.26746914Z SUCCESS: LOGISTICS: Successfully processed SO 3110 with REAL DATA
+2026-01-21T14:46:00.26747676Z DEBUG: email_data being returned: {
+2026-01-21T14:46:00.26747969Z   "so_number": "3110",
+2026-01-21T14:46:00.26748225Z   "so_line_numbers": null,
+2026-01-21T14:46:00.26748493Z   "is_partial_shipment": false,
+2026-01-21T14:46:00.267487631Z   "po_number": "20260109",
+2026-01-21T14:46:00.267490171Z   "company_name": "Pengxin (Wuhan) Import & Export",
+2026-01-21T14:46:00.26749278Z   "contact_person": null,
+2026-01-21T14:46:00.26749536Z   "sold_to_company": null,
+2026-01-21T14:46:00.267497781Z   "ship_to_company": null,
+2026-01-21T14:46:00.267512371Z   "sold_to_address": null,
+2026-01-21T14:46:00.267514961Z   "ship_to_address": null,
+2026-01-21T14:46:00.267517451Z   "items": [
+2026-01-21T14:46:00.267520081Z     {
+2026-01-21T14:46:00.267522631Z       "description": "MOV LONG LIFE 0",
+2026-01-21T14:46:00.267525311Z       "quantity": "2",
+2026-01-21T14:46:00.267527931Z       "unit": "kegs",
+2026-01-21T14:46:00.267530371Z       "batch_number": "WH5B16G031"
+2026-01-21T14:46:00.267532911Z     }
+2026-01-21T14:46:00.267535392Z   ],
+2026-01-21T14:46:00.267537881Z   "total_weight": "130 kg",
+2026-01-21T14:46:00.267540492Z   "pallet_count": 1,
+2026-01-21T14:46:00.267542932Z   "pallet_dimensions": "23.5×45×32 inches",
+2026-01-21T14:46:00.267545482Z   "packaging_type": "pallet",
+2026-01-21T14:46:00.267547892Z   "special_instructions": null,
+2026-01-21T14:46:00.267550182Z   "ship_date": null,
+2026-01-21T14:46:00.267552472Z   "carrier": null,
+2026-01-21T14:46:00.267555142Z   "tracking_number": null,
+2026-01-21T14:46:00.267557532Z   "truck_info": null,
+2026-01-21T14:46:00.267559812Z   "broker_carrier_ref": null,
+2026-01-21T14:46:00.267562012Z   "terms_of_sale": null,
+2026-01-21T14:46:00.267564372Z   "final_destination": null,
+2026-01-21T14:46:00.267566662Z   "customs_broker": null,
+2026-01-21T14:46:00.267568942Z   "batch_numbers": "WH5B16G031",
+2026-01-21T14:46:00.267571212Z   "skid_info": "1 pallet 23.5×45×32 inches",
+2026-01-21T14:46:00.267574052Z   "raw_text": "Hi Haron,\n\n\n\nPengxin (Wuhan) Import & Export purchase order number 20260109 (Canoil sales order 3110 attached) is ready to go out the door:\n\n \n\n2 kegs of MOV LONG LIFE 0\n\n130 kg total gross weight, batch number WH5B16G031\n\nOn 1 pallet, 23.5×45×32 inches ",
+2026-01-21T14:46:00.267576492Z   "use_near_north": false,
+2026-01-21T14:46:00.267579072Z   "requested_documents": {
+2026-01-21T14:46:00.267581562Z     "bol": true,
+2026-01-21T14:46:00.267584002Z     "packing_slip": true,
+2026-01-21T14:46:00.267594553Z     "commercial_invoice": true,
+2026-01-21T14:46:00.267597363Z     "usmca": true,
+2026-01-21T14:46:00.267599713Z     "tsca": true,
+2026-01-21T14:46:00.267602403Z     "dangerous_goods": true,
+2026-01-21T14:46:00.267604993Z     "all_documents": true
+2026-01-21T14:46:00.267607253Z   }
+2026-01-21T14:46:00.267615013Z }
+2026-01-21T14:46:00.267617333Z 
+2026-01-21T14:46:00.267620343Z ================================================================================
+2026-01-21T14:46:00.267622903Z ADDRESSES BEING SENT TO FRONTEND:
+2026-01-21T14:46:00.267625513Z ================================================================================
+2026-01-21T14:46:00.267627833Z Billing Address:
+2026-01-21T14:46:00.267630443Z   company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00Z clientIP="99.209.48.91" requestID="1a43baea-ba00-4176" responseTimeMS=26309 responseBytes=2572 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:46:00.267632814Z   contact: 
+2026-01-21T14:46:00.267635234Z   street: Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:46:00.267637814Z   city: Qianjin Village, Hanyang District
+2026-01-21T14:46:00.267640154Z   province: 
+2026-01-21T14:46:00.267642594Z   postal: 
+2026-01-21T14:46:00.267645114Z   country: China
+2026-01-21T14:46:00.267647304Z 
+2026-01-21T14:46:00.267649944Z Shipping Address:
+2026-01-21T14:46:00.267652434Z   company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:46:00.267654784Z   street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:46:00.267657304Z   city: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:46:00.267659704Z   province: 
+2026-01-21T14:46:00.267662444Z   postal: 
+2026-01-21T14:46:00.267664994Z   country: China
+2026-01-21T14:46:00.267667604Z ================================================================================
+2026-01-21T14:46:00.267669874Z 
+2026-01-21T14:46:00.269588704Z [2026-01-21 14:46:00 +0000] [7] [INFO] 10.19.135.2:49356 - - [21/Jan/2026:14:46:00 +0000] "POST /api/logistics/process-email 1.1" 200 2127 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:47:14.889688284Z 
+2026-01-21T14:47:14.889733345Z 🔥🔥🔥 NEW CODE LOADED - 2025-10-12-22:00 - BUGS FIXED 🔥🔥🔥
+2026-01-21T14:47:14.889738855Z 
+2026-01-21T14:47:14.889744805Z 📋 === GENERATING ALL LOGISTICS DOCUMENTS ===
+2026-01-21T14:47:14.889890878Z DEBUG: Received data keys: dict_keys(['so_data', 'email_shipping', 'email_analysis', 'items', 'booking_number', 'requested_documents', 'shipper_override'])
+2026-01-21T14:47:14.889904488Z 
+2026-01-21T14:47:14.889910088Z ============================================================
+2026-01-21T14:47:14.889915448Z 📄 REQUESTED DOCUMENTS:
+2026-01-21T14:47:14.889919479Z    all_documents: ✅ Yes
+2026-01-21T14:47:14.889923299Z    bol: ✅ Yes
+2026-01-21T14:47:14.889927279Z    commercial_invoice: ✅ Yes
+2026-01-21T14:47:14.889931179Z    dangerous_goods: ✅ Yes
+2026-01-21T14:47:14.889936339Z    packing_slip: ✅ Yes
+2026-01-21T14:47:14.889940159Z    tsca: ✅ Yes
+2026-01-21T14:47:14.889956809Z    usmca: ✅ Yes
+2026-01-21T14:47:14.889964589Z ============================================================
+2026-01-21T14:47:14.88996858Z 
+2026-01-21T14:47:14.88997251Z 
+2026-01-21T14:47:14.8899764Z ============================================================
+2026-01-21T14:47:14.88998026Z 🔍 GENERATE-ALL-DOCUMENTS: email_analysis CHECK
+2026-01-21T14:47:14.88998591Z    email_analysis keys: ['batch_numbers', 'broker_carrier_ref', 'carrier', 'company_name', 'contact_person', 'customs_broker', 'final_destination', 'is_partial_shipment', 'items', 'packaging_type', 'pallet_count', 'pallet_dimensions', 'po_number', 'raw_text', 'requested_documents', 'ship_date', 'ship_to_address', 'ship_to_company', 'skid_info', 'so_line_numbers', 'so_number', 'sold_to_address', 'sold_to_company', 'special_instructions', 'terms_of_sale', 'total_weight', 'tracking_number', 'truck_info', 'use_near_north']
+2026-01-21T14:47:14.89000493Z    use_near_north: 'False'
+2026-01-21T14:47:14.89000769Z    customs_broker: 'None'
+2026-01-21T14:47:14.89001019Z    customs_broker_phone: 'NOT SET'
+2026-01-21T14:47:14.890012721Z    raw_text present: True
+2026-01-21T14:47:14.890014991Z    raw_text length: 254
+2026-01-21T14:47:14.890017491Z    raw_text preview: Hi Haron,
+2026-01-21T14:47:14.890019741Z 
+2026-01-21T14:47:14.890021761Z 
+2026-01-21T14:47:14.890023841Z 
+2026-01-21T14:47:14.890027111Z Pengxin (Wuhan) Import & Export purchase order number 20260109 (Canoil sales order 3110 attached) is ready to go out the door:
+2026-01-21T14:47:14.890029451Z 
+2026-01-21T14:47:14.890031811Z  
+2026-01-21T14:47:14.890033921Z 
+2026-01-21T14:47:14.890036231Z 2 kegs of MOV LONG LIFE 0
+2026-01-21T14:47:14.890038551Z 
+2026-01-21T14:47:14.890040871Z 130 kg total gross weight, ba...
+2026-01-21T14:47:14.890047441Z    is_multi_so: NOT SET
+2026-01-21T14:47:14.890050201Z ============================================================
+2026-01-21T14:47:14.890052371Z 
+2026-01-21T14:47:14.890061542Z ⚠️ raw_text/email_body present but use_near_north not set - re-running broker detection...
+2026-01-21T14:47:14.890067912Z 
+2026-01-21T14:47:14.890073062Z ============================================================
+2026-01-21T14:47:14.890076132Z 🔍 BROKER DETECTION (SHARED LOGIC):
+2026-01-21T14:47:14.890078362Z    Customer: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:14.890081292Z    Is Georgia Western: False
+2026-01-21T14:47:14.890083462Z    GPT extracted broker: ''
+2026-01-21T14:47:14.890085612Z    Near North in email/GPT: False
+2026-01-21T14:47:14.890087722Z    Has broker keywords: False
+2026-01-21T14:47:14.890089862Z    Canoil handles brokerage: False
+2026-01-21T14:47:14.890097432Z    SO has freight+brokerage: False
+2026-01-21T14:47:14.890099752Z ============================================================
+2026-01-21T14:47:14.890104203Z    ℹ️ No Near North broker detected - broker section will be empty
+2026-01-21T14:47:14.890111993Z    ✅ use_near_north after re-detection: False
+2026-01-21T14:47:14.890115273Z    ✅ customs_broker after re-detection: None
+2026-01-21T14:47:14.890118933Z DEBUG: Filtered items (no samples): 3 items
+2026-01-21T14:47:14.90293702Z 
+2026-01-21T14:47:14.902967291Z 📁 Document folder structure created: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109
+2026-01-21T14:47:14.902971461Z    HTML Format: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/HTML Format
+2026-01-21T14:47:14.902974111Z    PDF Format: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format
+2026-01-21T14:47:15.028407621Z [OK] pdfkit PDF converter available
+2026-01-21T14:47:15.028429181Z DEBUG: Generating BOL for SO 3110
+2026-01-21T14:47:15.028435341Z DEBUG BOL: Using email data with keys: ['batch_numbers', 'broker_carrier_ref', 'carrier', 'company_name', 'contact_person', 'customs_broker', 'final_destination', 'is_partial_shipment', 'items', 'packaging_type', 'pallet_count', 'pallet_dimensions', 'po_number', 'raw_text', 'requested_documents', 'ship_date', 'ship_to_address', 'ship_to_company', 'skid_info', 'so_line_numbers', 'so_number', 'sold_to_address', 'sold_to_company', 'special_instructions', 'terms_of_sale', 'total_weight', 'tracking_number', 'truck_info', 'use_near_north']
+2026-01-21T14:47:15.028439001Z DEBUG BOL: skid_info = 1 pallet 23.5×45×32 inches
+2026-01-21T14:47:15.028455172Z DEBUG BOL: pallet_count = 1
+2026-01-21T14:47:15.028457732Z DEBUG BOL: pallet_dimensions = 23.5×45×32 inches
+2026-01-21T14:47:15.028466862Z 
+2026-01-21T14:47:15.028470252Z ================================================================================
+2026-01-21T14:47:15.028472872Z GENERATING NEW BOL (Professional Format)
+2026-01-21T14:47:15.028475392Z ================================================================================
+2026-01-21T14:47:15.038176075Z 
+2026-01-21T14:47:15.038192915Z >> Extracting data...
+2026-01-21T14:47:15.038196596Z    Items: 1 products (filtered from 3 total)
+2026-01-21T14:47:15.038320798Z    Weight from email: 130 kg -> 130.0 kg
+2026-01-21T14:47:15.03843122Z    DEBUG: Batch numbers extracted and normalized: ['WH5B16G031']
+2026-01-21T14:47:15.038438601Z    DEBUG: Using skid_info from parsing: 1 pallet 23.5×45×32 inches
+2026-01-21T14:47:15.038569513Z    DEBUG: Extracted count from skid_info: 1
+2026-01-21T14:47:15.038574423Z    Total pieces: 2
+2026-01-21T14:47:15.038577493Z    Total weight: 130.0 kg
+2026-01-21T14:47:15.038580473Z    Batch numbers: ['WH5B16G031'] (count: 1)
+2026-01-21T14:47:15.038583153Z    Skid info: 1 pallet 23.5×45×32 inches
+2026-01-21T14:47:15.038585484Z    Total skids: 1
+2026-01-21T14:47:15.038587944Z    ✅ No dangerous goods detected
+2026-01-21T14:47:15.038591894Z 
+2026-01-21T14:47:15.038594404Z 📋 REFERENCE NUMBERS (REQUIRED):
+2026-01-21T14:47:15.038596734Z    PO Number: 'PO-20260109' (from: SO data)
+2026-01-21T14:47:15.038598924Z    SO Number: '3110' (from: SO data)
+2026-01-21T14:47:15.038648085Z    📦 RAW shipping_address fields:
+2026-01-21T14:47:15.038651495Z       address: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038654505Z       city: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.038656765Z       company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.038659115Z       company_name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.038661445Z       contact: 
+2026-01-21T14:47:15.038663825Z       contact_person: 
+2026-01-21T14:47:15.038666255Z       country: China
+2026-01-21T14:47:15.038668475Z       email: 
+2026-01-21T14:47:15.038670965Z       full_address: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.038673646Z Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038675926Z Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.038678175Z China
+2026-01-21T14:47:15.038680555Z       phone: 
+2026-01-21T14:47:15.038682926Z       postal: 
+2026-01-21T14:47:15.038685276Z       postal_code: 
+2026-01-21T14:47:15.038687466Z       province: 
+2026-01-21T14:47:15.038689656Z       street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038691866Z       street_address: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038828669Z    DEBUG extract_consignee_address:
+2026-01-21T14:47:15.038836459Z       Name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.038838999Z       Street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038842059Z       City/State: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.038844929Z       Postal:  ❌ MISSING
+2026-01-21T14:47:15.038847789Z    Consignee: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.038850599Z    Street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.038852989Z    City/State: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.038855729Z    Postal: 
+2026-01-21T14:47:15.038858709Z    Freight: Collect
+2026-01-21T14:47:15.039221357Z    🚛 Logistics Carrier: None specified in email
+2026-01-21T14:47:15.039226537Z    Brokerage: None
+2026-01-21T14:47:15.039240727Z    Shipment Date: 2026-01-21
+2026-01-21T14:47:15.039243227Z 
+2026-01-21T14:47:15.039245597Z >> Populating template...
+2026-01-21T14:47:15.039674326Z    Set shipper date #1: 2026-01-21
+2026-01-21T14:47:15.039802229Z 
+2026-01-21T14:47:15.039812809Z >> Extracting shipper address...
+2026-01-21T14:47:15.039816239Z    Shipper: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.039818969Z    Street: Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:47:15.039821719Z    City: Qianjin Village, Hanyang District
+2026-01-21T14:47:15.03982481Z    Province: 
+2026-01-21T14:47:15.03982771Z    Postal: 
+2026-01-21T14:47:15.03983019Z 
+2026-01-21T14:47:15.03983318Z >> Filling shipper address fields...
+2026-01-21T14:47:15.039957902Z    ✅ Set shipper name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.040024023Z    ✅ Set shipper street: Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:47:15.040032954Z    ✅ Set shipper city: Qianjin Village, Hanyang District
+2026-01-21T14:47:15.040144956Z    ✅ Set shipper street: Room 1-1810 Hengda yujingwan K7 b
+2026-01-21T14:47:15.040198727Z 
+2026-01-21T14:47:15.040203537Z >> Filling consignee address fields...
+2026-01-21T14:47:15.040206847Z    Name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.040209698Z    Street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.040212567Z    City/State: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.040215278Z    Postal: 
+2026-01-21T14:47:15.040364671Z    ✅ Set consignee name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:15.040402671Z    ✅ Set street: Room 1-1810 Hengda yujingwan K7
+2026-01-21T14:47:15.040414052Z    ✅ Set city/state: Qianjin Village, Hanyang District, Wuhan
+2026-01-21T14:47:15.040443602Z    ⚠️ WARNING: Postal code is MISSING - address may be incomplete!
+2026-01-21T14:47:15.040484933Z 
+2026-01-21T14:47:15.040488743Z    🔄 Using fallback method for missing fields...
+2026-01-21T14:47:15.040746279Z    Found 11 input fields in consignee table
+2026-01-21T14:47:15.040750549Z    ✅ All available address fields filled successfully
+2026-01-21T14:47:15.041057735Z    Set funds: U.S. ✓ (detected 'US$' in SO total)
+2026-01-21T14:47:15.041653697Z    DEBUG ROW: Item 1/1: MOV LONG LIFE 0 55kg KEG
+2026-01-21T14:47:15.041658878Z              Item has batch_number field: True
+2026-01-21T14:47:15.041662598Z              Batch raw: 'WH5B16G031' -> normalized: 'WH5B16G031'
+2026-01-21T14:47:15.041665838Z    ✅ Added packaging info to BOL: 1 pallet 23.5×45×32 inches
+2026-01-21T14:47:15.041990345Z 
+2026-01-21T14:47:15.041999565Z >> Removing all placeholder text from document...
+2026-01-21T14:47:15.042324542Z    Removed 7 placeholder attributes
+2026-01-21T14:47:15.042327802Z SUCCESS: Template populated successfully
+2026-01-21T14:47:15.042329632Z ================================================================================
+2026-01-21T14:47:15.042331222Z 
+2026-01-21T14:47:15.045494948Z DEBUG: BOL HTML file created: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/HTML Format/BOL SO3110 - POPO-20260109 - 2026-01-09.html
+2026-01-21T14:47:16.545650289Z [OK] PDF generated: BOL SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.545670959Z DEBUG: BOL PDF file created: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format/BOL SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.545675849Z ✅ BOL generated: BOL SO3110 - POPO-20260109 - 2026-01-09.html (HTML) and BOL SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.549699453Z DEBUG: PACKING SLIP - SO Number: 3110
+2026-01-21T14:47:16.549726794Z DEBUG: PACKING SLIP - Customer Name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:16.549729184Z DEBUG: PACKING SLIP - Items count: 3
+2026-01-21T14:47:16.551001341Z DEBUG: PACKING SLIP - Template loaded successfully
+2026-01-21T14:47:16.556932424Z DEBUG: Parsed order_date '2026-01-09' as 'January 09, 2026'
+2026-01-21T14:47:16.556947155Z DEBUG: Parsed ship_date '2026-01-21' as 'January 21, 2026'
+2026-01-21T14:47:16.557110908Z 
+2026-01-21T14:47:16.557117218Z === DEBUG PACKING SLIP ITEMS ===
+2026-01-21T14:47:16.557121398Z items parameter count: 3
+2026-01-21T14:47:16.557124939Z DEBUG: SO ITEMS RAW DATA:
+2026-01-21T14:47:16.557145829Z   Item 1: {'batch_number': 'WH5B16G031', 'country_of_origin': 'Canada', 'description': 'MOV LONG LIFE 0 55kg KEG', 'hts_code': '2710.19.3500', 'item_code': 'MOVLL0K55kg', 'quantity': 2, 'total_price': 2875.54, 'unit': 'KEG', 'unit_price': 1437.77}
+2026-01-21T14:47:16.557154049Z   Item 2: {'description': 'Pallet charge', 'item_code': 'Pallet', 'quantity': 1, 'total_price': 35, 'unit': 'Each', 'unit_price': 35}
+2026-01-21T14:47:16.557158229Z   Item 3: {'description': 'Miscellaneous Work', 'item_code': 'Miscellaneous', 'quantity': 1, 'total_price': 208.68, 'unit': 'Each', 'unit_price': 208.68}
+2026-01-21T14:47:16.557164219Z DEBUG: Using 1 SO items
+2026-01-21T14:47:16.557167929Z DEBUG: Item 1: MOV LONG LIFE 0 55kg KEG - Qty: 2
+2026-01-21T14:47:16.559554229Z DEBUG: Hiding empty row 2
+2026-01-21T14:47:16.559779574Z DEBUG: Hiding empty row 3
+2026-01-21T14:47:16.560076Z DEBUG: Hiding empty row 4
+2026-01-21T14:47:16.560330226Z DEBUG: Hiding empty row 5
+2026-01-21T14:47:16.560334835Z DEBUG: PACKING SLIP - Populated 13 fields successfully
+2026-01-21T14:47:16.560338106Z DEBUG: PACKING SLIP - Showing 1 item rows, hiding 4 empty rows
+2026-01-21T14:47:16.830068829Z [OK] PDF generated: PackingSlip SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.830085959Z DEBUG: Packing Slip PDF file created: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format/PackingSlip SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.83009014Z ✅ Packing Slip generated: PackingSlip SO3110 - POPO-20260109 - 2026-01-09.html (HTML) and PackingSlip SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:16.8300926Z 
+2026-01-21T14:47:16.83009578Z 📋 Commercial Invoice Check:
+2026-01-21T14:47:16.83009886Z    Destination: CHINA
+2026-01-21T14:47:16.83010155Z    Cross-border: True
+2026-01-21T14:47:16.830104Z 📋 Generating Commercial Invoice (cross-border shipment to CHINA)
+2026-01-21T14:47:16.84255949Z DEBUG: CI - Processing 3 items for Commercial Invoice
+2026-01-21T14:47:16.852264772Z DEBUG: CI - Template parsed successfully, JavaScript preserved for calculations
+2026-01-21T14:47:16.852381805Z 
+2026-01-21T14:47:16.852392495Z === DEBUG format_buyer_if_different ===
+2026-01-21T14:47:16.852397475Z shipping_addr keys: ['address', 'city', 'company', 'company_name', 'contact', 'contact_person', 'country', 'email', 'full_address', 'phone', 'postal', 'postal_code', 'province', 'street', 'street_address']
+2026-01-21T14:47:16.852400985Z billing_addr keys: ['address', 'city', 'company', 'company_name', 'contact', 'contact_person', 'country', 'email', 'full_address', 'phone', 'postal', 'postal_code', 'province', 'street', 'street_address']
+2026-01-21T14:47:16.852414806Z shipping_addr full data: {'address': 'Room 1-1810 Hengda yujingwan K7', 'city': 'Qianjin Village, Hanyang District, Wuhan', 'company': 'Pengxin (Wuhan) Import & Export', 'company_name': 'Pengxin (Wuhan) Import & Export', 'contact': '', 'contact_person': '', 'country': 'China', 'email': '', 'full_address': 'Pengxin (Wuhan) Import & Export\nRoom 1-1810 Hengda yujingwan K7\nQianjin Village, Hanyang District, Wuhan\nChina', 'phone': '', 'postal': '', 'postal_code': '', 'province': '', 'street': 'Room 1-1810 Hengda yujingwan K7', 'street_address': 'Room 1-1810 Hengda yujingwan K7'}
+2026-01-21T14:47:16.852440826Z billing_addr full data: {'address': 'Room 1-1810 Hengda yujingwan K7 b', 'city': 'Qianjin Village, Hanyang District', 'company': 'Pengxin (Wuhan) Import & Export', 'company_name': 'Pengxin (Wuhan) Import & Export', 'contact': '', 'contact_person': '', 'country': 'China', 'email': '', 'full_address': 'Pengxin (Wuhan) Import & Export\nRoom 1-1810 Hengda yujingwan K7 b\nQianjin Village, Hanyang District\nChina', 'phone': '', 'postal': '', 'postal_code': '', 'province': '', 'street': 'Room 1-1810 Hengda yujingwan K7 b', 'street_address': 'Room 1-1810 Hengda yujingwan K7 b'}
+2026-01-21T14:47:16.852451447Z 🏢 COMPANY COMPARISON:
+2026-01-21T14:47:16.852455527Z    Consignee company: 'PENGXIN (WUHAN) IMPORT & EXPORT' → normalized: 'PENGXIN (WUHAN) IMPORT & EXPORT'
+2026-01-21T14:47:16.852459127Z    Buyer company:     'PENGXIN (WUHAN) IMPORT & EXPORT' → normalized: 'PENGXIN (WUHAN) IMPORT & EXPORT'
+2026-01-21T14:47:16.852463197Z ✅ Same company - NOT filling buyer field (different address is OK)
+2026-01-21T14:47:16.852466547Z 🚫 BUYER FIELD WILL REMAIN EMPTY - Same company, different address
+2026-01-21T14:47:16.852486697Z DEBUG CI: Raw sale date (order date) from SO: '2026-01-09'
+2026-01-21T14:47:16.85263562Z DEBUG CI: Normalized sale date: '2026-01-09'
+2026-01-21T14:47:16.855097092Z DEBUG CI: No brokerage info - leaving blank
+2026-01-21T14:47:16.855110622Z DEBUG CI: 🔍 Broker Detection FINAL STATE:
+2026-01-21T14:47:16.855113792Z    is_multi_so: False
+2026-01-21T14:47:16.855117042Z    customer_name: 'Pengxin (Wuhan) Import & Export'
+2026-01-21T14:47:16.855120462Z    is_georgia_western: False
+2026-01-21T14:47:16.855123172Z    use_near_north: False
+2026-01-21T14:47:16.855125822Z    email_analysis present: True
+2026-01-21T14:47:16.855128632Z    email_analysis.use_near_north: False
+2026-01-21T14:47:16.855131092Z    email_analysis.customs_broker: None
+2026-01-21T14:47:16.855133863Z    email_analysis.raw_text length: 254
+2026-01-21T14:47:16.855142453Z DEBUG CI: 🔍 Broker Detection:
+2026-01-21T14:47:16.855148993Z    email_analysis present: True
+2026-01-21T14:47:16.855152773Z    email_analysis keys: ['batch_numbers', 'broker_carrier_ref', 'carrier', 'company_name', 'contact_person', 'customs_broker', 'final_destination', 'is_partial_shipment', 'items', 'packaging_type', 'pallet_count', 'pallet_dimensions', 'po_number', 'raw_text', 'requested_documents', 'ship_date', 'ship_to_address', 'ship_to_company', 'skid_info', 'so_line_numbers', 'so_number', 'sold_to_address', 'sold_to_company', 'special_instructions', 'terms_of_sale', 'total_weight', 'tracking_number', 'truck_info', 'use_near_north']
+2026-01-21T14:47:16.855155593Z    use_near_north flag: False
+2026-01-21T14:47:16.855158603Z    customs_broker: None
+2026-01-21T14:47:16.855161043Z    raw_text present: True
+2026-01-21T14:47:16.855163713Z    raw_text length: 254
+2026-01-21T14:47:16.855166743Z    raw_text preview: Hi Haron,
+2026-01-21T14:47:16.855169183Z 
+2026-01-21T14:47:16.855171353Z 
+2026-01-21T14:47:16.855173763Z 
+2026-01-21T14:47:16.855177003Z Pengxin (Wuhan) Import & Export purchase order number 20260109 (Canoil sales order 3110 attached) is ready to go out the door:
+2026-01-21T14:47:16.855179723Z 
+2026-01-21T14:47:16.855182493Z  
+2026-01-21T14:47:16.855184824Z 
+2026-01-21T14:47:16.855187524Z 2 kegs of MOV LONG LIFE 0
+2026-01-21T14:47:16.855189864Z 
+2026-01-21T14:47:16.855192314Z 130 kg total gross weight, ba...
+2026-01-21T14:47:16.855205194Z    Final use_near_north: False
+2026-01-21T14:47:16.855232154Z DEBUG CI: Duty account = CONSIGNEE (customer handles their own broker)
+2026-01-21T14:47:16.855237305Z DEBUG CI: Terms of Sale left empty for manual entry
+2026-01-21T14:47:16.855249625Z DEBUG: CI - Total Weight: 110.0 kg
+2026-01-21T14:47:16.855252215Z 
+2026-01-21T14:47:16.855254815Z 🔍 BROKER FIELDS DEBUG:
+2026-01-21T14:47:16.855257455Z    brokerCompany: ''
+2026-01-21T14:47:16.855260215Z    brokerPhone: ''
+2026-01-21T14:47:16.855262735Z    brokerFax: ''
+2026-01-21T14:47:16.855265305Z    brokerPaps: ''
+2026-01-21T14:47:16.855268245Z    brokerage: ''
+2026-01-21T14:47:16.855271265Z    dutyAccount: 'consignee'
+2026-01-21T14:47:16.856401419Z DEBUG: CI - Field 'dutyAccount' not found in template
+2026-01-21T14:47:16.857172765Z DEBUG CI: Set duty account radio = CONSIGNEE
+2026-01-21T14:47:16.857182375Z DEBUG: CI - Including product in items table: MOV LONG LIFE 0 55kg KEG
+2026-01-21T14:47:16.857185985Z DEBUG: CI - Excluding other charge: Pallet charge
+2026-01-21T14:47:16.857188645Z DEBUG: CI - Excluding other charge: Miscellaneous Work
+2026-01-21T14:47:16.857191595Z 🌍 European Shipment Detection: customer=PENGXIN (WUHAN) IMPORT & EXPORT, ship_country=CHINA, is_european=False
+2026-01-21T14:47:16.857193995Z 
+2026-01-21T14:47:16.857196586Z >> Processing steel container separation for 1 items...
+2026-01-21T14:47:16.857209246Z    Customer: PENGXIN (WUHAN) IMPORT & EXPORT, Is AEC: False
+2026-01-21T14:47:16.857222656Z DEBUG STEEL: MOV LONG LIFE 0 55kg KEG
+2026-01-21T14:47:16.857229156Z   - Container type: keg, multiplier: 1
+2026-01-21T14:47:16.857231926Z   - Original qty: 2.0 KEG
+2026-01-21T14:47:16.857256937Z   - Steel containers: 2
+2026-01-21T14:47:16.857260147Z   - Is AEC order: False
+2026-01-21T14:47:16.857262827Z   - Steel cost/unit: $45.00
+2026-01-21T14:47:16.857265447Z   - Adjusted price: $1392.77
+2026-01-21T14:47:16.857277727Z DEBUG STEEL: Added 2 kegs @ $45.00
+2026-01-21T14:47:16.857281017Z >> After steel separation: 1 products + 1 steel line items
+2026-01-21T14:47:16.857286867Z    Item total: MOV LONG LIFE 0 55kg KEG = 2.0 x $1392.77 = $2785.54
+2026-01-21T14:47:16.857289597Z    Item total: Steel Keg (55kg) = 2.0 x $45.00 = $90.00
+2026-01-21T14:47:16.857291997Z >> Calculated Grand Total from line items: $2,875.54
+2026-01-21T14:47:16.857563643Z DEBUG CI: Item MOV LONG LIFE 0 55kg KEG - HTS Code: '2710.19.3500'
+2026-01-21T14:47:16.857708456Z DEBUG CI: Item Steel Keg (55kg) - HTS Code: '7310.10'
+2026-01-21T14:47:16.857870089Z DEBUG: CI - Added 2 item rows to new template
+2026-01-21T14:47:16.857977092Z 
+2026-01-21T14:47:16.857982242Z >> Removing all placeholder text from Commercial Invoice...
+2026-01-21T14:47:16.858296649Z    Removed 6 placeholder attributes
+2026-01-21T14:47:17.13654035Z [OK] PDF generated: CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.13656041Z SUCCESS: Commercial invoice PDF generated: CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.13656669Z ✅ Commercial Invoice generated: CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.html (HTML) and CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.141875971Z 
+2026-01-21T14:47:17.141892371Z 🔴 Checking for dangerous goods...
+2026-01-21T14:47:17.141895601Z DEBUG: Items being checked for DG: 3 items
+2026-01-21T14:47:17.141898821Z   Item 1: Code='MOVLL0K55kg', Desc='MOV LONG LIFE 0 55kg KEG'
+2026-01-21T14:47:17Z clientIP="99.209.48.91" requestID="75c2b10c-0afc-4b4e" responseTimeMS=2268 responseBytes=1135 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:47:17Z clientIP="99.209.48.91" requestID="088a6bc2-784f-493d" responseTimeMS=23 responseBytes=158263 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:47:17.141901621Z   Item 2: Code='Pallet', Desc='Pallet charge'
+2026-01-21T14:47:17.141904332Z   Item 3: Code='Miscellaneous', Desc='Miscellaneous Work'
+2026-01-21T14:47:17.141907752Z ================================================================================
+2026-01-21T14:47:17.141918742Z DANGEROUS GOODS DECLARATION GENERATOR
+2026-01-21T14:47:17.141921752Z ================================================================================
+2026-01-21T14:47:17.141924032Z 
+2026-01-21T14:47:17.141926722Z 🔍 DANGEROUS GOODS DETECTION - Checking 3 items...
+2026-01-21T14:47:17.141929302Z    Checking: MOVLL0K55KG | MOV LONG LIFE 0 55KG KEG
+2026-01-21T14:47:17.141994454Z    Checking: PALLET | PALLET CHARGE
+2026-01-21T14:47:17.141999264Z       ⏭️  Skipping (non-product item)
+2026-01-21T14:47:17.142002004Z    Checking: MISCELLANEOUS | MISCELLANEOUS WORK
+2026-01-21T14:47:17.142004534Z ✅ No dangerous goods detected in this shipment
+2026-01-21T14:47:17.142007244Z ✅ No dangerous goods detected in this shipment
+2026-01-21T14:47:17.145574928Z 
+2026-01-21T14:47:17.145588559Z 📋 Checking if TSCA Certification is needed...
+2026-01-21T14:47:17.145592929Z    ⏭️  TSCA Certification skipped (not a USA shipment - destination: CHINA)
+2026-01-21T14:47:17.145595389Z 
+2026-01-21T14:47:17.145598769Z 📜 Checking if AEC Manufacturer's Affidavit is needed...
+2026-01-21T14:47:17.14563813Z    ⏭️ AEC Affidavit not needed (no AEC products with steel containers)
+2026-01-21T14:47:17.148718154Z 
+2026-01-21T14:47:17.148736694Z 📜 SMART USMCA Check - Validating Destination + HTS + COO...
+2026-01-21T14:47:17.148740815Z    Destination: China
+2026-01-21T14:47:17.148743475Z    Items checked: 0
+2026-01-21T14:47:17.148747124Z    Items matching USMCA: 0
+2026-01-21T14:47:17.148749655Z 
+2026-01-21T14:47:17.148752945Z    ⏭️  USMCA Certificate SKIPPED: USMCA not applicable for destination: China (USMCA only for USA shipments)
+2026-01-21T14:47:17.153033574Z 
+2026-01-21T14:47:17.153050025Z 📦 Checking if Delivery Note is needed (Axel France)...
+2026-01-21T14:47:17.153053854Z 🔍 Axel France Detection:
+2026-01-21T14:47:17.153056535Z    Customer Name: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:17.153059225Z    Shipping Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:17.153062085Z    Billing Company: Pengxin (Wuhan) Import & Export
+2026-01-21T14:47:17.153064995Z    Is Axel France: False
+2026-01-21T14:47:17.153067475Z    ⏭️  Delivery Note skipped (not an Axel France order)
+2026-01-21T14:47:17.153085085Z ✅ Added Commercial Invoice to documents array: CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.html
+2026-01-21T14:47:17.15473698Z [2026-01-21 14:47:17 +0000] [7] [INFO] 10.23.91.65:51166 - - [21/Jan/2026:14:47:17 +0000] "POST /api/logistics/generate-all-documents 1.1" 200 691 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:47:17.258383734Z 📥 Download request for: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109.zip
+2026-01-21T14:47:17.258402215Z 📦 ZIP request for folder: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109
+2026-01-21T14:47:17.258406245Z 📁 Folder path: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109
+2026-01-21T14:47:17.258409655Z 📁 Folder exists: True
+2026-01-21T14:47:17.259965487Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format/BOL SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.260872666Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format/CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.261858157Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/PDF Format/PackingSlip SO3110 - POPO-20260109 - 2026-01-09.pdf
+2026-01-21T14:47:17.262465319Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/HTML Format/CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.html
+2026-01-21T14:47:17.263317317Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/HTML Format/PackingSlip SO3110 - POPO-20260109 - 2026-01-09.html
+2026-01-21T14:47:17.264442111Z    Added to ZIP: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109/HTML Format/BOL SO3110 - POPO-20260109 - 2026-01-09.html
+2026-01-21T14:47:17.264478952Z ✅ ZIP created: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109.zip
+2026-01-21T14:47:17.270713932Z [2026-01-21 14:47:17 +0000] [7] [INFO] 10.21.197.193:59380 - - [21/Jan/2026:14:47:17 +0000] "GET /download/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109.zip 1.1" 200 157574 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
