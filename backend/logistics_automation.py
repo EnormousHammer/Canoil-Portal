@@ -5411,6 +5411,9 @@ def generate_all_documents():
         
         # Dangerous goods info (will be updated by smart generator)
         dangerous_goods_info = {'has_dangerous_goods': False}
+
+        # HTML-only mode for generate-all: do not generate PDFs or PDF-only docs
+        pdf_generation_enabled = False
         
         # Create folder structure for this order
         folder_structure = get_document_folder_structure(so_data)
@@ -5425,7 +5428,6 @@ def generate_all_documents():
         if requested_docs.get('bol', True):
             try:
                 from new_bol_generator import populate_new_bol_html
-                from playwright_pdf_converter import html_to_pdf_sync
                 
                 print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
                 # Use email_analysis instead of email_shipping to ensure skid_info is included
@@ -5444,16 +5446,18 @@ def generate_all_documents():
                     f.write(bol_html)
                 print(f"DEBUG: BOL HTML file created: {bol_html_filepath}")
                 
-                # Generate and save PDF version in PDF Format folder
-                bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
-                bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
+                bol_pdf_filename = None
                 bol_pdf_success = False
-                try:
-                    bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
-                    if bol_pdf_success:
-                        print(f"DEBUG: BOL PDF file created: {bol_pdf_filepath}")
-                except Exception as pdf_err:
-                    print(f"WARNING: BOL PDF generation error: {pdf_err}")
+                if pdf_generation_enabled:
+                    try:
+                        from playwright_pdf_converter import html_to_pdf_sync
+                        bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
+                        bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
+                        bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
+                        if bol_pdf_success:
+                            print(f"DEBUG: BOL PDF file created: {bol_pdf_filepath}")
+                    except Exception as pdf_err:
+                        print(f"WARNING: BOL PDF generation error: {pdf_err}")
                 
                 results['bol'] = {
                     'success': True,
@@ -5477,7 +5481,6 @@ def generate_all_documents():
         if requested_docs.get('packing_slip', True):
             try:
                 from packing_slip_html_generator import generate_packing_slip_html
-                from playwright_pdf_converter import html_to_pdf_sync
                 
                 ps_html = generate_packing_slip_html(so_data, email_shipping, items)
                 ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
@@ -5487,16 +5490,18 @@ def generate_all_documents():
                 with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(ps_html)
                 
-                # Generate and save PDF version in PDF Format folder
-                ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
-                ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
+                ps_pdf_filename = None
                 ps_pdf_success = False
-                try:
-                    ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
-                    if ps_pdf_success:
-                        print(f"DEBUG: Packing Slip PDF file created: {ps_pdf_filepath}")
-                except Exception as pdf_err:
-                    print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
+                if pdf_generation_enabled:
+                    try:
+                        from playwright_pdf_converter import html_to_pdf_sync
+                        ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
+                        ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
+                        ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
+                        if ps_pdf_success:
+                            print(f"DEBUG: Packing Slip PDF file created: {ps_pdf_filepath}")
+                    except Exception as pdf_err:
+                        print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
                 
                 results['packing_slip'] = {
                     'success': True,
@@ -5562,7 +5567,6 @@ def generate_all_documents():
                 if is_cross_border:
                     print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
                     from commercial_invoice_html_generator import generate_commercial_invoice_html
-                    from playwright_pdf_converter import html_to_pdf_sync
                     
                     ci_html = generate_commercial_invoice_html(
                         so_data, 
@@ -5576,17 +5580,18 @@ def generate_all_documents():
                     with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ci_html)
                     
-                    # Generate and save PDF file in PDF Format folder
-                    ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-                    ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
-                    
+                    ci_pdf_filename = None
                     ci_pdf_success = False
-                    try:
-                        ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
-                        if ci_pdf_success:
-                            print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
-                    except Exception as pdf_error:
-                        print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
+                    if pdf_generation_enabled:
+                        try:
+                            from playwright_pdf_converter import html_to_pdf_sync
+                            ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
+                            ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
+                            ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
+                            if ci_pdf_success:
+                                print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
+                        except Exception as pdf_error:
+                            print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
                     
                     results['commercial_invoice'] = {
                         'success': True,
@@ -5617,7 +5622,11 @@ def generate_all_documents():
             results['commercial_invoice'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # SMART Dangerous Goods Declaration Generation - Auto-detect and fill correct template
-        try:
+        if not pdf_generation_enabled:
+            print("⏭️ Dangerous Goods skipped (PDF generation disabled)")
+            dangerous_goods_info['has_dangerous_goods'] = False
+        else:
+            try:
             from dangerous_goods_generator import generate_dangerous_goods_declarations
             
             print("\n🔴 Checking for dangerous goods...")
@@ -5732,211 +5741,220 @@ def generate_all_documents():
                 print("✅ No dangerous goods detected in this shipment")
                 dangerous_goods_info['has_dangerous_goods'] = False
                 
-        except Exception as e:
-            print(f"❌ Dangerous Goods generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"Dangerous Goods generation failed: {str(e)}")
-            results['dangerous_goods'] = {'success': False, 'error': str(e)}
+            except Exception as e:
+                print(f"❌ Dangerous Goods generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"Dangerous Goods generation failed: {str(e)}")
+                results['dangerous_goods'] = {'success': False, 'error': str(e)}
         
         # TSCA CERTIFICATION - Generate ONLY for USA shipments
-        try:
-            from tsca_generator import generate_tsca_certification
-            
-            print("\n📋 Checking if TSCA Certification is needed...")
-            
-            # TSCA is ONLY needed for USA shipments (not other cross-border shipments)
-            is_usa_shipment = destination_country and destination_country in ['USA', 'US', 'UNITED STATES']
-            
-            if is_usa_shipment:
-                print(f"   USA shipment to {destination_country} - TSCA required")
-                
-                # Generate TSCA and save to PDF Format folder
-                tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
-                
-                if tsca_result:
-                    tsca_filepath, tsca_filename = tsca_result
-                    results['tsca_certification'] = {
-                        'success': True,
-                        'filename': tsca_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{tsca_filename}',
-                        'note': 'TSCA Certification for US shipments'
-                    }
-                    print(f"   ✅ TSCA Certification generated: {tsca_filename}")
+        if not pdf_generation_enabled:
+            print("⏭️ TSCA skipped (PDF generation disabled)")
+        else:
+            try:
+                from tsca_generator import generate_tsca_certification
+
+                print("\n📋 Checking if TSCA Certification is needed...")
+
+                # TSCA is ONLY needed for USA shipments (not other cross-border shipments)
+                is_usa_shipment = destination_country and destination_country in ['USA', 'US', 'UNITED STATES']
+
+                if is_usa_shipment:
+                    print(f"   USA shipment to {destination_country} - TSCA required")
+
+                    # Generate TSCA and save to PDF Format folder
+                    tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
+
+                    if tsca_result:
+                        tsca_filepath, tsca_filename = tsca_result
+                        results['tsca_certification'] = {
+                            'success': True,
+                            'filename': tsca_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{tsca_filename}',
+                            'note': 'TSCA Certification for US shipments'
+                        }
+                        print(f"   ✅ TSCA Certification generated: {tsca_filename}")
+                    else:
+                        print(f"   ⏭️  TSCA skipped (no products to certify)")
                 else:
-                    print(f"   ⏭️  TSCA skipped (no products to certify)")
-            else:
-                print(f"   ⏭️  TSCA Certification skipped (not a USA shipment - destination: {destination_country or 'Unknown'})")
-                results['tsca_certification'] = {
-                    'success': False,
-                    'skipped': True,
-                    'reason': f'TSCA not required for non-USA shipments (destination: {destination_country or "Unknown"})'
-                }
-                
-        except Exception as e:
-            print(f"❌ TSCA generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"TSCA generation failed: {str(e)}")
-            results['tsca_certification'] = {'success': False, 'error': str(e)}
+                    print(f"   ⏭️  TSCA Certification skipped (not a USA shipment - destination: {destination_country or 'Unknown'})")
+                    results['tsca_certification'] = {
+                        'success': False,
+                        'skipped': True,
+                        'reason': f'TSCA not required for non-USA shipments (destination: {destination_country or "Unknown"})'
+                    }
+            except Exception as e:
+                print(f"❌ TSCA generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"TSCA generation failed: {str(e)}")
+                results['tsca_certification'] = {'success': False, 'error': str(e)}
         
         # AEC MANUFACTURER'S AFFIDAVIT - For AEC shipments with steel cans/drums
-        try:
-            print("\n📜 Checking if AEC Manufacturer's Affidavit is needed...")
-            
-            # Check if any items are AEC products with steel containers
-            has_aec_steel = False
-            for item in items:
-                item_code = str(item.get('item_code', '')).upper()
-                description = str(item.get('description', '')).upper()
-                unit = str(item.get('unit', '')).upper()
+        if not pdf_generation_enabled:
+            print("⏭️ AEC Affidavit skipped (PDF generation disabled)")
+        else:
+            try:
+                print("\n📜 Checking if AEC Manufacturer's Affidavit is needed...")
                 
-                # Check if it's an AEC product
-                is_aec_product = 'AEC' in item_code or 'AEC' in description
-                
-                # Check if it uses steel container (can or drum)
-                is_steel_container = any([
-                    'DRUM' in unit or 'DRUM' in description,
-                    'CAN' in unit or 'CASE' in unit,  # Cases often contain cans
-                    'PAIL' in unit or 'PAIL' in description
-                ])
-                
-                if is_aec_product and is_steel_container:
-                    has_aec_steel = True
-                    print(f"   ✅ Found AEC product with steel container: {item.get('description', item_code)}")
-                    break
-            
-            if has_aec_steel:
-                # Source AEC affidavit template
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                aec_source = os.path.join(current_dir, 'templates', 'AEC Manufacturer\'s Affidavit', 'AEX_MANUFACTURING AFFIDAVIT.pdf')
-                
-                if os.path.exists(aec_source):
-                    import shutil
-                    so_number = so_data.get('so_number', 'Unknown')
-                    aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
-                    aec_path = os.path.join(folder_structure['pdf_folder'], aec_filename)
+                # Check if any items are AEC products with steel containers
+                has_aec_steel = False
+                for item in items:
+                    item_code = str(item.get('item_code', '')).upper()
+                    description = str(item.get('description', '')).upper()
+                    unit = str(item.get('unit', '')).upper()
                     
-                    shutil.copy2(aec_source, aec_path)
+                    # Check if it's an AEC product
+                    is_aec_product = 'AEC' in item_code or 'AEC' in description
                     
-                    results['aec_affidavit'] = {
-                        'success': True,
-                        'filename': aec_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{aec_filename}',
-                        'note': 'AEC Manufacturer\'s Affidavit for steel containers'
-                    }
-                    print(f"   ✅ AEC Affidavit included: {aec_filename}")
+                    # Check if it uses steel container (can or drum)
+                    is_steel_container = any([
+                        'DRUM' in unit or 'DRUM' in description,
+                        'CAN' in unit or 'CASE' in unit,  # Cases often contain cans
+                        'PAIL' in unit or 'PAIL' in description
+                    ])
+                    
+                    if is_aec_product and is_steel_container:
+                        has_aec_steel = True
+                        print(f"   ✅ Found AEC product with steel container: {item.get('description', item_code)}")
+                        break
+                
+                if has_aec_steel:
+                    # Source AEC affidavit template
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    aec_source = os.path.join(current_dir, 'templates', 'AEC Manufacturer\'s Affidavit', 'AEX_MANUFACTURING AFFIDAVIT.pdf')
+                    
+                    if os.path.exists(aec_source):
+                        import shutil
+                        so_number = so_data.get('so_number', 'Unknown')
+                        aec_filename = f"AEC_Manufacturers_Affidavit_SO{so_number}.pdf"
+                        aec_path = os.path.join(folder_structure['pdf_folder'], aec_filename)
+                        
+                        shutil.copy2(aec_source, aec_path)
+                        
+                        results['aec_affidavit'] = {
+                            'success': True,
+                            'filename': aec_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{aec_filename}',
+                            'note': 'AEC Manufacturer\'s Affidavit for steel containers'
+                        }
+                        print(f"   ✅ AEC Affidavit included: {aec_filename}")
+                    else:
+                        print(f"   ⚠️ AEC Affidavit template not found at: {aec_source}")
+                        results['aec_affidavit'] = {
+                            'success': False,
+                            'error': 'Template not found'
+                        }
                 else:
-                    print(f"   ⚠️ AEC Affidavit template not found at: {aec_source}")
+                    print(f"   ⏭️ AEC Affidavit not needed (no AEC products with steel containers)")
                     results['aec_affidavit'] = {
                         'success': False,
-                        'error': 'Template not found'
+                        'skipped': True,
+                        'reason': 'No AEC products with steel containers in this shipment'
                     }
-            else:
-                print(f"   ⏭️ AEC Affidavit not needed (no AEC products with steel containers)")
-                results['aec_affidavit'] = {
-                    'success': False,
-                    'skipped': True,
-                    'reason': 'No AEC products with steel containers in this shipment'
-                }
-                
-        except Exception as e:
-            print(f"❌ AEC Affidavit error: {e}")
-            traceback.print_exc()
-            errors.append(f"AEC Affidavit generation failed: {str(e)}")
-            results['aec_affidavit'] = {'success': False, 'error': str(e)}
+                    
+            except Exception as e:
+                print(f"❌ AEC Affidavit error: {e}")
+                traceback.print_exc()
+                errors.append(f"AEC Affidavit generation failed: {str(e)}")
+                results['aec_affidavit'] = {'success': False, 'error': str(e)}
         
         # SMART USMCA CERTIFICATE - Check Destination + HTS + COO
         has_usmca = False
-        try:
-            from usmca_hts_codes import check_items_for_usmca
-            
-            print("\n📜 SMART USMCA Check - Validating Destination + HTS + COO...")
-            
-            # Get destination country
-            destination = (so_data.get('ship_to', {}).get('country', '') or 
-                         so_data.get('shipping_address', {}).get('country', '') or
-                         'Unknown')
-            
-            print(f"   Destination: {destination}")
-            
-            # 3-part check: Destination (USA/MX) + HTS (approved) + COO (CA/US/MX)
-            usmca_check = check_items_for_usmca(items, destination, so_data)
-            
-            print(f"   Items checked: {usmca_check['total_items_checked']}")
-            print(f"   Items matching USMCA: {len(usmca_check['matching_items'])}")
-            
-            # Show matching items (all 3 checks pass)
-            if usmca_check['matching_items']:
-                print("\n   ✅ Items qualifying for USMCA:")
-                for item in usmca_check['matching_items']:
-                    print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')}")
-            
-            # Show blocked items (HTS approved but COO blocks it)
-            if usmca_check.get('blocked_items'):
-                print("\n   🚫 Items BLOCKED from USMCA:")
-                for item in usmca_check['blocked_items']:
-                    print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')} ({item.get('reason', 'blocked')})")
-            
-            # Show non-matching items (HTS not on approved list)
-            if usmca_check['non_matching_items']:
-                print("\n   ⚠️ Items with HTS codes NOT on USMCA certificate:")
-                for item in usmca_check['non_matching_items']:
-                    print(f"      - {item['item_code']}: HTS {item['hts_code']} (not approved)")
-            
-            # Include USMCA only if we have matching items
-            if usmca_check['requires_usmca']:
-                print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
-                
-                # Source USMCA form (2026 version - already signed)
-                # Use relative path that works in Docker
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
-                
-                if os.path.exists(usmca_source):
-                    # Copy to PDF Format folder - USMCA is a blank template, use simple name
-                    import shutil
-                    so_number = so_data.get('so_number', 'Unknown')
-                    usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
-                    usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
-                    
-                    shutil.copy2(usmca_source, usmca_path)
-                    
-                    results['usmca_certificate'] = {
-                        'success': True,
-                        'filename': usmca_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{usmca_filename}',
-                        'note': 'Pre-signed USMCA form (ready for printing)',
-                        'matching_items': len(usmca_check['matching_items']),
-                        'items_list': [f"{item['item_code']} (HTS {item['hts_code']})" 
-                                      for item in usmca_check['matching_items']]
-                    }
-                    has_usmca = True
-                    print(f"   ✅ USMCA Certificate included: {usmca_filename}")
+        if not pdf_generation_enabled:
+            print("⏭️ USMCA skipped (PDF generation disabled)")
+        else:
+            try:
+                from usmca_hts_codes import check_items_for_usmca
+
+                print("\n📜 SMART USMCA Check - Validating Destination + HTS + COO...")
+
+                # Get destination country
+                destination = (so_data.get('ship_to', {}).get('country', '') or 
+                             so_data.get('shipping_address', {}).get('country', '') or
+                             'Unknown')
+
+                print(f"   Destination: {destination}")
+
+                # 3-part check: Destination (USA/MX) + HTS (approved) + COO (CA/US/MX)
+                usmca_check = check_items_for_usmca(items, destination, so_data)
+
+                print(f"   Items checked: {usmca_check['total_items_checked']}")
+                print(f"   Items matching USMCA: {len(usmca_check['matching_items'])}")
+
+                # Show matching items (all 3 checks pass)
+                if usmca_check['matching_items']:
+                    print("\n   ✅ Items qualifying for USMCA:")
+                    for item in usmca_check['matching_items']:
+                        print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')}")
+
+                # Show blocked items (HTS approved but COO blocks it)
+                if usmca_check.get('blocked_items'):
+                    print("\n   🚫 Items BLOCKED from USMCA:")
+                    for item in usmca_check['blocked_items']:
+                        print(f"      - {item['item_code']}: HTS {item['hts_code']} | COO: {item.get('country_of_origin', 'N/A')} ({item.get('reason', 'blocked')})")
+
+                # Show non-matching items (HTS not on approved list)
+                if usmca_check['non_matching_items']:
+                    print("\n   ⚠️ Items with HTS codes NOT on USMCA certificate:")
+                    for item in usmca_check['non_matching_items']:
+                        print(f"      - {item['item_code']}: HTS {item['hts_code']} (not approved)")
+
+                # Include USMCA only if we have matching items
+                if usmca_check['requires_usmca']:
+                    print(f"\n   ✅ USMCA Certificate REQUIRED: {usmca_check['reason']}")
+
+                    # Source USMCA form (2026 version - already signed)
+                    # Use relative path that works in Docker
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    usmca_source = os.path.join(current_dir, 'templates', 'usmca', 'SIGNED USMCA FORM.pdf')
+
+                    if os.path.exists(usmca_source):
+                        # Copy to PDF Format folder - USMCA is a blank template, use simple name
+                        import shutil
+                        so_number = so_data.get('so_number', 'Unknown')
+                        usmca_filename = f"USMCA_Certificate_SO{so_number}.pdf"
+                        usmca_path = os.path.join(folder_structure['pdf_folder'], usmca_filename)
+
+                        shutil.copy2(usmca_source, usmca_path)
+
+                        results['usmca_certificate'] = {
+                            'success': True,
+                            'filename': usmca_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{usmca_filename}',
+                            'note': 'Pre-signed USMCA form (ready for printing)',
+                            'matching_items': len(usmca_check['matching_items']),
+                            'items_list': [f"{item['item_code']} (HTS {item['hts_code']})" 
+                                          for item in usmca_check['matching_items']]
+                        }
+                        has_usmca = True
+                        print(f"   ✅ USMCA Certificate included: {usmca_filename}")
+                    else:
+                        print(f"   ❌ USMCA form not found at {usmca_source}")
+                        errors.append(f"USMCA form not found")
+                        results['usmca_certificate'] = {'success': False, 'error': 'Source file not found'}
                 else:
-                    print(f"   ❌ USMCA form not found at {usmca_source}")
-                    errors.append(f"USMCA form not found")
-                    results['usmca_certificate'] = {'success': False, 'error': 'Source file not found'}
-            else:
-                print(f"\n   ⏭️  USMCA Certificate SKIPPED: {usmca_check['reason']}")
-                has_usmca = False
-                results['usmca_certificate'] = {
-                    'success': False,
-                    'skipped': True,
-                    'reason': usmca_check['reason']
-                }
-                
-        except Exception as e:
-            print(f"❌ USMCA generation error: {e}")
-            traceback.print_exc()  # Use module-level traceback
-            errors.append(f"USMCA generation failed: {str(e)}")
-            results['usmca_certificate'] = {'success': False, 'error': str(e)}
+                    print(f"\n   ⏭️  USMCA Certificate SKIPPED: {usmca_check['reason']}")
+                    has_usmca = False
+                    results['usmca_certificate'] = {
+                        'success': False,
+                        'skipped': True,
+                        'reason': usmca_check['reason']
+                    }
+            except Exception as e:
+                print(f"❌ USMCA generation error: {e}")
+                traceback.print_exc()  # Use module-level traceback
+                errors.append(f"USMCA generation failed: {str(e)}")
+                results['usmca_certificate'] = {'success': False, 'error': str(e)}
         
         # DELIVERY NOTE - Generate ONLY for Axel France orders
         try:
             from delivery_note_generator import generate_delivery_note, is_axel_france_order
             
             print("\n📦 Checking if Delivery Note is needed (Axel France)...")
-            
-            if is_axel_france_order(so_data):
+
+            if not pdf_generation_enabled:
+                print("   ⏭️  Delivery Note skipped (PDF generation disabled)")
+            elif is_axel_france_order(so_data):
                 # Get booking number from request data (user enters via popup)
                 booking_number = data.get('booking_number', '') or data.get('bookingNumber', '')
                 
