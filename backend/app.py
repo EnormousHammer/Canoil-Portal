@@ -2608,10 +2608,13 @@ def load_mps_data():
 
 @app.route('/api/mps', methods=['GET'])
 def get_mps_data():
-    """Get MPS schedule from Google Sheets"""
+    """Get MPS schedule from Google Sheets - returns CSV format"""
+    MPS_SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw'
+    MPS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{MPS_SHEET_ID}/export?format=csv'
     try:
         response = requests.get(MPS_CSV_URL, timeout=10)
         if response.ok:
+            # Return CSV text, not JSON
             return response.text, 200, {'Content-Type': 'text/csv'}
         return jsonify({'error': 'Failed to fetch MPS data'}), 500
     except Exception as e:
@@ -4662,25 +4665,6 @@ def vision_analyze_so():
             'error': f'Vision analysis failed: {str(e)}'
         }), 500
 
-
-@app.route('/api/mps', methods=['GET'])
-def get_mps_data():
-    """Get MPS schedule from Google Sheets"""
-    try:
-        response = requests.get(MPS_CSV_URL, timeout=10)
-        if response.ok:
-            return response.text, 200, {'Content-Type': 'text/csv'}
-        return jsonify({'error': 'Failed to fetch MPS data'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/warmup', methods=['GET'])
-def warmup():
-    """Lightweight warmup endpoint"""
-    return jsonify({
-        'status': 'warm',
-        'timestamp': datetime.now().isoformat()
-    })
 if __name__ == '__main__':
     print("Starting Flask backend...")
     print(f"G: Drive path: {GDRIVE_BASE}")
