@@ -3148,6 +3148,245 @@ def find_item_usage_and_availability(data, item_description_or_no, quantity_need
         print(f"ERROR: Error finding item usage: {e}")
         return {"error": str(e)}
 
+def get_product_analytics_data(data, query):
+    """
+    RAG Analytics Function - Extract and calculate product analytics from all data sources
+    Returns structured analytics data for sales, costs, profits, restocking, etc.
+    """
+    try:
+        analytics = {
+            "sales_data": [],
+            "cost_data": [],
+            "profit_analysis": [],
+            "restocking_needs": [],
+            "product_performance": [],
+            "summary": {}
+        }
+        
+        # Extract data sources
+        items = data.get('CustomAlert5.json', [])
+        so_headers = data.get('SalesOrderHeaders.json', [])
+        so_details = data.get('SalesOrderDetails.json', [])
+        real_sos = data.get('RealSalesOrders', [])
+        po_headers = data.get('PurchaseOrders.json', [])
+        po_details = data.get('PurchaseOrderDetails.json', [])
+        mo_headers = data.get('ManufacturingOrderHeaders.json', [])
+        mo_details = data.get('ManufacturingOrderDetails.json', [])
+        
+        # SALES ANALYTICS - Extract from Sales Orders
+        sales_by_product = {}
+        sales_by_customer = {}
+        total_revenue = 0
+        
+        # Process structured SO data
+        for so in so_headers:
+            so_number = so.get('Order Number', so.get('SO Number', ''))
+            customer = so.get('Customer Name', so.get('Customer', 'Unknown'))
+            order_date = so.get('Order Date', so.get('Date', ''))
+            total_amount = safe_float(so.get('Total Amount', so.get('Amount', 0)))
+            
+            if total_amount > 0:
+                total_revenue += total_amount
+                sales_by_customer[customer] = sales_by_customer.get(customer, 0) + total_amount
+        
+        # Process SO details for product-level sales
+        for detail in so_details:
+            item_no = detail.get('Item No.', detail.get('Item Number', ''))
+            description = detail.get('Description', '')
+            quantity = safe_float(detail.get('Quantity', detail.get('Qty', 0)))
+            unit_price = safe_float(detail.get('Unit Price', detail.get('Price', 0)))
+            line_total = quantity * unit_price
+            
+            if item_no and quantity > 0:
+                if item_no not in sales_by_product:
+                    sales_by_product[item_no] = {
+                        'item_no': item_no,
+                        'description': description,
+                        'total_quantity_sold': 0,
+                        'total_revenue': 0,
+                        'avg_price': 0,
+                        'order_count': 0
+                    }
+                sales_by_product[item_no]['total_quantity_sold'] += quantity
+                sales_by_product[item_no]['total_revenue'] += line_total
+                sales_by_product[item_no]['order_count'] += 1
+        
+        # Process real SO data from PDFs
+        for so in real_sos:
+            customer = so.get('customer_name', 'Unknown')
+            total_amount = safe_float(so.get('total_amount', 0))
+            if total_amount > 0:
+                total_revenue += total_amount
+                sales_by_customer[customer] = sales_by_customer.get(customer, 0) + total_amount
+            
+            for item in so.get('items', []):
+                item_desc = item.get('description', '')
+                quantity = safe_float(item.get('quantity', 0))
+                price = safe_float(item.get('price', item.get('unit_price', 0)))
+                line_total = quantity * price
+                
+                # Try to match with item number from items data
+                item_no = None
+                for itm in items:
+                    if item_desc.lower() in itm.get('Description', '').lower():
+                        item_no = itm.get('Item No.', '')
+                        break
+                
+                if item_no and quantity > 0:
+                    if item_no not in sales_by_product:
+                        sales_by_product[item_no] = {
+                            'item_no': item_no,
+                            'description': item_desc,
+                            'total_quantity_sold': 0,
+                            'total_revenue': 0,
+                            'avg_price': 0,
+                            'order_count': 0
+                        }
+                    sales_by_product[item_no]['total_quantity_sold'] += quantity
+                    sales_by_product[item_no]['total_revenue'] += line_total
+                    sales_by_product[item_no]['order_count'] += 1
+        
+        # Calculate average prices
+        for item_no, data in sales_by_product.items():
+            if data['total_quantity_sold'] > 0:
+                data['avg_price'] = data['total_revenue'] / data['total_quantity_sold']
+        
+        # COST ANALYTICS - Extract from Purchase Orders and Items
+        cost_by_product = {}
+        
+        # Get costs from items (CustomAlert5 has Recent Cost, Standard Cost, Unit Cost)
+        for item in items:
+            item_no = item.get('Item No.', '')
+            recent_cost = safe_float(item.get('Recent Cost', 0))
+            standard_cost = safe_float(item.get('Standard Cost', 0))
+            unit_cost = safe_float(item.get('Unit Cost', 0))
+            
+            # Priority: Recent Cost > Standard Cost > Unit Cost
+            cost = recent_cost if recent_cost > 0 else (standard_cost if standard_cost > 0 else unit_cost)
+            
+            if item_no and cost > 0:
+                cost_by_product[item_no] = {
+                    'item_no': item_no,
+                    'description': item.get('Description', ''),
+                    'recent_cost': recent_cost,
+                    'standard_cost': standard_cost,
+                    'unit_cost': unit_cost,
+                    'current_cost': cost
+                }
+        
+        # Get costs from Purchase Orders (more recent/accurate)
+        for po_detail in po_details:
+            item_no = po_detail.get('Item No.', '')
+            po_cost = safe_float(po_detail.get('Cost', po_detail.get('Unit Cost', 0)))
+            
+            if item_no and po_cost > 0:
+                if item_no not in cost_by_product:
+                    cost_by_product[item_no] = {
+                        'item_no': item_no,
+                        'description': '',
+                        'recent_cost': 0,
+                        'standard_cost': 0,
+                        'unit_cost': 0,
+                        'current_cost': po_cost
+                    }
+                # Update with PO cost if it's more recent
+                if po_cost > cost_by_product[item_no].get('current_cost', 0):
+                    cost_by_product[item_no]['current_cost'] = po_cost
+                    cost_by_product[item_no]['recent_cost'] = po_cost
+        
+        # PROFIT ANALYSIS - Combine sales and costs
+        profit_analysis = []
+        for item_no, sales_info in sales_by_product.items():
+            cost_info = cost_by_product.get(item_no, {})
+            cost = cost_info.get('current_cost', 0)
+            revenue = sales_info.get('total_revenue', 0)
+            quantity = sales_info.get('total_quantity_sold', 0)
+            
+            if cost > 0 and quantity > 0:
+                total_cost = cost * quantity
+                profit = revenue - total_cost
+                margin = (profit / revenue * 100) if revenue > 0 else 0
+                
+                profit_analysis.append({
+                    'item_no': item_no,
+                    'description': sales_info.get('description', cost_info.get('description', '')),
+                    'quantity_sold': quantity,
+                    'revenue': revenue,
+                    'cost': cost,
+                    'total_cost': total_cost,
+                    'profit': profit,
+                    'margin_percent': margin,
+                    'avg_selling_price': sales_info.get('avg_price', 0)
+                })
+        
+        # RESTOCKING ANALYSIS - Items below reorder level
+        restocking_needs = []
+        for item in items:
+            item_no = item.get('Item No.', '')
+            stock = safe_float(item.get('Stock', item.get('Quantity on Hand', 0)))
+            reorder_level = safe_float(item.get('Reorder Level', item.get('Minimum', 0)))
+            reorder_qty = safe_float(item.get('Reorder Quantity', item.get('Maximum', 0)))
+            
+            if reorder_level > 0 and stock < reorder_level:
+                restocking_needs.append({
+                    'item_no': item_no,
+                    'description': item.get('Description', ''),
+                    'current_stock': stock,
+                    'reorder_level': reorder_level,
+                    'reorder_quantity': reorder_qty if reorder_qty > 0 else reorder_level * 2,
+                    'shortfall': reorder_level - stock
+                })
+        
+        # PRODUCT PERFORMANCE - Top sellers, top revenue, etc.
+        top_sellers = sorted(sales_by_product.values(), 
+                           key=lambda x: x.get('total_quantity_sold', 0), 
+                           reverse=True)[:10]
+        top_revenue = sorted(sales_by_product.values(), 
+                           key=lambda x: x.get('total_revenue', 0), 
+                           reverse=True)[:10]
+        top_profits = sorted(profit_analysis, 
+                           key=lambda x: x.get('profit', 0), 
+                           reverse=True)[:10]
+        top_customers = sorted(sales_by_customer.items(), 
+                             key=lambda x: x[1], 
+                             reverse=True)[:10]
+        
+        # Build analytics summary
+        analytics['sales_data'] = list(sales_by_product.values())
+        analytics['cost_data'] = list(cost_by_product.values())
+        analytics['profit_analysis'] = profit_analysis
+        analytics['restocking_needs'] = restocking_needs
+        analytics['product_performance'] = {
+            'top_sellers': top_sellers,
+            'top_revenue': top_revenue,
+            'top_profits': top_profits,
+            'top_customers': [{'customer': k, 'total_revenue': v} for k, v in top_customers]
+        }
+        analytics['summary'] = {
+            'total_revenue': total_revenue,
+            'total_products_sold': len(sales_by_product),
+            'total_customers': len(sales_by_customer),
+            'items_need_restocking': len(restocking_needs),
+            'products_with_profit_data': len(profit_analysis),
+            'total_sales_orders': len(so_headers) + len(real_sos)
+        }
+        
+        return analytics
+        
+    except Exception as e:
+        print(f"ERROR: Error in product analytics: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "sales_data": [],
+            "cost_data": [],
+            "profit_analysis": [],
+            "restocking_needs": [],
+            "product_performance": {},
+            "summary": {},
+            "error": str(e)
+        }
+
 @app.route('/api/chat', methods=['POST'])
 def chat_query():
     """Handle ChatGPT queries about inventory data with smart SO search"""
@@ -3538,6 +3777,27 @@ When asked about sales performance, trends, or analysis, ALWAYS provide:
 - "Cost optimization?" → Cost analysis + savings opportunities + implementation plan
 - "Financial health?" → Complete financial overview + metrics + recommendations
 
+**PRODUCT ANALYTICS QUERIES (RAG ENABLED):**
+- "Product analytics for [item]?" → Complete sales, cost, profit, and performance analysis
+- "How much money do we make on [product]?" → Revenue, cost, profit margin analysis
+- "Sales analytics for [product]?" → Sales volume, revenue, customer breakdown
+- "Cost analysis for [product]?" → Purchase costs, standard costs, cost trends
+- "Restocking needs?" → Items below reorder level with recommendations
+- "Top products by sales/profit?" → Ranked product performance analysis
+- "Buying costs for [product]?" → Purchase order costs and supplier pricing
+- "Product performance?" → Complete analytics dashboard for any product
+
+**ANALYTICS DATA AVAILABLE:**
+When ProductAnalytics data is provided, you have access to:
+- Sales data: Product sales volumes, revenue, average prices, order counts
+- Cost data: Recent costs, standard costs, unit costs from items and purchase orders
+- Profit analysis: Calculated profits, margins, and profitability for each product
+- Restocking needs: Items below reorder level with current stock and shortfall
+- Product performance: Top sellers, top revenue generators, top profit makers
+- Customer analytics: Top customers by revenue and order frequency
+
+USE THIS DATA to provide comprehensive analytics answers with real numbers and calculations.
+
 **OPERATIONAL QUERIES:**
 - "Production efficiency?" → Efficiency metrics + bottlenecks + improvement opportunities
 - "Resource utilization?" → Resource analysis + optimization + capacity planning
@@ -3694,8 +3954,32 @@ For time-sensitive queries like "sales orders made today", filter data by the cu
         # Add ACTUAL REAL DATA to the prompt so ChatGPT has everything
         search_results = {}
         
+        # DETECT ANALYTICS QUERIES - Check if user is asking about sales, costs, profits, restocking, etc.
+        analytics_keywords = ['analytics', 'sales', 'revenue', 'profit', 'margin', 'cost', 'restock', 
+                              'restocking', 'buying', 'money', 'earn', 'performance', 'trend', 
+                              'top product', 'top customer', 'how much', 'profitability']
+        is_analytics_query = any(keyword in user_query.lower() for keyword in analytics_keywords)
+        
+        # Get analytics data if this is an analytics query
+        analytics_data = None
+        if is_analytics_query:
+            print("📊 Analytics query detected - calculating product analytics...")
+            analytics_data = get_product_analytics_data(raw_data, user_query)
+            if analytics_data and not analytics_data.get('error'):
+                print(f"✅ Analytics calculated: {analytics_data['summary']}")
+        
         # SMART DATA FILTERING - Send only relevant data to save tokens and money
         actual_data_sample = {}
+        
+        # Add analytics data to the sample if available
+        if analytics_data and not analytics_data.get('error'):
+            actual_data_sample['ProductAnalytics'] = {
+                'total_records': 1,
+                'sample_records': [analytics_data],
+                'fields': list(analytics_data.keys()),
+                'note': 'Complete product analytics including sales, costs, profits, and restocking needs'
+            }
+            print(f"📊 Added Product Analytics to AI context")
         # Give AI access to ALL MiSys data files - no restrictions
         for file_name, file_data in raw_data.items():
             if isinstance(file_data, list) and len(file_data) > 0:
