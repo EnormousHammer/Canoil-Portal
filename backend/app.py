@@ -2608,15 +2608,10 @@ def load_mps_data():
 
 @app.route('/api/mps', methods=['GET'])
 def get_mps_data():
-    """Get MPS schedule from Google Sheets - returns CSV format"""
-    MPS_SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw'
-    MPS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{MPS_SHEET_ID}/export?format=csv'
+    """Get MPS schedule from Google Sheets - returns JSON format"""
     try:
-        response = requests.get(MPS_CSV_URL, timeout=10)
-        if response.ok:
-            # Return CSV text, not JSON
-            return response.text, 200, {'Content-Type': 'text/csv'}
-        return jsonify({'error': 'Failed to fetch MPS data'}), 500
+        mps_data = load_mps_data()
+        return jsonify(mps_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
