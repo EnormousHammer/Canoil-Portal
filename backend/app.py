@@ -2611,7 +2611,17 @@ def get_mps_data():
     """Get MPS schedule from Google Sheets - returns JSON format"""
     try:
         mps_data = load_mps_data()
-        return jsonify(mps_data)
+        
+        # Check if load_mps_data returned an error
+        if isinstance(mps_data, dict) and 'error' in mps_data:
+            return jsonify(mps_data), 500
+        
+        # Check if we have valid data
+        if not isinstance(mps_data, dict) or 'mps_orders' not in mps_data:
+            return jsonify({'error': 'Invalid data format returned from load_mps_data'}), 500
+        
+        # Success - return the data
+        return jsonify(mps_data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
