@@ -1509,7 +1509,21 @@ MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 def get_latest_folder():
     """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
     try:
-        # Check if we should use Google Drive API (Cloud Run or explicit setting)
+        # CRITICAL: On cloud environments (Render/Cloud Run), NEVER try local G: Drive paths
+        if IS_CLOUD_ENVIRONMENT:
+            print("☁️ Cloud environment detected - using Google Drive API only")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+                else:
+                    return None, "Could not find latest folder via Google Drive API"
+            else:
+                return None, "Google Drive API service not available on cloud environment"
+        
+        # LOCAL DEVELOPMENT: Try Google Drive API first if enabled, then fallback to local G: Drive
         if USE_GOOGLE_DRIVE_API:
             print("SEARCH: Using Google Drive API to find latest folder...")
             service = get_google_drive_service()
@@ -1518,14 +1532,10 @@ def get_latest_folder():
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
-                else:
-                    return None, "Could not find latest folder via API"
-            else:
-                # If API init failed, try falling back to local if path exists
-                if not os.path.exists(GDRIVE_BASE):
-                    return None, "Google Drive API failed and local G: Drive not found"
+            # If API fails locally, fall through to try local G: Drive
         
-        print(f"SEARCH: Checking G: Drive path: {GDRIVE_BASE}")
+        # LOCAL ONLY: Try local G: Drive path
+        print(f"SEARCH: Checking local G: Drive path: {GDRIVE_BASE}")
         
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive path not accessible: {GDRIVE_BASE}")
@@ -1766,6 +1776,70 @@ def get_google_drive_service():
         google_drive_service = None
         return None
 
+def get_latest_folder():
+    """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
+    try:
+        # CRITICAL: On cloud environments (Render/Cloud Run), NEVER try local G: Drive paths
+        if IS_CLOUD_ENVIRONMENT:
+            print("☁️ Cloud environment detected - using Google Drive API only")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+                else:
+                    return None, "Could not find latest folder via Google Drive API"
+            else:
+                return None, "Google Drive API service not available on cloud environment"
+        
+        # LOCAL DEVELOPMENT: Try Google Drive API first if enabled, then fallback to local G: Drive
+        if USE_GOOGLE_DRIVE_API:
+            print("SEARCH: Using Google Drive API to find latest folder...")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+            # If API fails locally, fall through to try local G: Drive
+        
+        # LOCAL ONLY: Try local G: Drive path
+        print(f"SEARCH: Checking local G: Drive path: {GDRIVE_BASE}")
+        
+        if not os.path.exists(GDRIVE_BASE):
+            print(f"ERROR: G: Drive path not accessible: {GDRIVE_BASE}")
+            # Try to initialize Google Drive API as fallback (local dev only)
+            if not IS_CLOUD_ENVIRONMENT:
+                print("RETRY: Attempting to use Google Drive API as fallback...")
+                service = get_google_drive_service()
+                if service:
+                    latest_id, latest_name = service.find_latest_api_extractions_folder()
+                    if latest_name:
+                        print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
+                        return latest_name, None
+            
+            return None, f"G: Drive path not accessible: {GDRIVE_BASE}"
+        
+        # FAST: Get folders and sort by name (assuming date format YYYY-MM-DD)
+        folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]
+        print(f"📁 Found folders: {folders}")
+        
+        if not folders:
+            print("ERROR: No folders found in G: Drive path")
+            return None, "No folders found in G: Drive path"
+        
+        # OPTIMIZED: Sort by folder name (assuming YYYY-MM-DD format) instead of checking mtime
+        folders.sort(reverse=True)  # Most recent first
+        latest_folder = folders[0]
+        
+        print(f"SUCCESS: Latest folder found: {latest_folder}")
+        return latest_folder, None
+            
+    except Exception as e:
+        print(f"ERROR: Error in get_latest_folder: {e}")
+        return None, str(e)
+
 if USE_GOOGLE_DRIVE_API:
     print("Google Drive API enabled - will initialize when needed")
 else:
@@ -1780,7 +1854,21 @@ MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 def get_latest_folder():
     """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
     try:
-        # Check if we should use Google Drive API (Cloud Run or explicit setting)
+        # CRITICAL: On cloud environments (Render/Cloud Run), NEVER try local G: Drive paths
+        if IS_CLOUD_ENVIRONMENT:
+            print("☁️ Cloud environment detected - using Google Drive API only")
+            service = get_google_drive_service()
+            if service:
+                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                if latest_name:
+                    print(f"SUCCESS: Latest folder found (via API): {latest_name}")
+                    return latest_name, None
+                else:
+                    return None, "Could not find latest folder via Google Drive API"
+            else:
+                return None, "Google Drive API service not available on cloud environment"
+        
+        # LOCAL DEVELOPMENT: Try Google Drive API first if enabled, then fallback to local G: Drive
         if USE_GOOGLE_DRIVE_API:
             print("SEARCH: Using Google Drive API to find latest folder...")
             service = get_google_drive_service()
@@ -1789,14 +1877,10 @@ def get_latest_folder():
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
-                else:
-                    return None, "Could not find latest folder via API"
-            else:
-                # If API init failed, try falling back to local if path exists
-                if not os.path.exists(GDRIVE_BASE):
-                    return None, "Google Drive API failed and local G: Drive not found"
+            # If API fails locally, fall through to try local G: Drive
         
-        print(f"SEARCH: Checking G: Drive path: {GDRIVE_BASE}")
+        # LOCAL ONLY: Try local G: Drive path
+        print(f"SEARCH: Checking local G: Drive path: {GDRIVE_BASE}")
         
         if not os.path.exists(GDRIVE_BASE):
             print(f"ERROR: G: Drive path not accessible: {GDRIVE_BASE}")
