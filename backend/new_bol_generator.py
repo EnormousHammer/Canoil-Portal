@@ -502,6 +502,12 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         
         return ''
     
+    # CRITICAL: For multi-SO, consignee is ALWAYS the shipping_address (where goods are going)
+    # NOT the billing_address (who pays). In multi-SO, shipper is Canoil, consignee is where goods go.
+    is_multi_so = so_data.get('is_multi_so', False)
+    if is_multi_so:
+        print(f"   🔀 MULTI-SO MODE: Consignee is shipping_address (where goods are going)")
+    
     # Priority 1: SO shipping_address (most reliable - matches frontend display)
     if so_data.get('shipping_address'):
         ship_addr = so_data['shipping_address']
@@ -516,6 +522,15 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
                            ship_addr.get('company_name') or 
                            ship_addr.get('contact') or 
                            ship_addr.get('contact_person') or '')
+        
+        # CRITICAL: For multi-SO, if consignee name is same as billing (customer), that's wrong
+        # Consignee should be where goods are going (shipping address), not who pays (billing)
+        if is_multi_so and so_data.get('billing_address'):
+            billing_company = (so_data['billing_address'].get('company') or 
+                             so_data['billing_address'].get('company_name') or '')
+            if consignee['name'] == billing_company and billing_company:
+                print(f"   ⚠️ WARNING: Multi-SO consignee matches billing (customer) - this may be wrong!")
+                print(f"   Consignee should be where goods are going, not who pays")
         
         # SIMPLE APPROACH: Use individual fields FIRST if they exist
         # These are already parsed correctly by the SO extractor
@@ -1051,28 +1066,49 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     
     # Extract shipper address from override (if provided) or billing_address/sold_to
     print(f"\n>> Extracting shipper address...")
-    shipper_override = {}
-    try:
-        shipper_override = (email_analysis or {}).get('shipper_override') or so_data.get('shipper_override') or {}
-    except Exception as override_err:
-        print(f"WARNING: Could not read shipper_override: {override_err}")
-        shipper_override = {}
-
-    if isinstance(shipper_override, dict) and (shipper_override.get('company') or shipper_override.get('company_name')):
+    
+    # CRITICAL: For multi-SO shipments, shipper is ALWAYS Canoil (we're shipping the goods)
+    # For single-SO, use billing_address/sold_to (customer who pays)
+    is_multi_so = so_data.get('is_multi_so', False)
+    
+    if is_multi_so:
+        print(f"   🔀 MULTI-SO MODE: Shipper is ALWAYS Canoil Canada Ltd (we're shipping)")
+        # For multi-SO, shipper is always Canoil
         shipper_addr = {
-            'company_name': shipper_override.get('company') or shipper_override.get('company_name', ''),
-            'company': shipper_override.get('company') or shipper_override.get('company_name', ''),
-            'street': shipper_override.get('street') or shipper_override.get('address', ''),
-            'address': shipper_override.get('address') or shipper_override.get('street', ''),
-            'city': shipper_override.get('city', ''),
-            'province': shipper_override.get('province') or shipper_override.get('state', ''),
-            'postal_code': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
-            'postal': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
-            'country': shipper_override.get('country', '')
+            'company_name': 'Canoil Canada Ltd',
+            'company': 'Canoil Canada Ltd',
+            'street': '62 Todd Road',
+            'address': '62 Todd Road',
+            'city': 'Georgetown',
+            'province': 'ON',
+            'state': 'ON',
+            'postal_code': 'L7G 4R7',
+            'postal': 'L7G 4R7',
+            'country': 'Canada'
         }
-        print(f"   Using shipper_override: {shipper_addr.get('company_name')}")
     else:
-        shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+        shipper_override = {}
+        try:
+            shipper_override = (email_analysis or {}).get('shipper_override') or so_data.get('shipper_override') or {}
+        except Exception as override_err:
+            print(f"WARNING: Could not read shipper_override: {override_err}")
+            shipper_override = {}
+
+        if isinstance(shipper_override, dict) and (shipper_override.get('company') or shipper_override.get('company_name')):
+            shipper_addr = {
+                'company_name': shipper_override.get('company') or shipper_override.get('company_name', ''),
+                'company': shipper_override.get('company') or shipper_override.get('company_name', ''),
+                'street': shipper_override.get('street') or shipper_override.get('address', ''),
+                'address': shipper_override.get('address') or shipper_override.get('street', ''),
+                'city': shipper_override.get('city', ''),
+                'province': shipper_override.get('province') or shipper_override.get('state', ''),
+                'postal_code': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
+                'postal': shipper_override.get('postal') or shipper_override.get('postal_code', ''),
+                'country': shipper_override.get('country', '')
+            }
+            print(f"   Using shipper_override: {shipper_addr.get('company_name')}")
+        else:
+            shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
     shipper = {
         'name': (shipper_addr.get('company_name', '') or 
                 shipper_addr.get('company', '') or 

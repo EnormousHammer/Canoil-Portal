@@ -366,6 +366,17 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
                     "pallet_count": 0,
                     "pallet_dimensions": "Extract actual dimensions"
                 }}
+            ],
+            "YYYY": [
+                {{
+                    "description": "Extract actual product name for second SO",
+                    "quantity": "Extract actual quantity",
+                    "unit": "Extract actual unit",
+                    "batch_number": "Extract actual batch",
+                    "gross_weight": "Extract actual weight with kg",
+                    "pallet_count": 0,
+                    "pallet_dimensions": "Extract actual dimensions"
+                }}
             ]
         }},
         "combined_totals": {{
@@ -377,10 +388,23 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
     CRITICAL: Extract the EXACT weight values from the email. Do NOT invent or use default values.
     
     IMPORTANT RULES:
-    1. Extract EACH SO's items separately under items_by_so
+    1. Extract EACH SO's items separately under items_by_so - EVERY SO MUST HAVE ITS OWN ENTRY
     2. Match batch numbers to their correct SO
     3. Calculate combined totals for the entire shipment
     4. Keep weight values as strings with units
+    5. CRITICAL NUMBERED FORMAT PARSING:
+       If email uses numbered format like:
+       "2) PO C092525-2 / SO 3024 – BRO SAE 0W-20 Full Synthetic..."
+       "3) PO C110525-1 / SO 3064 – BRO SAE 10W-30 Heavy Duty..."
+       
+       You MUST:
+       - Extract SO 3024 from "2) PO C092525-2 / SO 3024"
+       - Extract SO 3064 from "3) PO C110525-1 / SO 3064"
+       - Put ALL items mentioned under "2)" into items_by_so["3024"]
+       - Put ALL items mentioned under "3)" into items_by_so["3064"]
+       - Each numbered section is a COMPLETE SO with its own items, batch, weight, pallets
+    6. The SO number in items_by_so keys MUST match exactly the SO numbers in so_numbers array (as strings: "3024", "3064")
+    7. MANDATORY: If you find 2 SOs, you MUST create items_by_so entries for BOTH. Do NOT skip any SO.
     
     SPECIAL INSTRUCTIONS (CRITICAL):
     Look for instructions at the end of the email like:
@@ -456,44 +480,107 @@ def parse_multi_so_fallback(email_text: str) -> dict:
     if po_match:
         data['po_numbers'] = list(po_match.groups())
     
-    # Try to extract items per SO from structured format like "Sales Order 3004:\n360 pails..."
+    # Try to extract items per SO from structured format
+    # Handle both "Sales Order 3004:" format AND numbered format "2) PO C092525-2 / SO 3024"
     for so_num in so_numbers:
-        # Find section for this SO
-        section_pattern = rf'Sales\s*Order\s*{so_num}[:\s]*\n(.*?)(?=Sales\s*Order|\Z)'
-        section_match = re.search(section_pattern, email_text, re.IGNORECASE | re.DOTALL)
+        items = []
         
-        if section_match:
-            section_text = section_match.group(1)
-            items = []
+        # Pattern 1: Numbered format like "2) PO C092525-2 / SO 3024 – BRO SAE 0W-20..."
+        numbered_pattern = rf'\d+\)\s*PO\s+[A-Z0-9\-]+\s*/\s*SO\s*{so_num}[^\d].*?(?=\d+\)\s*PO|SO\s*\d+|$)'
+        numbered_match = re.search(numbered_pattern, email_text, re.IGNORECASE | re.DOTALL)
+        
+        if numbered_match:
+            section_text = numbered_match.group(0)
+            print(f"   📋 Fallback: Found numbered section for SO {so_num}")
             
-            # Extract item from section
-            item_pattern = r'(\d+)\s+(pails?|drums?|cases?|gallons?)\s+of\s+([^\n,]+)'
-            item_match = re.search(item_pattern, section_text, re.IGNORECASE)
-            if item_match:
-                item = {
-                    'quantity': item_match.group(1),
-                    'unit': item_match.group(2),
-                    'description': item_match.group(3).strip()
-                }
+            # Extract product description (after the dash/em dash)
+            desc_match = re.search(r'[–—]\s*([^\n]+)', section_text)
+            if desc_match:
+                description = desc_match.group(1).strip()
+                
+                # Extract quantity
+                qty_match = re.search(r'Quantity:\s*(\d+)\s*(\w+)', section_text, re.IGNORECASE)
+                if qty_match:
+                    quantity = qty_match.group(1)
+                    unit = qty_match.group(2)
+                else:
+                    # Try alternative format
+                    qty_match = re.search(r'(\d+)\s*(cases?|pallets?|drums?|kegs?|pails?)', section_text, re.IGNORECASE)
+                    if qty_match:
+                        quantity = qty_match.group(1)
+                        unit = qty_match.group(2)
+                    else:
+                        quantity = "1"
+                        unit = "case"
                 
                 # Extract batch
-                batch_match = re.search(r'batch\s*(?:number)?\s*[#:]?\s*([A-Z0-9\-]+)', section_text, re.IGNORECASE)
-                if batch_match:
-                    item['batch_number'] = batch_match.group(1)
+                batch_match = re.search(r'Batch:\s*([A-Z0-9\-]+)', section_text, re.IGNORECASE)
+                batch_number = batch_match.group(1) if batch_match else ''
                 
                 # Extract weight
-                weight_match = re.search(r'([\d,\.]+)\s*kg\s*(?:total\s*)?gross', section_text, re.IGNORECASE)
-                if weight_match:
-                    item['gross_weight'] = f"{weight_match.group(1)} kg"
+                weight_match = re.search(r'Total\s+gross\s+weight:\s*([\d,]+)\s*kg', section_text, re.IGNORECASE)
+                gross_weight = weight_match.group(1) + ' kg' if weight_match else ''
                 
-                # Extract pallet info
-                pallet_match = re.search(r'[Oo]n\s+(\d+)\s+pallets?', section_text)
-                if pallet_match:
-                    item['pallet_count'] = int(pallet_match.group(1))
+                # Extract pallets
+                pallet_match = re.search(r'Pallets:\s*(\d+)\s*pallets', section_text, re.IGNORECASE)
+                pallet_count = int(pallet_match.group(1)) if pallet_match else 0
                 
+                # Extract pallet dimensions
+                dim_match = re.search(r'(\d+[×x]\d+[×x]\d+)\s*inches', section_text, re.IGNORECASE)
+                pallet_dimensions = dim_match.group(1) + ' inches' if dim_match else ''
+                
+                item = {
+                    'description': description,
+                    'quantity': quantity,
+                    'unit': unit,
+                    'batch_number': batch_number,
+                    'gross_weight': gross_weight,
+                    'pallet_count': pallet_count,
+                    'pallet_dimensions': pallet_dimensions
+                }
                 items.append(item)
+                print(f"   ✅ Extracted item: {description} ({quantity} {unit})")
+        
+        # Pattern 2: Traditional format like "Sales Order 3004:\n360 pails..."
+        if not items:
+            section_pattern = rf'Sales\s*Order\s*{so_num}[:\s]*\n(.*?)(?=Sales\s*Order|\Z)'
+            section_match = re.search(section_pattern, email_text, re.IGNORECASE | re.DOTALL)
             
-            data['items_by_so'][so_num] = items
+            if section_match:
+                section_text = section_match.group(1)
+                
+                # Extract item from section
+                item_pattern = r'(\d+)\s+(pails?|drums?|cases?|gallons?)\s+of\s+([^\n,]+)'
+                item_match = re.search(item_pattern, section_text, re.IGNORECASE)
+                if item_match:
+                    item = {
+                        'quantity': item_match.group(1),
+                        'unit': item_match.group(2),
+                        'description': item_match.group(3).strip()
+                    }
+                    
+                    # Extract batch
+                    batch_match = re.search(r'batch\s*(?:number)?\s*[#:]?\s*([A-Z0-9\-]+)', section_text, re.IGNORECASE)
+                    if batch_match:
+                        item['batch_number'] = batch_match.group(1)
+                    
+                    # Extract weight
+                    weight_match = re.search(r'([\d,\.]+)\s*kg\s*(?:total\s*)?gross', section_text, re.IGNORECASE)
+                    if weight_match:
+                        item['gross_weight'] = f"{weight_match.group(1)} kg"
+                    
+                    # Extract pallet info
+                    pallet_match = re.search(r'[Oo]n\s+(\d+)\s+pallets?', section_text)
+                    if pallet_match:
+                        item['pallet_count'] = int(pallet_match.group(1))
+                    
+                    items.append(item)
+        
+        if items:
+            data['items_by_so'][str(so_num)] = items
+            print(f"   ✅ Fallback: Added {len(items)} items for SO {so_num}")
+        else:
+            print(f"   ⚠️ Fallback: No items extracted for SO {so_num}")
     
     return data
 
@@ -2664,6 +2751,24 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     multi_so_email_data = parse_multi_so_email_with_gpt4(email_content)
     print(f"📧 Multi-SO Email Data: {json.dumps(multi_so_email_data, indent=2, default=str)}")
     
+    # CRITICAL DEBUG: Verify items_by_so has entries for ALL SOs
+    items_by_so_raw = multi_so_email_data.get('items_by_so', {})
+    print(f"\n🔍 CRITICAL DEBUG: items_by_so verification")
+    print(f"   SOs expected: {so_numbers}")
+    print(f"   items_by_so keys from GPT: {list(items_by_so_raw.keys())}")
+    for so_num in so_numbers:
+        so_num_str = str(so_num)
+        items_count = len(items_by_so_raw.get(so_num_str, []))
+        print(f"   SO {so_num_str}: {items_count} items in items_by_so")
+        if items_count == 0:
+            print(f"   ⚠️ WARNING: SO {so_num_str} has NO items in items_by_so!")
+            # Try alternative key formats
+            for key in items_by_so_raw.keys():
+                key_str = str(key).strip()
+                if key_str == so_num_str or key_str.lstrip('0') == so_num_str.lstrip('0'):
+                    print(f"   ✅ Found items under key '{key}' instead, will normalize")
+                    break
+    
     # Fetch SO data for ALL SOs in parallel
     # CRITICAL: Increase timeout for multi-SO (SSL retries can take longer)
     # 4 SOs × 60s each = 240s max, but with retries we need more headroom
@@ -2701,9 +2806,57 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     
     items_by_so = multi_so_email_data.get('items_by_so', {})
     
+    # CRITICAL: Normalize items_by_so keys to strings for consistent matching
+    # GPT might return keys as strings or numbers, so normalize everything
+    normalized_items_by_so = {}
+    for key, value in items_by_so.items():
+        # Normalize key to string (handle both "3024" and 3024)
+        normalized_key = str(key).strip()
+        normalized_items_by_so[normalized_key] = value
+    
+    # CRITICAL: Ensure ALL SOs have entries, even if GPT missed them
+    for so_num in so_numbers:
+        so_num_str = str(so_num).strip()
+        if so_num_str not in normalized_items_by_so:
+            print(f"   ⚠️ CRITICAL: SO {so_num_str} missing from items_by_so! GPT may have failed to extract items.")
+            print(f"   Available keys: {list(normalized_items_by_so.keys())}")
+            # Try to find by alternative formats
+            found = False
+            for key in normalized_items_by_so.keys():
+                key_str = str(key).strip()
+                if key_str == so_num_str or key_str.lstrip('0') == so_num_str.lstrip('0'):
+                    print(f"   ✅ Found items under alternative key '{key}', copying to '{so_num_str}'")
+                    normalized_items_by_so[so_num_str] = normalized_items_by_so[key]
+                    found = True
+                    break
+            if not found:
+                print(f"   ⚠️ No items found for SO {so_num_str} - will process from SO PDF as fallback")
+                normalized_items_by_so[so_num_str] = []  # Empty list, will be handled by fallback logic
+    
+    items_by_so = normalized_items_by_so
+    print(f"   ✅ Final normalized items_by_so keys: {list(items_by_so.keys())}")
+    for key, items in items_by_so.items():
+        print(f"      SO {key}: {len(items)} items")
+    
     for so_data in so_data_list:
-        so_num = so_data.get('so_number', '')
+        # Normalize SO number to string for consistent matching
+        so_num_raw = so_data.get('so_number', '')
+        so_num = str(so_num_raw).strip() if so_num_raw else ''
+        
+        # Try multiple lookup strategies
         email_items_for_so = items_by_so.get(so_num, [])
+        
+        # If not found, try without leading zeros or with different formats
+        if not email_items_for_so and so_num:
+            # Try as integer string (remove leading zeros if any)
+            try:
+                so_num_int = str(int(so_num))
+                if so_num_int != so_num:
+                    email_items_for_so = items_by_so.get(so_num_int, [])
+            except:
+                pass
+        
+        print(f"🔍 DEBUG: SO {so_num} (raw: {repr(so_num_raw)}) - Found {len(email_items_for_so)} items in email")
         so_items = so_data.get('items', [])
         
         print(f"\n📦 Processing SO {so_num}...")
@@ -2943,6 +3096,20 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     items_by_so = multi_so_email_data.get('items_by_so', {})
     total_subtotal = 0.0
     
+    # CRITICAL: Normalize items_by_so keys to strings for consistent matching
+    # GPT might return keys as strings or numbers, so normalize everything
+    normalized_items_by_so = {}
+    for key, value in items_by_so.items():
+        # Normalize key to string (handle both "3024" and 3024)
+        normalized_key = str(key).strip()
+        normalized_items_by_so[normalized_key] = value
+    items_by_so = normalized_items_by_so
+    
+    # Debug: Log what SOs we have in items_by_so
+    print(f"\n🔍 DEBUG: items_by_so keys: {list(items_by_so.keys())}")
+    for key, items in items_by_so.items():
+        print(f"   📦 SO {key}: {len(items)} items from email")
+    
     # FIRST: Sum total_amount from each SO (this includes pallets, charges, everything)
     combined_total_from_sos = 0.0
     for so_data in so_data_list:
@@ -2956,13 +3123,67 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     print(f"   💰 Combined SO totals: ${combined_total_from_sos:,.2f}")
     
     for so_data in so_data_list:
-        so_num = so_data.get('so_number', '')
+        # Normalize SO number to string for consistent matching
+        so_num_raw = so_data.get('so_number', '')
+        so_num = str(so_num_raw).strip() if so_num_raw else ''
+        
+        # Try multiple lookup strategies
         email_items = items_by_so.get(so_num, [])
         
-        # Skip SO entirely if no items were specified in the email for it
+        # If not found, try without leading zeros or with different formats
+        if not email_items and so_num:
+            # Try as integer string (remove leading zeros if any)
+            try:
+                so_num_int = str(int(so_num))
+                if so_num_int != so_num:
+                    email_items = items_by_so.get(so_num_int, [])
+            except:
+                pass
+        
+        # Debug: Log lookup result
+        print(f"\n🔍 DEBUG: Looking up SO {so_num} (raw: {repr(so_num_raw)})")
+        print(f"   Found {len(email_items)} items in items_by_so")
+        
+        # FALLBACK: If no items found for this SO, try to find items by searching all items_by_so
+        # This handles cases where GPT might have used a slightly different SO number format
         if not email_items:
-            print(f"   ⚠️ SO {so_num}: No items in email - skipping all items from this SO PDF")
-            continue
+            print(f"   ⚠️ SO {so_num}: No direct match in items_by_so")
+            print(f"   Available keys in items_by_so: {list(items_by_so.keys())}")
+            
+            # Try to find items by matching SO numbers more flexibly
+            for key in items_by_so.keys():
+                key_str = str(key).strip()
+                so_num_str = str(so_num).strip()
+                # Check if SO numbers match (with or without leading zeros, case insensitive)
+                if key_str == so_num_str or key_str.lstrip('0') == so_num_str.lstrip('0'):
+                    email_items = items_by_so[key]
+                    print(f"   ✅ Found items using flexible matching: key '{key}' → {len(email_items)} items")
+                    break
+            
+            # If still no items, this SO might not have been mentioned in the email
+            # But we should still process its items from the PDF (user might have missed it in email)
+            if not email_items:
+                print(f"   ⚠️ SO {so_num}: No items found in email parsing - will process all items from SO PDF")
+                # Process all items from SO PDF as fallback
+                for so_item in so_data.get('items', []):
+                    # Skip freight/charges
+                    desc = so_item.get('description', '').upper()
+                    if any(skip in desc for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE']):
+                        continue
+                    
+                    item_copy = so_item.copy()
+                    item_copy['source_so'] = so_num
+                    combined['items'].append(item_copy)
+                    
+                    # Add to subtotal
+                    try:
+                        item_total = float(str(so_item.get('total', 0)).replace('$', '').replace(',', ''))
+                        total_subtotal += item_total
+                    except:
+                        pass
+                
+                print(f"   ✅ Added {len([i for i in combined['items'] if i.get('source_so') == so_num])} items from SO PDF as fallback")
+                continue
         
         print(f"   📋 SO {so_num}: Processing {len(email_items)} items from email")
         

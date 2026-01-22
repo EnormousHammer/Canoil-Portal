@@ -144,7 +144,9 @@ const LogisticsAutomation: React.FC = () => {
           id: Date.now().toString(),
           emailText: emailText,
           timestamp: new Date().toISOString(),
-          soNumber: result.so_data?.so_number || result.email_data?.so_number,
+          soNumber: result.is_multi_so 
+            ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_data?.so_number)
+            : (result.so_data?.so_number || result.email_data?.so_number),
           companyName: result.so_data?.customer_name || result.email_data?.company_name
         };
         
@@ -1984,7 +1986,9 @@ const LogisticsAutomation: React.FC = () => {
                       {result.is_multi_so ? (
                         <>Data extracted from SOs #{result.so_numbers?.join(' & ')} (Multi-SO Shipment)</>
                       ) : (
-                        <>Data extracted from SO #{result.so_data?.so_number || result.email_analysis?.so_number} and shipping email</>
+                        <>Data extracted from SO #{result.is_multi_so 
+                          ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_analysis?.so_number)
+                          : (result.so_data?.so_number || result.email_analysis?.so_number)} and shipping email</>
                       )}
                     </p>
                     <div className="flex gap-3 mt-2">
@@ -2071,130 +2075,269 @@ const LogisticsAutomation: React.FC = () => {
                       <CheckCircle className="w-5 h-5 text-emerald-600" />
                     </div>
                     <h3 className="font-bold text-slate-900">Data Comparison</h3>
+                    {result.is_multi_so && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">
+                        Multi-SO: {result.so_numbers?.join(' & ')}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2 items-center">
                     <span className="text-xs bg-gradient-to-r from-orange-500 to-orange-600 text-white px-2.5 py-1 rounded font-semibold shadow-sm">EMAIL</span>
                     <span className="text-xs text-slate-400">vs</span>
-                    <span className="text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-2.5 py-1 rounded font-semibold shadow-sm">SO PDF</span>
+                    <span className="text-xs bg-gradient-to-r from-blue-600 to-blue-700 text-white px-2.5 py-1 rounded font-semibold shadow-sm">
+                      {result.is_multi_so ? 'COMBINED SO PDFs' : 'SO PDF'}
+                    </span>
                   </div>
                 </div>
               </div>
               <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Email Data Column */}
-                  <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
-                    <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                      From Email (Carolina)
-                    </h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">SO Number:</span>
-                        <span className="font-medium">{result.email_data?.so_number || 'Not found'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Company:</span>
-                        <span className="font-medium">{result.email_data?.company_name || 'Not specified'}</span>
-                      </div>
-                      {result.email_data?.po_number && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">PO Number:</span>
-                          <span className="font-medium">{result.email_data.po_number}</span>
+                {result.is_multi_so ? (
+                  // MULTI-SO COMPARISON: Show combined data with per-SO breakdown
+                  <div className="space-y-4">
+                    {/* Combined Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Email Data Column */}
+                      <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                        <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                          From Email (Combined)
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">SO Numbers:</span>
+                            <span className="font-medium">{result.email_data?.so_number || result.so_numbers?.join(' & ') || 'Not found'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Company:</span>
+                            <span className="font-medium">{result.email_data?.company_name || 'Not specified'}</span>
+                          </div>
+                          {result.email_data?.po_number && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">PO Numbers:</span>
+                              <span className="font-medium">{result.email_data.po_number}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Weight:</span>
+                            <span className="font-medium">{result.email_data?.total_weight || 'Not specified'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Pallets:</span>
+                            <span className="font-medium">{result.email_data?.pallet_count || 'Not specified'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Batch Numbers:</span>
+                            <span className="font-medium font-mono text-xs">{result.email_data?.batch_numbers || 'Not specified'}</span>
+                          </div>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Weight:</span>
-                        <span className="font-medium">{result.email_data?.total_weight || 'Not specified'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">
-                          {result.email_data?.packaging_type === 'case' ? 'Box/Case:' : 'Pallets:'}
-                        </span>
-                        <span className="font-medium">
-                          {result.email_data?.packaging_type === 'case' 
-                            ? (result.email_data?.skid_info || result.email_data?.pallet_count || 'Not specified')
-                            : (result.email_data?.pallet_count || 'Not specified')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Batch #:</span>
-                        <span className="font-medium font-mono">{result.email_data?.batch_numbers || 'Not specified'}</span>
-                      </div>
-                      {result.email_data?.carrier && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Carrier:</span>
-                          <span className="font-medium">{result.email_data.carrier}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* SO Data Column */}
-                  <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
-                    <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                      From SO PDF
-                    </h4>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">SO Number:</span>
-                        <span className="font-medium">{result.so_data?.so_number || 'Not found'}</span>
                       </div>
                       
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Customer:</span>
-                        <span className="font-medium">{result.so_data?.customer_name || 'Not found'}</span>
+                      {/* Combined SO PDF Data Column */}
+                      <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                        <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          From Combined SO PDFs
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">SO Numbers:</span>
+                            <span className="font-medium">{result.so_numbers?.join(' & ') || result.so_data?.so_number || 'Not found'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Customer:</span>
+                            <span className="font-medium">{result.so_data?.customer_name || 'Not found'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">PO Numbers:</span>
+                            <span className="font-medium">
+                              {result.email_data?.po_number || result.so_data?.po_number || 'Not found'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Items:</span>
+                            <span className="font-medium">
+                              {(result.items || [])?.filter((item: any) => {
+                                const itemCode = item.item_code?.toLowerCase() || '';
+                                const description = item.description?.toLowerCase() || '';
+                                const isCharge = (
+                                  itemCode === 'pallet' ||
+                                  itemCode === 'brokerage charge' ||
+                                  itemCode === 'freight charge' ||
+                                  description.includes('charge') ||
+                                  description.includes('pallet') ||
+                                  description.includes('brokerage') ||
+                                  description.includes('freight') ||
+                                  description.includes('prepaid')
+                                );
+                                return !isCharge;
+                              }).length || 0}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Order Date:</span>
+                            <span className="font-medium">{result.so_data?.order_date || 'Not found'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Ship Date:</span>
+                            <span className="font-medium">{result.so_data?.due_date || result.so_data?.ship_date || 'Not found'}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">PO Number:</span>
-                        <span className="font-medium">{result.so_data?.po_number || 'Not found'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Order Date:</span>
-                        <span className="font-medium">{result.so_data?.order_date || 'Not found'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Ship Date:</span>
-                        <span className="font-medium">{result.so_data?.due_date || 'Not found'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Terms:</span>
-                        <span className="font-medium">{result.so_data?.terms || 'Not found'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Items Count:</span>
-                        <span className="font-medium">
-                          {result.so_data?.items?.filter((item: any) => {
-                            const itemCode = item.item_code?.toLowerCase() || '';
-                            const description = item.description?.toLowerCase() || '';
-                            
-                            // Exclude charges/fees only
-                            const isCharge = (
-                              itemCode === 'pallet' ||
-                              itemCode === 'brokerage charge' ||
-                              itemCode === 'freight charge' ||
-                              description.includes('charge') ||
-                              description.includes('pallet') ||
-                              description.includes('brokerage') ||
-                              description.includes('freight') ||
-                              description.includes('prepaid')
+                    </div>
+                    
+                    {/* Per-SO Breakdown for Multi-SO */}
+                    {result.so_data_list && result.so_data_list.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <h4 className="font-semibold text-slate-700 text-sm mb-3">Per-SO Breakdown:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {result.so_data_list.map((so: any, idx: number) => {
+                            const soNum = so.so_number || result.so_numbers?.[idx] || `SO ${idx + 1}`;
+                            const emailItems = result.email_data?.items_by_so?.[soNum] || [];
+                            return (
+                              <div key={idx} className="bg-blue-50 p-3 rounded border border-blue-200">
+                                <div className="font-semibold text-blue-900 text-xs mb-2">SO {soNum}</div>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Items:</span>
+                                    <span className="font-medium">{so.items?.filter((i: any) => !i.description?.toLowerCase().includes('charge')).length || 0}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Email Items:</span>
+                                    <span className="font-medium">{emailItems.length}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">PO:</span>
+                                    <span className="font-medium text-xs">{so.po_number || 'N/A'}</span>
+                                  </div>
+                                </div>
+                              </div>
                             );
-                            
-                            return !isCharge;
-                          }).length || 0}
-                        </span>
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // SINGLE-SO COMPARISON: Original layout
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Email Data Column */}
+                    <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                      <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        From Email (Carolina)
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">SO Number:</span>
+                          <span className="font-medium">{result.email_data?.so_number || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Company:</span>
+                          <span className="font-medium">{result.email_data?.company_name || 'Not specified'}</span>
+                        </div>
+                        {result.email_data?.po_number && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">PO Number:</span>
+                            <span className="font-medium">{result.email_data.po_number}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Weight:</span>
+                          <span className="font-medium">{result.email_data?.total_weight || 'Not specified'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">
+                            {result.email_data?.packaging_type === 'case' ? 'Box/Case:' : 'Pallets:'}
+                          </span>
+                          <span className="font-medium">
+                            {result.email_data?.packaging_type === 'case' 
+                              ? (result.email_data?.skid_info || result.email_data?.pallet_count || 'Not specified')
+                              : (result.email_data?.pallet_count || 'Not specified')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Batch #:</span>
+                          <span className="font-medium font-mono">{result.email_data?.batch_numbers || 'Not specified'}</span>
+                        </div>
+                        {result.email_data?.carrier && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Carrier:</span>
+                            <span className="font-medium">{result.email_data.carrier}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* SO Data Column */}
+                    <div className="space-y-3 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                      <h4 className="font-semibold text-slate-900 flex items-center gap-2 text-sm pb-3 border-b border-slate-200">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                        From SO PDF
+                      </h4>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">SO Number:</span>
+                          <span className="font-medium">{result.so_data?.so_number || 'Not found'}</span>
+                        </div>
+                        
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Customer:</span>
+                          <span className="font-medium">{result.so_data?.customer_name || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">PO Number:</span>
+                          <span className="font-medium">{result.so_data?.po_number || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Order Date:</span>
+                          <span className="font-medium">{result.so_data?.order_date || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Ship Date:</span>
+                          <span className="font-medium">{result.so_data?.due_date || result.so_data?.ship_date || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Terms:</span>
+                          <span className="font-medium">{result.so_data?.terms || 'Not found'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Items Count:</span>
+                          <span className="font-medium">
+                            {(result.so_data?.items || [])?.filter((item: any) => {
+                              const itemCode = item.item_code?.toLowerCase() || '';
+                              const description = item.description?.toLowerCase() || '';
+                              
+                              // Exclude charges/fees only
+                              const isCharge = (
+                                itemCode === 'pallet' ||
+                                itemCode === 'brokerage charge' ||
+                                itemCode === 'freight charge' ||
+                                description.includes('charge') ||
+                                description.includes('pallet') ||
+                                description.includes('brokerage') ||
+                                description.includes('freight') ||
+                                description.includes('prepaid')
+                              );
+                              
+                              return !isCharge;
+                            }).length || 0}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
                 
             {/* Match Status */}
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex items-center gap-2">
                     {(() => {
                       const emailSo = result.email_data?.so_number;
-                      const pdfSo = result.so_data?.so_number;
+                      // In multi-SO mode, use so_numbers array; otherwise use so_data.so_number
+                      const pdfSo = result.is_multi_so 
+                        ? (result.so_numbers?.join(' & ') || result.so_data?.so_number)
+                        : result.so_data?.so_number;
 
                       if (!emailSo || !pdfSo) {
                         return false;
@@ -2257,7 +2400,11 @@ const LogisticsAutomation: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">SO Number</label>
-                      <div className="text-lg font-semibold text-gray-900">{result.so_data?.so_number || result.email_analysis?.so_number || 'N/A'}</div>
+                      <div className="text-lg font-semibold text-gray-900">
+                        {result.is_multi_so 
+                          ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || 'N/A')
+                          : (result.so_data?.so_number || result.email_analysis?.so_number || 'N/A')}
+                      </div>
                         </div>
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Order Date</label>
@@ -2274,7 +2421,11 @@ const LogisticsAutomation: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                           <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">PO Number</label>
-                      <div className="text-sm font-medium text-gray-700">{result.email_data?.po_number || result.so_data?.po_number || 'N/A'}</div>
+                      <div className="text-sm font-medium text-gray-700">
+                        {result.is_multi_so 
+                          ? (result.email_data?.po_number || result.so_data?.po_number || 'N/A')
+                          : (result.email_data?.po_number || result.so_data?.po_number || 'N/A')}
+                      </div>
                           </div>
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Business #</label>
