@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta
 import glob
 from dotenv import load_dotenv
+import requests
 import PyPDF2
 import pdfplumber
 from docx import Document
@@ -34,6 +35,10 @@ except Exception:
 
 # Load environment variables
 load_dotenv()
+
+# MPS (Master Production Schedule) constants
+MPS_SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw'
+MPS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{MPS_SHEET_ID}/export?format=csv'
 
 # Import logistics automation module
 try:
@@ -2481,12 +2486,12 @@ def load_mps_data():
     
     try:
         # Use Google Sheets API to read the MPS data directly
-        sheet_id = "1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw"
+        sheet_id = MPS_SHEET_ID
         
         print(f"Loading MPS data from Google Sheets: {sheet_id}")
         
         # Use the working URL format immediately (format 4 that works)
-        csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+        csv_url = MPS_CSV_URL
         
         print(f"Using working Google Sheets URL: {csv_url}")
         
@@ -2603,13 +2608,22 @@ def load_mps_data():
 
 @app.route('/api/mps', methods=['GET'])
 def get_mps_data():
-    """Get MPS data only - without Unicode issues"""
+    """Get MPS schedule from Google Sheets"""
     try:
-        import requests
-        mps_data = load_mps_data()
-        return jsonify(mps_data)
+        response = requests.get(MPS_CSV_URL, timeout=10)
+        if response.ok:
+            return response.text, 200, {'Content-Type': 'text/csv'}
+        return jsonify({'error': 'Failed to fetch MPS data'}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/warmup', methods=['GET'])
+def warmup():
+    """Lightweight warmup endpoint"""
+    return jsonify({
+        'status': 'warm',
+        'timestamp': datetime.now().isoformat()
+    })
 
 @app.route('/api/data/clear-cache', methods=['POST'])
 def clear_data_cache():
