@@ -5467,18 +5467,6 @@ def generate_manual_documents():
                 'file_type': 'html'
             }
             print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML)")
-                pdf_error_msg = str(pdf_error)
-                print(f"WARNING: Commercial invoice PDF generation error: {pdf_error_msg}")
-            
-            results['commercial_invoice'] = {
-                'success': True,
-                'filename': ci_html_filename,
-                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ci_html_filename}',
-                'pdf_file': ci_pdf_filename if ci_pdf_success else None,
-                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{ci_pdf_filename}' if ci_pdf_success else None,
-                'pdf_error': pdf_error_msg if not ci_pdf_success else None
-            }
-            print(f"✅ Commercial Invoice generated: {ci_html_filename}" + (f" (PDF: {pdf_error_msg})" if pdf_error_msg else " (HTML + PDF)"))
         except Exception as e:
             print(f"❌ Commercial Invoice generation error: {e}")
             traceback.print_exc()
@@ -5903,8 +5891,6 @@ def generate_all_documents():
                     with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ci_html)
                     
-                    ci_pdf_filename = None
-                    ci_pdf_success = False
                     # HTML only - no PDF conversion
                     results['commercial_invoice'] = {
                         'success': True,
