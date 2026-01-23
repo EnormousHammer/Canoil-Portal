@@ -372,8 +372,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     console.log('poNumber:', poNumber);
     console.log('poData:', poData);
     
-    if (!userName || !department || selectedItems.length === 0) {
-      alert('Please fill in all required fields and add at least one item');
+    if (!userName || !department || !justification || selectedItems.length === 0) {
+      alert('Please fill in all required fields:\n- Your Name\n- Department\n- Justification/Customer Name\n\nAnd add at least one item');
       return;
     }
 
@@ -552,18 +552,17 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
                   <option>8 weeks</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Justification</label>
-                <select
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">Justification / Customer Name *</label>
+                <input
+                  type="text"
                   value={justification}
                   onChange={(e) => setJustification(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Select justification...</option>
-                  <option>Stock Replishment</option>
-                  <option>Fulfilling Order</option>
-                  <option>Future Order Stock</option>
-                </select>
+                  placeholder="e.g., Big Red Oil's New Order PO C012326-1 or Customer Name"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter customer name or reason for this PR</p>
               </div>
             </div>
           </div>
@@ -759,7 +758,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             </button>
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || selectedItems.length === 0 || !userName || !department}
+              disabled={isGenerating || selectedItems.length === 0 || !userName || !department || !justification}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isGenerating ? (

@@ -1659,11 +1659,30 @@ def create_pr_from_bom():
                 # Generate Excel using direct XML (preserves template 100%)
                 pr_output = fill_excel_directly(PR_TEMPLATE, cell_values)
                 
-                # Generate filename
-                supplier_name_safe = re.sub(r'[^\w\-]', '_', supplier_no)[:30]
-                filename = f"PR-{datetime.now().strftime('%Y-%m-%d')}-{supplier_name_safe}"
+                # Generate filename: PR_CustomerName_SupplierName_Date.xlsx
+                # Extract customer name from justification
+                customer_name = user_info.get('justification', '')
+                if customer_name:
+                    customer_name = re.sub(r'^(for|order|po|purchase order)[:\s]+', '', customer_name, flags=re.IGNORECASE)
+                    customer_name = re.sub(r'\s*(po|purchase order|order)[:\s#]+[A-Z0-9-]+.*$', '', customer_name, flags=re.IGNORECASE)
+                    customer_name = customer_name.strip()
+                    customer_name = re.sub(r'[^\w\s-]', '', customer_name)[:30].strip()
+                    customer_name = re.sub(r'\s+', '_', customer_name)
+                else:
+                    customer_name = 'Unknown'
+                
+                # Get supplier name
+                supplier_name = supplier_info.get('name', supplier_no) if supplier_info else supplier_no
+                if supplier_name:
+                    supplier_name = re.sub(r'[^\w\s-]', '', supplier_name)[:30].strip()
+                    supplier_name = re.sub(r'\s+', '_', supplier_name)
+                else:
+                    supplier_name = supplier_no[:30] if supplier_no else 'Unknown'
+                
+                date_str = datetime.now().strftime('%Y-%m-%d')
+                filename = f"PR_{customer_name}_{supplier_name}_{date_str}"
                 if len(item_batches) > 1:
-                    filename += f"-Part{batch_num + 1}"
+                    filename += f"_Part{batch_num + 1}"
                 filename += ".xlsx"
                 
                 generated_files.append({
@@ -2356,7 +2375,31 @@ def generate_requisition():
         # Generate file using direct XML editing (preserves ALL template structure)
         output = fill_excel_directly(PR_TEMPLATE, cell_values)
         
-        filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
+        # Generate filename: PR_CustomerName_SupplierName_Date.xlsx
+        # Extract customer name from justification (first part before common separators)
+        customer_name = user_info.get('justification', '')
+        if customer_name:
+            # Clean customer name - remove common prefixes/suffixes
+            customer_name = re.sub(r'^(for|order|po|purchase order)[:\s]+', '', customer_name, flags=re.IGNORECASE)
+            customer_name = re.sub(r'\s*(po|purchase order|order)[:\s#]+[A-Z0-9-]+.*$', '', customer_name, flags=re.IGNORECASE)
+            customer_name = customer_name.strip()
+            # Limit length and clean for filename
+            customer_name = re.sub(r'[^\w\s-]', '', customer_name)[:30].strip()
+            customer_name = re.sub(r'\s+', '_', customer_name)
+        else:
+            customer_name = 'Unknown'
+        
+        # Get supplier name
+        supplier_name = supplier.get('name', '') or (auto_supplier_info.get('name', '') if auto_supplier_info else '')
+        if supplier_name:
+            supplier_name = re.sub(r'[^\w\s-]', '', supplier_name)[:30].strip()
+            supplier_name = re.sub(r'\s+', '_', supplier_name)
+        else:
+            supplier_name = 'Unknown'
+        
+        # Format: PR_CustomerName_SupplierName_YYYY-MM-DD.xlsx
+        date_str = today.strftime('%Y-%m-%d')
+        filename = f"PR_{customer_name}_{supplier_name}_{date_str}.xlsx"
         
         return send_file(
             output,
@@ -2648,7 +2691,28 @@ def generate_requisition_internal(user_info, items, supplier):
             # Restore VML drawings, images, and other template components
             output = preserve_template_structure(PR_TEMPLATE, output)
             
-            filename = f"PR_{today.strftime('%Y%m%d_%H%M%S')}.xlsx"
+            # Generate filename: PR_CustomerName_SupplierName_Date.xlsx
+            # Extract customer name from justification
+            customer_name = user_info.get('justification', '')
+            if customer_name:
+                customer_name = re.sub(r'^(for|order|po|purchase order)[:\s]+', '', customer_name, flags=re.IGNORECASE)
+                customer_name = re.sub(r'\s*(po|purchase order|order)[:\s#]+[A-Z0-9-]+.*$', '', customer_name, flags=re.IGNORECASE)
+                customer_name = customer_name.strip()
+                customer_name = re.sub(r'[^\w\s-]', '', customer_name)[:30].strip()
+                customer_name = re.sub(r'\s+', '_', customer_name)
+            else:
+                customer_name = 'Unknown'
+            
+            # Get supplier name
+            supplier_name = supplier.get('name', '')
+            if supplier_name:
+                supplier_name = re.sub(r'[^\w\s-]', '', supplier_name)[:30].strip()
+                supplier_name = re.sub(r'\s+', '_', supplier_name)
+            else:
+                supplier_name = 'Unknown'
+            
+            date_str = today.strftime('%Y-%m-%d')
+            filename = f"PR_{customer_name}_{supplier_name}_{date_str}.xlsx"
             
             return send_file(
                 output,
