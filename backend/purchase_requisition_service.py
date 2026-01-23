@@ -1533,6 +1533,40 @@ def create_pr_from_bom():
         print(f"  Unique components after aggregation: {len(aggregated)}")
         
         # ========================================
+        # STEP 2.5: Filter out bulk oil for Big Red orders
+        # ========================================
+        # Big Red sends their own bulk oil, so we don't need to order it
+        justification = user_info.get('justification', '').upper()
+        is_big_red_order = 'BIG RED' in justification or 'BIGRED' in justification.replace(' ', '')
+        
+        if is_big_red_order:
+            print("\n🏢 BIG RED ORDER DETECTED - Filtering out bulk oil items")
+            original_count = len(aggregated)
+            filtered_aggregated = []
+            bulk_oil_filtered = []
+            
+            for comp in aggregated:
+                item_no = comp.get('item_no', '').upper()
+                description = comp.get('description', '').upper()
+                
+                # Check if item is bulk oil (has "BULK" in name/description)
+                is_bulk_oil = 'BULK' in item_no or 'BULK' in description
+                
+                if is_bulk_oil:
+                    bulk_oil_filtered.append(comp.get('item_no', 'Unknown'))
+                    print(f"  ⏭️  FILTERED OUT (Bulk Oil): {comp.get('item_no')} - {comp.get('description', '')[:50]}")
+                else:
+                    filtered_aggregated.append(comp)
+            
+            aggregated = filtered_aggregated
+            print(f"  ✅ Filtered {original_count - len(aggregated)} bulk oil items")
+            if bulk_oil_filtered:
+                print(f"  📋 Bulk oil items excluded: {', '.join(bulk_oil_filtered[:5])}")
+                if len(bulk_oil_filtered) > 5:
+                    print(f"     ... and {len(bulk_oil_filtered) - 5} more")
+            print(f"  📦 Remaining components: {len(aggregated)}")
+        
+        # ========================================
         # STEP 3: Get stock levels and determine shortfall
         # ========================================
         print("\n📦 Step 3: Checking stock levels...")
@@ -2221,6 +2255,42 @@ def generate_requisition():
                     "supplier": supplier
                 }
             }), 400
+        
+        # Filter out bulk oil for Big Red orders
+        justification = user_info.get('justification', '').upper()
+        is_big_red_order = 'BIG RED' in justification or 'BIGRED' in justification.replace(' ', '')
+        
+        if is_big_red_order:
+            print("\n🏢 BIG RED ORDER DETECTED - Filtering out bulk oil items")
+            original_count = len(items)
+            filtered_items = []
+            bulk_oil_filtered = []
+            
+            for item in items:
+                item_no = item.get('item_no', '').upper()
+                description = item.get('description', '').upper()
+                
+                # Check if item is bulk oil (has "BULK" in name/description)
+                is_bulk_oil = 'BULK' in item_no or 'BULK' in description
+                
+                if is_bulk_oil:
+                    bulk_oil_filtered.append(item.get('item_no', 'Unknown'))
+                    print(f"  ⏭️  FILTERED OUT (Bulk Oil): {item.get('item_no')} - {item.get('description', '')[:50]}")
+                else:
+                    filtered_items.append(item)
+            
+            items = filtered_items
+            print(f"  ✅ Filtered {original_count - len(items)} bulk oil items")
+            if bulk_oil_filtered:
+                print(f"  📋 Bulk oil items excluded: {', '.join(bulk_oil_filtered)}")
+            print(f"  📦 Remaining items: {len(items)}")
+            
+            if not items:
+                return jsonify({
+                    "error": "No items remaining after filtering bulk oil for Big Red order",
+                    "message": "All items were bulk oil, which Big Red supplies themselves",
+                    "filtered_items": bulk_oil_filtered
+                }), 400
         
         if not os.path.exists(PR_TEMPLATE):
             return jsonify({
