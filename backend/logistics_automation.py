@@ -4813,32 +4813,13 @@ def generate_commercial_invoice():
         
         print(f"SUCCESS: Commercial invoice HTML generated: {html_filename}")
         
-        # Generate PDF file
-        pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-        pdf_filepath = os.path.join(uploads_dir, pdf_filename)
-        
-        try:
-            from playwright_pdf_converter import html_to_pdf_sync
-            pdf_success = html_to_pdf_sync(html_content, pdf_filepath)
-            if pdf_success:
-                print(f"SUCCESS: Commercial invoice PDF generated: {pdf_filename}")
-            else:
-                print(f"WARNING: PDF generation failed, but HTML saved successfully")
-                pdf_filename = None
-        except Exception as pdf_error:
-            print(f"WARNING: PDF generation error: {pdf_error}, but HTML saved successfully")
-            pdf_filename = None
-        
+        # HTML only - no PDF conversion
         response_data = {
             'success': True,
             'commercial_invoice_file': html_filename,
             'download_url': f'/download/logistics/{html_filename}',
             'file_type': 'html'
         }
-        
-        if pdf_filename:
-            response_data['pdf_file'] = pdf_filename
-            response_data['pdf_download_url'] = f'/download/logistics/{pdf_filename}'
         
         return jsonify(response_data)
         
@@ -5410,7 +5391,6 @@ def generate_manual_documents():
         # Generate BOL
         try:
             from new_bol_generator import populate_new_bol_html
-            from playwright_pdf_converter import html_to_pdf_sync
             
             bol_html = populate_new_bol_html(so_data, email_analysis)
             bol_filename = generate_document_filename("BOL", so_data, '.html')
@@ -5420,29 +5400,14 @@ def generate_manual_documents():
             with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(bol_html)
             
-            # Generate and save PDF version
-            bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
-            bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
-            bol_pdf_success = False
-            bol_pdf_error = None
-            try:
-                bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
-                if not bol_pdf_success:
-                    bol_pdf_error = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
-                    print(f"WARNING: BOL PDF generation failed: {bol_pdf_error}")
-            except Exception as pdf_err:
-                bol_pdf_error = str(pdf_err)
-                print(f"WARNING: BOL PDF generation error: {bol_pdf_error}")
-            
+            # HTML only - no PDF conversion
             results['bol'] = {
                 'success': True,
                 'filename': bol_filename,
                 'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                'pdf_file': bol_pdf_filename if bol_pdf_success else None,
-                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{bol_pdf_filename}' if bol_pdf_success else None,
-                'pdf_error': bol_pdf_error if not bol_pdf_success else None
+                'file_type': 'html'
             }
-            print(f"✅ BOL generated: {bol_filename}" + (f" (PDF: {bol_pdf_error})" if bol_pdf_error else " (HTML + PDF)"))
+            print(f"✅ BOL generated: {bol_filename} (HTML)")
         except Exception as e:
             print(f"❌ BOL generation error: {e}")
             traceback.print_exc()
@@ -5452,7 +5417,6 @@ def generate_manual_documents():
         # Generate Packing Slip
         try:
             from packing_slip_html_generator import generate_packing_slip_html
-            from playwright_pdf_converter import html_to_pdf_sync
             
             print(f"\n📋 PACKING SLIP GENERATION - INPUT DATA:")
             print(f"   so_data['billing_address']: {so_data.get('billing_address', {})}")
@@ -5470,29 +5434,14 @@ def generate_manual_documents():
             with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(ps_html)
             
-            # Generate and save PDF version
-            ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
-            ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
-            ps_pdf_success = False
-            ps_pdf_error = None
-            try:
-                ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
-                if not ps_pdf_success:
-                    ps_pdf_error = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
-                    print(f"WARNING: Packing Slip PDF generation failed: {ps_pdf_error}")
-            except Exception as pdf_err:
-                ps_pdf_error = str(pdf_err)
-                print(f"WARNING: Packing Slip PDF generation error: {ps_pdf_error}")
-            
+            # HTML only - no PDF conversion
             results['packing_slip'] = {
                 'success': True,
                 'filename': ps_filename,
                 'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                'pdf_file': ps_pdf_filename if ps_pdf_success else None,
-                'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{ps_pdf_filename}' if ps_pdf_success else None,
-                'pdf_error': ps_pdf_error if not ps_pdf_success else None
+                'file_type': 'html'
             }
-            print(f"✅ Packing Slip generated: {ps_filename}" + (f" (PDF: {ps_pdf_error})" if ps_pdf_error else " (HTML + PDF)"))
+            print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
         except Exception as e:
             print(f"❌ Packing Slip generation error: {e}")
             traceback.print_exc()
@@ -5503,7 +5452,6 @@ def generate_manual_documents():
         destination_country = consignee.get('country', 'Canada').upper()
         try:
             from commercial_invoice_html_generator import generate_commercial_invoice_html
-            from playwright_pdf_converter import html_to_pdf_sync
             
             ci_html = generate_commercial_invoice_html(so_data, formatted_items, email_analysis)
             ci_html_filename = generate_document_filename("CommercialInvoice", so_data, '.html')
@@ -5511,16 +5459,14 @@ def generate_manual_documents():
             with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(ci_html)
             
-            ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-            ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
-            ci_pdf_success = False
-            pdf_error_msg = None
-            try:
-                ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
-                if not ci_pdf_success:
-                    pdf_error_msg = "PDF converter not available (pdfkit/wkhtmltopdf missing)"
-                    print(f"WARNING: Commercial invoice PDF generation failed: {pdf_error_msg}")
-            except Exception as pdf_error:
+            # HTML only - no PDF conversion
+            results['commercial_invoice'] = {
+                'success': True,
+                'filename': ci_html_filename,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ci_html_filename}',
+                'file_type': 'html'
+            }
+            print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML)")
                 pdf_error_msg = str(pdf_error)
                 print(f"WARNING: Commercial invoice PDF generation error: {pdf_error_msg}")
             
@@ -5813,8 +5759,8 @@ def generate_all_documents():
         # Dangerous goods info (will be updated by smart generator)
         dangerous_goods_info = {'has_dangerous_goods': False}
 
-        # HTML-only mode for generate-all: do not generate PDFs or PDF-only docs
-        pdf_generation_enabled = False
+        # Simplified mode: HTML stays HTML, PDF stays PDF (no conversion)
+        # TSCA is already a PDF, so it will always be generated when needed
         
         # Create folder structure for this order
         folder_structure = get_document_folder_structure(so_data)
@@ -5847,25 +5793,12 @@ def generate_all_documents():
                     f.write(bol_html)
                 print(f"DEBUG: BOL HTML file created: {bol_html_filepath}")
                 
-                bol_pdf_filename = None
-                bol_pdf_success = False
-                if pdf_generation_enabled:
-                    try:
-                        from playwright_pdf_converter import html_to_pdf_sync
-                        bol_pdf_filename = generate_document_filename("BOL", so_data, '.pdf')
-                        bol_pdf_filepath = os.path.join(folder_structure['pdf_folder'], bol_pdf_filename)
-                        bol_pdf_success = html_to_pdf_sync(bol_html, bol_pdf_filepath)
-                        if bol_pdf_success:
-                            print(f"DEBUG: BOL PDF file created: {bol_pdf_filepath}")
-                    except Exception as pdf_err:
-                        print(f"WARNING: BOL PDF generation error: {pdf_err}")
-                
+                # HTML only - no PDF conversion
                 results['bol'] = {
                     'success': True,
                     'filename': bol_filename,
                     'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                    'pdf_file': bol_pdf_filename if bol_pdf_success else None,
-                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{bol_pdf_filename}' if bol_pdf_success else None
+                    'file_type': 'html'
                 }
                 print(f"✅ BOL generated: {bol_filename} (HTML) and {bol_pdf_filename if bol_pdf_success else 'PDF failed'}")
                 
@@ -5891,18 +5824,7 @@ def generate_all_documents():
                 with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                     f.write(ps_html)
                 
-                ps_pdf_filename = None
-                ps_pdf_success = False
-                if pdf_generation_enabled:
-                    try:
-                        from playwright_pdf_converter import html_to_pdf_sync
-                        ps_pdf_filename = generate_document_filename("PackingSlip", so_data, '.pdf')
-                        ps_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ps_pdf_filename)
-                        ps_pdf_success = html_to_pdf_sync(ps_html, ps_pdf_filepath)
-                        if ps_pdf_success:
-                            print(f"DEBUG: Packing Slip PDF file created: {ps_pdf_filepath}")
-                    except Exception as pdf_err:
-                        print(f"WARNING: Packing Slip PDF generation error: {pdf_err}")
+                # HTML only - no PDF conversion
                 
                 results['packing_slip'] = {
                     'success': True,
@@ -5983,28 +5905,16 @@ def generate_all_documents():
                     
                     ci_pdf_filename = None
                     ci_pdf_success = False
-                    if pdf_generation_enabled:
-                        try:
-                            from playwright_pdf_converter import html_to_pdf_sync
-                            ci_pdf_filename = generate_document_filename("CommercialInvoice", so_data, '.pdf')
-                            ci_pdf_filepath = os.path.join(folder_structure['pdf_folder'], ci_pdf_filename)
-                            ci_pdf_success = html_to_pdf_sync(ci_html, ci_pdf_filepath)
-                            if ci_pdf_success:
-                                print(f"SUCCESS: Commercial invoice PDF generated: {ci_pdf_filename}")
-                        except Exception as pdf_error:
-                            print(f"WARNING: Commercial invoice PDF generation error: {pdf_error}")
-                    
+                    # HTML only - no PDF conversion
                     results['commercial_invoice'] = {
                         'success': True,
                         'filename': ci_html_filename,
                         'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ci_html_filename}',
                         'file_type': 'html',
-                        'reason': f'Generated for cross-border shipment to {destination_country}',
-                        'pdf_file': ci_pdf_filename if ci_pdf_success else None,
-                        'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{ci_pdf_filename}' if ci_pdf_success else None
+                        'reason': f'Generated for cross-border shipment to {destination_country}'
                     }
                     
-                    print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML) and {ci_pdf_filename if ci_pdf_success else 'PDF failed'}")
+                    print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML)")
                 else:
                     print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
                     results['commercial_invoice'] = {
@@ -6148,46 +6058,44 @@ def generate_all_documents():
                 results['dangerous_goods'] = {'success': False, 'error': str(e)}
         
         # TSCA CERTIFICATION - Generate ONLY for USA shipments
-        if not pdf_generation_enabled:
-            print("⏭️ TSCA skipped (PDF generation disabled)")
-        else:
-            try:
-                from tsca_generator import generate_tsca_certification
+        # TSCA is already a PDF (no conversion needed), so always generate when required
+        try:
+            from tsca_generator import generate_tsca_certification
 
-                print("\n📋 Checking if TSCA Certification is needed...")
+            print("\n📋 Checking if TSCA Certification is needed...")
 
-                # TSCA is ONLY needed for USA shipments (not other cross-border shipments)
-                is_usa_shipment = destination_country and destination_country in ['USA', 'US', 'UNITED STATES']
+            # TSCA is ONLY needed for USA shipments (not other cross-border shipments)
+            is_usa_shipment = destination_country and destination_country in ['USA', 'US', 'UNITED STATES']
 
-                if is_usa_shipment:
-                    print(f"   USA shipment to {destination_country} - TSCA required")
+            if is_usa_shipment:
+                print(f"   USA shipment to {destination_country} - TSCA required")
 
-                    # Generate TSCA and save to PDF Format folder
-                    tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
+                # Generate TSCA and save to PDF Format folder (TSCA is already a PDF)
+                tsca_result = generate_tsca_certification(so_data, items, email_analysis, target_folder=folder_structure['pdf_folder'])
 
-                    if tsca_result:
-                        tsca_filepath, tsca_filename = tsca_result
-                        results['tsca_certification'] = {
-                            'success': True,
-                            'filename': tsca_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{tsca_filename}',
-                            'note': 'TSCA Certification for US shipments'
-                        }
-                        print(f"   ✅ TSCA Certification generated: {tsca_filename}")
-                    else:
-                        print(f"   ⏭️  TSCA skipped (no products to certify)")
-                else:
-                    print(f"   ⏭️  TSCA Certification skipped (not a USA shipment - destination: {destination_country or 'Unknown'})")
+                if tsca_result:
+                    tsca_filepath, tsca_filename = tsca_result
                     results['tsca_certification'] = {
-                        'success': False,
-                        'skipped': True,
-                        'reason': f'TSCA not required for non-USA shipments (destination: {destination_country or "Unknown"})'
+                        'success': True,
+                        'filename': tsca_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{tsca_filename}',
+                        'note': 'TSCA Certification for US shipments'
                     }
-            except Exception as e:
-                print(f"❌ TSCA generation error: {e}")
-                traceback.print_exc()  # Use module-level traceback
-                errors.append(f"TSCA generation failed: {str(e)}")
-                results['tsca_certification'] = {'success': False, 'error': str(e)}
+                    print(f"   ✅ TSCA Certification generated: {tsca_filename}")
+                else:
+                    print(f"   ⏭️  TSCA skipped (no products to certify)")
+            else:
+                print(f"   ⏭️  TSCA Certification skipped (not a USA shipment - destination: {destination_country or 'Unknown'})")
+                results['tsca_certification'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': f'TSCA not required for non-USA shipments (destination: {destination_country or "Unknown"})'
+                }
+        except Exception as e:
+            print(f"❌ TSCA generation error: {e}")
+            traceback.print_exc()  # Use module-level traceback
+            errors.append(f"TSCA generation failed: {str(e)}")
+            results['tsca_certification'] = {'success': False, 'error': str(e)}
         
         # AEC MANUFACTURER'S AFFIDAVIT - For AEC shipments with steel cans/drums
         # NOTE: AEC Affidavit is just copying a template PDF, so it should always be checked regardless of pdf_generation_enabled
@@ -6359,10 +6267,7 @@ def generate_all_documents():
                 # Get booking number from request data (user enters via popup)
                 booking_number = data.get('booking_number', '') or data.get('bookingNumber', '')
                 
-                # DELIVERY NOTE - Generate (respects pdf_generation_enabled)
-                if not pdf_generation_enabled:
-                    print("   ⏭️  Delivery Note skipped (PDF generation disabled)")
-                else:
+                # DELIVERY NOTE - Generate (already a PDF, no conversion needed)
                     print(f"   Axel France order detected - generating delivery note")
                     print(f"   Booking#: {booking_number or '(not provided)'}")
                     
