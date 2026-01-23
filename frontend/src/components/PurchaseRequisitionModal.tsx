@@ -413,9 +413,35 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       console.log('📥 Response status:', response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Server error:', errorText);
-        throw new Error(`Server returned ${response.status}: ${errorText}`);
+        let errorText = '';
+        let errorData = null;
+        try {
+          errorText = await response.text();
+          // Try to parse as JSON for better error messages
+          try {
+            errorData = JSON.parse(errorText);
+            errorText = errorData.error || errorText;
+          } catch {
+            // Not JSON, use as-is
+          }
+        } catch {
+          errorText = `HTTP ${response.status} ${response.statusText}`;
+        }
+        
+        console.error('❌ Server error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          errorData: errorData,
+          requestData: requestData
+        });
+        
+        // Show detailed error message
+        const detailedError = errorData 
+          ? `${errorText}\n\nDetails: ${JSON.stringify(errorData, null, 2)}`
+          : `Server returned ${response.status}: ${errorText}`;
+        
+        throw new Error(detailedError);
       }
 
       // Download file - ensure proper binary handling

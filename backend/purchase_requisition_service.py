@@ -31,8 +31,23 @@ GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Mi
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-Template-Clean.xlsx')
 
-# Cloud Run detection
+# Environment detection - Render or Cloud Run (NOT local)
 IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
+IS_RENDER = os.getenv('RENDER') is not None or os.getenv('RENDER_SERVICE_ID') is not None
+IS_CLOUD_ENVIRONMENT = IS_CLOUD_RUN or IS_RENDER
+# Only use local G: Drive if explicitly on localhost AND G: Drive is accessible
+IS_LOCAL = not IS_CLOUD_ENVIRONMENT and (os.path.exists(r"G:\Shared drives") if os.name == 'nt' else False)
+
+# Print environment detection on module load
+if IS_RENDER:
+    print("[PR] ✅ Running on Render - Will use Google Drive API (G: Drive not accessible)")
+elif IS_CLOUD_RUN:
+    print("[PR] ✅ Running on Cloud Run - Will use Google Drive API (G: Drive not accessible)")
+else:
+    if IS_LOCAL:
+        print("[PR] ✅ Running locally - Will use G: Drive if accessible")
+    else:
+        print("[PR] ⚠️ Not on Render/Cloud Run and G: Drive not accessible - Will use Google Drive API")
 
 # Cache for Google Drive data to avoid repeated API calls
 _gdrive_data_cache = {}
@@ -67,7 +82,7 @@ def load_pr_history():
         history = []
         
         # On Cloud Run, try GCS first
-        if IS_CLOUD_RUN and GCS_AVAILABLE:
+        if IS_CLOUD_ENVIRONMENT and GCS_AVAILABLE:
             try:
                 client = _get_gcs_client()
                 if client:
@@ -116,7 +131,7 @@ def save_pr_history(history):
         _pr_history_cache = history
         
         # On Cloud Run, save to GCS
-        if IS_CLOUD_RUN and GCS_AVAILABLE:
+        if IS_CLOUD_ENVIRONMENT and GCS_AVAILABLE:
             try:
                 client = _get_gcs_client()
                 if client:
@@ -190,17 +205,14 @@ def load_json_from_gdrive(file_name):
             return _gdrive_data_cache[file_name]
     
     try:
-        latest = get_latest_folder()
-        if not latest:
-            print(f"[PR] No latest folder found")
-            return []
-        
-        if IS_CLOUD_RUN:
-            # Cloud Run: Use Google Drive API
-            print(f"[PR] ☁️ Cloud Run: Loading {file_name} via Google Drive API")
+        # CRITICAL FIX: Check Cloud Environment (Render/Cloud Run) FIRST - ALWAYS use Google Drive API
+        if IS_CLOUD_ENVIRONMENT:
+            # Render/Cloud Run: Use Google Drive API directly (don't need folder name)
+            env_name = "Render" if IS_RENDER else "Cloud Run"
+            print(f"[PR] ☁️ {env_name}: Loading {file_name} via Google Drive API")
             service = get_google_drive_service()
             if not service or not service.authenticated:
-                print(f"[PR] ❌ Google Drive service not available")
+                print(f"[PR] ❌ Google Drive service not available or not authenticated")
                 return []
             
             # Find the shared drive and folder
@@ -234,6 +246,11 @@ def load_json_from_gdrive(file_name):
             return file_data
         else:
             # Local: Read from G: Drive file system
+            latest = get_latest_folder()
+            if not latest:
+                print(f"[PR] ⚠️ No latest folder found for local access")
+                return []
+            
             file_path = os.path.join(GDRIVE_BASE, latest, file_name)
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -516,10 +533,8 @@ def get_latest_folder():
             return _latest_folder_cache
     
     try:
-        # On Cloud Run, use Google Drive API
-        is_cloud_run = os.getenv('K_SERVICE') is not None
-        
-        if is_cloud_run:
+        # On Render/Cloud Run, use Google Drive API FIRST (don't check local paths)
+        if IS_CLOUD_ENVIRONMENT:
             # Import dynamically to avoid circular imports
             import sys
             if 'app' in sys.modules:
@@ -527,34 +542,51 @@ def get_latest_folder():
                 get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
                 
                 if get_google_drive_service:
-                    print("SEARCH: Using Google Drive API to find latest folder (from PR service)...")
+                    env_name = "Render" if IS_RENDER else "Cloud Run"
+                    print(f"[PR] ☁️ {env_name}: Using Google Drive API to find latest folder...")
                     service = get_google_drive_service()
-                    if service:
-                        latest_id, latest_name = service.find_latest_api_extractions_folder()
-                        if latest_name:
-                            print(f"✅ Latest MISys API extraction folder (via API): {latest_name}")
-                            _latest_folder_cache = latest_name
-                            _latest_folder_cache_time = datetime.now()
-                            return latest_name
+                    if service and service.authenticated:
+                        try:
+                            latest_id, latest_name = service.find_latest_api_extractions_folder()
+                            if latest_name:
+                                print(f"[PR] ✅ Latest MISys API extraction folder (via API): {latest_name}")
+                                _latest_folder_cache = latest_name
+                                _latest_folder_cache_time = datetime.now()
+                                return latest_name
+                        except Exception as api_err:
+                            print(f"[PR] ❌ Error calling find_latest_api_extractions_folder: {api_err}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"[PR] ❌ Google Drive service not available or not authenticated")
+            else:
+                print(f"[PR] ⚠️ App module not loaded, cannot access Google Drive service")
+            # Don't return None - let it try to use the service in load_json_from_gdrive
+            # But log that we're on cloud environment
+            print(f"[PR] ⚠️ Could not get latest folder via API, will try in load_json_from_gdrive")
             return None
         
-        # Local environment - read from G: drive
+        # Local environment - read from G: drive (ONLY if actually local)
+        if not IS_LOCAL:
+            print(f"[PR] ⚠️ Not local environment - should use Google Drive API")
+            return None
+        
         if not os.path.exists(GDRIVE_BASE):
-            print(f"⚠️ GDRIVE_BASE path not accessible: {GDRIVE_BASE}")
+            print(f"[PR] ⚠️ GDRIVE_BASE path not accessible: {GDRIVE_BASE}")
             return None
         
         # Get all folders
         folders = [f for f in os.listdir(GDRIVE_BASE) if os.path.isdir(os.path.join(GDRIVE_BASE, f))]
         
         if not folders:
-            print(f"⚠️ No folders found in: {GDRIVE_BASE}")
+            print(f"[PR] ⚠️ No folders found in: {GDRIVE_BASE}")
             return None
         
         # Sort by folder name (assuming YYYY-MM-DD format) - most recent first
         folders.sort(reverse=True)
         latest_folder = folders[0]
         
-        print(f"✅ Latest MISys API extraction folder: {latest_folder}")
+        print(f"[PR] ✅ Latest MISys API extraction folder (local): {latest_folder}")
         _latest_folder_cache = latest_folder
         _latest_folder_cache_time = datetime.now()
         return latest_folder
@@ -572,12 +604,12 @@ def load_items():
 
 
 def load_po_data(po_number):
-    """Load merged PO data - currently only works on local due to folder structure"""
-    # Note: Merged PO files are in a subfolder which is more complex to load via API
-    # For now, we'll fall back to building from raw data if needed
+    """Load merged PO data - works on both local and Render/Cloud Run"""
+    # On Render/Cloud Run: Build from raw files (merged files not available via API)
+    # On local: Try merged files first, fall back to raw files
     
-    if IS_CLOUD_RUN:
-        # On Cloud Run, build PO data from raw files
+    if IS_CLOUD_ENVIRONMENT:
+        # On Render/Cloud Run, build PO data from raw files
         pos = load_json_from_gdrive('PurchaseOrders.json')
         po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
         
@@ -619,18 +651,58 @@ def load_po_data(po_number):
             } for d in details]
         }
     else:
-        # Local: Load from merged files
-        latest = get_latest_folder()
-        if not latest:
+        # Local: Try merged files first, fall back to raw files if not available
+        if IS_LOCAL:
+            latest = get_latest_folder()
+            if latest:
+                merged_folder = os.path.join(GDRIVE_BASE, latest, 'MERGED_POS', 'individual_pos')
+                po_file = os.path.join(merged_folder, f'PO_{po_number}.json')
+                
+                if os.path.exists(po_file):
+                    with open(po_file, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+        
+        # Fall back to building from raw files (same as cloud)
+        pos = load_json_from_gdrive('PurchaseOrders.json')
+        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+        
+        if not pos or not po_details:
             return None
         
-        merged_folder = os.path.join(GDRIVE_BASE, latest, 'MERGED_POS', 'individual_pos')
-        po_file = os.path.join(merged_folder, f'PO_{po_number}.json')
+        # Find the PO header
+        po_header = next((po for po in pos if po.get('PO No.') == po_number), None)
+        if not po_header:
+            return None
         
-        if os.path.exists(po_file):
-            with open(po_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return None
+        # Find the PO details
+        details = [d for d in po_details if d.get('PO No.') == po_number]
+        
+        # Build a merged structure similar to the local merged files
+        return {
+            'PO_Number': po_number,
+            'Supplier': {
+                'Supplier_No': po_header.get('Supplier No.', ''),
+                'Name': po_header.get('Name', ''),
+                'Contact': po_header.get('Contact', ''),
+            },
+            'Order_Info': {
+                'Order_Date': po_header.get('Order Date', ''),
+                'Terms': po_header.get('Terms', ''),
+                'Buyer': po_header.get('Buyer', ''),
+            },
+            'Financial': {
+                'Total_Amount': po_header.get('Total Amount', 0),
+            },
+            'Line_Items': [{
+                'Item_No': d.get('Item No.', ''),
+                'Description': d.get('Description', ''),
+                'Pricing': {
+                    'Unit_Cost': d.get('Unit Price', 0),
+                    'Quantity_Ordered': d.get('Ordered', 0),
+                    'Purchase_Unit_of_Measure': d.get('Purchase U/M', 'EA'),
+                }
+            } for d in details]
+        }
 
 
 def get_inventory_data(item_no):
@@ -1356,7 +1428,22 @@ def create_pr_from_bom():
     - .zip file containing multiple .xlsx files if multiple suppliers
     """
     try:
+        # Better error handling for request parsing
+        if not request.is_json:
+            return jsonify({
+                "error": "Request must be JSON",
+                "content_type": request.content_type,
+                "received_data": str(request.data)[:200]
+            }), 400
+        
         data = request.get_json()
+        
+        if data is None:
+            return jsonify({
+                "error": "Invalid JSON in request body",
+                "received_data": str(request.data)[:200]
+            }), 400
+        
         user_info = data.get('user_info', {})
         selected_items = data.get('selected_items', [])
         location = data.get('location', '62TODD')
@@ -1373,22 +1460,62 @@ def create_pr_from_bom():
         print("="*80 + "\n")
         
         if not selected_items:
-            return jsonify({"error": "No items provided"}), 400
+            return jsonify({
+                "error": "No items provided",
+                "received_data": {
+                    "user_info": user_info,
+                    "selected_items_count": len(selected_items),
+                    "selected_items": selected_items,
+                    "location": location
+                }
+            }), 400
         
         # ========================================
         # STEP 1: Explode BOMs for all selected items
         # ========================================
         print("📦 Step 1: Exploding BOMs...")
+        
+        # Check if BOM data is available
+        try:
+            bom_data = load_bom_details()
+            items_data = load_items()
+            print(f"✅ Loaded BOM data: {len(bom_data)} lines, Items: {len(items_data)} items")
+        except Exception as data_err:
+            print(f"❌ Error loading BOM/Items data: {data_err}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                "error": "Failed to load BOM or Items data",
+                "details": str(data_err),
+                "message": "Check if data files are accessible (BillOfMaterialDetails.json, Items.json)"
+            }), 500
+        
         all_components = []
         for item in selected_items:
             item_no = item.get('item_no', '')
-            qty = float(item.get('qty', 1))
+            qty = item.get('qty', 1)
+            
+            if not item_no:
+                print(f"  ⚠️ Skipping item with no item_no: {item}")
+                continue
+            
+            try:
+                qty = float(qty)
+            except (ValueError, TypeError):
+                print(f"  ⚠️ Invalid quantity for {item_no}: {qty}, using 1")
+                qty = 1.0
             
             print(f"\n  Exploding: {item_no} (Qty: {qty})")
-            components = explode_bom_recursive(item_no, qty)
-            print(f"    → Found {len(components)} purchasable components")
-            
-            all_components.extend(components)
+            try:
+                components = explode_bom_recursive(item_no, qty)
+                print(f"    → Found {len(components)} purchasable components")
+                all_components.extend(components)
+            except Exception as explode_err:
+                print(f"    ❌ Error exploding BOM for {item_no}: {explode_err}")
+                import traceback
+                traceback.print_exc()
+                # Continue with other items instead of failing completely
+                continue
         
         print(f"\n  Total raw components: {len(all_components)}")
         
@@ -1832,8 +1959,13 @@ def create_pr_from_bom():
     except Exception as e:
         print(f"❌ Error in create_pr_from_bom: {e}")
         import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        return jsonify({
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": error_trace
+        }), 500
 
 
 @pr_service.route('/api/pr/history', methods=['GET'])
@@ -2028,7 +2160,21 @@ def get_item_enhanced(item_no):
 def generate_requisition():
     """Generate filled Purchase Requisition Excel file using DIRECT XML editing"""
     try:
+        # Better error handling for request parsing
+        if not request.is_json:
+            return jsonify({
+                "error": "Request must be JSON",
+                "content_type": request.content_type,
+                "received_data": str(request.data)[:200]
+            }), 400
+        
         data = request.get_json()
+        
+        if data is None:
+            return jsonify({
+                "error": "Invalid JSON in request body",
+                "received_data": str(request.data)[:200]
+            }), 400
         
         # Required fields
         user_info = data.get('user_info', {})
@@ -2040,14 +2186,29 @@ def generate_requisition():
         print("="*80)
         print(f"User Info: {user_info}")
         print(f"Items Count: {len(items)}")
+        print(f"Items: {items}")
         print(f"Supplier: {supplier.get('name', 'N/A')}")
+        print(f"Template Path: {PR_TEMPLATE}")
+        print(f"Template Exists: {os.path.exists(PR_TEMPLATE)}")
         print("="*80 + "\n")
         
         if not items:
-            return jsonify({"error": "No items provided"}), 400
+            return jsonify({
+                "error": "No items provided",
+                "received_data": {
+                    "user_info": user_info,
+                    "items_count": len(items),
+                    "items": items,
+                    "supplier": supplier
+                }
+            }), 400
         
         if not os.path.exists(PR_TEMPLATE):
-            return jsonify({"error": "Template not found"}), 404
+            return jsonify({
+                "error": "Template not found",
+                "template_path": PR_TEMPLATE,
+                "current_dir": _current_dir
+            }), 404
         
         # Build cell values dictionary
         cell_values = {}
@@ -2205,19 +2366,41 @@ def generate_requisition():
         )
         
     except Exception as e:
-        print(f"Error generating requisition: {e}")
+        print(f"❌ Error generating requisition: {e}")
         import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        return jsonify({
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": error_trace
+        }), 500
 
 
 @pr_service.route('/api/pr/from-po/<po_number>', methods=['POST'])
 def generate_from_po(po_number):
     """Generate requisition from existing PO data"""
     try:
+        # Better error handling for request parsing
+        if not request.is_json:
+            return jsonify({
+                "error": "Request must be JSON",
+                "content_type": request.content_type
+            }), 400
+        
         data = request.get_json()
+        
+        if data is None:
+            return jsonify({
+                "error": "Invalid JSON in request body"
+            }), 400
+        
         user_info = data.get('user_info', {})
         selected_items = data.get('items', [])  # Items with quantities updated by user
+        
+        print(f"\n[PR FROM PO] PO Number: {po_number}")
+        print(f"[PR FROM PO] User Info: {user_info}")
+        print(f"[PR FROM PO] Selected Items Count: {len(selected_items)}")
         
         # Load PO data
         po = load_po_data(po_number)
