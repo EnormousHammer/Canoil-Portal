@@ -508,6 +508,13 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
     if is_multi_so:
         print(f"   🔀 MULTI-SO MODE: Consignee is shipping_address (where goods are going)")
     
+    # DEBUG: Log all address data available
+    print(f"\n🔍 DEBUG: Address data available in so_data:")
+    print(f"   has_billing_address: {bool(so_data.get('billing_address'))}")
+    print(f"   has_shipping_address: {bool(so_data.get('shipping_address'))}")
+    print(f"   has_sold_to: {bool(so_data.get('sold_to'))}")
+    print(f"   has_ship_to: {bool(so_data.get('ship_to'))}")
+    
     # Priority 1: SO shipping_address (most reliable - matches frontend display)
     if so_data.get('shipping_address'):
         ship_addr = so_data['shipping_address']
@@ -576,23 +583,95 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
                 consignee['city_state'],
                 flags=re.IGNORECASE
             ).strip().rstrip(',').strip()
+    else:
+        print(f"   ⚠️ WARNING: No shipping_address found in so_data!")
+        print(f"   Available keys: {list(so_data.keys())}")
     
-    # Priority 2: Email ship_to (if SO address is incomplete)
-    elif email_analysis and email_analysis.get('ship_to'):
-        ship_to = email_analysis['ship_to']
-        consignee['name'] = ship_to.get('company_name', '') or ship_to.get('contact_person', '')
+    # Priority 2: Email ship_to (if SO address is incomplete or missing)
+    if not consignee['name'] or not consignee['street']:
+        if email_analysis and email_analysis.get('ship_to'):
+            ship_to = email_analysis['ship_to']
+            if not consignee['name']:
+                consignee['name'] = ship_to.get('company_name', '') or ship_to.get('contact_person', '')
+            
+            # Address from email might be combined
+            if ship_to.get('address') and not consignee['street']:
+                addr_str = ship_to['address']
+                consignee['street'] = addr_str
+                # Try to extract postal from email address too
+                postal_from_email = extract_postal_code(addr_str)
+                if postal_from_email:
+                    consignee['postal'] = postal_from_email
+    
+    # Priority 3: Try ship_to from so_data if shipping_address wasn't available
+    if not consignee['name'] or not consignee['street']:
+        if so_data.get('ship_to'):
+            ship_to_data = so_data['ship_to']
+            if not consignee['name']:
+                consignee['name'] = (ship_to_data.get('company_name', '') or 
+                                   ship_to_data.get('contact', '') or
+                                   ship_to_data.get('contact_person', ''))
+            if not consignee['street'] and ship_to_data.get('address'):
+                # Try to parse address string
+                addr_str = ship_to_data['address']
+                consignee['street'] = addr_str
+                postal_from_ship_to = extract_postal_code(addr_str)
+                if postal_from_ship_to:
+                    consignee['postal'] = postal_from_ship_to
+    
+    # CRITICAL: For multi-SO, NEVER use billing_address or customer_name as consignee
+    # Consignee must be where goods are going, not who pays
+    # Also NEVER use Canoil's address as consignee
+    canoil_addresses = ['62 Todd Road', '62 todd road', 'Georgetown', 'L7G 4R7', 'L7G4R7']
+    canoil_companies = ['Canoil Canada Ltd', 'Canoil Canada Ltd.', 'Canoil Canda LTD', 'CANOIL CANADA LTD']
+    
+    if is_multi_so:
+        # Check if consignee is Canoil's address (WRONG for multi-SO)
+        consignee_street_upper = (consignee.get('street', '') or '').upper()
+        consignee_name_upper = (consignee.get('name', '') or '').upper()
+        is_canoil_address = any(canoil_addr.upper() in consignee_street_upper for canoil_addr in canoil_addresses)
+        is_canoil_company = any(canoil_comp.upper() in consignee_name_upper for canoil_comp in canoil_companies)
         
-        # Address from email might be combined
-        if ship_to.get('address'):
-            addr_str = ship_to['address']
-            consignee['street'] = addr_str
-            # Try to extract postal from email address too
-            postal_from_email = extract_postal_code(addr_str)
-            if postal_from_email:
-                consignee['postal'] = postal_from_email
+        if is_canoil_address or is_canoil_company:
+            print(f"   ❌ ERROR: Consignee is Canoil's address - this is WRONG for multi-SO!")
+            print(f"   Consignee name: {consignee.get('name')}")
+            print(f"   Consignee street: {consignee.get('street')}")
+            print(f"   Must use customer's shipping address, not Canoil!")
+            
+            # Try to get correct shipping address from so_data
+            if so_data.get('shipping_address'):
+                ship_addr = so_data['shipping_address']
+                # Only use if it's NOT Canoil's address
+                ship_street = (ship_addr.get('street') or ship_addr.get('address') or '').upper()
+                ship_company = (ship_addr.get('company') or ship_addr.get('company_name') or '').upper()
+                
+                is_ship_canoil = (any(canoil_addr.upper() in ship_street for canoil_addr in canoil_addresses) or
+                                any(canoil_comp.upper() in ship_company for canoil_comp in canoil_companies))
+                
+                if not is_ship_canoil:
+                    print(f"   🔄 Fixing consignee from so_data.shipping_address...")
+                    consignee['name'] = (ship_addr.get('company') or 
+                                       ship_addr.get('company_name') or 
+                                       consignee['name'])
+                    consignee['street'] = (ship_addr.get('street') or 
+                                         ship_addr.get('street_address') or 
+                                         ship_addr.get('address') or 
+                                         consignee['street'])
+                    consignee['city_state'] = (ship_addr.get('city', '') + 
+                                             (', ' + ship_addr.get('province', '') if ship_addr.get('province') else '')).strip(', ')
+                    consignee['postal'] = (ship_addr.get('postal_code') or 
+                                         ship_addr.get('postal') or 
+                                         consignee['postal'])
+                    print(f"   ✅ Fixed consignee: {consignee['name']}, {consignee['street']}")
+        
+        # If consignee is still empty, that's a problem
+        if not consignee['name'] or not consignee['street']:
+            print(f"   ❌ ERROR: Multi-SO consignee address is missing!")
+            print(f"   Consignee must be the shipping destination, not Canoil's address")
+            # Don't fallback to customer_name for multi-SO - that would be wrong
     
-    # Fallback to customer name
-    if not consignee['name']:
+    # Fallback to customer name (ONLY for single-SO, not multi-SO)
+    if not consignee['name'] and not is_multi_so:
         consignee['name'] = so_data.get('customer_name', '')
     
     # FINAL CHECK: If postal is still missing, try to extract from ANY address field
@@ -1108,7 +1187,47 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
             }
             print(f"   Using shipper_override: {shipper_addr.get('company_name')}")
         else:
+            # For single-SO, shipper is billing_address (customer who pays)
+            # CRITICAL: Don't use shipping_address for shipper - that's for consignee!
             shipper_addr = so_data.get('billing_address', {}) or so_data.get('sold_to', {})
+            if not shipper_addr:
+                # Last resort: use shipping_address but warn
+                print(f"   ⚠️ WARNING: No billing_address found, using shipping_address as fallback")
+                shipper_addr = so_data.get('shipping_address', {})
+    
+    # CRITICAL: Validate that shipper and consignee are different (for multi-SO)
+    if is_multi_so:
+        consignee_name = consignee.get('name', '')
+        consignee_street = consignee.get('street', '')
+        shipper_name = shipper_addr.get('company_name', '') or shipper_addr.get('company', '')
+        shipper_street = shipper_addr.get('street', '') or shipper_addr.get('address', '')
+        
+        # Check if addresses are the same (both name and street match)
+        if (consignee_name and shipper_name and consignee_name.upper() == shipper_name.upper() and
+            consignee_street and shipper_street and consignee_street.upper() == shipper_street.upper()):
+            print(f"   ❌ ERROR: Shipper and consignee have IDENTICAL addresses in multi-SO!")
+            print(f"   Shipper: {shipper_name}, {shipper_street}")
+            print(f"   Consignee: {consignee_name}, {consignee_street}")
+            print(f"   This is WRONG - consignee should be the customer's shipping address, not Canoil!")
+            
+            # Try to fix: Use shipping_address from so_data if available
+            if so_data.get('shipping_address'):
+                ship_addr = so_data['shipping_address']
+                print(f"   🔄 Attempting to fix consignee address from so_data.shipping_address...")
+                consignee['name'] = (ship_addr.get('company') or 
+                                   ship_addr.get('company_name') or 
+                                   consignee['name'])
+                consignee['street'] = (ship_addr.get('street') or 
+                                     ship_addr.get('street_address') or 
+                                     ship_addr.get('address') or 
+                                     consignee['street'])
+                consignee['city_state'] = (ship_addr.get('city', '') + 
+                                         (', ' + ship_addr.get('province', '') if ship_addr.get('province') else '')).strip(', ')
+                consignee['postal'] = (ship_addr.get('postal_code') or 
+                                     ship_addr.get('postal') or 
+                                     consignee['postal'])
+                print(f"   ✅ Fixed consignee: {consignee['name']}, {consignee['street']}")
+    
     shipper = {
         'name': (shipper_addr.get('company_name', '') or 
                 shipper_addr.get('company', '') or 
@@ -1176,6 +1295,15 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     print(f"   Street: {consignee['street']}")
     print(f"   City/State: {consignee['city_state']}")
     print(f"   Postal: {consignee['postal']}")
+    
+    # FINAL VALIDATION: Ensure consignee is NOT the same as shipper
+    if (consignee.get('name', '').upper() == shipper.get('name', '').upper() and
+        consignee.get('street', '').upper() == shipper.get('street', '').upper()):
+        print(f"   ❌ CRITICAL ERROR: Consignee and Shipper addresses are IDENTICAL!")
+        print(f"   This will create duplicate addresses on the BOL form!")
+        print(f"   Shipper: {shipper.get('name')}, {shipper.get('street')}")
+        print(f"   Consignee: {consignee.get('name')}, {consignee.get('street')}")
+        print(f"   ⚠️ WARNING: Form will be filled with duplicate addresses - this is incorrect!")
     
     all_strongs = soup.find_all('strong')
     consignee_section_started = False

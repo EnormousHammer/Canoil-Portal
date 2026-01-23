@@ -786,15 +786,33 @@ const LogisticsAutomation: React.FC = () => {
       console.log('result.so_data?.items:', result.so_data?.items);
       console.log('result.items:', result.items);
       
+      // CRITICAL: Ensure is_multi_so flag is preserved for multi-SO shipments
+      const emailAnalysis = result.email_analysis || result.email_data || {};
+      const soData = result.so_data || {};
+      
+      // Ensure is_multi_so is set in both so_data and email_analysis if it's a multi-SO shipment
+      if (result.is_multi_so || emailAnalysis.is_multi_so || soData.is_multi_so) {
+        soData.is_multi_so = true;
+        emailAnalysis.is_multi_so = true;
+      }
+      
       const requestData = {
-        so_data: result.so_data || {},
+        so_data: soData,
         email_shipping: result.email_shipping || {},
-        email_analysis: result.email_analysis || result.email_data || {},
+        email_analysis: emailAnalysis,
         items: result.so_data?.items || result.items || [],
         booking_number: bookingNumber || '',  // Axel France booking number
         requested_documents: result.requested_documents || result.email_data?.requested_documents || null,  // Documents user specifically requested in email
         shipper_override: shipperOverride || null
       };
+      
+      // DEBUG: Log multi-SO status
+      console.log('🔍 Multi-SO Check:', {
+        result_is_multi_so: result.is_multi_so,
+        email_analysis_is_multi_so: emailAnalysis.is_multi_so,
+        so_data_is_multi_so: soData.is_multi_so,
+        so_numbers: result.so_numbers || emailAnalysis.so_numbers
+      });
       
       console.log('📤 Request data being sent:', requestData);
       console.log('📤 Items count:', requestData.items.length);
@@ -1986,9 +2004,7 @@ const LogisticsAutomation: React.FC = () => {
                       {result.is_multi_so ? (
                         <>Data extracted from SOs #{result.so_numbers?.join(' & ')} (Multi-SO Shipment)</>
                       ) : (
-                        <>Data extracted from SO #{result.is_multi_so 
-                          ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_analysis?.so_number)
-                          : (result.so_data?.so_number || result.email_analysis?.so_number)} and shipping email</>
+                        <>Data extracted from SO #{result.so_data?.so_number || result.email_analysis?.so_number} and shipping email</>
                       )}
                     </p>
                     <div className="flex gap-3 mt-2">
@@ -2380,8 +2396,8 @@ const LogisticsAutomation: React.FC = () => {
             </div>
             )}
 
-            {/* Main Data Grid - Hide in No SO Mode */}
-            {processingMode !== 'no_so' && (
+            {/* Main Data Grid - Hide in No SO Mode and Multi-SO Mode (comparison section shows all data) */}
+            {processingMode !== 'no_so' && !result.is_multi_so && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
               {/* Order Information Card */}
               <div className="bg-white border-l-4 border-l-blue-500 border-t border-r border-b border-slate-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">

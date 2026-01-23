@@ -230,6 +230,7 @@ def extract_all_so_numbers(text: str) -> list:
         "SO 3004" → ["3004"]
         "SO 3012, SO 3022, and SO 3222" → ["3012", "3022", "3222"]
         "s0 3012" → ["3012"]  (handles typo s0 instead of SO)
+        "2) PO C092525-2 / SO 3024" → ["3024"]  (numbered format)
     """
     so_numbers = []
     
@@ -241,6 +242,7 @@ def extract_all_so_numbers(text: str) -> list:
     
     # Pattern 2: Individual SO mentions - "Sales Order 3004:", "SO 3004", "s0 3004" (typo)
     # Also handles "SO 3012, SO 3022, and SO 3222" format
+    # CRITICAL: Also handles numbered format like "2) PO C092525-2 / SO 3024"
     individual_pattern = r'(?:sales\s*order|[Ss][Oo0])\s*[#:]?\s*(\d{3,5})'
     individual_matches = re.findall(individual_pattern, text, re.IGNORECASE)
     so_numbers.extend(individual_matches)
@@ -250,6 +252,12 @@ def extract_all_so_numbers(text: str) -> list:
     comma_and_pattern = r'(?:,\s*|\band\s+)(\d{3,5})(?=\s*(?:,|\band\b|\.|$|\s+we|\s+need))'
     comma_matches = re.findall(comma_and_pattern, text, re.IGNORECASE)
     so_numbers.extend(comma_matches)
+    
+    # Pattern 4: Numbered format like "2) PO C092525-2 / SO 3024" or "3) PO C110525-1 / SO 3064"
+    # This pattern specifically handles the "/ SO" format after PO numbers
+    numbered_po_so_pattern = r'\d+\)\s*PO\s+[A-Z0-9\-]+\s*/\s*SO\s*(\d{3,5})'
+    numbered_matches = re.findall(numbered_po_so_pattern, text, re.IGNORECASE)
+    so_numbers.extend(numbered_matches)
     
     # Remove duplicates while preserving order
     seen = set()
@@ -364,7 +372,8 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
                     "batch_number": "Extract actual batch",
                     "gross_weight": "Extract actual weight with kg",
                     "pallet_count": 0,
-                    "pallet_dimensions": "Extract actual dimensions"
+                    "pallet_dimensions": "Extract actual dimensions",
+                    "totes_info": "Extract totes information if mentioned (e.g., '5 totes – 4 empty + 1 partial (approx. 149 kg)')"
                 }}
             ],
             "YYYY": [
@@ -375,17 +384,21 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
                     "batch_number": "Extract actual batch",
                     "gross_weight": "Extract actual weight with kg",
                     "pallet_count": 0,
-                    "pallet_dimensions": "Extract actual dimensions"
+                    "pallet_dimensions": "Extract actual dimensions",
+                    "totes_info": "Extract totes information if mentioned"
                 }}
             ]
         }},
         "combined_totals": {{
-            "total_gross_weight": "Sum all weights from email",
-            "total_pallet_count": 0
-        }}
+            "total_gross_weight": "Sum ALL weights from ALL SOs (e.g., if SO 3024 has 4,506 kg and SO 3064 has 1,512 kg, return '6,018 kg')",
+            "total_pallet_count": 0  // Sum ALL pallets from ALL SOs (e.g., 6 + 2 = 8)
+        }},
+        "totes_info": "Combined totes information from all SOs if mentioned"
     }}
     
     CRITICAL: Extract the EXACT weight values from the email. Do NOT invent or use default values.
+    CRITICAL: For combined_totals.total_gross_weight, you MUST ADD all individual SO weights together.
+    CRITICAL: For combined_totals.total_pallet_count, you MUST ADD all individual SO pallet counts together.
     
     IMPORTANT RULES:
     1. Extract EACH SO's items separately under items_by_so - EVERY SO MUST HAVE ITS OWN ENTRY
@@ -2923,6 +2936,47 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     # Combine SO data for document generation
     combined_so_data = combine_so_data_for_documents(so_data_list, multi_so_email_data)
     
+    # Calculate combined totals from GPT-parsed data
+    combined_totals = multi_so_email_data.get('combined_totals', {})
+    
+    # CRITICAL: Ensure weights and pallets are properly summed
+    # If GPT didn't sum them correctly, calculate from items_by_so
+    total_weight_str = combined_totals.get('total_gross_weight', '')
+    total_pallets = combined_totals.get('total_pallet_count', 0)
+    
+    # If totals are missing or zero, calculate from individual SO items
+    if not total_weight_str or total_pallets == 0:
+        print(f"   🔄 Calculating combined totals from items_by_so...")
+        weight_values = []
+        total_pallets_calc = 0
+        
+        for so_num, items in items_by_so.items():
+            for item in items:
+                item_weight = item.get('gross_weight', '')
+                item_pallets = item.get('pallet_count', 0)
+                
+                if item_weight:
+                    # Extract numeric value from weight string (e.g., "4,506 kg" -> 4506)
+                    weight_match = re.search(r'([\d,]+(?:\.\d+)?)', str(item_weight))
+                    if weight_match:
+                        weight_val = float(weight_match.group(1).replace(',', ''))
+                        weight_values.append(weight_val)
+                
+                if item_pallets:
+                    try:
+                        total_pallets_calc += int(str(item_pallets).strip())
+                    except (ValueError, TypeError):
+                        pass
+        
+        if weight_values:
+            total_weight_kg = sum(weight_values)
+            total_weight_str = f"{total_weight_kg:,.0f} kg"
+            print(f"   ✅ Calculated total weight: {total_weight_str} (from {len(weight_values)} items)")
+        
+        if total_pallets_calc > 0:
+            total_pallets = total_pallets_calc
+            print(f"   ✅ Calculated total pallets: {total_pallets}")
+    
     # Build email_data structure for frontend compatibility
     email_data = {
         'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
@@ -2931,9 +2985,10 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'po_number': ' & '.join(multi_so_email_data.get('po_numbers', [])) if multi_so_email_data.get('po_numbers') else '',
         'company_name': multi_so_email_data.get('company_name', ''),
         'items': [],  # Combined items
-        'total_weight': multi_so_email_data.get('combined_totals', {}).get('total_gross_weight', ''),
-        'pallet_count': multi_so_email_data.get('combined_totals', {}).get('total_pallet_count', 0),
+        'total_weight': total_weight_str,
+        'pallet_count': total_pallets,
         'items_by_so': items_by_so,
+        'totes_info': multi_so_email_data.get('totes_info', ''),  # Include totes information
         # Preserve original email text so downstream generators (BOL/CI)
         # can run broker/exporter detection exactly like single-SO flow.
         'raw_text': email_content,
@@ -3063,6 +3118,15 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
     # CRITICAL: Use the EXACT same address structure as single-SO parsing
     # Don't combine addresses - if SOs are the same, they should have the same address
     # Just use the first SO's address (parsed from PDF, same as single-SO)
+    # IMPORTANT: Use deep copy to ensure nested structures are properly copied
+    import copy
+    
+    def deep_copy_address(addr_dict):
+        """Deep copy address dictionary to ensure all nested fields are preserved"""
+        if not addr_dict:
+            return {}
+        return copy.deepcopy(addr_dict)
+    
     combined = {
         'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
         'so_numbers': so_numbers,
@@ -3070,16 +3134,32 @@ def combine_so_data_for_documents(so_data_list: list, multi_so_email_data: dict)
         'customer_name': base_so.get('customer_name', ''),
         # Use addresses from first SO - same as single-SO parsing
         # These are already parsed correctly from the PDF (no stock comments, no merging)
-        'billing_address': base_so.get('billing_address', {}).copy() if base_so.get('billing_address') else {},
-        'shipping_address': base_so.get('shipping_address', {}).copy() if base_so.get('shipping_address') else {},
-        'sold_to': base_so.get('sold_to', {}).copy() if base_so.get('sold_to') else {},
-        'ship_to': base_so.get('ship_to', {}).copy() if base_so.get('ship_to') else {},
+        # CRITICAL: Use deep copy to preserve all nested address fields
+        'billing_address': deep_copy_address(base_so.get('billing_address')),
+        'shipping_address': deep_copy_address(base_so.get('shipping_address')),
+        'sold_to': deep_copy_address(base_so.get('sold_to')),
+        'ship_to': deep_copy_address(base_so.get('ship_to')),
         'order_date': base_so.get('order_date', ''),
         'ship_date': base_so.get('ship_date', ''),
         'items': [],
         'subtotal': 0.0,
         'total': 0.0
     }
+    
+    # DEBUG: Log address structure to verify they're being copied correctly
+    print(f"\n🔍 DEBUG: Address structure after combining:")
+    print(f"   billing_address keys: {list(combined.get('billing_address', {}).keys())}")
+    print(f"   shipping_address keys: {list(combined.get('shipping_address', {}).keys())}")
+    if combined.get('billing_address'):
+        billing = combined['billing_address']
+        print(f"   billing_address.company: {billing.get('company', 'N/A')}")
+        print(f"   billing_address.street: {billing.get('street', 'N/A')}")
+        print(f"   billing_address.city: {billing.get('city', 'N/A')}")
+    if combined.get('shipping_address'):
+        shipping = combined['shipping_address']
+        print(f"   shipping_address.company: {shipping.get('company', 'N/A')}")
+        print(f"   shipping_address.street: {shipping.get('street', 'N/A')}")
+        print(f"   shipping_address.city: {shipping.get('city', 'N/A')}")
     
     # Combine PO numbers
     po_numbers = multi_so_email_data.get('po_numbers', [])
@@ -3461,11 +3541,22 @@ def process_email():
         
         print(f"EMAIL: LOGISTICS: Email content length: {len(email_content)} characters")
         
+        # DEBUG: Show email preview to help diagnose truncation issues
+        email_preview = email_content[:500] if len(email_content) > 500 else email_content
+        print(f"📧 Email preview (first 500 chars): {email_preview}")
+        if len(email_content) > 500:
+            print(f"⚠️ WARNING: Email content is longer than 500 chars ({len(email_content)} total) - showing preview only")
+        
         # =============================================================================
         # MULTI-SO DETECTION: Check if email contains multiple Sales Orders
         # =============================================================================
         all_so_numbers = extract_all_so_numbers(email_content)
         print(f"📋 SO Detection: Found {len(all_so_numbers)} SO(s): {all_so_numbers}")
+        
+        # DEBUG: If only 1 SO found but email seems long, warn about potential truncation
+        if len(all_so_numbers) == 1 and len(email_content) < 300:
+            print(f"⚠️ WARNING: Only 1 SO detected but email is short ({len(email_content)} chars).")
+            print(f"   This might indicate email content was truncated. Check if multi-SO content is missing.")
         
         # If multiple SOs detected, use multi-SO processing path
         if len(all_so_numbers) > 1:
@@ -5681,7 +5772,18 @@ def generate_all_documents():
         if email_analysis.get('raw_text'):
             print(f"   raw_text preview: {str(email_analysis.get('raw_text', ''))[:200]}...")
         print(f"   is_multi_so: {email_analysis.get('is_multi_so', 'NOT SET')}")
+        print(f"   so_data.is_multi_so: {so_data.get('is_multi_so', 'NOT SET')}")
         print(f"{'='*60}\n")
+        
+        # CRITICAL: Ensure is_multi_so flag is set in so_data if it's in email_analysis
+        # This ensures multi-SO mode works in document generators (BOL, CI, etc.)
+        if email_analysis.get('is_multi_so') or so_data.get('is_multi_so'):
+            so_data['is_multi_so'] = True
+            email_analysis['is_multi_so'] = True
+            print(f"✅ MULTI-SO MODE DETECTED: Setting is_multi_so=True in both so_data and email_analysis")
+            if email_analysis.get('so_numbers'):
+                so_data['so_numbers'] = email_analysis['so_numbers']
+                print(f"   SO Numbers: {email_analysis['so_numbers']}")
         
         # ENSURE BROKER INFO IS SET - Re-run detection if raw_text available but use_near_north not set
         # This catches cases where frontend didn't pass the flag properly
