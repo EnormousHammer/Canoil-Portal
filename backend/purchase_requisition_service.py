@@ -2303,20 +2303,20 @@ def generate_requisition():
         cell_values = {}
         today = datetime.now()
         
-        # User info
-        cell_values['I7'] = user_info.get('name', 'Haron Alhakimi')
-        cell_values['I9'] = user_info.get('department', 'Sales')
-        cell_values['B5'] = user_info.get('justification', 'Low Stock')
-        cell_values['B13'] = user_info.get('lead_time', '4 weeks')
+        # === HEADER INFO (Same as BOM Planning) ===
+        cell_values['I7'] = user_info.get('name', '')  # Requested By
+        cell_values['I9'] = user_info.get('department', 'Sales')  # Department
+        cell_values['B5'] = user_info.get('justification', 'Stock Replenishment')  # Justification
         
-        # Dates
-        cell_values['I11'] = today.strftime('%Y-%m-%d')
+        # === DATES ===
+        cell_values['I11'] = today.strftime('%Y-%m-%d')  # Date Requested
         try:
-            lead_time_weeks = int(user_info.get('lead_time', '4').split()[0])
+            lead_time_str = user_info.get('lead_time', '4 weeks')
+            lead_time_weeks = int(lead_time_str.split()[0])
         except:
             lead_time_weeks = 4
         date_needed = today + timedelta(weeks=lead_time_weeks)
-        cell_values['I13'] = date_needed.strftime('%Y-%m-%d')
+        cell_values['I13'] = date_needed.strftime('%Y-%m-%d')  # Date Needed
         
         # Auto-detect supplier from first item
         auto_supplier_info = None
@@ -2340,7 +2340,8 @@ def generate_requisition():
                     }
                     print(f"✅ AUTO-DETECTED SUPPLIER: {auto_supplier_info['name']}")
         
-        # Supplier info
+        # === SUPPLIER INFO (Same cell layout as BOM Planning) ===
+        # ALWAYS set all supplier cells - even if empty - to clear old template data!
         if auto_supplier_info:
             supplier_name = auto_supplier_info.get('name', '')
             supplier_contact = auto_supplier_info.get('contact', '')
@@ -2354,21 +2355,25 @@ def generate_requisition():
             supplier_phone = supplier.get('phone', '')
             supplier_terms = supplier.get('terms', '')
         
-        if supplier_name:
-            cell_values['B9'] = supplier_name
+        # B9: Vendor Name - ALWAYS set
+        cell_values['B9'] = supplier_name if supplier_name else ''
         
-        if supplier_contact:
-            contact_with_phone = supplier_contact
-            if supplier_phone:
-                contact_with_phone += f" | {supplier_phone}"
-            cell_values['B11'] = contact_with_phone
-        elif supplier_phone:
-            cell_values['B11'] = supplier_phone
+        # B11: Contact Name - ALWAYS set
+        cell_values['B11'] = supplier_contact if supplier_contact else ''
         
-        # Address
+        # B13: Lead Time - ALWAYS set (same as BOM Planning)
+        cell_values['B13'] = user_info.get('lead_time', '4 weeks')
+        
+        # C11: Email - ALWAYS set
+        cell_values['C11'] = supplier_email if supplier_email else ''
+        
+        # C13: Phone - ALWAYS set
+        cell_values['C13'] = supplier_phone if supplier_phone else ''
+        
+        # C9: Address - Build and ALWAYS set
         address = supplier.get('address', {})
+        address_parts = []
         if address:
-            address_parts = []
             address_line_1 = address.get('Line_1', '') or address.get('Address', '')
             city = address.get('City', '')
             state = address.get('State', '')
@@ -2382,20 +2387,15 @@ def generate_requisition():
                 address_parts.append(city_state_zip)
             if country:
                 address_parts.append(country)
-            
-            if address_parts:
-                cell_values['C9'] = '\n'.join(address_parts)
         
-        if supplier_email:
-            cell_values['C11'] = supplier_email
-        elif supplier_terms:
-            cell_values['C11'] = f"Terms: {supplier_terms}"
+        cell_values['C9'] = '\n'.join(address_parts) if address_parts else ''
         
-        # Line items (rows 16-25)
+        # Line items (rows 16-29, max 14 items - same as BOM Planning)
         start_row = 16
-        num_items = min(len(items), 10)
+        max_items = 14  # Match BOM Planning's capacity
+        num_items = min(len(items), max_items)
         
-        for idx, item in enumerate(items[:10]):
+        for idx, item in enumerate(items[:max_items]):
             row = start_row + idx
             
             item_no = item.get('item_no', '')
@@ -2404,8 +2404,9 @@ def generate_requisition():
             unit = item.get('unit', 'EA')
             quantity = item.get('quantity', 0)
             unit_price = item.get('unit_price', 0)
+            last_po_date = ''  # For inventory days calculation
             
-            # Get real data
+            # Get real data - ENHANCED to match BOM Planning
             if item_no:
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
                 if recent_prices:
@@ -2414,31 +2415,44 @@ def generate_requisition():
                         unit_price = item_pricing.get('unit_price', 0)
                     if not unit or unit == 'EA':
                         unit = item_pricing.get('purchase_unit', unit)
+                    # Get last PO date for inventory days calculation
+                    last_po_date = item_pricing.get('order_date', '')
                 
                 inventory_data = get_inventory_data(item_no)
                 if inventory_data:
                     current_stock = inventory_data.get('stock', 0)
                     if not unit_price or unit_price == 0:
                         unit_price = inventory_data.get('recent_cost', 0)
+                    # Get proper purchasing unit from item master
+                    if not unit or unit == 'EA':
+                        unit = inventory_data.get('purchasing_units', unit)
+                    # Handle unit conversion (stocking → purchasing units)
+                    conversion_factor = inventory_data.get('units_conversion_factor', 1)
+                    if conversion_factor and conversion_factor > 1 and quantity > 0:
+                        # Convert quantity from stocking units to purchasing units
+                        import math
+                        quantity = math.ceil(float(quantity) / conversion_factor)
+                        print(f"[PR] Unit conversion for {item_no}: {item.get('quantity')} → {quantity} (factor: {conversion_factor})")
             
             cell_values[f'B{row}'] = item_no
             cell_values[f'C{row}'] = description
-            cell_values[f'E{row}'] = str(current_stock) if current_stock else ''
+            # D: Inventory Days (days since last PO) - ADDED to match BOM Planning
+            inventory_days = calculate_inventory_days(last_po_date)
+            cell_values[f'D{row}'] = inventory_days
+            cell_values[f'E{row}'] = str(round(float(current_stock), 2)) if current_stock else ''
             cell_values[f'F{row}'] = unit
             cell_values[f'G{row}'] = str(int(quantity)) if quantity else '0'
             cell_values[f'H{row}'] = str(round(float(unit_price), 2)) if unit_price else '0'
-            cell_values[f'I{row}'] = f'=G{row}*H{row}'
+            # I: Total - DO NOT SET - Template has formula =G*H (same as BOM Planning)
             
-            print(f"[PR] Row {row}: {item_no} | Qty: {quantity} | Price: ${unit_price}")
+            print(f"[PR] Row {row}: {item_no} | Qty: {quantity} | Price: ${unit_price} | Days: {inventory_days}")
         
-        # Clear unused rows
-        for row in range(start_row + num_items, 26):
+        # Clear unused rows (rows 16-29, same as BOM Planning)
+        for row in range(start_row + num_items, 30):
             for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
                 cell_values[f'{col}{row}'] = ''
         
-        # Total formula
-        last_item_row = start_row + num_items - 1
-        cell_values['I30'] = f'=SUM(I16:I{last_item_row})'
+        # Total formula - DO NOT SET, template has it already
         
         print(f"[PR] Filling {num_items} items using DIRECT XML editing")
         
