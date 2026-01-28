@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packing Slip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+        }
+        
+        .header {
+            display: grid;
+            grid-template-columns: 150px 1fr 250px;
+            gap: 20px;
+            margin-bottom: 30px;
+            width: 100%;
+            align-items: start;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: 150px;
+        }
+        
+        .logo-container img {
+            max-width: 140px;
+            max-height: 80px;
+            object-fit: contain;
+        }
+        
+        .company-info {
+            text-align: left;
+        }
+        
+        .company-info h1 {
+            font-size: 11pt;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .company-info p {
+            font-size: 9pt;
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+        
+        .packing-info {
+            width: 250px;
+        }
+        
+        .packing-info h2 {
+            font-size: 12pt;
+            margin-bottom: 12px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 10pt;
+        }
+        
+        .info-row label {
+            font-weight: normal;
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+        
+        .info-row input {
+            flex: 1;
+            min-width: 100px;
+            text-align: left;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #333;
+            font-size: 10pt;
+            padding: 2px 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        td {
+            border: 1px solid #000;
+            padding: 10px;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Ensure item description cells can expand */
+        .item-row td:nth-child(2) {
+            min-height: 40px;
+            max-width: 35%;
+        }
+        
+        /* Lot/Batch # cells */
+        .item-row td:nth-child(3) {
+            max-width: 25%;
+        }
+        
+        .label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 10pt;
+        }
+        
+        input[type="text"],
+        textarea {
+            width: 100%;
+            border: none;
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            background: transparent;
+            padding: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: 1px solid #4CAF50;
+            background: #f9f9f9;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        /* Item description fields - allow wrapping */
+        textarea[data-field="item_description"] {
+            min-height: 40px;
+            height: 40px;
+            line-height: 1.4;
+            vertical-align: top;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            resize: none;
+            overflow: hidden;
+        }
+        
+        /* Lot/Batch # fields - allow wrapping */
+        textarea[data-field="lot_batch"] {
+            min-height: 40px;
+            height: 40px;
+            line-height: 1.4;
+            vertical-align: top;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            resize: none;
+            overflow: hidden;
+            text-align: center;
+        }
+        
+        .header-cell {
+            background: #e8e8e8;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            font-size: 10pt;
+        }
+        
+        .add-row-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 10pt;
+            cursor: pointer;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .add-row-btn:hover {
+            background: #45a049;
+        }
+        
+        @media print {
+            html, body {
+                overflow: visible !important;
+                height: auto !important;
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+            
+            .container {
+                padding: 15px;
+                overflow: visible !important;
+                max-width: 100%;
+                background: white !important;
+            }
+            
+            .header {
+                display: grid;
+                grid-template-columns: 150px 1fr 250px;
+                gap: 20px;
+            }
+            
+            .add-row-btn, button, .btn, [onclick] {
+                display: none !important;
+            }
+            
+            * {
+                overflow: visible !important;
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+            }
+            
+            *::-webkit-scrollbar {
+                display: none !important;
+            }
+            
+            input[type="text"],
+            textarea {
+                border: none !important;
+                outline: none !important;
+                background: transparent !important;
+                color: black !important;
+                opacity: 1 !important;
+                -webkit-appearance: none !important;
+                word-wrap: break-word !important;
+                white-space: normal !important;
+            }
+            
+            .info-row input {
+                border-bottom: 1px solid #333 !important;
+                color: black !important;
+                opacity: 1 !important;
+            }
+            
+            .header-cell {
+                background: #e8e8e8 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                color: black !important;
+                opacity: 1 !important;
+            }
+            
+            table {
+                page-break-inside: avoid;
+                border-collapse: collapse !important;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            
+            td {
+                border: 1px solid #000 !important;
+                color: black !important;
+                opacity: 1 !important;
+            }
+            
+            .label {
+                color: black !important;
+                opacity: 1 !important;
+            }
+        }
+        
+        @page {
+            size: letter;
+            margin: 0.5in;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo-container">
+                <img src="../../../frontend/public/Canoil_logo.png" alt="Canoil Logo">
+            </div>
+            <div class="company-info">
+                <h1>Canoil Canada Ltd.</h1>
+                <p>62 Todd Road</p>
+                <p>Georgetown, ON L7G 4R7</p>
+                <p>Canada</p>
+            </div>
+            <div class="packing-info">
+                <h2>PACKING SLIP</h2>
+                <div class="info-row">
+                    <label>Packing Slip №:</label>
+                    <input type="text" id="packing_slip_number" data-field="packing_slip_number" name="packing_slip_number">
+                </div>
+                <div class="info-row">
+                    <label>Date:</label>
+                    <input type="text" id="packing_date" data-field="packing_date" name="packing_date" readonly>
+                </div>
+                <div class="info-row">
+                    <label>Page:</label>
+                    <input type="text" id="page_number" data-field="page_number" name="page_number" value="1 of 1">
+                </div>
+            </div>
+        </div>
+        
+        <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+            // Set current date automatically
+            const today = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('packing_date').value = today.toLocaleDateString('en-US', options);
+        </script>
+        
+        <!-- Main Table -->
+        <table>
+            <!-- Sold to / Ship to -->
+            <tr>
+                <td style="width: 50%; padding: 0;">
+                    <div style="padding: 10px; border-bottom: 1px solid #000;">
+                        <span class="label">Sold to:</span>
+                    </div>
+                    <div style="padding: 10px;">
+                        <textarea id="sold_to" data-field="sold_to" name="sold_to" style="border: none;"></textarea>
+                    </div>
+                </td>
+                <td style="width: 50%; padding: 0;">
+                    <div style="padding: 10px; border-bottom: 1px solid #000;">
+                        <span class="label">Ship to:</span>
+                    </div>
+                    <div style="padding: 10px;">
+                        <textarea id="ship_to" data-field="ship_to" name="ship_to" style="border: none;"></textarea>
+                    </div>
+                </td>
+            </tr>
+            
+            <!-- Empty spacing row -->
+            <tr>
+                <td colspan="2" style="height: 20px; border: none;"></td>
+            </tr>
+            
+            <!-- Sales Order / Sold By -->
+            <tr>
+                <td>
+                    <span class="label">Sales Order №:</span>
+                    <input type="text" id="sales_order_number" data-field="sales_order_number" name="sales_order_number" style="display: inline-block; width: calc(100% - 120px); margin-left: 10px;">
+                </td>
+                <td>
+                    <span class="label">Sold By:</span>
+                    <input type="text" id="sold_by" data-field="sold_by" name="sold_by" style="display: inline-block; width: calc(100% - 80px); margin-left: 10px;">
+                </td>
+            </tr>
+            
+            <!-- Shipped By / Scheduled Ship Date -->
+            <tr>
+                <td>
+                    <span class="label">Shipped By:</span>
+                    <input type="text" id="shipped_by" data-field="shipped_by" name="shipped_by" value="Canoil Canada Ltd." style="display: inline-block; width: calc(100% - 110px); margin-left: 10px;">
+                </td>
+                <td>
+                    <span class="label">Scheduled Ship Date:</span>
+                    <input type="text" id="scheduled_ship_date" data-field="scheduled_ship_date" name="scheduled_ship_date" style="display: inline-block; width: calc(100% - 180px); margin-left: 10px;">
+                </td>
+            </tr>
+            
+            <!-- Tracking Number -->
+            <tr>
+                <td colspan="2">
+                    <span class="label">Tracking №:</span>
+                    <input type="text" id="tracking_number" data-field="tracking_number" name="tracking_number" style="display: inline-block; width: calc(100% - 110px); margin-left: 10px;">
+                </td>
+            </tr>
+        </table>
+        
+        <!-- Items Table with Lot/Batch # Column -->
+        <table style="margin-top: 0;" id="itemsTable">
+            <tr>
+                <td class="header-cell" style="width: 5%;">№</td>
+                <td class="header-cell" style="width: 35%;">Item Description</td>
+                <td class="header-cell" style="width: 25%;">Lot/Batch #</td>
+                <td class="header-cell" style="width: 11.66%;">Unit</td>
+                <td class="header-cell" style="width: 11.67%;">Ordered<br>quantity</td>
+                <td class="header-cell" style="width: 11.67%;">Shipped<br>quantity</td>
+            </tr>
+            <tr class="item-row" id="item_row_1" data-row="1">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">1</td>
+                <td><textarea id="item_description_1" data-field="item_description" data-row="1" name="item_description_1" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_1" data-field="lot_batch" data-row="1" name="lot_batch_1" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_1" data-field="unit" data-row="1" name="unit_1" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_1" data-field="ordered_qty" data-row="1" name="ordered_qty_1" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_1" data-field="shipped_qty" data-row="1" name="shipped_qty_1" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_2" data-row="2">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">2</td>
+                <td><textarea id="item_description_2" data-field="item_description" data-row="2" name="item_description_2" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_2" data-field="lot_batch" data-row="2" name="lot_batch_2" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_2" data-field="unit" data-row="2" name="unit_2" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_2" data-field="ordered_qty" data-row="2" name="ordered_qty_2" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_2" data-field="shipped_qty" data-row="2" name="shipped_qty_2" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_3" data-row="3">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">3</td>
+                <td><textarea id="item_description_3" data-field="item_description" data-row="3" name="item_description_3" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_3" data-field="lot_batch" data-row="3" name="lot_batch_3" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_3" data-field="unit" data-row="3" name="unit_3" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_3" data-field="ordered_qty" data-row="3" name="ordered_qty_3" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_3" data-field="shipped_qty" data-row="3" name="shipped_qty_3" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_4" data-row="4">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">4</td>
+                <td><textarea id="item_description_4" data-field="item_description" data-row="4" name="item_description_4" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_4" data-field="lot_batch" data-row="4" name="lot_batch_4" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_4" data-field="unit" data-row="4" name="unit_4" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_4" data-field="ordered_qty" data-row="4" name="ordered_qty_4" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_4" data-field="shipped_qty" data-row="4" name="shipped_qty_4" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_5" data-row="5">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">5</td>
+                <td><textarea id="item_description_5" data-field="item_description" data-row="5" name="item_description_5" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_5" data-field="lot_batch" data-row="5" name="lot_batch_5" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_5" data-field="unit" data-row="5" name="unit_5" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_5" data-field="ordered_qty" data-row="5" name="ordered_qty_5" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_5" data-field="shipped_qty" data-row="5" name="shipped_qty_5" style="text-align: center;"></td>
+            </tr>
+        </table>
+        
+        <button class="add-row-btn" onclick="addRow()">Add Row</button>
+        
+        <!-- Comments Table -->
+        <table style="margin-top: 10px;">
+            <tr>
+                <td>
+                    <span class="label">Comments:</span>
+                    <input type="text" id="comments" data-field="comments" name="comments" style="display: inline-block; width: calc(100% - 120px); margin-left: 10px;">
+                </td>
+            </tr>
+        </table>
+        
+    </div>
+    
+    <script>
+        let rowCount = 5;
+        
+        // Auto-resize textarea fields as content grows
+        function autoResizeInput(element) {
+            element.style.height = '40px';
+            element.style.height = element.scrollHeight + 'px';
+        }
+        
+        // Add event listeners to existing description fields
+        document.addEventListener('DOMContentLoaded', function() {
+            for (let i = 1; i <= rowCount; i++) {
+                const input = document.getElementById(`item_description_${i}`);
+                if (input) {
+                    input.addEventListener('input', function() {
+                        autoResizeInput(this);
+                    });
+                }
+            }
+        });
+        
+        function addRow() {
+            rowCount++;
+            const table = document.getElementById('itemsTable');
+            const newRow = table.insertRow(-1);
+            newRow.className = 'item-row';
+            newRow.id = 'item_row_' + rowCount;
+            newRow.setAttribute('data-row', rowCount);
+            
+            newRow.innerHTML = `
+                <td style="text-align: center; vertical-align: top; padding: 8px;">${rowCount}</td>
+                <td><textarea id="item_description_${rowCount}" data-field="item_description" data-row="${rowCount}" name="item_description_${rowCount}" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_${rowCount}" data-field="lot_batch" data-row="${rowCount}" name="lot_batch_${rowCount}" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_${rowCount}" data-field="unit" data-row="${rowCount}" name="unit_${rowCount}" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_${rowCount}" data-field="ordered_qty" data-row="${rowCount}" name="ordered_qty_${rowCount}" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_${rowCount}" data-field="shipped_qty" data-row="${rowCount}" name="shipped_qty_${rowCount}" style="text-align: center;"></td>
+            `;
+        }
+        
+        // Automation helper: Fill form from JSON
+        function fillFormData(data) {
+            if (data.packing_slip_number) document.getElementById('packing_slip_number').value = data.packing_slip_number;
+            if (data.page_number) document.getElementById('page_number').value = data.page_number;
+            if (data.sold_to) document.getElementById('sold_to').value = data.sold_to;
+            if (data.ship_to) document.getElementById('ship_to').value = data.ship_to;
+            if (data.sales_order_number) document.getElementById('sales_order_number').value = data.sales_order_number;
+            if (data.sold_by) document.getElementById('sold_by').value = data.sold_by;
+            if (data.shipped_by) document.getElementById('shipped_by').value = data.shipped_by;
+            if (data.scheduled_ship_date) document.getElementById('scheduled_ship_date').value = data.scheduled_ship_date;
+            if (data.tracking_number) document.getElementById('tracking_number').value = data.tracking_number;
+            
+            if (data.items && Array.isArray(data.items)) {
+                data.items.forEach((item, index) => {
+                    const rowNum = index + 1;
+                    while (rowNum > rowCount) addRow();
+                    
+                    if (item.description) document.getElementById(`item_description_${rowNum}`).value = item.description;
+                    if (item.lot_batch) document.getElementById(`lot_batch_${rowNum}`).value = item.lot_batch;
+                    if (item.unit) document.getElementById(`unit_${rowNum}`).value = item.unit;
+                    if (item.ordered_qty) document.getElementById(`ordered_qty_${rowNum}`).value = item.ordered_qty;
+                    if (item.shipped_qty) document.getElementById(`shipped_qty_${rowNum}`).value = item.shipped_qty;
+                });
+            }
+            
+            if (data.comments) document.getElementById('comments').value = data.comments;
+        }
+        
+        // Automation helper: Extract form data as JSON
+        function getFormData() {
+            const items = [];
+            for (let i = 1; i <= rowCount; i++) {
+                const desc = document.getElementById(`item_description_${i}`).value;
+                if (desc) {
+                    items.push({
+                        description: desc,
+                        lot_batch: document.getElementById(`lot_batch_${i}`).value,
+                        unit: document.getElementById(`unit_${i}`).value,
+                        ordered_qty: document.getElementById(`ordered_qty_${i}`).value,
+                        shipped_qty: document.getElementById(`shipped_qty_${i}`).value
+                    });
+                }
+            }
+            
+            return {
+                packing_slip_number: document.getElementById('packing_slip_number').value,
+                packing_date: document.getElementById('packing_date').value,
+                page_number: document.getElementById('page_number').value,
+                sold_to: document.getElementById('sold_to').value,
+                ship_to: document.getElementById('ship_to').value,
+                sales_order_number: document.getElementById('sales_order_number').value,
+                sold_by: document.getElementById('sold_by').value,
+                shipped_by: document.getElementById('shipped_by').value,
+                scheduled_ship_date: document.getElementById('scheduled_ship_date').value,
+                tracking_number: document.getElementById('tracking_number').value,
+                items: items,
+                comments: document.getElementById('comments').value
+            };
+        }
+    </script>
+</body>
+</html>

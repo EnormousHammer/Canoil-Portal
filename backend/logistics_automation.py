@@ -1859,8 +1859,8 @@ def parse_email_fallback(email_text):
     
     # Set batch numbers in data
     if all_batch_numbers:
-        data['batch_numbers'] = ', '.join(all_batch_numbers)
-        data['batch_number'] = all_batch_numbers[0]  # For backward compatibility  # For backward compatibility
+        data['batch_numbers'] = ' + '.join(all_batch_numbers)
+        data['batch_number'] = all_batch_numbers[0]  # For backward compatibility
     
     # Extract weight - PREFER GROSS WEIGHT if both mentioned, otherwise use whatever is there
     # First check for gross weight
@@ -5746,6 +5746,11 @@ def generate_all_documents():
         
         # Dangerous goods info (will be updated by smart generator)
         dangerous_goods_info = {'has_dangerous_goods': False}
+        
+        # Initialize destination_country and is_cross_border at function scope
+        # These are determined during Commercial Invoice check but needed for TSCA and summary
+        destination_country = None
+        is_cross_border = False
 
         # Simplified mode: HTML stays HTML, PDF stays PDF (no conversion)
         # TSCA is already a PDF, so it will always be generated when needed
@@ -5788,7 +5793,7 @@ def generate_all_documents():
                     'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
                     'file_type': 'html'
                 }
-                print(f"✅ BOL generated: {bol_filename} (HTML) and {bol_pdf_filename if bol_pdf_success else 'PDF failed'}")
+                print(f"✅ BOL generated: {bol_filename} (HTML)")
                 
             except Exception as e:
                 print(f"❌ BOL generation error: {e}")
@@ -5813,15 +5818,13 @@ def generate_all_documents():
                     f.write(ps_html)
                 
                 # HTML only - no PDF conversion
-                
                 results['packing_slip'] = {
                     'success': True,
                     'filename': ps_filename,
                     'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                    'pdf_file': ps_pdf_filename if ps_pdf_success else None,
-                    'pdf_download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{ps_pdf_filename}' if ps_pdf_success else None
+                    'file_type': 'html'
                 }
-                print(f"✅ Packing Slip generated: {ps_filename} (HTML) and {ps_pdf_filename if ps_pdf_success else 'PDF failed'}")
+                print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
                 
             except Exception as e:
                 print(f"❌ Packing Slip generation error: {e}")
@@ -5832,48 +5835,42 @@ def generate_all_documents():
             print("⬜ Packing Slip skipped - not requested")
             results['packing_slip'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
+        # Determine destination country (needed for Commercial Invoice, TSCA, and summary)
+        # This runs ALWAYS regardless of whether Commercial Invoice is requested
+        shipping_address = so_data.get('shipping_address', {})
+        if shipping_address.get('country'):
+            destination_country = str(shipping_address.get('country', '')).upper().strip()
+        
+        # Check email_shipping for destination (if passed)
+        email_shipping_check = data.get('email_shipping', {})
+        if not destination_country and email_shipping_check:
+            if email_shipping_check.get('destination_country'):
+                destination_country = str(email_shipping_check.get('destination_country', '')).upper().strip()
+            elif email_shipping_check.get('final_destination'):
+                destination_country = str(email_shipping_check.get('final_destination', '')).upper().strip()
+        
+        # Check email analysis for destination
+        if not destination_country and email_analysis:
+            if email_analysis.get('destination_country'):
+                destination_country = str(email_analysis.get('destination_country', '')).upper().strip()
+            elif email_analysis.get('final_destination'):
+                destination_country = str(email_analysis.get('final_destination', '')).upper().strip()
+        
+        # Determine if cross-border
+        if destination_country:
+            is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
+        else:
+            # Default to cross-border if destination unknown (safer to include)
+            is_cross_border = True
+            destination_country = 'UNKNOWN'
+        
+        print(f"\n📋 Destination Check:")
+        print(f"   Destination: {destination_country}")
+        print(f"   Cross-border: {is_cross_border}")
+        
         # Commercial Invoice Generation - only if requested
         if requested_docs.get('commercial_invoice', True):
             try:
-                # Determine destination country for logging purposes
-                destination_country = None
-                is_cross_border = False
-                
-                # Check shipping address country
-                shipping_address = so_data.get('shipping_address', {})
-                if shipping_address.get('country'):
-                    destination_country = str(shipping_address.get('country', '')).upper().strip()
-                
-                # Check email_shipping for destination (if passed)
-                email_shipping = data.get('email_shipping', {})
-                if not destination_country and email_shipping:
-                    if email_shipping.get('destination_country'):
-                        destination_country = str(email_shipping.get('destination_country', '')).upper().strip()
-                    elif email_shipping.get('final_destination'):
-                        destination_country = str(email_shipping.get('final_destination', '')).upper().strip()
-                
-                # Check email analysis for destination
-                if not destination_country and email_analysis:
-                    if email_analysis.get('destination_country'):
-                        destination_country = str(email_analysis.get('destination_country', '')).upper().strip()
-                    elif email_analysis.get('final_destination'):
-                        destination_country = str(email_analysis.get('final_destination', '')).upper().strip()
-                
-                # Determine if cross-border (for logging)
-                if destination_country:
-                    # If destination is not Canada, it's cross-border
-                    is_cross_border = destination_country not in ['CANADA', 'CA', 'CAN']
-                    print(f"\n📋 Commercial Invoice Check:")
-                    print(f"   Destination: {destination_country}")
-                    print(f"   Cross-border: {is_cross_border}")
-                else:
-                    # Default to cross-border if destination unknown (safer to include)
-                    is_cross_border = True
-                    destination_country = 'UNKNOWN'
-                    print(f"\n📋 Commercial Invoice Check:")
-                    print(f"   Destination: UNKNOWN (defaulting to cross-border)")
-                    print(f"   Cross-border: {is_cross_border}")
-                
                 # Only generate Commercial Invoice for cross-border shipments
                 if is_cross_border:
                     print(f"📋 Generating Commercial Invoice (cross-border shipment to {destination_country})")
@@ -5919,129 +5916,125 @@ def generate_all_documents():
             results['commercial_invoice'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # SMART Dangerous Goods Declaration Generation - Auto-detect and fill correct template
-        if not pdf_generation_enabled:
-            print("⏭️ Dangerous Goods skipped (PDF generation disabled)")
-            dangerous_goods_info['has_dangerous_goods'] = False
-        else:
-            try:
-                from dangerous_goods_generator import generate_dangerous_goods_declarations
+        try:
+            from dangerous_goods_generator import generate_dangerous_goods_declarations
+            
+            print("\n🔴 Checking for dangerous goods...")
+            print(f"DEBUG: Items being checked for DG: {len(items)} items")
+            for idx, item in enumerate(items, 1):
+                print(f"  Item {idx}: Code='{item.get('item_code')}', Desc='{item.get('description')}'")
+            
+            dg_result = generate_dangerous_goods_declarations(so_data, items, email_shipping)
+            
+            if dg_result and dg_result.get('dg_forms'):
+                # Move generated files to uploads/logistics folder
+                import shutil
+                dg_results = []
+                sds_results = []
+                cofa_results = []
                 
-                print("\n🔴 Checking for dangerous goods...")
-                print(f"DEBUG: Items being checked for DG: {len(items)} items")
-                for idx, item in enumerate(items, 1):
-                    print(f"  Item {idx}: Code='{item.get('item_code')}', Desc='{item.get('description')}'")
+                # Process DG Forms - with individual error handling
+                for dg_filepath, dg_original_filename in dg_result['dg_forms']:
+                    try:
+                        print(f"🔍 Processing DG form: {dg_original_filename}")
+                        print(f"   Source path: {dg_filepath}")
+                        print(f"   Source exists: {os.path.exists(dg_filepath)}")
+                        
+                        # Create new filename with new format
+                        new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
+                        # Save in PDF Format folder (even though it's .docx, it's a document format)
+                        new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
+                        
+                        print(f"   Target path: {new_dg_path}")
+                        
+                        # Copy file to PDF Format folder
+                        shutil.copy2(dg_filepath, new_dg_path)
+                        
+                        print(f"   Copy successful: {os.path.exists(new_dg_path)}")
+                        
+                        dg_results.append({
+                            'success': True,
+                            'filename': new_dg_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_dg_filename}',
+                            'product': dg_original_filename  # Contains product name
+                        })
+                        print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
+                    except Exception as dg_err:
+                        print(f"❌ Failed to process DG form {dg_original_filename}: {dg_err}")
+                        traceback.print_exc()  # Use module-level traceback
+                        errors.append(f"DG form {dg_original_filename}: {str(dg_err)}")
+                        # Continue to next DG form
                 
-                dg_result = generate_dangerous_goods_declarations(so_data, items, email_shipping)
+                # Process SDS files - with individual error handling
+                for sds_path, sds_filename, product_name in dg_result.get('sds_files', []):
+                    try:
+                        # Get file extension from original
+                        file_ext = os.path.splitext(sds_filename)[1]
+                        
+                        # Create consistent filename: SDS_ProductName_Date.ext
+                        timestamp_sds = datetime.now().strftime('%Y%m%d')
+                        clean_product = product_name.replace(' ', '_').replace('/', '_')
+                        new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
+                        
+                        # Copy SDS with new name to PDF Format folder
+                        new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
+                        shutil.copy2(sds_path, new_sds_path)
+                        
+                        sds_results.append({
+                            'success': True,
+                            'filename': new_sds_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_sds_filename}',
+                            'product': product_name
+                        })
+                        print(f"✅ SDS renamed: {new_sds_filename}")
+                    except Exception as sds_err:
+                        print(f"❌ Failed to process SDS for {product_name}: {sds_err}")
+                        errors.append(f"SDS {product_name}: {str(sds_err)}")
+                        # Continue to next SDS file
                 
-                if dg_result and dg_result.get('dg_forms'):
-                    # Move generated files to uploads/logistics folder
-                    import shutil
-                    dg_results = []
-                    sds_results = []
-                    cofa_results = []
-                    
-                    # Process DG Forms - with individual error handling
-                    for dg_filepath, dg_original_filename in dg_result['dg_forms']:
-                        try:
-                            print(f"🔍 Processing DG form: {dg_original_filename}")
-                            print(f"   Source path: {dg_filepath}")
-                            print(f"   Source exists: {os.path.exists(dg_filepath)}")
-                            
-                            # Create new filename with new format
-                            new_dg_filename = generate_document_filename("DangerousGoods", so_data, '.docx')
-                            # Save in PDF Format folder (even though it's .docx, it's a document format)
-                            new_dg_path = os.path.join(folder_structure['pdf_folder'], new_dg_filename)
-                            
-                            print(f"   Target path: {new_dg_path}")
-                            
-                            # Copy file to PDF Format folder
-                            shutil.copy2(dg_filepath, new_dg_path)
-                            
-                            print(f"   Copy successful: {os.path.exists(new_dg_path)}")
-                            
-                            dg_results.append({
-                                'success': True,
-                                'filename': new_dg_filename,
-                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_dg_filename}',
-                                'product': dg_original_filename  # Contains product name
-                            })
-                            print(f"✅ Dangerous Goods Declaration generated: {new_dg_filename}")
-                        except Exception as dg_err:
-                            print(f"❌ Failed to process DG form {dg_original_filename}: {dg_err}")
-                            traceback.print_exc()  # Use module-level traceback
-                            errors.append(f"DG form {dg_original_filename}: {str(dg_err)}")
-                            # Continue to next DG form
-                    
-                    # Process SDS files - with individual error handling
-                    for sds_path, sds_filename, product_name in dg_result.get('sds_files', []):
-                        try:
-                            # Get file extension from original
-                            file_ext = os.path.splitext(sds_filename)[1]
-                            
-                            # Create consistent filename: SDS_ProductName_Date.ext
-                            timestamp_sds = datetime.now().strftime('%Y%m%d')
-                            clean_product = product_name.replace(' ', '_').replace('/', '_')
-                            new_sds_filename = f"SDS_{clean_product}_{timestamp_sds}{file_ext}"
-                            
-                            # Copy SDS with new name to PDF Format folder
-                            new_sds_path = os.path.join(folder_structure['pdf_folder'], new_sds_filename)
-                            shutil.copy2(sds_path, new_sds_path)
-                            
-                            sds_results.append({
-                                'success': True,
-                                'filename': new_sds_filename,
-                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_sds_filename}',
-                                'product': product_name
-                            })
-                            print(f"✅ SDS renamed: {new_sds_filename}")
-                        except Exception as sds_err:
-                            print(f"❌ Failed to process SDS for {product_name}: {sds_err}")
-                            errors.append(f"SDS {product_name}: {str(sds_err)}")
-                            # Continue to next SDS file
-                    
-                    # Process COFA files - with individual error handling
-                    for cofa_path, cofa_filename, product_name, batch in dg_result.get('cofa_files', []):
-                        try:
-                            # Get file extension from original
-                            file_ext = os.path.splitext(cofa_filename)[1]
-                            
-                            # Create consistent filename: COFA_ProductName_Batch_Date.ext
-                            timestamp_cofa = datetime.now().strftime('%Y%m%d')
-                            clean_product = product_name.replace(' ', '_').replace('/', '_')
-                            new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
-                            
-                            # Copy COFA with new name to PDF Format folder
-                            new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
-                            shutil.copy2(cofa_path, new_cofa_path)
-                            
-                            cofa_results.append({
-                                'success': True,
-                                'filename': new_cofa_filename,
-                                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_cofa_filename}',
-                                'product': product_name,
-                                'batch': batch
-                            })
-                            print(f"✅ COFA renamed: {new_cofa_filename} (Batch: {batch})")
-                        except Exception as cofa_err:
-                            print(f"❌ Failed to process COFA for {product_name} batch {batch}: {cofa_err}")
-                            errors.append(f"COFA {product_name} batch {batch}: {str(cofa_err)}")
-                            # Continue to next COFA file
-                    
-                    results['dangerous_goods'] = dg_results
-                    results['sds_files'] = sds_results
-                    results['cofa_files'] = cofa_results
-                    dangerous_goods_info['has_dangerous_goods'] = True
-                    dangerous_goods_info['forms_generated'] = len(dg_results)
-                    dangerous_goods_info['sds_count'] = len(sds_results)
-                    dangerous_goods_info['cofa_count'] = len(cofa_results)
-                else:
-                    print("✅ No dangerous goods detected in this shipment")
-                    dangerous_goods_info['has_dangerous_goods'] = False
-            except Exception as e:
-                print(f"❌ Dangerous Goods generation error: {e}")
-                traceback.print_exc()  # Use module-level traceback
-                errors.append(f"Dangerous Goods generation failed: {str(e)}")
-                results['dangerous_goods'] = {'success': False, 'error': str(e)}
+                # Process COFA files - with individual error handling
+                for cofa_path, cofa_filename, product_name, batch in dg_result.get('cofa_files', []):
+                    try:
+                        # Get file extension from original
+                        file_ext = os.path.splitext(cofa_filename)[1]
+                        
+                        # Create consistent filename: COFA_ProductName_Batch_Date.ext
+                        timestamp_cofa = datetime.now().strftime('%Y%m%d')
+                        clean_product = product_name.replace(' ', '_').replace('/', '_')
+                        new_cofa_filename = f"COFA_{clean_product}_Batch{batch}_{timestamp_cofa}{file_ext}"
+                        
+                        # Copy COFA with new name to PDF Format folder
+                        new_cofa_path = os.path.join(folder_structure['pdf_folder'], new_cofa_filename)
+                        shutil.copy2(cofa_path, new_cofa_path)
+                        
+                        cofa_results.append({
+                            'success': True,
+                            'filename': new_cofa_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{new_cofa_filename}',
+                            'product': product_name,
+                            'batch': batch
+                        })
+                        print(f"✅ COFA renamed: {new_cofa_filename} (Batch: {batch})")
+                    except Exception as cofa_err:
+                        print(f"❌ Failed to process COFA for {product_name} batch {batch}: {cofa_err}")
+                        errors.append(f"COFA {product_name} batch {batch}: {str(cofa_err)}")
+                        # Continue to next COFA file
+                
+                results['dangerous_goods'] = dg_results
+                results['sds_files'] = sds_results
+                results['cofa_files'] = cofa_results
+                dangerous_goods_info['has_dangerous_goods'] = True
+                dangerous_goods_info['forms_generated'] = len(dg_results)
+                dangerous_goods_info['sds_count'] = len(sds_results)
+                dangerous_goods_info['cofa_count'] = len(cofa_results)
+            else:
+                print("✅ No dangerous goods detected in this shipment")
+                dangerous_goods_info['has_dangerous_goods'] = False
+        except Exception as e:
+            print(f"❌ Dangerous Goods generation error: {e}")
+            traceback.print_exc()  # Use module-level traceback
+            errors.append(f"Dangerous Goods generation failed: {str(e)}")
+            results['dangerous_goods'] = {'success': False, 'error': str(e)}
         
         # TSCA CERTIFICATION - Generate ONLY for USA shipments
         # TSCA is already a PDF (no conversion needed), so always generate when required
@@ -6238,10 +6231,10 @@ def generate_all_documents():
                     'reason': usmca_check['reason']
                 }
         except Exception as e:
-                print(f"❌ USMCA generation error: {e}")
-                traceback.print_exc()  # Use module-level traceback
-                errors.append(f"USMCA generation failed: {str(e)}")
-                results['usmca_certificate'] = {'success': False, 'error': str(e)}
+            print(f"❌ USMCA generation error: {e}")
+            traceback.print_exc()  # Use module-level traceback
+            errors.append(f"USMCA generation failed: {str(e)}")
+            results['usmca_certificate'] = {'success': False, 'error': str(e)}
         
         # DELIVERY NOTE - Generate ONLY for Axel France orders
         try:
@@ -6254,31 +6247,31 @@ def generate_all_documents():
                 booking_number = data.get('booking_number', '') or data.get('bookingNumber', '')
                 
                 # DELIVERY NOTE - Generate (already a PDF, no conversion needed)
-                    print(f"   Axel France order detected - generating delivery note")
-                    print(f"   Booking#: {booking_number or '(not provided)'}")
+                print(f"   Axel France order detected - generating delivery note")
+                print(f"   Booking#: {booking_number or '(not provided)'}")
+                
+                dn_result = generate_delivery_note(so_data, items, booking_number)
+                
+                if dn_result.get('success'):
+                    # Move to PDF Format folder with consistent naming
+                    import shutil
+                    dn_original_path = dn_result['filepath']
+                    dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
+                    dn_new_path = os.path.join(folder_structure['pdf_folder'], dn_filename)
                     
-                    dn_result = generate_delivery_note(so_data, items, booking_number)
+                    shutil.copy2(dn_original_path, dn_new_path)
                     
-                    if dn_result.get('success'):
-                        # Move to PDF Format folder with consistent naming
-                        import shutil
-                        dn_original_path = dn_result['filepath']
-                        dn_filename = generate_document_filename("DeliveryNote", so_data, '.docx')
-                        dn_new_path = os.path.join(folder_structure['pdf_folder'], dn_filename)
-                        
-                        shutil.copy2(dn_original_path, dn_new_path)
-                        
-                        results['delivery_note'] = {
-                            'success': True,
-                            'filename': dn_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{dn_filename}',
-                            'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
-                        }
-                        print(f"   ✅ Delivery Note generated: {dn_filename}")
-                    else:
-                        print(f"   ❌ Delivery Note generation failed: {dn_result.get('error')}")
-                        errors.append(f"Delivery Note: {dn_result.get('error')}")
-                        results['delivery_note'] = {'success': False, 'error': dn_result.get('error')}
+                    results['delivery_note'] = {
+                        'success': True,
+                        'filename': dn_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{dn_filename}',
+                        'note': 'Delivery Note for Axel France' + (' - BOOKING# EMPTY - PLEASE FILL BY HAND' if not booking_number else '')
+                    }
+                    print(f"   ✅ Delivery Note generated: {dn_filename}")
+                else:
+                    print(f"   ❌ Delivery Note generation failed: {dn_result.get('error')}")
+                    errors.append(f"Delivery Note: {dn_result.get('error')}")
+                    results['delivery_note'] = {'success': False, 'error': dn_result.get('error')}
                 
                 # REACH CONFORMITY (DRC) - Include for Axel France MOV/Long Life products
                 # NOTE: REACH is just copying a template, so it should always be checked regardless of pdf_generation_enabled

@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 
-PACKING_SLIP_TEMPLATE = os.path.join(_current_dir, 'templates', 'packing_slip', 'Packing Slip Template 2.html')
+PACKING_SLIP_TEMPLATE = os.path.join(_current_dir, 'templates', 'packing_slip', 'Packing Slip Template.html')
 
 def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str, Any], items: list) -> str:
     """
@@ -260,8 +260,13 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         field_values[f'unit_{i}'] = item.get('unit', '')
         field_values[f'ordered_qty_{i}'] = str(quantity)
         field_values[f'shipped_qty_{i}'] = str(quantity)
+        
+        # Batch/Lot Number - support for new template with batch column
+        # Template uses 'lot_batch_X' IDs for the batch/lot number fields
+        batch_number = item.get('batch_number', '') or item.get('lot_number', '') or ''
+        field_values[f'lot_batch_{i}'] = str(batch_number)
             
-        print(f"DEBUG: Item {i}: {item.get('description', '')} - Qty: {quantity}")
+        print(f"DEBUG: Item {i}: {item.get('description', '')} - Qty: {quantity} - Batch: {batch_number}")
     
     # Populate ALL fields
     print(f"\n🔍 DEBUG: PACKING SLIP FIELD_VALUES BEFORE POPULATION:")

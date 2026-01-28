@@ -735,7 +735,23 @@
 2026-01-21T14:47:17.153064995Z    Is Axel France: False
 2026-01-21T14:47:17.153067475Z    ⏭️  Delivery Note skipped (not an Axel France order)
 2026-01-21T14:47:17.153085085Z ✅ Added Commercial Invoice to documents array: CommercialInvoice SO3110 - POPO-20260109 - 2026-01-09.html
-2026-01-21T14:47:17.15473698Z [2026-01-21 14:47:17 +0000] [7] [INFO] 10.23.91.65:51166 - - [21/Jan/2026:14:47:17 +0000] "POST /api/logistics/generate-all-documents 1.1" 200 691 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+2026-01-21T14:47:17.15473698Z [2026-01-21 14:47:17 +0000] [7] [INFO] 10.23.91.65:51166 - - [21/Jan/2026:14:47:17 +0000] "POST /api/logistics/generate-all-documents 1.1" 200 691 "https://canoil-portal.vercel.app/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"2) PO C092525-2 / SO 3024 – BRO SAE 0W-20 Full Synthetic dexos 1 Gen 3 4×5 L
+Status: Completed and ready.
+Quantity: 240 cases.
+Batch: N54900
+Pallets: 6 pallets, approx. 48×42×59 inches each.
+Total gross weight: 4,506 kg.
+Totes on site: 5 totes – 4 empty + 1 partial (approx. 149 kg).
+
+3) PO C110525-1 / SO 3064 – BRO SAE 10W-30 Heavy Duty CK-4 4×5 L
+Status: Completed and ready.
+Quantity: 80 cases.
+Batch: N54788
+Pallets: 2 pallets, approx. 48×42×59 inches each.
+Total gross weight: 1,512 kg.
+Totes on site: 2 totes – 1 empty + 1 partial (approx. 330 kg).
+
+LOOK MUTLI SO IS NOT WORKIGN AT AP.
 2026-01-21T14:47:17.258383734Z 📥 Download request for: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109.zip
 2026-01-21T14:47:17.258402215Z 📦 ZIP request for folder: Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109
 2026-01-21T14:47:17.258406245Z 📁 Folder path: /app/backend/uploads/logistics/Pengxin (Wuhan) Import & Export_SO3110_POPO-20260109_20260109
