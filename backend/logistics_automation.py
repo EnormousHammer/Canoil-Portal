@@ -274,70 +274,69 @@ def extract_requested_documents(text: str) -> dict:
     """
     Extract which documents the user is requesting from email text.
     
+    IMPORTANT: This function was causing issues by detecting "invoice" in normal emails
+    and only generating Commercial Invoice. Now it ALWAYS returns all documents = True
+    unless the user EXPLICITLY says "only" or "just" with a specific document.
+    
     Examples:
-        "we need packing slip and commercial invoice" → {'packing_slip': True, 'commercial_invoice': True}
-        "BOL only" → {'bol': True}
-        "all documents" → all True
-        "" (no mention) → all True (default behavior)
+        "BOL only" → {'bol': True, others: False}
+        "just the packing slip" → {'packing_slip': True, others: False}
+        Everything else → all True (default behavior - generate all documents)
     
     Returns:
         dict with keys: 'bol', 'packing_slip', 'commercial_invoice', 'usmca', 'tsca', 'dangerous_goods'
         Values are True if requested, False if not
     """
-    text_lower = text.lower()
-    
-    # Default: if no specific documents mentioned, generate all
-    result = {
-        'bol': False,
-        'packing_slip': False,
-        'commercial_invoice': False,
-        'usmca': False,
-        'tsca': False,
-        'dangerous_goods': False,
-        'all_documents': False
+    # ALWAYS default to ALL documents - this is the safe behavior
+    # Only restrict if user EXPLICITLY says "only" or "just"
+    all_docs = {
+        'bol': True,
+        'packing_slip': True,
+        'commercial_invoice': True,
+        'usmca': True,
+        'tsca': True,
+        'dangerous_goods': True,
+        'all_documents': True
     }
     
-    # Check for "all documents" request
-    if any(phrase in text_lower for phrase in ['all documents', 'all docs', 'everything', 'full set']):
-        return {k: True for k in result}
+    text_lower = text.lower()
     
-    # BOL detection
-    if any(phrase in text_lower for phrase in ['bol', 'bill of lading', 'b/l', 'b.o.l']):
-        result['bol'] = True
+    # Only restrict documents if user explicitly says "only" or "just"
+    # e.g., "BOL only", "just the packing slip", "only need commercial invoice"
+    only_patterns = [
+        r'\bbol\s+only\b',
+        r'\bonly\s+bol\b',
+        r'\bjust\s+(the\s+)?bol\b',
+        r'\bpacking\s+slip\s+only\b',
+        r'\bonly\s+(the\s+)?packing\s+slip\b',
+        r'\bjust\s+(the\s+)?packing\s+slip\b',
+        r'\bcommercial\s+invoice\s+only\b',
+        r'\bonly\s+(the\s+)?commercial\s+invoice\b',
+        r'\bjust\s+(the\s+)?commercial\s+invoice\b',
+    ]
     
-    # Packing Slip detection
-    if any(phrase in text_lower for phrase in ['packing slip', 'packing list', 'pack slip', 'ps', 'p/s']):
-        result['packing_slip'] = True
+    import re
+    for pattern in only_patterns:
+        if re.search(pattern, text_lower):
+            # User explicitly requested only specific document(s)
+            result = {k: False for k in all_docs}
+            result['all_documents'] = False
+            
+            if 'bol' in pattern:
+                result['bol'] = True
+                print(f"📋 User explicitly requested BOL ONLY")
+            elif 'packing' in pattern:
+                result['packing_slip'] = True
+                print(f"📋 User explicitly requested Packing Slip ONLY")
+            elif 'commercial' in pattern or 'invoice' in pattern:
+                result['commercial_invoice'] = True
+                print(f"📋 User explicitly requested Commercial Invoice ONLY")
+            
+            return result
     
-    # Commercial Invoice detection
-    if any(phrase in text_lower for phrase in ['commercial invoice', 'comm invoice', 'ci', 'c/i', 'invoice']):
-        result['commercial_invoice'] = True
-    
-    # USMCA detection
-    if any(phrase in text_lower for phrase in ['usmca', 'certificate of origin', 'coo', 'nafta']):
-        result['usmca'] = True
-    
-    # TSCA detection
-    if any(phrase in text_lower for phrase in ['tsca', 'toxic substance', 'chemical']):
-        result['tsca'] = True
-    
-    # Dangerous Goods detection
-    if any(phrase in text_lower for phrase in ['dangerous goods', 'dg', 'hazmat', 'hazardous']):
-        result['dangerous_goods'] = True
-    
-    # If no specific documents detected, default to all
-    if not any(result.values()):
-        return {k: True for k in result}
-    
-    # Set all_documents flag if multiple requested
-    result['all_documents'] = sum(result.values()) > 2
-    
-    print(f"📋 Document request detection:")
-    for doc, requested in result.items():
-        if requested:
-            print(f"   ✅ {doc}")
-    
-    return result
+    # Default: Generate ALL documents (safe behavior)
+    print(f"📋 Generating ALL documents (default behavior)")
+    return all_docs
 
 
 def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
