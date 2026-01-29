@@ -1326,9 +1326,11 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         
         CRITICAL EXAMPLES FOR LINE NUMBERS (MUST EXTRACT CORRECTLY):
         
-        PARTIAL SHIPMENT (line number RIGHT AFTER SO number):
+        PARTIAL SHIPMENT (line number mentioned with SO - even without spaces):
+        - "sales order3005 line 4" → so_number="3005", so_line_numbers=[4], is_partial_shipment=true
         - "Canoil sales order 2707 line 2, attached" → so_number="2707", so_line_numbers=[2], is_partial_shipment=true
         - "SO 5000 line 3" → so_number="5000", so_line_numbers=[3], is_partial_shipment=true
+        - "order 3005 line 4 is ready" → so_number="3005", so_line_numbers=[4], is_partial_shipment=true
         
         FULL SHIPMENT (no line number after SO, or "Line X:" is formatting):
         - "Canoil sales order 3012" → so_number="3012", so_line_numbers=null, is_partial_shipment=false
@@ -1425,10 +1427,21 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         
         # CRITICAL: Ensure line number fields exist and are CORRECTLY extracted
         if 'so_line_numbers' not in parsed_data or parsed_data.get('so_line_numbers') is None:
-            print(f"⚠️ WARNING: GPT did not extract so_line_numbers field!")
-            # Manual extraction as fallback - ONLY match line numbers RIGHT AFTER SO number
+            print(f"⚠️ WARNING: GPT did not extract so_line_numbers field - trying manual extraction...")
+            # Manual extraction as fallback - flexible patterns
             import re
-            line_match = re.search(r'(?:Canoil\s+sales\s+order|sales\s+order|SO)\s*(?:[#No.:]*\s*)?(\d+)\s+line\s+(?:item\s+)?(\d+)', email_text, re.IGNORECASE)
+            # Try multiple patterns to catch various formats
+            patterns = [
+                r'(?:sales\s*order|SO)\s*[#No.:]*\s*(\d+)\s*line\s*(\d+)',  # "sales order3005 line 4"
+                r'order\s*(\d+)\s*line\s*(\d+)',  # "order 3005 line 4"
+                r'(\d{4,5})\s*line\s*(\d+)',  # "3005 line 4"
+            ]
+            line_match = None
+            for pattern in patterns:
+                line_match = re.search(pattern, email_text, re.IGNORECASE)
+                if line_match:
+                    break
+            
             if line_match:
                 parsed_data['so_line_numbers'] = [int(line_match.group(2))]
                 parsed_data['is_partial_shipment'] = True
@@ -1436,7 +1449,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             else:
                 parsed_data['so_line_numbers'] = None
                 parsed_data['is_partial_shipment'] = False
-                print(f"✅ MANUAL EXTRACTION: No line number after SO - FULL SHIPMENT")
+                print(f"✅ MANUAL EXTRACTION: No line number found - FULL SHIPMENT")
         
         if 'is_partial_shipment' not in parsed_data:
             parsed_data['is_partial_shipment'] = bool(parsed_data.get('so_line_numbers'))
