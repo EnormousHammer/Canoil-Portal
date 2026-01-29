@@ -85,6 +85,7 @@ const LogisticsAutomation: React.FC = () => {
   
   // History state
   const [showHistory, setShowHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
   const [emailHistory, setEmailHistory] = useState<Array<{
     id: string;
     emailText: string;
@@ -1220,8 +1221,8 @@ const LogisticsAutomation: React.FC = () => {
 
       {/* Email History Modal */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHistory(false)}>
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-4xl mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHistory(false); setHistorySearch(''); }}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-5xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="bg-slate-100 p-3 rounded-full">
@@ -1235,12 +1236,26 @@ const LogisticsAutomation: React.FC = () => {
                 )}
               </div>
               <button
-                onClick={() => setShowHistory(false)}
+                onClick={() => { setShowHistory(false); setHistorySearch(''); }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
+            
+            {/* Search Box */}
+            {emailHistory.length > 0 && (
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="🔍 Search by SO number, company name, or email content..."
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
             
             <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg">
               {emailHistory.length === 0 ? (
@@ -1250,49 +1265,119 @@ const LogisticsAutomation: React.FC = () => {
                   <p className="text-xs mt-1">Processed emails will appear here</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200">
-                  {emailHistory.map((entry) => (
-                    <div key={entry.id} className="p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            {entry.soNumber && (
-                              <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-1 rounded">
-                                SO {entry.soNumber}
-                              </span>
-                            )}
-                            {entry.companyName && (
-                              <span className="text-sm font-medium text-gray-700 truncate">
-                                {entry.companyName}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-500 mb-2">
-                            {new Date(entry.timestamp).toLocaleString()}
-                          </div>
-                          <div className="text-sm text-gray-700 line-clamp-2 font-mono bg-gray-50 p-2 rounded border border-gray-200">
-                            {entry.emailText.substring(0, 200)}
-                            {entry.emailText.length > 200 && '...'}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => loadFromHistory(entry)}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                          >
-                            Load
-                          </button>
-                          <button
-                            onClick={() => deleteFromHistory(entry.id)}
-                            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                (() => {
+                  // Filter history based on search
+                  const searchValue = historySearch.toLowerCase();
+                  const filteredHistory = searchValue 
+                    ? emailHistory.filter(entry => 
+                        (entry.soNumber?.toLowerCase() || '').includes(searchValue) ||
+                        (entry.companyName?.toLowerCase() || '').includes(searchValue) ||
+                        entry.emailText.toLowerCase().includes(searchValue)
+                      )
+                    : emailHistory;
+                  
+                  // Group by date
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const yesterday = new Date(today);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const thisWeek = new Date(today);
+                  thisWeek.setDate(thisWeek.getDate() - 7);
+                  const thisMonth = new Date(today);
+                  thisMonth.setDate(thisMonth.getDate() - 30);
+                  
+                  const groups: { [key: string]: typeof emailHistory } = {
+                    'Today': [],
+                    'Yesterday': [],
+                    'This Week': [],
+                    'This Month': [],
+                    'Older': []
+                  };
+                  
+                  filteredHistory.forEach(entry => {
+                    const entryDate = new Date(entry.timestamp);
+                    entryDate.setHours(0, 0, 0, 0);
+                    
+                    if (entryDate.getTime() === today.getTime()) {
+                      groups['Today'].push(entry);
+                    } else if (entryDate.getTime() === yesterday.getTime()) {
+                      groups['Yesterday'].push(entry);
+                    } else if (entryDate >= thisWeek) {
+                      groups['This Week'].push(entry);
+                    } else if (entryDate >= thisMonth) {
+                      groups['This Month'].push(entry);
+                    } else {
+                      groups['Older'].push(entry);
+                    }
+                  });
+                  
+                  if (filteredHistory.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-gray-500">
+                        <p className="text-sm">No results found for "{searchValue}"</p>
                       </div>
+                    );
+                  }
+                  
+                  return (
+                    <div>
+                      {Object.entries(groups).map(([groupName, entries]) => {
+                        if (entries.length === 0) return null;
+                        return (
+                          <div key={groupName}>
+                            <div className="sticky top-0 bg-slate-100 px-4 py-2 border-b border-gray-200">
+                              <span className="text-sm font-semibold text-slate-700">{groupName}</span>
+                              <span className="text-xs text-slate-500 ml-2">({entries.length})</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                              {entries.map((entry) => (
+                                <div key={entry.id} className="p-4 hover:bg-blue-50 transition-colors cursor-pointer group" onClick={() => loadFromHistory(entry)}>
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                        {entry.soNumber && (
+                                          <span className="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded">
+                                            SO {entry.soNumber}
+                                          </span>
+                                        )}
+                                        {entry.companyName && (
+                                          <span className="text-sm font-semibold text-gray-800">
+                                            {entry.companyName}
+                                          </span>
+                                        )}
+                                        <span className="text-xs text-gray-400">
+                                          {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-gray-600 line-clamp-1 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                                        {entry.emailText.substring(0, 150).replace(/\n/g, ' ')}
+                                        {entry.emailText.length > 150 && '...'}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); loadFromHistory(entry); }}
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                                      >
+                                        Load
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); deleteFromHistory(entry.id); }}
+                                        className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg transition-colors"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
               )}
             </div>
           </div>
