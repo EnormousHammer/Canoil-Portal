@@ -1428,17 +1428,16 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         # CRITICAL: ALWAYS run manual line number extraction as verification
         # GPT sometimes misses line numbers or returns wrong values
         import re
-        patterns = [
-            r'(?:sales\s*order|SO)\s*[#No.:]*\s*(\d+)\s*line\s*(\d+)',  # "sales order3005 line 4"
-            r'order\s*(\d+)\s*line\s*(\d+)',  # "order 3005 line 4"
-            r'(\d{4,5})\s+line\s+(\d+)',  # "3005 line 4" (with spaces)
-        ]
-        manual_line_match = None
-        for pattern in patterns:
-            manual_line_match = re.search(pattern, email_text, re.IGNORECASE)
-            if manual_line_match:
-                print(f"✅ MANUAL LINE DETECTION: Found 'line {manual_line_match.group(2)}' in email")
-                break
+        
+        # More flexible pattern that handles spaces in SO number (e.g., "order3 005 line 4")
+        pattern = r'(?:sales\s*order|order|SO)\s*[#No.:]*\s*([\d\s]+?)\s*line\s*(\d+)'
+        manual_line_match = re.search(pattern, email_text, re.IGNORECASE)
+        
+        if manual_line_match:
+            # Clean SO number (remove any spaces)
+            so_from_match = manual_line_match.group(1).replace(' ', '').strip()
+            line_from_match = manual_line_match.group(2)
+            print(f"✅ MANUAL LINE DETECTION: Found SO '{so_from_match}' line '{line_from_match}' in email")
         
         # Get GPT's extraction
         gpt_line_numbers = parsed_data.get('so_line_numbers')
@@ -1446,11 +1445,11 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         
         # Use manual extraction if GPT missed it or got it wrong
         if manual_line_match:
-            manual_line_num = int(manual_line_match.group(2))
+            manual_line_num = int(line_from_match)
             # Always trust manual extraction for line numbers
             parsed_data['so_line_numbers'] = [manual_line_num]
             parsed_data['is_partial_shipment'] = True
-            print(f"✅ USING MANUAL EXTRACTION: SO {manual_line_match.group(1)} line {manual_line_num}")
+            print(f"✅ USING MANUAL EXTRACTION: SO {so_from_match} line {manual_line_num}")
         elif gpt_line_numbers and isinstance(gpt_line_numbers, list) and len(gpt_line_numbers) > 0:
             # GPT found line numbers and manual didn't - trust GPT
             parsed_data['is_partial_shipment'] = True
