@@ -1425,36 +1425,43 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             print(f"[X] FAILED to parse JSON: {type(json_err).__name__}: {str(json_err)}")
             raise
         
-        # CRITICAL: Ensure line number fields exist and are CORRECTLY extracted
-        if 'so_line_numbers' not in parsed_data or parsed_data.get('so_line_numbers') is None:
-            print(f"⚠️ WARNING: GPT did not extract so_line_numbers field - trying manual extraction...")
-            # Manual extraction as fallback - flexible patterns
-            import re
-            # Try multiple patterns to catch various formats
-            patterns = [
-                r'(?:sales\s*order|SO)\s*[#No.:]*\s*(\d+)\s*line\s*(\d+)',  # "sales order3005 line 4"
-                r'order\s*(\d+)\s*line\s*(\d+)',  # "order 3005 line 4"
-                r'(\d{4,5})\s*line\s*(\d+)',  # "3005 line 4"
-            ]
-            line_match = None
-            for pattern in patterns:
-                line_match = re.search(pattern, email_text, re.IGNORECASE)
-                if line_match:
-                    break
-            
-            if line_match:
-                parsed_data['so_line_numbers'] = [int(line_match.group(2))]
-                parsed_data['is_partial_shipment'] = True
-                print(f"✅ MANUAL EXTRACTION: SO {line_match.group(1)} line {line_match.group(2)}")
-            else:
-                parsed_data['so_line_numbers'] = None
-                parsed_data['is_partial_shipment'] = False
-                print(f"✅ MANUAL EXTRACTION: No line number found - FULL SHIPMENT")
+        # CRITICAL: ALWAYS run manual line number extraction as verification
+        # GPT sometimes misses line numbers or returns wrong values
+        import re
+        patterns = [
+            r'(?:sales\s*order|SO)\s*[#No.:]*\s*(\d+)\s*line\s*(\d+)',  # "sales order3005 line 4"
+            r'order\s*(\d+)\s*line\s*(\d+)',  # "order 3005 line 4"
+            r'(\d{4,5})\s+line\s+(\d+)',  # "3005 line 4" (with spaces)
+        ]
+        manual_line_match = None
+        for pattern in patterns:
+            manual_line_match = re.search(pattern, email_text, re.IGNORECASE)
+            if manual_line_match:
+                print(f"✅ MANUAL LINE DETECTION: Found 'line {manual_line_match.group(2)}' in email")
+                break
         
-        if 'is_partial_shipment' not in parsed_data:
-            parsed_data['is_partial_shipment'] = bool(parsed_data.get('so_line_numbers'))
+        # Get GPT's extraction
+        gpt_line_numbers = parsed_data.get('so_line_numbers')
+        print(f"   GPT extracted so_line_numbers: {gpt_line_numbers}")
         
-        print(f"\n🔍 LINE NUMBER CHECK:")
+        # Use manual extraction if GPT missed it or got it wrong
+        if manual_line_match:
+            manual_line_num = int(manual_line_match.group(2))
+            # Always trust manual extraction for line numbers
+            parsed_data['so_line_numbers'] = [manual_line_num]
+            parsed_data['is_partial_shipment'] = True
+            print(f"✅ USING MANUAL EXTRACTION: SO {manual_line_match.group(1)} line {manual_line_num}")
+        elif gpt_line_numbers and isinstance(gpt_line_numbers, list) and len(gpt_line_numbers) > 0:
+            # GPT found line numbers and manual didn't - trust GPT
+            parsed_data['is_partial_shipment'] = True
+            print(f"✅ USING GPT EXTRACTION: line numbers {gpt_line_numbers}")
+        else:
+            # Neither found line numbers - full shipment
+            parsed_data['so_line_numbers'] = None
+            parsed_data['is_partial_shipment'] = False
+            print(f"✅ NO LINE NUMBERS FOUND - FULL SHIPMENT")
+        
+        print(f"\n🔍 FINAL LINE NUMBER CHECK:")
         print(f"   so_line_numbers: {parsed_data.get('so_line_numbers')}")
         print(f"   is_partial_shipment: {parsed_data.get('is_partial_shipment')}\n")
         
