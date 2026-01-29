@@ -3,6 +3,14 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "installCommand": "cd frontend && npm install",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
+  ],
   "routes": [
     { "src": "/api/(.*)", "dest": "https://canoil-portal-1.onrender.com/api/$1" },
     { "handle": "filesystem" },
