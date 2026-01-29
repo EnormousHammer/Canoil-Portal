@@ -154,15 +154,13 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     postal = billing_addr.get('postal_code') or billing_addr.get('postal', '').strip()
     country = billing_addr.get('country', 'Canada').strip()
     
-    # Only add company name if it's NOT already in full_address
-    if company and (not full_addr or company.lower() not in full_addr.lower()):
-        sold_to_lines.append(company.strip())
-    
     if full_addr:
-        # Use full_address as-is - don't filter anything
+        # If full_address exists, use it directly - it should contain everything including company
         sold_to_lines.append(full_addr)
     else:
-        # Build from individual fields - use whatever exists
+        # Build from individual fields - add company first, then address parts
+        if company:
+            sold_to_lines.append(company.strip())
         addr_parts = []
         if street:
             addr_parts.append(street)
@@ -186,13 +184,6 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     # Use full_address if available, otherwise build from individual fields
     ship_full_addr = shipping_addr.get('full_address', '').strip()
-    
-    # Only add company name if it's NOT already in full_address
-    if ship_company and (not ship_full_addr or ship_company.lower() not in ship_full_addr.lower()):
-        ship_to_lines.append(ship_company.strip())
-    
-    if is_pickup_order:
-        ship_to_lines.append("- PICK UP")
     ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street') or '').strip()
     ship_city = shipping_addr.get('city', '').strip()
     ship_province = shipping_addr.get('province') or shipping_addr.get('state', '').strip()
@@ -200,10 +191,16 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     ship_country = shipping_addr.get('country', 'Canada').strip()
     
     if ship_full_addr:
-        # Use full_address as-is - don't filter anything
+        # If full_address exists, use it directly - it should contain everything including company
+        if is_pickup_order:
+            ship_to_lines.append("- PICK UP")
         ship_to_lines.append(ship_full_addr)
     else:
-        # Build from individual fields - use whatever exists
+        # Build from individual fields - add company first, then address parts
+        if ship_company:
+            ship_to_lines.append(ship_company.strip())
+        if is_pickup_order:
+            ship_to_lines.append("- PICK UP")
         addr_parts = []
         if ship_street:
             addr_parts.append(ship_street)
