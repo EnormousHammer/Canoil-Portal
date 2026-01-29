@@ -347,36 +347,41 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {/* Report Maker Action - Primary Style */}
+            {/* Report Maker Action - Primary Style with Enhanced Hover */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-white border-2 border-blue-100 p-6 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer"
+              className="group relative overflow-hidden rounded-2xl bg-white border-2 border-blue-100 p-6 hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
               onClick={() => onNavigate('report-maker')}
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+              {/* Animated gradient background on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+              {/* Shine effect */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              </div>
               <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors">
-                  <FileText className="w-full h-full text-blue-600" />
+                <div className="w-12 h-12 mb-4 p-2.5 bg-blue-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
+                  <FileText className="w-full h-full text-blue-600 group-hover:text-white transition-colors duration-300" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-700 transition-colors">Report Maker</h3>
-                <p className="text-slate-500 text-sm">Production & Analytics</p>
-                <div className="mt-4 flex items-center text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Report Maker</h3>
+                <p className="text-slate-500 text-sm group-hover:text-blue-100 transition-colors duration-300">Production & Analytics</p>
+                <div className="mt-4 flex items-center text-blue-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
                   <BarChart className="w-4 h-4 mr-1.5" />
                   <span>Custom Report Builder</span>
-                  <ChevronRight className="w-4 h-4 ml-auto" />
+                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </div>
 
-            {/* Manufacturing Action - Secondary Style (Info Only) */}
+            {/* Manufacturing Action - Secondary Style with Subtle Hover */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-slate-50 border border-slate-200 p-6"
+              className="group relative overflow-hidden rounded-2xl bg-slate-50 border-2 border-transparent p-6 hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full opacity-30 group-hover:opacity-70 transition-opacity"></div>
               <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-emerald-50 rounded-xl">
+                <div className="w-12 h-12 mb-4 p-2.5 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 group-hover:scale-105 transition-all duration-300">
                   <Factory className="w-full h-full text-emerald-600" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Manufacturing</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-emerald-700 transition-colors">Manufacturing</h3>
                 <p className="text-slate-500 text-sm">Production Performance</p>
                 <div className="mt-4 flex items-center text-emerald-600 text-xs font-medium">
                   <Activity className="w-4 h-4 mr-1.5" />
@@ -385,58 +390,71 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
               </div>
             </div>
 
-            {/* Smart SO Entry Action OR Email Assistant for Haron - Accent Style */}
+            {/* Smart SO Entry Action OR Email Assistant for Haron - Accent Style with Enhanced Hover */}
             {isHaron ? (
               // Email Assistant - Only for Haron
               <div 
-                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 cursor-pointer"
+                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-500 hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
                 onClick={() => onNavigate('email-assistant')}
               >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-violet-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                </div>
                 <div className="relative">
-                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
-                    <Mail className="w-full h-full text-violet-600" />
+                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
+                    <Mail className="w-full h-full text-violet-600 group-hover:text-white transition-colors duration-300" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-700 transition-colors">Email Assistant</h3>
-                  <p className="text-slate-500 text-sm">AI-Powered Responses</p>
-                  <div className="mt-4 flex items-center text-violet-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Email Assistant</h3>
+                  <p className="text-slate-500 text-sm group-hover:text-violet-100 transition-colors duration-300">AI-Powered Responses</p>
+                  <div className="mt-4 flex items-center text-violet-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
                     <Brain className="w-4 h-4 mr-1.5" />
                     <span>Smart Email AI</span>
-                    <ChevronRight className="w-4 h-4 ml-auto" />
+                    <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
               </div>
             ) : (
               // Smart SO Entry - For other users
               <div 
-                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 cursor-pointer"
+                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-500 hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
                 onClick={() => onNavigate('so-entry')}
               >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-violet-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                </div>
                 <div className="relative">
-                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
-                    <Zap className="w-full h-full text-violet-600" />
+                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
+                    <Zap className="w-full h-full text-violet-600 group-hover:text-white transition-colors duration-300" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-700 transition-colors">Smart SO Entry</h3>
-                  <p className="text-slate-500 text-sm">BOM Verification</p>
-                  <div className="mt-4 flex items-center text-violet-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Smart SO Entry</h3>
+                  <p className="text-slate-500 text-sm group-hover:text-violet-100 transition-colors duration-300">BOM Verification</p>
+                  <div className="mt-4 flex items-center text-violet-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
                     <Target className="w-4 h-4 mr-1.5" />
                     <span>Error Prevention</span>
-                    <ChevronRight className="w-4 h-4 ml-auto" />
+                    <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* AI Assistant Action - Featured/Premium Style */}
+            {/* AI Assistant Action - Featured/Premium Style with Enhanced Hover */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-6 hover:scale-[1.02] transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-orange-500/25"
+              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-6 hover:-translate-y-2 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-orange-500/40"
               onClick={() => onNavigate('intelligence')}
             >
-              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
-              <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+              {/* Animated pattern */}
+              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50 group-hover:opacity-80 transition-opacity"></div>
+              {/* Glow effect */}
+              <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/20 rounded-full blur-2xl group-hover:bg-white/30 transition-all duration-500"></div>
+              <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-yellow-300/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+              {/* Shine effect */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              </div>
               <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-white/20 backdrop-blur-sm rounded-xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 mb-4 p-2.5 bg-white/20 backdrop-blur-sm rounded-xl ring-1 ring-white/30 group-hover:scale-110 group-hover:bg-white/30 transition-all duration-300">
                   <Brain className="w-full h-full text-white" />
                 </div>
                 <h3 className="text-lg font-bold text-white mb-1">AI Assistant</h3>
@@ -444,7 +462,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
                 <div className="mt-4 flex items-center text-white/90 text-xs font-medium">
                   <Users className="w-4 h-4 mr-1.5" />
                   <span>Natural Language</span>
-                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-2 transition-transform duration-300" />
                 </div>
               </div>
             </div>
