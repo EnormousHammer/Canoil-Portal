@@ -3534,10 +3534,14 @@ def process_email():
             return jsonify({'error': 'No data provided in request'}), 400
         
         email_content = data.get('email_content', '') if isinstance(data, dict) else ''
+        trust_email_quantities = data.get('trust_email_quantities', False) if isinstance(data, dict) else False
         
         if not email_content:
             print("ERROR: LOGISTICS: No email content provided")
             return jsonify({'error': 'No email content provided'}), 400
+        
+        if trust_email_quantities:
+            print(f"✏️ TRUST EMAIL MODE: Quantity validation will be SKIPPED - using email quantities as source of truth")
         
         print(f"EMAIL: LOGISTICS: Email content length: {len(email_content)} characters")
         
@@ -4138,7 +4142,18 @@ def process_email():
                             
                             # Allow partial shipments (email qty <= SO qty is normal)
                             # Only flag as mismatch if email claims MORE than SO has
-                            if email_qty_num > so_qty_num + 0.01:
+                            # UNLESS trust_email_quantities is True - then always accept email qty
+                            if trust_email_quantities:
+                                # Trust Email Mode: Accept email quantities, calculate price using SO unit price
+                                quantity_match = True
+                                so_unit_price = matched_so_item.get('unit_price', 0) or matched_so_item.get('price', 0)
+                                if so_unit_price:
+                                    calculated_total = email_qty_num * float(str(so_unit_price).replace('$', '').replace(',', ''))
+                                    quantity_details = f"✏️ TRUST EMAIL: Using email qty {email_qty_num} (SO has {so_qty_num}). Calculated total: ${calculated_total:,.2f}"
+                                else:
+                                    quantity_details = f"✏️ TRUST EMAIL: Using email qty {email_qty_num} (SO has {so_qty_num})"
+                                print(f"   ✏️ TRUST EMAIL MODE: {quantity_details}")
+                            elif email_qty_num > so_qty_num + 0.01:
                                 quantity_match = False
                                 quantity_details = f"Quantity EXCEEDS SO: Email says {email_qty_num}, SO only has {so_qty_num}"
                                 print(f"   ❌ QUANTITY EXCEEDS SO: {quantity_details}")
@@ -4375,6 +4390,76 @@ def process_email():
             print(f"   Batch matching: {batch_result['matched_count']} matched, {len(batch_result['unmatched_items'])} unmatched")
         
         # =====================================================================
+        # TRUST EMAIL MODE: Override SO quantities with email quantities
+        # Also calculate new totals using SO unit prices
+        # =====================================================================
+        if trust_email_quantities and email_data.get('items') and so_data.get('items'):
+            print(f"\n✏️ TRUST EMAIL MODE: Updating SO items with email quantities...")
+            
+            for email_item in email_data.get('items', []):
+                email_desc = (email_item.get('description') or '').upper().strip()
+                email_qty_str = email_item.get('quantity', '')
+                
+                try:
+                    email_qty = float(str(email_qty_str).replace(',', '')) if email_qty_str else 0
+                except:
+                    email_qty = 0
+                
+                if not email_desc or not email_qty:
+                    continue
+                
+                # Find matching SO item
+                for so_item in so_data.get('items', []):
+                    so_desc = (so_item.get('description') or '').upper().strip()
+                    so_item_code = (so_item.get('item_code') or '').upper().strip()
+                    
+                    # Match by description or item code
+                    if email_desc in so_desc or so_desc in email_desc or \
+                       any(word in so_desc for word in email_desc.split() if len(word) > 3):
+                        
+                        original_qty = so_item.get('quantity', 0)
+                        unit_price = so_item.get('unit_price', 0) or so_item.get('price', 0)
+                        
+                        # Parse unit price
+                        try:
+                            unit_price_num = float(str(unit_price).replace('$', '').replace(',', '').strip()) if unit_price else 0
+                        except:
+                            unit_price_num = 0
+                        
+                        # Update quantity with email value
+                        so_item['original_quantity'] = original_qty  # Keep original for reference
+                        so_item['quantity'] = email_qty
+                        so_item['quantity_source'] = 'email_override'
+                        
+                        # Recalculate total if we have unit price
+                        if unit_price_num > 0:
+                            new_total = email_qty * unit_price_num
+                            so_item['original_total'] = so_item.get('total', so_item.get('total_price', 0))
+                            so_item['total'] = new_total
+                            so_item['total_price'] = new_total
+                            print(f"   ✏️ Updated '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty}, total ${new_total:,.2f}")
+                        else:
+                            print(f"   ✏️ Updated '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty} (no unit price for recalc)")
+                        
+                        break
+            
+            # Recalculate SO totals
+            new_subtotal = 0.0
+            for item in so_data.get('items', []):
+                item_total = item.get('total', item.get('total_price', 0))
+                try:
+                    item_total_num = float(str(item_total).replace('$', '').replace(',', '').strip()) if item_total else 0
+                except:
+                    item_total_num = 0
+                new_subtotal += item_total_num
+            
+            so_data['original_subtotal'] = so_data.get('subtotal', so_data.get('total_amount', 0))
+            so_data['subtotal'] = new_subtotal
+            so_data['total_amount'] = new_subtotal  # Update total as well
+            so_data['trust_email_mode'] = True
+            print(f"   ✏️ Updated SO subtotal: ${new_subtotal:,.2f}")
+        
+        # =====================================================================
         # SHARED LOGIC: HTS code application (same as multi-SO)
         # =====================================================================
         apply_hts_codes_to_items(so_data.get('items', []))
@@ -4496,7 +4581,8 @@ def process_email():
             },
             'validation_details': validation_details,
             'validation_passed': True,
-            'requested_documents': requested_documents
+            'requested_documents': requested_documents,
+            'trust_email_mode': trust_email_quantities  # Flag indicating email quantities were used
         }
         
         print(f"\n{'='*80}")

@@ -63,7 +63,7 @@ const LogisticsAutomation: React.FC = () => {
   
   // Auto-detection state
   const [autoDetection, setAutoDetection] = useState<any>(null);
-  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so'>('auto');
+  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so' | 'trust_email'>('auto');
   
   // Manual text input state - just a simple text field
   const [manualText, setManualText] = useState('');
@@ -229,6 +229,99 @@ const LogisticsAutomation: React.FC = () => {
           }
         } else {
           setError(data.error || 'Failed to process logistics automatically');
+        }
+        
+        if (data.auto_detection) {
+          setAutoDetection(data.auto_detection);
+        }
+      }
+    } catch (err) {
+      setError('Network error: ' + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Process with Trust Email mode - skips quantity validation, uses email quantities as source of truth
+  const processLogisticsTrustEmail = async () => {
+    if (!emailText.trim()) {
+      setError('Please provide email text');
+      return;
+    }
+    
+    // Clear all previous results before processing new email
+    setResult(null);
+    setDocuments([]);
+    setError('');
+    setAutoDetection(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email_content: emailText,
+          trust_email_quantities: true  // Flag to skip quantity validation and use email quantities
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('🔍 TRUST EMAIL MODE - RAW BACKEND RESPONSE:', data);
+        console.log('🔍 SO DATA ITEMS COUNT:', data.so_data?.items?.length);
+        console.log('🔍 Using email quantities as source of truth');
+        setResult(data);
+        setAutoDetection(data.auto_detection);
+        console.log('✅ Trust Email logistics processed successfully:', data);
+      } else {
+        // In trust_email mode, we should still proceed even with validation "errors"
+        // because the user explicitly said to trust email quantities
+        if (data.validation_errors || data.validation_details) {
+          // Check if the only errors are quantity mismatches - if so, proceed anyway
+          const quantityOnlyErrors = data.validation_errors?.every((err: string) => 
+            err.toLowerCase().includes('quantity') || err.toLowerCase().includes('exceeds')
+          );
+          
+          if (quantityOnlyErrors && data.email_data && data.so_data) {
+            console.log('⚠️ Trust Email Mode: Ignoring quantity validation errors');
+            // Proceed with the data despite quantity mismatches
+            setResult({
+              ...data,
+              success: true,
+              trust_email_mode: true,
+              validation_bypassed: true,
+              email_data: data.email_data,
+              email_analysis: data.email_analysis || data.email_data,
+              so_data: data.so_data,
+              items: data.items || data.so_data?.items || []
+            });
+            setAutoDetection(data.auto_detection);
+            return;
+          }
+          
+          // Non-quantity errors - show them
+          const errorMessage = data.validation_summary || 
+            `❌ ${data.error}\n\nValidation Issues:\n${data.validation_errors.map((err: string) => `• ${err}`).join('\n')}`;
+          setError(errorMessage);
+          
+          if (data.email_data || data.so_data) {
+            setResult({
+              email_data: data.email_data,
+              email_analysis: data.email_analysis || data.email_data,
+              so_data: data.so_data,
+              validation_failed: true,
+              validation_errors: data.validation_errors,
+              validation_details: data.validation_details,
+              validation_summary: data.validation_summary,
+              trust_email_mode: true
+            });
+          }
+        } else {
+          setError(data.error || 'Failed to process logistics');
         }
         
         if (data.auto_detection) {
@@ -1455,6 +1548,17 @@ const LogisticsAutomation: React.FC = () => {
                 >
                   📝 No SO Mode
                 </button>
+                <button
+                  onClick={() => setProcessingMode('trust_email')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    processingMode === 'trust_email'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Use email quantities - SO will be revised to match"
+                >
+                  ✏️ SO Revision
+                </button>
               </div>
               
               {/* Start New Shipment button */}
@@ -1473,7 +1577,7 @@ const LogisticsAutomation: React.FC = () => {
         </div>
 
         {/* Compact Email Input - Prominently at Top - Hide in no_so mode */}
-        {processingMode !== 'no_so' && (
+        {(processingMode === 'auto' || processingMode === 'manual' || processingMode === 'trust_email') && (
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Mail className="w-5 h-5 text-blue-600" />
@@ -1496,6 +1600,8 @@ const LogisticsAutomation: React.FC = () => {
                   // Trigger the appropriate process function
                   if (processingMode === 'auto') {
                     processLogisticsAuto();
+                  } else if (processingMode === 'trust_email') {
+                    processLogisticsTrustEmail();
                   } else {
                     processLogistics();
                   }
@@ -1512,23 +1618,25 @@ const LogisticsAutomation: React.FC = () => {
           <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <button
-                onClick={processingMode === 'auto' ? processLogisticsAuto : processLogistics}
+                onClick={processingMode === 'auto' ? processLogisticsAuto : processingMode === 'trust_email' ? processLogisticsTrustEmail : processLogistics}
                 disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
                 className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
                   loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                    : processingMode === 'trust_email' 
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
                 }`}
               >
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    {processingMode === 'auto' ? 'Processing...' : 'Processing...'}
+                    {processingMode === 'trust_email' ? 'Processing (Trust Email)...' : 'Processing...'}
                   </>
                 ) : (
                   <>
                     <Truck className="w-4 h-4" />
-                    {processingMode === 'auto' ? '🤖 Auto Process' : 'Process'}
+                    {processingMode === 'auto' ? '🤖 Auto Process' : processingMode === 'trust_email' ? '✏️ Process (SO Revision)' : 'Process'}
                   </>
                 )}
               </button>
@@ -1550,6 +1658,9 @@ const LogisticsAutomation: React.FC = () => {
             
             {processingMode === 'auto' && (
               <span className="text-xs text-gray-500">Auto-detects SO number from email</span>
+            )}
+            {processingMode === 'trust_email' && (
+              <span className="text-xs text-amber-600 font-medium">⚠️ Uses email quantities - skips SO quantity validation</span>
             )}
           </div>
         </div>
