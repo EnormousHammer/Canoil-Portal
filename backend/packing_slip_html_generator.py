@@ -145,8 +145,6 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     sold_to_lines = []
     company = billing_addr.get('company_name') or billing_addr.get('company') or customer_name or ''
-    if company:
-        sold_to_lines.append(company.strip())
     
     # Use full_address if available, otherwise build from individual fields
     full_addr = billing_addr.get('full_address', '').strip()
@@ -155,6 +153,10 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     province = billing_addr.get('province') or billing_addr.get('state', '').strip()
     postal = billing_addr.get('postal_code') or billing_addr.get('postal', '').strip()
     country = billing_addr.get('country', 'Canada').strip()
+    
+    # Only add company name if it's NOT already in full_address
+    if company and (not full_addr or company.lower() not in full_addr.lower()):
+        sold_to_lines.append(company.strip())
     
     if full_addr:
         # Use full_address as-is - don't filter anything
@@ -181,14 +183,16 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     ship_to_lines = []
     ship_company = shipping_addr.get('company_name') or shipping_addr.get('company') or customer_name or ''
-    if ship_company:
+    
+    # Use full_address if available, otherwise build from individual fields
+    ship_full_addr = shipping_addr.get('full_address', '').strip()
+    
+    # Only add company name if it's NOT already in full_address
+    if ship_company and (not ship_full_addr or ship_company.lower() not in ship_full_addr.lower()):
         ship_to_lines.append(ship_company.strip())
     
     if is_pickup_order:
         ship_to_lines.append("- PICK UP")
-    
-    # Use full_address if available, otherwise build from individual fields
-    ship_full_addr = shipping_addr.get('full_address', '').strip()
     ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street') or '').strip()
     ship_city = shipping_addr.get('city', '').strip()
     ship_province = shipping_addr.get('province') or shipping_addr.get('state', '').strip()
