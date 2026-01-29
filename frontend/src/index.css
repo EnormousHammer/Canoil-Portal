@@ -4,6 +4,9 @@
 @tailwind utilities;
 /* stylelint-enable at-rule-no-unknown */
 
+/* Import DM Sans - Modern, clean typography */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -50,11 +53,12 @@
 /* Base styles */
 @layer base {
   html {
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'DM Sans', 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
   
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
   /* Improved focus styles */

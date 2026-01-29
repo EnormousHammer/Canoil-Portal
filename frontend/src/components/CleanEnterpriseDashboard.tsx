@@ -184,15 +184,15 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
     Math.round(((manufacturingMetrics.active + manufacturingMetrics.pending) / totalRecentActivity) * 100) : 0;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
+    <div className="p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Compact Hero Section */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-black text-slate-900 mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">
             Enterprise Command Center
           </h1>
-          <p className="text-sm text-slate-600 font-medium">
+          <p className="text-sm text-slate-500">
             Real-time business intelligence powered by AI-driven analytics
           </p>
         </div>
@@ -300,121 +300,151 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
             </div>
           </MetricCard>
 
-          {/* Production Schedule card intentionally removed from portal dashboard */}
+          {/* Attention Required Card - Alerts & Action Items */}
+          <MetricCard
+            title="Attention Required"
+            subtitle="Action Items"
+            primaryValue={inventoryMetrics.outOfStock.toString()}
+            primaryLabel="Out of Stock"
+            secondaryValue={manufacturingMetrics.pending.toString()}
+            secondaryLabel="Pending MOs"
+            trend={inventoryMetrics.outOfStock > 100 ? 'down' : inventoryMetrics.outOfStock > 50 ? 'neutral' : 'up'}
+            trendValue={inventoryMetrics.outOfStock > 0 ? 'Action' : 'OK'}
+            icon={<AlertTriangle className="w-full h-full" />}
+            gradientFrom="from-rose-600"
+            gradientTo="to-orange-500"
+            onClick={() => onNavigate('inventory')}
+          >
+            <div className="flex justify-between items-center">
+              <div className="space-y-1 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-rose-400 rounded-full flex-shrink-0 animate-pulse"></div>
+                  <span className="text-white/80 text-xs truncate">Low Stock: {inventoryMetrics.lowStockCount}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full flex-shrink-0"></div>
+                  <span className="text-white/80 text-xs truncate">New SOs: {salesOrderAnalytics.newAndRevised.count}</span>
+                </div>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
+                <Target className="w-5 h-5 text-white/80" />
+              </div>
+            </div>
+          </MetricCard>
       </div>
 
         {/* Advanced Enterprise Action Center */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 p-8">
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-slate-200/80 p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-3xl font-black text-slate-900 mb-2">Command Center</h2>
-              <p className="text-slate-600 font-medium">Intelligent workflow automation and real-time operations</p>
+              <h2 className="text-2xl font-bold text-slate-800 mb-1">Command Center</h2>
+              <p className="text-slate-500 text-sm">Intelligent workflow automation and real-time operations</p>
             </div>
-            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-3">
-              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-emerald-700 font-bold">Real-time Intelligence Active</span>
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <span className="text-emerald-700 font-semibold text-sm">Real-time Intelligence Active</span>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {/* Report Maker Action */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            {/* Report Maker Action - Primary Style */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 p-6 hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-2xl bg-white border-2 border-blue-100 p-6 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer"
               onClick={() => onNavigate('report-maker')}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
-              <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative">
-                <div className="w-14 h-14 mb-4 p-3 bg-white/20 backdrop-blur-sm rounded-2xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
-                  <FileText className="w-full h-full text-white" />
+                <div className="w-12 h-12 mb-4 p-2.5 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors">
+                  <FileText className="w-full h-full text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Report Maker</h3>
-                <p className="text-blue-100 text-sm font-medium">Production & Analytics</p>
-                <div className="mt-4 flex items-center text-white/80 text-xs">
-                  <BarChart className="w-4 h-4 mr-2" />
+                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-blue-700 transition-colors">Report Maker</h3>
+                <p className="text-slate-500 text-sm">Production & Analytics</p>
+                <div className="mt-4 flex items-center text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  <BarChart className="w-4 h-4 mr-1.5" />
                   <span>Custom Report Builder</span>
+                  <ChevronRight className="w-4 h-4 ml-auto" />
                 </div>
               </div>
             </div>
 
-            {/* Manufacturing Action */}
+            {/* Manufacturing Action - Secondary Style (Info Only) */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-green-400 p-6 shadow-lg"
+              className="group relative overflow-hidden rounded-2xl bg-slate-50 border border-slate-200 p-6"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
-              <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-50 to-transparent rounded-bl-full opacity-50"></div>
               <div className="relative">
-                <div className="w-14 h-14 mb-4 p-3 bg-white/20 backdrop-blur-sm rounded-2xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
-                  <Factory className="w-full h-full text-white" />
+                <div className="w-12 h-12 mb-4 p-2.5 bg-emerald-50 rounded-xl">
+                  <Factory className="w-full h-full text-emerald-600" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Manufacturing</h3>
-                <p className="text-emerald-100 text-sm font-medium">Production Performance</p>
-                <div className="mt-4 flex items-center text-white/80 text-xs">
-                  <Activity className="w-4 h-4 mr-2" />
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Manufacturing</h3>
+                <p className="text-slate-500 text-sm">Production Performance</p>
+                <div className="mt-4 flex items-center text-emerald-600 text-xs font-medium">
+                  <Activity className="w-4 h-4 mr-1.5" />
                   <span>Live Monitoring</span>
                 </div>
               </div>
             </div>
 
-            {/* Smart SO Entry Action OR Email Assistant for Haron */}
+            {/* Smart SO Entry Action OR Email Assistant for Haron - Accent Style */}
             {isHaron ? (
               // Email Assistant - Only for Haron
               <div 
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 p-6 hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl"
+                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 cursor-pointer"
                 onClick={() => onNavigate('email-assistant')}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-violet-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
                 <div className="relative">
-                  <div className="w-14 h-14 mb-4 p-3 bg-white/20 backdrop-blur-sm rounded-2xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
-                    <Mail className="w-full h-full text-white" />
+                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
+                    <Mail className="w-full h-full text-violet-600" />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Email Assistant</h3>
-                  <p className="text-purple-100 text-sm font-medium">AI-Powered Responses</p>
-                  <div className="mt-4 flex items-center text-white/80 text-xs">
-                    <Brain className="w-4 h-4 mr-2" />
+                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-700 transition-colors">Email Assistant</h3>
+                  <p className="text-slate-500 text-sm">AI-Powered Responses</p>
+                  <div className="mt-4 flex items-center text-violet-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Brain className="w-4 h-4 mr-1.5" />
                     <span>Smart Email AI</span>
+                    <ChevronRight className="w-4 h-4 ml-auto" />
                   </div>
                 </div>
               </div>
             ) : (
               // Smart SO Entry - For other users
               <div 
-                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-violet-400 p-6 hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl"
+                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-400 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 cursor-pointer"
                 onClick={() => onNavigate('so-entry')}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
-                <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-violet-100 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
                 <div className="relative">
-                  <div className="w-14 h-14 mb-4 p-3 bg-white/20 backdrop-blur-sm rounded-2xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
-                    <Zap className="w-full h-full text-white" />
+                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
+                    <Zap className="w-full h-full text-violet-600" />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Smart SO Entry</h3>
-                  <p className="text-purple-100 text-sm font-medium">BOM Verification</p>
-                  <div className="mt-4 flex items-center text-white/80 text-xs">
-                    <Target className="w-4 h-4 mr-2" />
+                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-violet-700 transition-colors">Smart SO Entry</h3>
+                  <p className="text-slate-500 text-sm">BOM Verification</p>
+                  <div className="mt-4 flex items-center text-violet-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Target className="w-4 h-4 mr-1.5" />
                     <span>Error Prevention</span>
+                    <ChevronRight className="w-4 h-4 ml-auto" />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* AI Assistant Action */}
+            {/* AI Assistant Action - Featured/Premium Style */}
             <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-red-400 p-6 hover:scale-105 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-6 hover:scale-[1.02] transition-all duration-300 cursor-pointer shadow-lg hover:shadow-xl hover:shadow-orange-500/25"
               onClick={() => onNavigate('intelligence')}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
-              <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
+              <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
               <div className="relative">
-                <div className="w-14 h-14 mb-4 p-3 bg-white/20 backdrop-blur-sm rounded-2xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
+                <div className="w-12 h-12 mb-4 p-2.5 bg-white/20 backdrop-blur-sm rounded-xl ring-1 ring-white/30 group-hover:scale-110 transition-transform">
                   <Brain className="w-full h-full text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">AI Assistant</h3>
-                <p className="text-orange-100 text-sm font-medium">ChatGPT Powered</p>
-                <div className="mt-4 flex items-center text-white/80 text-xs">
-                  <Users className="w-4 h-4 mr-2" />
+                <h3 className="text-lg font-bold text-white mb-1">AI Assistant</h3>
+                <p className="text-orange-100 text-sm">ChatGPT Powered</p>
+                <div className="mt-4 flex items-center text-white/90 text-xs font-medium">
+                  <Users className="w-4 h-4 mr-1.5" />
                   <span>Natural Language</span>
+                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </div>

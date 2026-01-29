@@ -116,6 +116,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Calendar,
   MapPin,
   Phone,
@@ -1534,120 +1535,246 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-8">
+      <div className="min-h-screen bg-slate-50 p-8">
+        {/* Subtle background pattern */}
+        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-slate-100 -z-10"></div>
         
-        {/* ENTERPRISE NAVIGATION */}
+        {/* ENTERPRISE NAVIGATION - Premium Icon Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 max-w-7xl mx-auto mb-8">
+          {/* Dashboard */}
           <button
             onClick={() => setActiveSection('dashboard')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'dashboard' 
-                ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400 shadow-blue-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">📊</div>
-            <div className="text-xl font-black">DASHBOARD</div>
-            <div className="text-sm">Enterprise Overview</div>
+            <div className={`absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'dashboard' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                activeSection === 'dashboard' 
+                  ? 'bg-white/20' 
+                  : 'bg-blue-50 group-hover:bg-blue-100'
+              }`}>
+                <BarChart3 className={`w-8 h-8 ${activeSection === 'dashboard' ? 'text-white' : 'text-blue-600'}`} />
+              </div>
+              <div className="text-sm font-bold tracking-wide">DASHBOARD</div>
+              <div className={`text-xs mt-1 ${activeSection === 'dashboard' ? 'text-blue-100' : 'text-slate-500'}`}>Enterprise Overview</div>
+            </div>
           </button>
 
+          {/* Inventory & BOM */}
           <button
             onClick={() => setActiveSection('inventory')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'inventory' 
-                ? 'bg-gradient-to-br from-emerald-600 to-green-700 text-white border-emerald-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-emerald-600 to-green-700 text-white border-emerald-400 shadow-emerald-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">📦</div>
-            <div className="text-xl font-black">INVENTORY & BOM</div>
-            <div className="text-sm">{inventoryMetrics.totalItems.toLocaleString()} Items • Smart Planning</div>
+            <div className={`absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'inventory' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className="relative">
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                  activeSection === 'inventory' 
+                    ? 'bg-white/20' 
+                    : 'bg-emerald-50 group-hover:bg-emerald-100'
+                }`}>
+                  <Package2 className={`w-8 h-8 ${activeSection === 'inventory' ? 'text-white' : 'text-emerald-600'}`} />
+                </div>
+                {/* Low stock badge */}
+                {inventoryMetrics.lowStockCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg animate-pulse">
+                    {inventoryMetrics.lowStockCount > 99 ? '99+' : inventoryMetrics.lowStockCount}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm font-bold tracking-wide">INVENTORY</div>
+              <div className={`text-xs mt-1 ${activeSection === 'inventory' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                {inventoryMetrics.totalItems.toLocaleString()} Items
+              </div>
+            </div>
           </button>
 
+          {/* Manufacturing */}
           <button
             onClick={() => setActiveSection('manufacturing-orders')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border text-center ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'manufacturing-orders' 
-                ? 'bg-gradient-to-br from-purple-600 to-indigo-700 text-white border-purple-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-violet-600 to-purple-700 text-white border-violet-400 shadow-violet-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-violet-300 hover:shadow-xl hover:shadow-violet-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">🏭</div>
-            <div className="text-base font-black">MANUFACTURING</div>
-            <div className="text-sm">
-              {(() => {
-                const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
-                const realMOs = allMOs.filter((mo: any) => 
-                  mo['Mfg. Order No.'] && mo['Build Item No.']
-                );
-                return `${realMOs.length} Orders`;
-              })()}
+            <div className={`absolute inset-0 bg-gradient-to-br from-violet-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'manufacturing-orders' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className="relative">
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                  activeSection === 'manufacturing-orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-violet-50 group-hover:bg-violet-100'
+                }`}>
+                  <Factory className={`w-8 h-8 ${activeSection === 'manufacturing-orders' ? 'text-white' : 'text-violet-600'}`} />
+                </div>
+                {/* Active MOs badge */}
+                {manufacturingMetrics.active > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg">
+                    {manufacturingMetrics.active}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm font-bold tracking-wide">MANUFACTURING</div>
+              <div className={`text-xs mt-1 ${activeSection === 'manufacturing-orders' ? 'text-violet-100' : 'text-slate-500'}`}>
+                {(() => {
+                  const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
+                  const realMOs = allMOs.filter((mo: any) => mo['Mfg. Order No.'] && mo['Build Item No.']);
+                  return `${realMOs.length} Orders`;
+                })()}
+              </div>
             </div>
           </button>
 
+          {/* Purchase */}
           <button
             onClick={() => setActiveSection('purchase-orders')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'purchase-orders' 
-                ? 'bg-gradient-to-br from-orange-600 to-red-700 text-white border-orange-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-orange-500 to-amber-600 text-white border-orange-400 shadow-orange-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-orange-300 hover:shadow-xl hover:shadow-orange-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">🏪</div>
-            <div className="text-xl font-black">PURCHASE</div>
-            <div className="text-sm">
-              {(() => {
-                const allPOs = data?.['PurchaseOrders.json'] || [];
-                return `${allPOs.length} Orders`;
-              })()}
+            <div className={`absolute inset-0 bg-gradient-to-br from-orange-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'purchase-orders' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className="relative">
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                  activeSection === 'purchase-orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-orange-50 group-hover:bg-orange-100'
+                }`}>
+                  <ShoppingBag className={`w-8 h-8 ${activeSection === 'purchase-orders' ? 'text-white' : 'text-orange-600'}`} />
+                </div>
+                {/* Open POs badge */}
+                {purchaseMetrics.open > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg">
+                    {purchaseMetrics.open > 99 ? '99+' : purchaseMetrics.open}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm font-bold tracking-wide">PURCHASE</div>
+              <div className={`text-xs mt-1 ${activeSection === 'purchase-orders' ? 'text-orange-100' : 'text-slate-500'}`}>
+                {(data?.['PurchaseOrders.json'] || []).length} Orders
+              </div>
             </div>
           </button>
 
+          {/* Sales */}
           <button
             onClick={() => setActiveSection('orders')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'orders' 
-                ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white border-cyan-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white border-cyan-400 shadow-cyan-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-cyan-300 hover:shadow-xl hover:shadow-cyan-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">🛒</div>
-            <div className="text-xl font-black">SALES</div>
-            <div className="text-sm">
-              {(() => {
-                // Use TotalOrders from backend (most accurate) or fall back to counting
-                const totalOrders = data['TotalOrders'] || (data['SalesOrders.json'] || []).length || 0;
-                return `${totalOrders} Orders`;
-              })()}
+            <div className={`absolute inset-0 bg-gradient-to-br from-cyan-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'orders' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className="relative">
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                  activeSection === 'orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-cyan-50 group-hover:bg-cyan-100'
+                }`}>
+                  <ShoppingCart className={`w-8 h-8 ${activeSection === 'orders' ? 'text-white' : 'text-cyan-600'}`} />
+                </div>
+                {/* New orders badge */}
+                {salesOrderAnalytics.newAndRevised.count > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg animate-pulse">
+                    {salesOrderAnalytics.newAndRevised.count}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm font-bold tracking-wide">SALES</div>
+              <div className={`text-xs mt-1 ${activeSection === 'orders' ? 'text-cyan-100' : 'text-slate-500'}`}>
+                {data['TotalOrders'] || (data['SalesOrders.json'] || []).length || 0} Orders
+              </div>
             </div>
           </button>
 
+          {/* Logistics */}
           <button
             onClick={() => setActiveSection('logistics')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'logistics' 
-                ? 'bg-gradient-to-br from-teal-600 to-green-700 text-white border-teal-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-teal-600 to-emerald-700 text-white border-teal-400 shadow-teal-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-teal-300 hover:shadow-xl hover:shadow-teal-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">🚚</div>
-            <div className="text-xl font-black">LOGISTICS</div>
-            <div className="text-sm">Smart Shipping</div>
+            <div className={`absolute inset-0 bg-gradient-to-br from-teal-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'logistics' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                activeSection === 'logistics' 
+                  ? 'bg-white/20' 
+                  : 'bg-teal-50 group-hover:bg-teal-100'
+              }`}>
+                <Truck className={`w-8 h-8 ${activeSection === 'logistics' ? 'text-white' : 'text-teal-600'}`} />
+              </div>
+              <div className="text-sm font-bold tracking-wide">LOGISTICS</div>
+              <div className={`text-xs mt-1 ${activeSection === 'logistics' ? 'text-teal-100' : 'text-slate-500'}`}>Smart Shipping</div>
+            </div>
           </button>
 
+          {/* AI Command */}
           <button
             onClick={() => setActiveSection('ai-command')}
-            className={`backdrop-blur-xl rounded-2xl p-6 hover:scale-105 transition-all shadow-xl border ${
+            className={`group relative backdrop-blur-xl rounded-2xl p-5 transition-all duration-300 shadow-lg border overflow-hidden ${
               activeSection === 'ai-command'
-                ? 'bg-gradient-to-br from-pink-600 to-purple-700 text-white border-pink-500 shadow-2xl scale-105' 
-                : 'bg-white/80 text-slate-800 border-white/50 hover:bg-white hover:shadow-2xl'
+                ? 'bg-gradient-to-br from-fuchsia-600 to-purple-700 text-white border-fuchsia-400 shadow-fuchsia-500/25 shadow-2xl scale-[1.02]' 
+                : 'bg-white/90 text-slate-700 border-slate-200/80 hover:border-fuchsia-300 hover:shadow-xl hover:shadow-fuchsia-500/10 hover:scale-[1.02]'
             }`}
           >
-            <div className="text-5xl mb-3 drop-shadow-lg">🤖</div>
-            <div className="text-xl font-black">AI COMMAND</div>
-            <div className="text-sm">Intelligence Center</div>
+            <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${activeSection === 'ai-command' ? 'opacity-100' : ''}`} />
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
+                activeSection === 'ai-command' 
+                  ? 'bg-white/20' 
+                  : 'bg-fuchsia-50 group-hover:bg-fuchsia-100'
+              }`}>
+                <Brain className={`w-8 h-8 ${activeSection === 'ai-command' ? 'text-white' : 'text-fuchsia-600'}`} />
+              </div>
+              <div className="text-sm font-bold tracking-wide">AI COMMAND</div>
+              <div className={`text-xs mt-1 ${activeSection === 'ai-command' ? 'text-fuchsia-100' : 'text-slate-500'}`}>Intelligence Center</div>
+            </div>
           </button>
         </div>
+
+        {/* BREADCRUMB NAVIGATION */}
+        {activeSection !== 'dashboard' && (
+          <div className="max-w-7xl mx-auto mb-4">
+            <nav className="flex items-center text-sm">
+              <button 
+                onClick={() => setActiveSection('dashboard')}
+                className="flex items-center text-slate-500 hover:text-blue-600 transition-colors"
+              >
+                <Home className="w-4 h-4 mr-1" />
+                <span>Dashboard</span>
+              </button>
+              <ChevronRight className="w-4 h-4 mx-2 text-slate-400" />
+              <span className="font-semibold text-slate-800">
+                {activeSection === 'inventory' && 'Inventory & BOM'}
+                {activeSection === 'manufacturing-orders' && 'Manufacturing Orders'}
+                {activeSection === 'purchase-orders' && 'Purchase Orders'}
+                {activeSection === 'orders' && 'Sales Orders'}
+                {activeSection === 'logistics' && 'Logistics'}
+                {activeSection === 'ai-command' && 'AI Command Center'}
+                {activeSection === 'report-maker' && 'Report Maker'}
+                {activeSection === 'email-assistant' && 'Email Assistant'}
+                {activeSection === 'work-orders' && 'Work Orders'}
+                {activeSection === 'so-entry' && 'Smart SO Entry'}
+                {activeSection === 'intelligence' && 'AI Intelligence'}
+              </span>
+            </nav>
+          </div>
+        )}
 
         {/* CONTENT SECTIONS */}
         <div className="max-w-7xl mx-auto">
