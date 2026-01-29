@@ -1539,7 +1539,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         {/* Subtle background pattern */}
         <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-slate-100 -z-10"></div>
         
-        {/* ENTERPRISE NAVIGATION - Premium Icon Cards with Enhanced Hover */}
+        {/* ENTERPRISE NAVIGATION - Premium Icon Cards with Enhanced Hover - v2.0 */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 max-w-7xl mx-auto mb-8">
           {/* Dashboard */}
           <button
