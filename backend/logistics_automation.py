@@ -4192,9 +4192,31 @@ def process_email():
                 
                 # Count unmatched items and quantity mismatches
                 unmatched_items = [iv for iv in items_validation if not iv['matched']]
+                # In trust_email mode, quantity_match is always True, so this should be empty
+                # But we also explicitly skip quantity mismatch errors in trust_email mode
                 quantity_mismatches = [iv for iv in items_validation if iv.get('matched') and not iv.get('quantity_match', True)]
                 
-                if unmatched_items or quantity_mismatches:
+                # In TRUST EMAIL MODE: Only fail on unmatched items, NOT quantity mismatches
+                if trust_email_quantities:
+                    if unmatched_items:
+                        error_messages = [f"{len(unmatched_items)} item(s) from email not found in SO"]
+                        validation_errors.extend(error_messages)
+                        validation_details['items_check'] = {
+                            'status': 'failed',
+                            'total_email_items': len(email_data.get('items', [])),
+                            'matched_items': len(email_data.get('items', [])) - len(unmatched_items),
+                            'unmatched_items': unmatched_items,
+                            'quantity_mismatches': [],  # Ignored in trust_email mode
+                            'items_details': items_validation
+                        }
+                    else:
+                        validation_details['items_check'] = {
+                            'status': 'passed',
+                            'total_items': len(email_data.get('items', [])),
+                            'message': f"✏️ TRUST EMAIL MODE: All {len(email_data.get('items', []))} items matched - using email quantities",
+                            'items_details': items_validation
+                        }
+                elif unmatched_items or quantity_mismatches:
                     error_messages = []
                     if unmatched_items:
                         error_messages.append(f"{len(unmatched_items)} item(s) from email not found in SO")

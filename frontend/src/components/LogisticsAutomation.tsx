@@ -242,7 +242,8 @@ const LogisticsAutomation: React.FC = () => {
     }
   };
 
-  // Process with Trust Email mode - skips quantity validation, uses email quantities as source of truth
+  // Process with Trust Email mode - SAME as Auto mode but with trust_email_quantities flag
+  // This tells backend to skip quantity validation and use email quantities
   const processLogisticsTrustEmail = async () => {
     if (!emailText.trim()) {
       setError('Please provide email text');
@@ -270,6 +271,7 @@ const LogisticsAutomation: React.FC = () => {
 
       const data = await response.json();
 
+      // SAME handling as processLogisticsAuto - just with trust_email flag sent
       if (data.success) {
         console.log('🔍 TRUST EMAIL MODE - RAW BACKEND RESPONSE:', data);
         console.log('🔍 SO DATA ITEMS COUNT:', data.so_data?.items?.length);
@@ -278,36 +280,13 @@ const LogisticsAutomation: React.FC = () => {
         setAutoDetection(data.auto_detection);
         console.log('✅ Trust Email logistics processed successfully:', data);
       } else {
-        // In trust_email mode, we should still proceed even with validation "errors"
-        // because the user explicitly said to trust email quantities
+        // Handle validation errors - same as Auto mode
         if (data.validation_errors || data.validation_details) {
-          // Check if the only errors are quantity mismatches - if so, proceed anyway
-          const quantityOnlyErrors = data.validation_errors?.every((err: string) => 
-            err.toLowerCase().includes('quantity') || err.toLowerCase().includes('exceeds')
-          );
-          
-          if (quantityOnlyErrors && data.email_data && data.so_data) {
-            console.log('⚠️ Trust Email Mode: Ignoring quantity validation errors');
-            // Proceed with the data despite quantity mismatches
-            setResult({
-              ...data,
-              success: true,
-              trust_email_mode: true,
-              validation_bypassed: true,
-              email_data: data.email_data,
-              email_analysis: data.email_analysis || data.email_data,
-              so_data: data.so_data,
-              items: data.items || data.so_data?.items || []
-            });
-            setAutoDetection(data.auto_detection);
-            return;
-          }
-          
-          // Non-quantity errors - show them
           const errorMessage = data.validation_summary || 
             `❌ ${data.error}\n\nValidation Issues:\n${data.validation_errors.map((err: string) => `• ${err}`).join('\n')}`;
           setError(errorMessage);
           
+          // Still show the data for debugging
           if (data.email_data || data.so_data) {
             setResult({
               email_data: data.email_data,
@@ -316,12 +295,11 @@ const LogisticsAutomation: React.FC = () => {
               validation_failed: true,
               validation_errors: data.validation_errors,
               validation_details: data.validation_details,
-              validation_summary: data.validation_summary,
-              trust_email_mode: true
+              validation_summary: data.validation_summary
             });
           }
         } else {
-          setError(data.error || 'Failed to process logistics');
+          setError(data.error || 'Failed to process logistics automatically');
         }
         
         if (data.auto_detection) {
