@@ -4417,6 +4417,9 @@ def process_email():
         if trust_email_quantities and email_data.get('items') and so_data.get('items'):
             print(f"\n✏️ TRUST EMAIL MODE: Updating SO items with email quantities...")
             
+            # Track which SO items have been matched to avoid double-matching
+            matched_so_indices = set()
+            
             for email_item in email_data.get('items', []):
                 email_desc = (email_item.get('description') or '').upper().strip()
                 email_qty_str = email_item.get('quantity', '')
@@ -4429,40 +4432,72 @@ def process_email():
                 if not email_desc or not email_qty:
                     continue
                 
-                # Find matching SO item
-                for so_item in so_data.get('items', []):
-                    so_desc = (so_item.get('description') or '').upper().strip()
-                    so_item_code = (so_item.get('item_code') or '').upper().strip()
+                print(f"\n   🔍 Looking for match for email item: '{email_desc}' (qty: {email_qty})")
+                
+                # Extract key identifying words from email description
+                # Focus on product-specific words, not generic ones
+                generic_words = {'CANOIL', 'KG', 'DRUM', 'PAIL', 'CASE', 'EACH', '180', '17', '55', 'X', 'DARK', 'GREEN'}
+                email_words = set(email_desc.replace('-', ' ').replace('#', ' ').split())
+                email_key_words = email_words - generic_words
+                
+                # Find best matching SO item
+                best_match_idx = None
+                best_match_score = 0
+                
+                for idx, so_item in enumerate(so_data.get('items', [])):
+                    if idx in matched_so_indices:
+                        continue  # Skip already matched items
                     
-                    # Match by description or item code
-                    if email_desc in so_desc or so_desc in email_desc or \
-                       any(word in so_desc for word in email_desc.split() if len(word) > 3):
-                        
-                        original_qty = so_item.get('quantity', 0)
-                        unit_price = so_item.get('unit_price', 0) or so_item.get('price', 0)
-                        
-                        # Parse unit price
-                        try:
-                            unit_price_num = float(str(unit_price).replace('$', '').replace(',', '').strip()) if unit_price else 0
-                        except:
-                            unit_price_num = 0
-                        
-                        # Update quantity with email value
-                        so_item['original_quantity'] = original_qty  # Keep original for reference
-                        so_item['quantity'] = email_qty
-                        so_item['quantity_source'] = 'email_override'
-                        
-                        # Recalculate total if we have unit price
-                        if unit_price_num > 0:
-                            new_total = email_qty * unit_price_num
-                            so_item['original_total'] = so_item.get('total', so_item.get('total_price', 0))
-                            so_item['total'] = new_total
-                            so_item['total_price'] = new_total
-                            print(f"   ✏️ Updated '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty}, total ${new_total:,.2f}")
-                        else:
-                            print(f"   ✏️ Updated '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty} (no unit price for recalc)")
-                        
-                        break
+                    so_desc = (so_item.get('description') or '').upper().strip()
+                    so_words = set(so_desc.replace('-', ' ').replace('#', ' ').split())
+                    so_key_words = so_words - generic_words
+                    
+                    # Calculate match score based on key words
+                    common_words = email_key_words & so_key_words
+                    score = len(common_words)
+                    
+                    # Bonus for exact key product matches
+                    key_products = ['EP2', 'EP1', 'EP0', 'MULTIPURPOSE', 'WHEEL', 'BEARING', 'HEAVY', 'DUTY']
+                    for kp in key_products:
+                        if kp in email_desc and kp in so_desc:
+                            score += 5  # Strong bonus for key product match
+                    
+                    print(f"      Checking SO item {idx}: '{so_desc[:50]}...' - score: {score}, common: {common_words}")
+                    
+                    if score > best_match_score:
+                        best_match_score = score
+                        best_match_idx = idx
+                
+                # Apply the match if we found one with reasonable confidence
+                if best_match_idx is not None and best_match_score >= 1:
+                    matched_so_indices.add(best_match_idx)
+                    so_item = so_data['items'][best_match_idx]
+                    
+                    original_qty = so_item.get('quantity', 0)
+                    unit_price = so_item.get('unit_price', 0) or so_item.get('price', 0)
+                    
+                    # Parse unit price
+                    try:
+                        unit_price_num = float(str(unit_price).replace('$', '').replace(',', '').strip()) if unit_price else 0
+                    except:
+                        unit_price_num = 0
+                    
+                    # Update quantity with email value
+                    so_item['original_quantity'] = original_qty  # Keep original for reference
+                    so_item['quantity'] = email_qty
+                    so_item['quantity_source'] = 'email_override'
+                    
+                    # Recalculate total if we have unit price
+                    if unit_price_num > 0:
+                        new_total = email_qty * unit_price_num
+                        so_item['original_total'] = so_item.get('total', so_item.get('total_price', 0))
+                        so_item['total'] = new_total
+                        so_item['total_price'] = new_total
+                        print(f"   ✏️ MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty}, total ${new_total:,.2f}")
+                    else:
+                        print(f"   ✏️ MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty} (no unit price for recalc)")
+                else:
+                    print(f"   ⚠️ NO MATCH FOUND for '{email_desc}'")
             
             # Recalculate SO totals
             new_subtotal = 0.0
