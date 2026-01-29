@@ -3944,23 +3944,36 @@ def process_email():
                         item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
                         so_desc_normalized = ' '.join(so_desc.split())
                         
-                        # Exact match check
-                        exact_match_1 = item_desc_normalized in so_desc_normalized
-                        exact_match_2 = so_desc_normalized in item_desc_normalized
+                        # Also normalize by removing hyphens and special chars for comparison
+                        item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
+                        so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
+                        
+                        # Exact match check (with and without special chars)
+                        exact_match_1 = item_desc_normalized in so_desc_normalized or item_desc_clean in so_desc_clean
+                        exact_match_2 = so_desc_normalized in item_desc_normalized or so_desc_clean in item_desc_clean
                         
                         # Also check if all words from email item appear in SO description
-                        email_words = set(item_desc_normalized.split())
-                        so_words = set(so_desc_normalized.split())
+                        email_words = set(item_desc_clean.split())
+                        so_words = set(so_desc_clean.split())
                         # Remove common packaging words for comparison
-                        packaging_words = {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L'}
+                        packaging_words = {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
                         email_core_words = email_words - packaging_words
-                        word_match = email_core_words and email_core_words.issubset(so_words)
+                        so_core_words = so_words - packaging_words
+                        word_match = email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(so_words)
+                        
+                        # Additional check: if key product identifiers match (like "CC LOW TEMP EP-0")
+                        # Extract alphanumeric product codes
+                        import re
+                        email_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', item_desc_normalized))
+                        so_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', so_desc_normalized))
+                        code_match = bool(email_codes & so_codes) if email_codes else False
                         
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
+                        print(f"      Check 4 (code match): {code_match} (codes: {email_codes & so_codes if email_codes else 'none'})")
                         
-                        if exact_match_1 or exact_match_2 or word_match:
+                        if exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
