@@ -1542,33 +1542,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
         </div>
         
-        {/* ENTERPRISE NAVIGATION - 3D Active Icons v4.0 */}
+        {/* ENTERPRISE NAVIGATION - Color Pop on Active v5.0 */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4 max-w-7xl mx-auto mb-6 md:mb-8">
           {/* Dashboard */}
           <button
             onClick={() => setActiveSection('dashboard')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'dashboard' 
-                ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 text-white shadow-[0_20px_50px_-12px_rgba(59,130,246,0.5)] scale-105 -translate-y-1 border-2 border-blue-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-xl shadow-blue-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {/* 3D Shine effect for active */}
-            {activeSection === 'dashboard' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
-              <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                 activeSection === 'dashboard' 
-                  ? 'bg-white/20 shadow-lg shadow-blue-900/20 scale-110' 
+                  ? 'bg-white/20' 
                   : 'bg-slate-100'
               }`}>
-                <BarChart3 className={`w-7 h-7 transition-all duration-500 ${activeSection === 'dashboard' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                <BarChart3 className={`w-8 h-8 transition-all duration-300 ${activeSection === 'dashboard' ? 'text-white' : 'text-slate-400'}`} />
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'dashboard' ? 'text-white' : 'text-slate-600'}`}>DASHBOARD</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'dashboard' ? 'text-white' : 'text-slate-500'}`}>DASHBOARD</div>
               <div className={`text-xs mt-1 ${activeSection === 'dashboard' ? 'text-blue-100' : 'text-slate-400'}`}>Enterprise Overview</div>
             </div>
           </button>
@@ -1576,34 +1569,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Inventory & BOM */}
           <button
             onClick={() => setActiveSection('inventory')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'inventory' 
-                ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-green-700 text-white shadow-[0_20px_50px_-12px_rgba(16,185,129,0.5)] scale-105 -translate-y-1 border-2 border-emerald-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-xl shadow-emerald-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'inventory' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                   activeSection === 'inventory' 
-                    ? 'bg-white/20 shadow-lg shadow-emerald-900/20 scale-110' 
+                    ? 'bg-white/20' 
                     : 'bg-slate-100'
                 }`}>
-                  <Package2 className={`w-7 h-7 transition-all duration-500 ${activeSection === 'inventory' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                  <Package2 className={`w-8 h-8 transition-all duration-300 ${activeSection === 'inventory' ? 'text-white' : 'text-slate-400'}`} />
                 </div>
                 {inventoryMetrics.lowStockCount > 0 && (
-                  <span className={`absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white ${activeSection === 'inventory' ? 'bg-white/30 animate-pulse' : 'bg-amber-500'}`}>
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white animate-pulse">
                     {inventoryMetrics.lowStockCount > 99 ? '99+' : inventoryMetrics.lowStockCount}
                   </span>
                 )}
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'inventory' ? 'text-white' : 'text-slate-600'}`}>INVENTORY</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'inventory' ? 'text-white' : 'text-slate-500'}`}>INVENTORY</div>
               <div className={`text-xs mt-1 ${activeSection === 'inventory' ? 'text-emerald-100' : 'text-slate-400'}`}>
                 {inventoryMetrics.totalItems.toLocaleString()} Items
               </div>
@@ -1613,34 +1600,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Manufacturing */}
           <button
             onClick={() => setActiveSection('manufacturing-orders')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'manufacturing-orders' 
-                ? 'bg-gradient-to-br from-violet-500 via-violet-600 to-purple-700 text-white shadow-[0_20px_50px_-12px_rgba(139,92,246,0.5)] scale-105 -translate-y-1 border-2 border-violet-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-xl shadow-violet-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'manufacturing-orders' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                   activeSection === 'manufacturing-orders' 
-                    ? 'bg-white/20 shadow-lg shadow-violet-900/20 scale-110' 
+                    ? 'bg-white/20' 
                     : 'bg-slate-100'
                 }`}>
-                  <Factory className={`w-7 h-7 transition-all duration-500 ${activeSection === 'manufacturing-orders' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                  <Factory className={`w-8 h-8 transition-all duration-300 ${activeSection === 'manufacturing-orders' ? 'text-white' : 'text-slate-400'}`} />
                 </div>
                 {manufacturingMetrics.active > 0 && (
-                  <span className={`absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white ${activeSection === 'manufacturing-orders' ? 'bg-white/30' : 'bg-green-500'}`}>
+                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white">
                     {manufacturingMetrics.active}
                   </span>
                 )}
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'manufacturing-orders' ? 'text-white' : 'text-slate-600'}`}>MANUFACTURING</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'manufacturing-orders' ? 'text-white' : 'text-slate-500'}`}>MANUFACTURING</div>
               <div className={`text-xs mt-1 ${activeSection === 'manufacturing-orders' ? 'text-violet-100' : 'text-slate-400'}`}>
                 {(() => {
                   const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
@@ -1654,34 +1635,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Purchase */}
           <button
             onClick={() => setActiveSection('purchase-orders')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'purchase-orders' 
-                ? 'bg-gradient-to-br from-orange-500 via-orange-600 to-amber-700 text-white shadow-[0_20px_50px_-12px_rgba(249,115,22,0.5)] scale-105 -translate-y-1 border-2 border-orange-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-xl shadow-orange-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'purchase-orders' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                   activeSection === 'purchase-orders' 
-                    ? 'bg-white/20 shadow-lg shadow-orange-900/20 scale-110' 
+                    ? 'bg-white/20' 
                     : 'bg-slate-100'
                 }`}>
-                  <ShoppingBag className={`w-7 h-7 transition-all duration-500 ${activeSection === 'purchase-orders' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                  <ShoppingBag className={`w-8 h-8 transition-all duration-300 ${activeSection === 'purchase-orders' ? 'text-white' : 'text-slate-400'}`} />
                 </div>
                 {purchaseMetrics.open > 0 && (
-                  <span className={`absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white ${activeSection === 'purchase-orders' ? 'bg-white/30' : 'bg-blue-500'}`}>
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white">
                     {purchaseMetrics.open > 99 ? '99+' : purchaseMetrics.open}
                   </span>
                 )}
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'purchase-orders' ? 'text-white' : 'text-slate-600'}`}>PURCHASE</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'purchase-orders' ? 'text-white' : 'text-slate-500'}`}>PURCHASE</div>
               <div className={`text-xs mt-1 ${activeSection === 'purchase-orders' ? 'text-orange-100' : 'text-slate-400'}`}>
                 {(data?.['PurchaseOrders.json'] || []).length} Orders
               </div>
@@ -1691,34 +1666,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Sales */}
           <button
             onClick={() => setActiveSection('orders')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'orders' 
-                ? 'bg-gradient-to-br from-cyan-500 via-cyan-600 to-blue-700 text-white shadow-[0_20px_50px_-12px_rgba(6,182,212,0.5)] scale-105 -translate-y-1 border-2 border-cyan-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-xl shadow-cyan-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'orders' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                   activeSection === 'orders' 
-                    ? 'bg-white/20 shadow-lg shadow-cyan-900/20 scale-110' 
+                    ? 'bg-white/20' 
                     : 'bg-slate-100'
                 }`}>
-                  <ShoppingCart className={`w-7 h-7 transition-all duration-500 ${activeSection === 'orders' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                  <ShoppingCart className={`w-8 h-8 transition-all duration-300 ${activeSection === 'orders' ? 'text-white' : 'text-slate-400'}`} />
                 </div>
                 {salesOrderAnalytics.newAndRevised.count > 0 && (
-                  <span className={`absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white ${activeSection === 'orders' ? 'bg-white/30 animate-pulse' : 'bg-rose-500 animate-pulse'}`}>
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white animate-pulse">
                     {salesOrderAnalytics.newAndRevised.count}
                   </span>
                 )}
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'orders' ? 'text-white' : 'text-slate-600'}`}>SALES</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'orders' ? 'text-white' : 'text-slate-500'}`}>SALES</div>
               <div className={`text-xs mt-1 ${activeSection === 'orders' ? 'text-cyan-100' : 'text-slate-400'}`}>
                 {data['TotalOrders'] || (data['SalesOrders.json'] || []).length || 0} Orders
               </div>
@@ -1728,27 +1697,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Logistics */}
           <button
             onClick={() => setActiveSection('logistics')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'logistics' 
-                ? 'bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-700 text-white shadow-[0_20px_50px_-12px_rgba(20,184,166,0.5)] scale-105 -translate-y-1 border-2 border-teal-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-xl shadow-teal-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'logistics' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
-              <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                 activeSection === 'logistics' 
-                  ? 'bg-white/20 shadow-lg shadow-teal-900/20 scale-110' 
+                  ? 'bg-white/20' 
                   : 'bg-slate-100'
               }`}>
-                <Truck className={`w-7 h-7 transition-all duration-500 ${activeSection === 'logistics' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                <Truck className={`w-8 h-8 transition-all duration-300 ${activeSection === 'logistics' ? 'text-white' : 'text-slate-400'}`} />
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'logistics' ? 'text-white' : 'text-slate-600'}`}>LOGISTICS</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'logistics' ? 'text-white' : 'text-slate-500'}`}>LOGISTICS</div>
               <div className={`text-xs mt-1 ${activeSection === 'logistics' ? 'text-teal-100' : 'text-slate-400'}`}>Smart Shipping</div>
             </div>
           </button>
@@ -1756,27 +1719,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* AI Command */}
           <button
             onClick={() => setActiveSection('ai-command')}
-            className={`group relative rounded-2xl p-5 transition-all duration-500 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
               activeSection === 'ai-command'
-                ? 'bg-gradient-to-br from-fuchsia-500 via-fuchsia-600 to-purple-700 text-white shadow-[0_20px_50px_-12px_rgba(217,70,239,0.5)] scale-105 -translate-y-1 border-2 border-fuchsia-300' 
-                : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300'
+                ? 'bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white shadow-xl shadow-fuchsia-500/25 scale-[1.02]' 
+                : 'bg-white text-slate-500 shadow-md hover:shadow-lg'
             }`}
           >
-            {activeSection === 'ai-command' && (
-              <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-              </div>
-            )}
             <div className="relative flex flex-col items-center">
-              <div className={`p-3 rounded-xl mb-3 transition-all duration-500 ${
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 ${
                 activeSection === 'ai-command' 
-                  ? 'bg-white/20 shadow-lg shadow-fuchsia-900/20 scale-110' 
+                  ? 'bg-white/20' 
                   : 'bg-slate-100'
               }`}>
-                <Brain className={`w-7 h-7 transition-all duration-500 ${activeSection === 'ai-command' ? 'text-white drop-shadow-lg' : 'text-slate-400'}`} />
+                <Brain className={`w-8 h-8 transition-all duration-300 ${activeSection === 'ai-command' ? 'text-white' : 'text-slate-400'}`} />
               </div>
-              <div className={`text-sm font-bold tracking-wide ${activeSection === 'ai-command' ? 'text-white' : 'text-slate-600'}`}>AI COMMAND</div>
+              <div className={`text-sm font-bold tracking-wide ${activeSection === 'ai-command' ? 'text-white' : 'text-slate-500'}`}>AI COMMAND</div>
               <div className={`text-xs mt-1 ${activeSection === 'ai-command' ? 'text-fuchsia-100' : 'text-slate-400'}`}>Intelligence Center</div>
             </div>
           </button>
