@@ -25,7 +25,6 @@ def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.h
     date_str = ''
     if so_data.get('order_date'):
         try:
-            z
             # Try to parse and format date
             order_date = so_data.get('order_date')
             if isinstance(order_date, str):
