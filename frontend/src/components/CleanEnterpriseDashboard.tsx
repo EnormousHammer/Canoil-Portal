@@ -13,8 +13,8 @@ interface CleanEnterpriseDashboardProps {
   currentUser?: { name: string; email: string; isAdmin: boolean } | null;
 }
 
-// Advanced Enterprise Metric Card Component
-const MetricCard: React.FC<{
+// Unified KPI Card Component - Clean white style with colored accents
+const KPICard: React.FC<{
   title: string;
   subtitle: string;
   primaryValue: string;
@@ -24,123 +24,134 @@ const MetricCard: React.FC<{
   trend: 'up' | 'down' | 'neutral';
   trendValue?: string;
   icon: React.ReactNode;
-  gradientFrom: string;
-  gradientTo: string;
-  children?: React.ReactNode;
+  accentColor: string;
   onClick?: () => void;
-}> = ({ title, subtitle, primaryValue, primaryLabel, secondaryValue, secondaryLabel, trend, trendValue, icon, gradientFrom, gradientTo, children, onClick }) => {
-  const [isHovered, setIsHovered] = useState(false);
+  stats?: { label: string; value: string }[];
+}> = ({ title, subtitle, primaryValue, primaryLabel, secondaryValue, secondaryLabel, trend, trendValue, icon, accentColor, onClick, stats }) => {
   
   const TrendIcon = trend === 'up' ? ArrowUpRight : trend === 'down' ? ArrowDownRight : Minus;
-  const trendColor = trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-red-600' : 'text-gray-600';
+  const trendBgColor = trend === 'up' ? 'bg-emerald-100 text-emerald-700' : trend === 'down' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600';
+  
+  const colorMap: { [key: string]: { bg: string; text: string; border: string; light: string } } = {
+    blue: { bg: 'bg-blue-500', text: 'text-blue-600', border: 'border-blue-200', light: 'bg-blue-50' },
+    emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', border: 'border-emerald-200', light: 'bg-emerald-50' },
+    cyan: { bg: 'bg-cyan-500', text: 'text-cyan-600', border: 'border-cyan-200', light: 'bg-cyan-50' },
+    rose: { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-200', light: 'bg-rose-50' },
+    violet: { bg: 'bg-violet-500', text: 'text-violet-600', border: 'border-violet-200', light: 'bg-violet-50' },
+    amber: { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-200', light: 'bg-amber-50' },
+  };
+  
+  const colors = colorMap[accentColor] || colorMap.blue;
   
   return (
     <div 
-      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradientFrom} ${gradientTo} border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] cursor-pointer`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className={`group relative bg-white rounded-2xl p-6 border-2 ${colors.border} shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden`}
       onClick={onClick}
     >
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-      <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+      {/* Accent bar at top */}
+      <div className={`absolute top-0 left-0 right-0 h-1 ${colors.bg}`} />
       
-      {/* Content */}
-      <div className="relative p-4 h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className={`p-3 rounded-xl bg-white/20 backdrop-blur-sm ring-1 ring-white/30 group-hover:scale-110 transition-transform duration-300 ${isHovered ? 'animate-pulse' : ''}`}>
-              <div className="w-6 h-6 text-white">
-                {icon}
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-lg font-bold text-white mb-1 truncate">{title}</h3>
-              <p className="text-white/80 text-xs font-medium truncate">{subtitle}</p>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`p-3 rounded-xl ${colors.light}`}>
+            <div className={`w-6 h-6 ${colors.text}`}>
+              {icon}
             </div>
           </div>
-          
-          {/* Trend Indicator */}
-          {trendValue && (
-            <div className={`flex items-center space-x-1 px-2 py-1 rounded-lg bg-white/20 backdrop-blur-sm ${trendColor} flex-shrink-0`}>
-              <TrendIcon className="w-3 h-3" />
-              <span className="text-xs font-bold text-white">{trendValue}</span>
-            </div>
-          )}
-        </div>
-        
-        {/* Primary Metrics */}
-        <div className="grid grid-cols-2 gap-2 mb-4 flex-1 min-h-0">
-          <div className="space-y-1 min-w-0">
-            <div className="text-xl font-black text-white tracking-tight truncate leading-tight">{primaryValue}</div>
-            <div className="text-white/70 text-xs font-semibold uppercase tracking-wider truncate leading-tight">{primaryLabel}</div>
-          </div>
-          <div className="space-y-1 min-w-0">
-            <div className="text-xl font-black text-white tracking-tight truncate leading-tight">{secondaryValue}</div>
-            <div className="text-white/70 text-xs font-semibold uppercase tracking-wider truncate leading-tight">{secondaryLabel}</div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800">{title}</h3>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
         </div>
         
-        {/* Additional Content */}
-        <div className="mt-auto">
-          {children}
+        {/* Trend Badge */}
+        {trendValue && (
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${trendBgColor}`}>
+            <TrendIcon className="w-3 h-3" />
+            <span>{trendValue}</span>
+          </div>
+        )}
+      </div>
+      
+      {/* Primary Metrics */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <div className={`text-2xl font-black ${colors.text}`}>{primaryValue}</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">{primaryLabel}</div>
         </div>
-        
-        {/* Hover Effect Arrow */}
-        <div className={`absolute top-8 right-8 transition-all duration-300 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
-          <ChevronRight className="w-6 h-6 text-white/60" />
+        <div>
+          <div className="text-2xl font-black text-slate-700">{secondaryValue}</div>
+          <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">{secondaryLabel}</div>
         </div>
+      </div>
+      
+      {/* Stats Footer */}
+      {stats && stats.length > 0 && (
+        <div className="pt-4 border-t border-slate-100 space-y-2">
+          {stats.map((stat, idx) => (
+            <div key={idx} className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">{stat.label}</span>
+              <span className="font-semibold text-slate-700">{stat.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {/* Hover arrow */}
+      <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+        <ChevronRight className={`w-5 h-5 ${colors.text}`} />
       </div>
     </div>
   );
 };
 
-// Advanced Progress Ring Component
-const ProgressRing: React.FC<{ progress: number; size?: number; strokeWidth?: number; className?: string }> = ({ 
-  progress, 
-  size = 70, 
-  strokeWidth = 4, 
-  className = "" 
-}) => {
-  const [animatedProgress, setAnimatedProgress] = useState(0);
+// Unified Action Card Component
+const ActionCard: React.FC<{
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  accentColor: string;
+  onClick?: () => void;
+  badge?: string;
+}> = ({ title, subtitle, icon, accentColor, onClick, badge }) => {
   
-  useEffect(() => {
-    const timer = setTimeout(() => setAnimatedProgress(progress), 300);
-    return () => clearTimeout(timer);
-  }, [progress]);
+  const colorMap: { [key: string]: { bg: string; text: string; border: string; light: string; hover: string } } = {
+    blue: { bg: 'bg-blue-500', text: 'text-blue-600', border: 'border-blue-200', light: 'bg-blue-50', hover: 'hover:border-blue-400' },
+    emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', border: 'border-emerald-200', light: 'bg-emerald-50', hover: 'hover:border-emerald-400' },
+    violet: { bg: 'bg-violet-500', text: 'text-violet-600', border: 'border-violet-200', light: 'bg-violet-50', hover: 'hover:border-violet-400' },
+    amber: { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-200', light: 'bg-amber-50', hover: 'hover:border-amber-400' },
+  };
   
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const strokeDasharray = circumference;
-  const strokeDashoffset = circumference - (animatedProgress / 100) * circumference;
+  const colors = colorMap[accentColor] || colorMap.blue;
   
   return (
-    <div className={`relative ${className}`} style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="rgba(255, 255, 255, 0.2)"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="rgba(255, 255, 255, 0.9)"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeDasharray={strokeDasharray}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center z-10">
-        <span className="text-sm font-bold text-white drop-shadow-sm">{Math.round(animatedProgress)}%</span>
+    <div 
+      className={`group relative bg-white rounded-2xl p-6 border-2 ${colors.border} ${colors.hover} shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer`}
+      onClick={onClick}
+    >
+      {/* Icon */}
+      <div className={`w-12 h-12 mb-4 p-3 rounded-xl ${colors.light} group-hover:scale-110 transition-transform duration-300`}>
+        <div className={`w-full h-full ${colors.text}`}>
+          {icon}
+        </div>
+      </div>
+      
+      {/* Title */}
+      <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-slate-900 transition-colors">{title}</h3>
+      <p className="text-sm text-slate-500">{subtitle}</p>
+      
+      {/* Badge */}
+      {badge && (
+        <div className="mt-4 flex items-center gap-2 text-xs font-medium text-slate-500">
+          <Activity className="w-4 h-4" />
+          <span>{badge}</span>
+        </div>
+      )}
+      
+      {/* Hover arrow */}
+      <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1">
+        <ChevronRight className={`w-5 h-5 ${colors.text}`} />
       </div>
     </div>
   );
@@ -161,34 +172,12 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
   // Check if current user is Haron
   const isHaron = currentUser?.email === 'haron@canoilcanadaltd.com';
   
-  // Calculate REAL business performance metrics
-  
-  // Stock Health: Percentage of items that are properly stocked (not low stock or out of stock)
-  const stockHealthScore = inventoryMetrics.totalItems > 0 ? 
-    Math.round(((inventoryMetrics.totalItems - inventoryMetrics.lowStockCount - inventoryMetrics.outOfStock) / inventoryMetrics.totalItems) * 100) : 0;
-  
-  // Manufacturing Efficiency: Percentage of active MOs vs total pending pipeline
-  const efficiencyRate = (manufacturingMetrics.active + manufacturingMetrics.pending) > 0 ? 
-    Math.round((manufacturingMetrics.active / (manufacturingMetrics.active + manufacturingMetrics.pending)) * 100) : 0;
-  
-  // Purchase Performance: Average order value (shows procurement efficiency)
-  const avgPurchaseValue = purchaseMetrics.open > 0 ? Math.round(purchaseMetrics.totalValue / purchaseMetrics.open) : 0;
-  
-  // Inventory Turnover Health: Lower percentage of low stock = better turnover management
-  const inventoryTurnoverHealth = inventoryMetrics.totalItems > 0 ? 
-    Math.max(0, Math.round((1 - (inventoryMetrics.lowStockCount / inventoryMetrics.totalItems)) * 100)) : 0;
-  
-  // Manufacturing Pipeline Health: Active orders vs total capacity (pending + active + recently closed)
-  const totalRecentActivity = manufacturingMetrics.active + manufacturingMetrics.pending + Math.min(manufacturingMetrics.closed, 100);
-  const pipelineHealth = totalRecentActivity > 0 ? 
-    Math.round(((manufacturingMetrics.active + manufacturingMetrics.pending) / totalRecentActivity) * 100) : 0;
-  
   return (
     <div className="p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Compact Hero Section */}
-        <div className="text-center mb-6">
+        {/* Header Section */}
+        <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-800 mb-2">
             Enterprise Command Center
           </h1>
@@ -197,275 +186,149 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
           </p>
         </div>
 
-
-        {/* Executive KPI Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 auto-rows-fr">
+        {/* KPI Cards Grid - Unified Style */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
           
-
-
-
-          {/* Inventory Health Card - Real MiSys Data */}
-          <MetricCard
+          {/* Inventory Health */}
+          <KPICard
             title="Inventory Health"
             subtitle="Stock Performance"
             primaryValue={inventoryMetrics.lowStockCount.toString()}
-            primaryLabel="Low Stock Items"
+            primaryLabel="Low Stock"
             secondaryValue={inventoryMetrics.outOfStock.toString()}
             secondaryLabel="Out of Stock"
             trend={inventoryMetrics.lowStockCount > 50 ? 'down' : inventoryMetrics.lowStockCount > 20 ? 'neutral' : 'up'}
             trendValue={`${Math.round((inventoryMetrics.totalItems - inventoryMetrics.lowStockCount - inventoryMetrics.outOfStock) / inventoryMetrics.totalItems * 100)}%`}
             icon={<Package className="w-full h-full" />}
-            gradientFrom="from-blue-600"
-            gradientTo="to-cyan-500"
+            accentColor="blue"
             onClick={() => onNavigate('inventory')}
-          >
-            <div className="flex justify-between items-center">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Total Items: {inventoryMetrics.totalItems.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Value: {formatCAD(inventoryMetrics.totalValue)}</span>
-                </div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-white/80" />
-              </div>
-            </div>
-          </MetricCard>
+            stats={[
+              { label: 'Total Items', value: inventoryMetrics.totalItems.toLocaleString() },
+              { label: 'Total Value', value: formatCAD(inventoryMetrics.totalValue) }
+            ]}
+          />
 
-          {/* Manufacturing Pipeline Card - Real MiSys Data */}
-          <MetricCard
-            title="Manufacturing Pipeline"
+          {/* Manufacturing Pipeline */}
+          <KPICard
+            title="Manufacturing"
             subtitle="Production Status"
             primaryValue={manufacturingMetrics.active.toString()}
             primaryLabel="Active Orders"
             secondaryValue={manufacturingMetrics.pending.toString()}
-            secondaryLabel="Pending Orders"
+            secondaryLabel="Pending"
             trend={manufacturingMetrics.active > manufacturingMetrics.pending ? 'up' : 'neutral'}
             trendValue={`${Math.round(manufacturingMetrics.active / (manufacturingMetrics.active + manufacturingMetrics.pending) * 100)}%`}
             icon={<Factory className="w-full h-full" />}
-            gradientFrom="from-emerald-600"
-            gradientTo="to-green-500"
+            accentColor="emerald"
             onClick={() => onNavigate('manufacturing-orders')}
-          >
-            <div className="flex justify-between items-center">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Pipeline Value: {formatCAD(manufacturingMetrics.totalValue)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Completed: {manufacturingMetrics.closed}</span>
-                </div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
-                <Activity className="w-5 h-5 text-white/80" />
-              </div>
-            </div>
-          </MetricCard>
+            stats={[
+              { label: 'Pipeline Value', value: formatCAD(manufacturingMetrics.totalValue) },
+              { label: 'Completed', value: manufacturingMetrics.closed.toString() }
+            ]}
+          />
 
-          {/* Sales Orders Statistics Card - Real MiSys Data */}
-          <MetricCard
+          {/* Sales Orders */}
+          <KPICard
             title="Sales Orders"
             subtitle="Order Status"
             primaryValue={salesOrderAnalytics.newAndRevised.count.toString()}
             primaryLabel="New Orders"
             secondaryValue={salesOrderAnalytics.inProduction.count.toString()}
-            secondaryLabel="Scheduled Orders"
-            trend={salesOrderAnalytics.newAndRevised.count > salesOrderAnalytics.inProduction.count ? 'up' : 'neutral'}
+            secondaryLabel="Scheduled"
+            trend={salesOrderAnalytics.newAndRevised.count > 0 ? 'up' : 'neutral'}
             trendValue={`${Math.round(salesOrderAnalytics.completed.count / salesOrderAnalytics.total * 100)}%`}
             icon={<TrendingUp className="w-full h-full" />}
-            gradientFrom="from-cyan-600"
-            gradientTo="to-blue-500"
+            accentColor="cyan"
             onClick={() => onNavigate('orders')}
-          >
-            <div className="flex justify-between items-center">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Total: {salesOrderAnalytics.total.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">Completed: {salesOrderAnalytics.completed.count}</span>
-                </div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
-                <Activity className="w-5 h-5 text-white/80" />
-              </div>
-            </div>
-          </MetricCard>
+            stats={[
+              { label: 'Total Orders', value: salesOrderAnalytics.total.toLocaleString() },
+              { label: 'Completed', value: salesOrderAnalytics.completed.count.toString() }
+            ]}
+          />
 
-          {/* Attention Required Card - Alerts & Action Items */}
-          <MetricCard
+          {/* Attention Required */}
+          <KPICard
             title="Attention Required"
             subtitle="Action Items"
             primaryValue={inventoryMetrics.outOfStock.toString()}
             primaryLabel="Out of Stock"
             secondaryValue={manufacturingMetrics.pending.toString()}
             secondaryLabel="Pending MOs"
-            trend={inventoryMetrics.outOfStock > 100 ? 'down' : inventoryMetrics.outOfStock > 50 ? 'neutral' : 'up'}
+            trend={inventoryMetrics.outOfStock > 100 ? 'down' : 'neutral'}
             trendValue={inventoryMetrics.outOfStock > 0 ? 'Action' : 'OK'}
             icon={<AlertTriangle className="w-full h-full" />}
-            gradientFrom="from-rose-600"
-            gradientTo="to-orange-500"
+            accentColor="rose"
             onClick={() => onNavigate('inventory')}
-          >
-            <div className="flex justify-between items-center">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-rose-400 rounded-full flex-shrink-0 animate-pulse"></div>
-                  <span className="text-white/80 text-xs truncate">Low Stock: {inventoryMetrics.lowStockCount}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full flex-shrink-0"></div>
-                  <span className="text-white/80 text-xs truncate">New SOs: {salesOrderAnalytics.newAndRevised.count}</span>
-                </div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 flex-shrink-0">
-                <Target className="w-5 h-5 text-white/80" />
-              </div>
-            </div>
-          </MetricCard>
-      </div>
+            stats={[
+              { label: 'Low Stock Items', value: inventoryMetrics.lowStockCount.toString() },
+              { label: 'New Sales Orders', value: salesOrderAnalytics.newAndRevised.count.toString() }
+            ]}
+          />
+        </div>
 
-        {/* Advanced Enterprise Action Center */}
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-slate-200/80 p-8">
-          <div className="flex items-center justify-between mb-8">
+        {/* Command Center Section */}
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-1">Command Center</h2>
-              <p className="text-slate-500 text-sm">Intelligent workflow automation and real-time operations</p>
+              <h2 className="text-xl font-bold text-slate-800 mb-1">Command Center</h2>
+              <p className="text-sm text-slate-500">Intelligent workflow automation and real-time operations</p>
             </div>
             <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              <span className="text-emerald-700 font-semibold text-sm">Real-time Intelligence Active</span>
+              <span className="text-emerald-700 font-semibold text-sm">System Active</span>
             </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {/* Report Maker Action - Primary Style with Enhanced Hover */}
-            <div 
-              className="group relative overflow-hidden rounded-2xl bg-white border-2 border-blue-100 p-6 hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
+            {/* Report Maker */}
+            <ActionCard
+              title="Report Maker"
+              subtitle="Production & Analytics"
+              icon={<FileText className="w-full h-full" />}
+              accentColor="blue"
               onClick={() => onNavigate('report-maker')}
-            >
-              {/* Animated gradient background on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
-              {/* Shine effect */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-              </div>
-              <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-blue-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
-                  <FileText className="w-full h-full text-blue-600 group-hover:text-white transition-colors duration-300" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Report Maker</h3>
-                <p className="text-slate-500 text-sm group-hover:text-blue-100 transition-colors duration-300">Production & Analytics</p>
-                <div className="mt-4 flex items-center text-blue-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
-                  <BarChart className="w-4 h-4 mr-1.5" />
-                  <span>Custom Report Builder</span>
-                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-            </div>
+              badge="Custom Reports"
+            />
 
-            {/* Manufacturing Action - Secondary Style with Subtle Hover */}
-            <div 
-              className="group relative overflow-hidden rounded-2xl bg-slate-50 border-2 border-transparent p-6 hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full opacity-30 group-hover:opacity-70 transition-opacity"></div>
-              <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 group-hover:scale-105 transition-all duration-300">
-                  <Factory className="w-full h-full text-emerald-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-emerald-700 transition-colors">Manufacturing</h3>
-                <p className="text-slate-500 text-sm">Production Performance</p>
-                <div className="mt-4 flex items-center text-emerald-600 text-xs font-medium">
-                  <Activity className="w-4 h-4 mr-1.5" />
-                  <span>Live Monitoring</span>
-                </div>
-              </div>
-            </div>
+            {/* Manufacturing */}
+            <ActionCard
+              title="Manufacturing"
+              subtitle="Production Performance"
+              icon={<Factory className="w-full h-full" />}
+              accentColor="emerald"
+              badge="Live Monitoring"
+            />
 
-            {/* Smart SO Entry Action OR Email Assistant for Haron - Accent Style with Enhanced Hover */}
+            {/* Smart SO Entry or Email Assistant */}
             {isHaron ? (
-              // Email Assistant - Only for Haron
-              <div 
-                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-500 hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
+              <ActionCard
+                title="Email Assistant"
+                subtitle="AI-Powered Responses"
+                icon={<Mail className="w-full h-full" />}
+                accentColor="violet"
                 onClick={() => onNavigate('email-assistant')}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                </div>
-                <div className="relative">
-                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
-                    <Mail className="w-full h-full text-violet-600 group-hover:text-white transition-colors duration-300" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Email Assistant</h3>
-                  <p className="text-slate-500 text-sm group-hover:text-violet-100 transition-colors duration-300">AI-Powered Responses</p>
-                  <div className="mt-4 flex items-center text-violet-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <Brain className="w-4 h-4 mr-1.5" />
-                    <span>Smart Email AI</span>
-                    <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
+                badge="Smart Email AI"
+              />
             ) : (
-              // Smart SO Entry - For other users
-              <div 
-                className="group relative overflow-hidden rounded-2xl bg-white border-2 border-violet-100 p-6 hover:border-violet-500 hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
+              <ActionCard
+                title="Smart SO Entry"
+                subtitle="BOM Verification"
+                icon={<Zap className="w-full h-full" />}
+                accentColor="violet"
                 onClick={() => onNavigate('so-entry')}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500" />
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                </div>
-                <div className="relative">
-                  <div className="w-12 h-12 mb-4 p-2.5 bg-violet-50 rounded-xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-300">
-                    <Zap className="w-full h-full text-violet-600 group-hover:text-white transition-colors duration-300" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1 group-hover:text-white transition-colors duration-300">Smart SO Entry</h3>
-                  <p className="text-slate-500 text-sm group-hover:text-violet-100 transition-colors duration-300">BOM Verification</p>
-                  <div className="mt-4 flex items-center text-violet-600 group-hover:text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <Target className="w-4 h-4 mr-1.5" />
-                    <span>Error Prevention</span>
-                    <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
+                badge="Error Prevention"
+              />
             )}
 
-            {/* AI Assistant Action - Featured/Premium Style with Enhanced Hover */}
-            <div 
-              className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 p-6 hover:-translate-y-2 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-orange-500/40"
+            {/* AI Assistant */}
+            <ActionCard
+              title="AI Assistant"
+              subtitle="ChatGPT Powered"
+              icon={<Brain className="w-full h-full" />}
+              accentColor="amber"
               onClick={() => onNavigate('intelligence')}
-            >
-              {/* Animated pattern */}
-              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAgTSAwIDIwIEwgNDAgMjAgTSAyMCAwIEwgMjAgNDAgTSAwIDMwIEwgNDAgMzAgTSAzMCAwIEwgMzAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50 group-hover:opacity-80 transition-opacity"></div>
-              {/* Glow effect */}
-              <div className="absolute -top-6 -right-6 w-32 h-32 bg-white/20 rounded-full blur-2xl group-hover:bg-white/30 transition-all duration-500"></div>
-              <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-yellow-300/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-              {/* Shine effect */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-              </div>
-              <div className="relative">
-                <div className="w-12 h-12 mb-4 p-2.5 bg-white/20 backdrop-blur-sm rounded-xl ring-1 ring-white/30 group-hover:scale-110 group-hover:bg-white/30 transition-all duration-300">
-                  <Brain className="w-full h-full text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white mb-1">AI Assistant</h3>
-                <p className="text-orange-100 text-sm">ChatGPT Powered</p>
-                <div className="mt-4 flex items-center text-white/90 text-xs font-medium">
-                  <Users className="w-4 h-4 mr-1.5" />
-                  <span>Natural Language</span>
-                  <ChevronRight className="w-4 h-4 ml-auto group-hover:translate-x-2 transition-transform duration-300" />
-                </div>
-              </div>
-            </div>
+              badge="Natural Language"
+            />
           </div>
         </div>
 
