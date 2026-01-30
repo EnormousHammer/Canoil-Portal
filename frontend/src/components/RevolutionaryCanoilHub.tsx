@@ -1535,172 +1535,233 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   return (
     <>
-      <div className="min-h-screen bg-slate-100 p-6">
+      <div className="min-h-screen bg-slate-50 p-8">
+        {/* Subtle background pattern */}
+        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-slate-100 -z-10"></div>
         
-        {/* ENTERPRISE NAVIGATION - Unified Clean Style */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 max-w-7xl mx-auto mb-6">
+        {/* ENTERPRISE NAVIGATION - Premium Icon Cards with Enhanced Hover - v2.0 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 max-w-7xl mx-auto mb-8">
           {/* Dashboard */}
           <button
             onClick={() => setActiveSection('dashboard')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'dashboard' 
-                ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
-                : 'border-slate-200 hover:border-blue-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-blue-400 shadow-2xl shadow-blue-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-2 hover:border-blue-400'
             }`}
           >
-            {/* Active indicator bar */}
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'dashboard' ? 'bg-blue-500' : 'bg-transparent group-hover:bg-blue-400'}`} />
-            <div className="flex flex-col items-center">
-              <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'dashboard' ? 'bg-blue-100' : 'bg-slate-50 group-hover:bg-blue-50'}`}>
-                <BarChart3 className={`w-6 h-6 ${activeSection === 'dashboard' ? 'text-blue-600' : 'text-slate-500 group-hover:text-blue-600'}`} />
+            {/* Animated background on hover */}
+            <div className={`absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'dashboard' ? 'opacity-100' : ''}`} />
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                activeSection === 'dashboard' 
+                  ? 'bg-white/20' 
+                  : 'bg-blue-50 group-hover:bg-white/20'
+              }`}>
+                <BarChart3 className={`w-8 h-8 transition-all duration-300 ${activeSection === 'dashboard' ? 'text-white' : 'text-blue-600 group-hover:text-white'}`} />
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'dashboard' ? 'text-blue-600' : 'text-slate-700'}`}>DASHBOARD</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Overview</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'dashboard' ? 'group-hover:text-white' : ''}`}>DASHBOARD</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'dashboard' ? 'text-blue-100' : 'text-slate-500 group-hover:text-blue-100'}`}>Enterprise Overview</div>
             </div>
           </button>
 
-          {/* Inventory */}
+          {/* Inventory & BOM */}
           <button
             onClick={() => setActiveSection('inventory')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'inventory' 
-                ? 'border-emerald-500 shadow-lg shadow-emerald-500/20' 
-                : 'border-slate-200 hover:border-emerald-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-emerald-600 to-green-700 text-white border-emerald-400 shadow-2xl shadow-emerald-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-emerald-500/20 hover:-translate-y-2 hover:border-emerald-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'inventory' ? 'bg-emerald-500' : 'bg-transparent group-hover:bg-emerald-400'}`} />
-            <div className="flex flex-col items-center">
+            <div className={`absolute inset-0 bg-gradient-to-br from-emerald-500 to-green-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'inventory' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'inventory' ? 'bg-emerald-100' : 'bg-slate-50 group-hover:bg-emerald-50'}`}>
-                  <Package2 className={`w-6 h-6 ${activeSection === 'inventory' ? 'text-emerald-600' : 'text-slate-500 group-hover:text-emerald-600'}`} />
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                  activeSection === 'inventory' 
+                    ? 'bg-white/20' 
+                    : 'bg-emerald-50 group-hover:bg-white/20'
+                }`}>
+                  <Package2 className={`w-8 h-8 transition-all duration-300 ${activeSection === 'inventory' ? 'text-white' : 'text-emerald-600 group-hover:text-white'}`} />
                 </div>
                 {inventoryMetrics.lowStockCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 shadow">
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg animate-pulse ring-2 ring-white">
                     {inventoryMetrics.lowStockCount > 99 ? '99+' : inventoryMetrics.lowStockCount}
                   </span>
                 )}
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'inventory' ? 'text-emerald-600' : 'text-slate-700'}`}>INVENTORY</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">{inventoryMetrics.totalItems.toLocaleString()} Items</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'inventory' ? 'group-hover:text-white' : ''}`}>INVENTORY</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'inventory' ? 'text-emerald-100' : 'text-slate-500 group-hover:text-emerald-100'}`}>
+                {inventoryMetrics.totalItems.toLocaleString()} Items
+              </div>
             </div>
           </button>
 
           {/* Manufacturing */}
           <button
             onClick={() => setActiveSection('manufacturing-orders')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'manufacturing-orders' 
-                ? 'border-violet-500 shadow-lg shadow-violet-500/20' 
-                : 'border-slate-200 hover:border-violet-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-violet-600 to-purple-700 text-white border-violet-400 shadow-2xl shadow-violet-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-violet-500/20 hover:-translate-y-2 hover:border-violet-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'manufacturing-orders' ? 'bg-violet-500' : 'bg-transparent group-hover:bg-violet-400'}`} />
-            <div className="flex flex-col items-center">
+            <div className={`absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'manufacturing-orders' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'manufacturing-orders' ? 'bg-violet-100' : 'bg-slate-50 group-hover:bg-violet-50'}`}>
-                  <Factory className={`w-6 h-6 ${activeSection === 'manufacturing-orders' ? 'text-violet-600' : 'text-slate-500 group-hover:text-violet-600'}`} />
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                  activeSection === 'manufacturing-orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-violet-50 group-hover:bg-white/20'
+                }`}>
+                  <Factory className={`w-8 h-8 transition-all duration-300 ${activeSection === 'manufacturing-orders' ? 'text-white' : 'text-violet-600 group-hover:text-white'}`} />
                 </div>
                 {manufacturingMetrics.active > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 shadow">
+                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white">
                     {manufacturingMetrics.active}
                   </span>
                 )}
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'manufacturing-orders' ? 'text-violet-600' : 'text-slate-700'}`}>MFG</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">{(() => {
-                const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
-                return `${allMOs.filter((mo: any) => mo['Mfg. Order No.']).length} Orders`;
-              })()}</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'manufacturing-orders' ? 'group-hover:text-white' : ''}`}>MANUFACTURING</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'manufacturing-orders' ? 'text-violet-100' : 'text-slate-500 group-hover:text-violet-100'}`}>
+                {(() => {
+                  const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
+                  const realMOs = allMOs.filter((mo: any) => mo['Mfg. Order No.'] && mo['Build Item No.']);
+                  return `${realMOs.length} Orders`;
+                })()}
+              </div>
             </div>
           </button>
 
           {/* Purchase */}
           <button
             onClick={() => setActiveSection('purchase-orders')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'purchase-orders' 
-                ? 'border-orange-500 shadow-lg shadow-orange-500/20' 
-                : 'border-slate-200 hover:border-orange-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-orange-500 to-amber-600 text-white border-orange-400 shadow-2xl shadow-orange-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-orange-500/20 hover:-translate-y-2 hover:border-orange-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'purchase-orders' ? 'bg-orange-500' : 'bg-transparent group-hover:bg-orange-400'}`} />
-            <div className="flex flex-col items-center">
+            <div className={`absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'purchase-orders' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'purchase-orders' ? 'bg-orange-100' : 'bg-slate-50 group-hover:bg-orange-50'}`}>
-                  <ShoppingBag className={`w-6 h-6 ${activeSection === 'purchase-orders' ? 'text-orange-600' : 'text-slate-500 group-hover:text-orange-600'}`} />
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                  activeSection === 'purchase-orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-orange-50 group-hover:bg-white/20'
+                }`}>
+                  <ShoppingBag className={`w-8 h-8 transition-all duration-300 ${activeSection === 'purchase-orders' ? 'text-white' : 'text-orange-600 group-hover:text-white'}`} />
                 </div>
                 {purchaseMetrics.open > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 shadow">
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg ring-2 ring-white">
                     {purchaseMetrics.open > 99 ? '99+' : purchaseMetrics.open}
                   </span>
                 )}
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'purchase-orders' ? 'text-orange-600' : 'text-slate-700'}`}>PURCHASE</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">{(data?.['PurchaseOrders.json'] || []).length} Orders</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'purchase-orders' ? 'group-hover:text-white' : ''}`}>PURCHASE</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'purchase-orders' ? 'text-orange-100' : 'text-slate-500 group-hover:text-orange-100'}`}>
+                {(data?.['PurchaseOrders.json'] || []).length} Orders
+              </div>
             </div>
           </button>
 
           {/* Sales */}
           <button
             onClick={() => setActiveSection('orders')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'orders' 
-                ? 'border-cyan-500 shadow-lg shadow-cyan-500/20' 
-                : 'border-slate-200 hover:border-cyan-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white border-cyan-400 shadow-2xl shadow-cyan-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-cyan-500/20 hover:-translate-y-2 hover:border-cyan-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'orders' ? 'bg-cyan-500' : 'bg-transparent group-hover:bg-cyan-400'}`} />
-            <div className="flex flex-col items-center">
+            <div className={`absolute inset-0 bg-gradient-to-br from-cyan-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'orders' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
               <div className="relative">
-                <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'orders' ? 'bg-cyan-100' : 'bg-slate-50 group-hover:bg-cyan-50'}`}>
-                  <ShoppingCart className={`w-6 h-6 ${activeSection === 'orders' ? 'text-cyan-600' : 'text-slate-500 group-hover:text-cyan-600'}`} />
+                <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                  activeSection === 'orders' 
+                    ? 'bg-white/20' 
+                    : 'bg-cyan-50 group-hover:bg-white/20'
+                }`}>
+                  <ShoppingCart className={`w-8 h-8 transition-all duration-300 ${activeSection === 'orders' ? 'text-white' : 'text-cyan-600 group-hover:text-white'}`} />
                 </div>
                 {salesOrderAnalytics.newAndRevised.count > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 shadow animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg animate-pulse ring-2 ring-white">
                     {salesOrderAnalytics.newAndRevised.count}
                   </span>
                 )}
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'orders' ? 'text-cyan-600' : 'text-slate-700'}`}>SALES</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">{data['TotalOrders'] || 0} Orders</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'orders' ? 'group-hover:text-white' : ''}`}>SALES</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'orders' ? 'text-cyan-100' : 'text-slate-500 group-hover:text-cyan-100'}`}>
+                {data['TotalOrders'] || (data['SalesOrders.json'] || []).length || 0} Orders
+              </div>
             </div>
           </button>
 
           {/* Logistics */}
           <button
             onClick={() => setActiveSection('logistics')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'logistics' 
-                ? 'border-teal-500 shadow-lg shadow-teal-500/20' 
-                : 'border-slate-200 hover:border-teal-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-teal-600 to-emerald-700 text-white border-teal-400 shadow-2xl shadow-teal-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-teal-500/20 hover:-translate-y-2 hover:border-teal-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'logistics' ? 'bg-teal-500' : 'bg-transparent group-hover:bg-teal-400'}`} />
-            <div className="flex flex-col items-center">
-              <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'logistics' ? 'bg-teal-100' : 'bg-slate-50 group-hover:bg-teal-50'}`}>
-                <Truck className={`w-6 h-6 ${activeSection === 'logistics' ? 'text-teal-600' : 'text-slate-500 group-hover:text-teal-600'}`} />
+            <div className={`absolute inset-0 bg-gradient-to-br from-teal-500 to-emerald-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'logistics' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                activeSection === 'logistics' 
+                  ? 'bg-white/20' 
+                  : 'bg-teal-50 group-hover:bg-white/20'
+              }`}>
+                <Truck className={`w-8 h-8 transition-all duration-300 ${activeSection === 'logistics' ? 'text-white' : 'text-teal-600 group-hover:text-white'}`} />
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'logistics' ? 'text-teal-600' : 'text-slate-700'}`}>LOGISTICS</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Shipping</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'logistics' ? 'group-hover:text-white' : ''}`}>LOGISTICS</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'logistics' ? 'text-teal-100' : 'text-slate-500 group-hover:text-teal-100'}`}>Smart Shipping</div>
             </div>
           </button>
 
           {/* AI Command */}
           <button
             onClick={() => setActiveSection('ai-command')}
-            className={`group relative bg-white rounded-xl p-4 transition-all duration-300 border-2 cursor-pointer ${
+            className={`group relative rounded-2xl p-5 transition-all duration-300 border-2 overflow-hidden cursor-pointer ${
               activeSection === 'ai-command'
-                ? 'border-fuchsia-500 shadow-lg shadow-fuchsia-500/20' 
-                : 'border-slate-200 hover:border-fuchsia-400 hover:shadow-md hover:-translate-y-1'
+                ? 'bg-gradient-to-br from-fuchsia-600 to-purple-700 text-white border-fuchsia-400 shadow-2xl shadow-fuchsia-500/30 scale-[1.02]' 
+                : 'bg-white text-slate-700 border-transparent shadow-md hover:shadow-2xl hover:shadow-fuchsia-500/20 hover:-translate-y-2 hover:border-fuchsia-400'
             }`}
           >
-            <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-xl transition-all ${activeSection === 'ai-command' ? 'bg-fuchsia-500' : 'bg-transparent group-hover:bg-fuchsia-400'}`} />
-            <div className="flex flex-col items-center">
-              <div className={`p-2.5 rounded-lg mb-2 transition-all duration-300 ${activeSection === 'ai-command' ? 'bg-fuchsia-100' : 'bg-slate-50 group-hover:bg-fuchsia-50'}`}>
-                <Brain className={`w-6 h-6 ${activeSection === 'ai-command' ? 'text-fuchsia-600' : 'text-slate-500 group-hover:text-fuchsia-600'}`} />
+            <div className={`absolute inset-0 bg-gradient-to-br from-fuchsia-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-500 ${activeSection === 'ai-command' ? 'opacity-100' : ''}`} />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+            <div className="relative flex flex-col items-center">
+              <div className={`p-3 rounded-xl mb-3 transition-all duration-300 group-hover:scale-110 ${
+                activeSection === 'ai-command' 
+                  ? 'bg-white/20' 
+                  : 'bg-fuchsia-50 group-hover:bg-white/20'
+              }`}>
+                <Brain className={`w-8 h-8 transition-all duration-300 ${activeSection === 'ai-command' ? 'text-white' : 'text-fuchsia-600 group-hover:text-white'}`} />
               </div>
-              <div className={`text-xs font-bold ${activeSection === 'ai-command' ? 'text-fuchsia-600' : 'text-slate-700'}`}>AI</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Assistant</div>
+              <div className={`text-sm font-bold tracking-wide transition-colors duration-300 ${activeSection !== 'ai-command' ? 'group-hover:text-white' : ''}`}>AI COMMAND</div>
+              <div className={`text-xs mt-1 transition-colors duration-300 ${activeSection === 'ai-command' ? 'text-fuchsia-100' : 'text-slate-500 group-hover:text-fuchsia-100'}`}>Intelligence Center</div>
             </div>
           </button>
         </div>
