@@ -1535,12 +1535,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50 p-8">
-        {/* Subtle background pattern */}
-        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50 via-slate-50 to-slate-100 -z-10"></div>
+      <div className="min-h-screen bg-slate-50 p-6 md:p-8">
+        {/* Enterprise Background - Subtle gradient with grid pattern */}
+        <div className="fixed inset-0 -z-10">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-slate-50 to-white"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+        </div>
         
-        {/* ENTERPRISE NAVIGATION - Premium Icon Cards with Enhanced Hover - v2.0 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 max-w-7xl mx-auto mb-8">
+        {/* ENTERPRISE NAVIGATION - Premium Icon Cards with Enhanced Hover - v3.0 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4 max-w-7xl mx-auto mb-6 md:mb-8">
           {/* Dashboard */}
           <button
             onClick={() => setActiveSection('dashboard')}

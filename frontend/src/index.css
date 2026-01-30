@@ -7,6 +7,10 @@
 /* Import DM Sans - Modern, clean typography */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENTERPRISE ANIMATIONS - Professional Grade
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -18,9 +22,78 @@
   }
 }
 
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+/* Staggered animation delays for card grids */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
 
 /* Custom animations */
 @keyframes blob {
@@ -50,29 +123,44 @@
   animation-delay: 4s;
 }
 
-/* Base styles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE STYLES - Enterprise Foundation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   html {
     font-family: 'DM Sans', 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
   }
 
-  /* Improved focus styles */
-  input:focus,
-  textarea:focus,
-  select:focus,
-  button:focus {
-    outline: 2px solid transparent;
+  /* Enterprise focus states - visible and accessible */
+  *:focus-visible {
+    outline: 2px solid #3b82f6;
     outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Remove default focus for mouse users */
+  *:focus:not(:focus-visible) {
+    outline: none;
   }
 
   /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
+  }
+
+  /* Better text selection */
+  ::selection {
+    background: rgba(59, 130, 246, 0.2);
+    color: #1e293b;
   }
 }
 
@@ -168,7 +256,10 @@
   }
 }
 
-/* Utility classes */
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES - Enterprise Grade
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -179,19 +270,105 @@
     display: none;
   }
 
+  /* Custom scrollbar for enterprise feel */
+  .scrollbar-enterprise {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  
+  .scrollbar-enterprise::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-enterprise::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-enterprise::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-enterprise::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
   .gradient-text {
     @apply bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent;
   }
 
-  /* Glass morphism effect */
+  /* Glass morphism effect - refined */
   .glass {
-    backdrop-filter: blur(10px);
-    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .glass-dark {
+    backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   /* Text shadow for better readability on gradients */
   .text-shadow {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Enterprise card hover lift */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-4px);
+  }
+
+  /* Subtle background patterns */
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .bg-dot-pattern {
+    background-image: radial-gradient(circle, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* Status indicators */
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+  
+  .status-dot-success {
+    @apply bg-emerald-500;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  }
+  
+  .status-dot-warning {
+    @apply bg-amber-500;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  }
+  
+  .status-dot-error {
+    @apply bg-rose-500;
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.2);
+  }
+
+  /* Enterprise gradients */
+  .gradient-enterprise {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  }
+
+  .gradient-enterprise-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   }
 }
 
