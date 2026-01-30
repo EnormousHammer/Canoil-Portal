@@ -203,10 +203,21 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="text-center">
-          <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-600 text-xl">Loading Production Schedule...</p>
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/30 animate-pulse">
+              <Factory className="w-10 h-10 text-white" />
+            </div>
+            <div className="absolute -inset-4 bg-blue-500/20 rounded-3xl blur-xl animate-pulse"></div>
+          </div>
+          <p className="text-white text-xl font-semibold mb-2">Loading Production Schedule</p>
+          <p className="text-slate-400 text-sm">Fetching data from MiSys...</p>
+          <div className="mt-6 flex justify-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
         </div>
       </div>
     );
@@ -690,173 +701,196 @@ export function ProductionScheduleMPS() {
                   )}
                 </div>
 
-                {/* Materials / BOM */}
+                {/* Materials / BOM - Premium Card Design */}
                 <div className="mb-8">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
                       <span className="w-1.5 h-6 bg-gradient-to-b from-emerald-400 to-green-500 rounded-full"></span>
                       📦 Bill of Materials
                     </h3>
-                    <span className="text-slate-400 text-sm bg-slate-800/50 px-3 py-1.5 rounded-lg">
-                      {selectedOrder.materials?.length || 0} unique components
+                    <span className="text-slate-300 text-sm bg-slate-700/50 px-4 py-2 rounded-xl font-semibold">
+                      {selectedOrder.materials?.filter(m => m.required_qty > 0).length || 0} unique components
                     </span>
                   </div>
                   {selectedOrder.materials && selectedOrder.materials.length > 0 ? (
-                    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-700/50 overflow-hidden shadow-lg">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-700/30 border-b border-slate-600/50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs text-slate-400 font-bold uppercase tracking-wider">#</th>
-                            <th className="px-4 py-3 text-left text-xs text-slate-400 font-bold uppercase tracking-wider">Component</th>
-                            <th className="px-4 py-3 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Need</th>
-                            <th className="px-4 py-3 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Issued</th>
-                            <th className="px-4 py-3 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Left</th>
-                            <th className="px-4 py-3 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Stock</th>
-                            <th className="px-4 py-3 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">WIP</th>
-                            <th className="px-4 py-3 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-700/30">
-                          {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
-                            // SMART LOGIC: Account for WIP (Work In Progress)
-                            // WIP = material already on the floor for THIS order
-                            const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
-                            const availableTotal = mat.stock_on_hand + (mat.wip || 0); // Stock + WIP
-                            // Only SHORT if: stock+WIP can't cover remaining AND nothing in WIP yet
-                            const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
-                            const isInProgress = (mat.wip || 0) > 0; // Has WIP = in progress, not short
-                            const isDone = mat.completed_qty >= mat.required_qty;
-                            const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
-                            
-                            return (
-                              <tr key={idx} className={`${isShort ? 'bg-red-500/10' : ''} hover:bg-slate-700/20 transition-colors`}>
-                                <td className="px-4 py-3 text-slate-500 text-sm font-medium">{idx + 1}</td>
-                                <td className="px-4 py-3">
-                                  <div className="text-white font-mono text-sm font-bold">{mat.component_item_no}</div>
-                                  {mat.component_description && (
-                                    <div className="text-slate-400 text-xs truncate max-w-[280px] mt-0.5">{mat.component_description}</div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className="text-white font-semibold">{mat.required_qty.toLocaleString()}</span>
-                                  <span className="text-slate-500 text-xs ml-1">{mat.unit}</span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={`font-bold ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
-                                    {mat.completed_qty.toLocaleString()}
-                                  </span>
-                                  <span className="text-slate-500 text-xs ml-1">({pctComplete}%)</span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={`font-bold ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                                    {remainingNeeded.toLocaleString()}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={`font-bold ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
-                                    {mat.stock_on_hand.toLocaleString()}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={`font-bold ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                    {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  {isDone ? (
-                                    <span className="bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-green-500/30">✓ DONE</span>
-                                  ) : isInProgress ? (
-                                    <span className="bg-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-cyan-500/30">🔄 IN WIP</span>
-                                  ) : isShort ? (
-                                    <span className="bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-500/30">⚠ SHORT</span>
-                                  ) : remainingNeeded === 0 ? (
-                                    <span className="bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-green-500/30">✓ ISSUED</span>
-                                  ) : (
-                                    <span className="bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-green-500/30">✓ READY</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
+                      {/* Table with fixed layout */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" style={{ minWidth: '800px' }}>
+                          <thead>
+                            <tr className="bg-slate-700/50 border-b border-slate-600/50">
+                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">#</th>
+                              <th className="px-4 py-4 text-left text-xs text-slate-400 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Need</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Issued</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Left</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Stock</th>
+                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">WIP</th>
+                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
+                              // SMART LOGIC: Account for WIP (Work In Progress)
+                              const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
+                              const availableTotal = mat.stock_on_hand + (mat.wip || 0);
+                              const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
+                              const isInProgress = (mat.wip || 0) > 0;
+                              const isDone = mat.completed_qty >= mat.required_qty;
+                              const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
+                              
+                              return (
+                                <tr 
+                                  key={idx} 
+                                  className={`border-b border-slate-700/30 transition-all duration-200 ${
+                                    isShort ? 'bg-red-500/10 hover:bg-red-500/15' : 
+                                    isDone ? 'bg-green-500/5 hover:bg-green-500/10' :
+                                    'hover:bg-slate-700/30'
+                                  }`}
+                                >
+                                  <td className="px-3 py-4 text-center">
+                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-700/50 text-slate-400 text-xs font-bold">
+                                      {idx + 1}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <div className="text-white font-mono text-sm font-bold tracking-wide">{mat.component_item_no}</div>
+                                    {mat.component_description && (
+                                      <div className="text-slate-400 text-xs mt-1 leading-relaxed" style={{ maxWidth: '300px' }}>
+                                        {mat.component_description}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-4 text-right">
+                                    <div className="text-white font-bold text-base">{mat.required_qty.toLocaleString()}</div>
+                                    <div className="text-slate-500 text-xs">{mat.unit}</div>
+                                  </td>
+                                  <td className="px-3 py-4 text-right">
+                                    <div className={`font-bold text-base ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
+                                      {mat.completed_qty.toLocaleString()}
+                                    </div>
+                                    <div className="text-slate-500 text-xs">({pctComplete}%)</div>
+                                  </td>
+                                  <td className="px-3 py-4 text-right">
+                                    <span className={`font-bold text-base ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                                      {remainingNeeded.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-4 text-right">
+                                    <span className={`font-bold text-base ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
+                                      {mat.stock_on_hand.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-4 text-right">
+                                    <span className={`font-bold ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-600'}`}>
+                                      {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-4 text-center">
+                                    {isDone ? (
+                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
+                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                        READY
+                                      </span>
+                                    ) : isInProgress ? (
+                                      <span className="inline-flex items-center gap-1 bg-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-full text-xs font-bold">
+                                        <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
+                                        IN WIP
+                                      </span>
+                                    ) : isShort ? (
+                                      <span className="inline-flex items-center gap-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-full text-xs font-bold">
+                                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                                        SHORT
+                                      </span>
+                                    ) : remainingNeeded === 0 ? (
+                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
+                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                        READY
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
+                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                        READY
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                       
-                      {/* Summary row - accounts for WIP */}
-                      <div className="bg-slate-700/20 px-4 py-3 flex justify-between items-center text-sm border-t border-slate-600/30">
-                        <span className="text-slate-300 font-medium">
-                          {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length} complete
-                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) && 
-                            <span className="text-cyan-400 ml-2 bg-cyan-500/10 px-2 py-0.5 rounded">• {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP</span>
-                          }
-                        </span>
-                        <span className={`font-bold px-4 py-1.5 rounded-lg ${
+                      {/* Summary Footer */}
+                      <div className="bg-slate-700/30 px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400 text-sm">Progress:</span>
+                            <span className="text-white font-bold">
+                              {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length}
+                            </span>
+                            <span className="text-slate-500 text-sm">complete</span>
+                          </div>
+                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) && (
+                            <span className="inline-flex items-center gap-1.5 text-cyan-400 bg-cyan-500/15 px-3 py-1 rounded-full text-sm font-medium">
+                              <span className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+                              {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP
+                            </span>
+                          )}
+                        </div>
+                        <span className={`inline-flex items-center gap-2 font-bold px-5 py-2 rounded-xl text-sm ${
                           selectedOrder.materials.some(m => {
                             const remaining = Math.max(0, m.required_qty - m.completed_qty);
                             const available = m.stock_on_hand + (m.wip || 0);
                             return available < remaining && remaining > 0 && (m.wip || 0) === 0;
-                          }) ? 'text-red-400 bg-red-500/10 border border-red-500/30' : 'text-green-400 bg-green-500/10 border border-green-500/30'
+                          }) ? 'text-red-400 bg-red-500/15 border border-red-500/30' : 'text-green-400 bg-green-500/15 border border-green-500/30'
                         }`}>
                           {selectedOrder.materials.some(m => {
                             const remaining = Math.max(0, m.required_qty - m.completed_qty);
                             const available = m.stock_on_hand + (m.wip || 0);
                             return available < remaining && remaining > 0 && (m.wip || 0) === 0;
-                          }) ? '⚠ Material Shortage' : '✓ Materials OK'}
+                          }) ? (
+                            <>
+                              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                              Material Shortage
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                              Materials OK
+                            </>
+                          )}
                         </span>
                       </div>
                       
-                      {/* Formula/Component Summary - Total Quantities Needed */}
-                      <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border-t border-blue-500/20 px-5 py-4">
+                      {/* Formula Summary - Cleaner Design */}
+                      <div className="bg-gradient-to-r from-indigo-500/10 via-blue-500/10 to-cyan-500/10 px-5 py-5">
                         <h4 className="text-blue-400 font-bold text-sm mb-4 flex items-center gap-2">
-                          <span className="w-1 h-5 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full"></span>
                           📊 Formula Summary - Total Components Needed
                         </h4>
-                        <div className="grid grid-cols-2 gap-5 text-sm">
-                          <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/30">
-                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Required</div>
-                            <div className="text-white font-black text-2xl">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-slate-800/70 rounded-xl p-5 border border-slate-700/30">
+                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Required</div>
+                            <div className="text-white font-black text-3xl tracking-tight">
                               {selectedOrder.materials
                                 .filter(m => m.required_qty > 0)
                                 .reduce((sum, m) => sum + m.required_qty, 0)
-                                .toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                .toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
-                            <div className="text-slate-500 text-xs mt-1">across all components</div>
+                            <div className="text-slate-500 text-xs mt-2">across all components</div>
                           </div>
-                          <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/30">
-                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Remaining</div>
-                            <div className="text-yellow-400 font-black text-2xl">
+                          <div className="bg-slate-800/70 rounded-xl p-5 border border-slate-700/30">
+                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Remaining</div>
+                            <div className="text-yellow-400 font-black text-3xl tracking-tight">
                               {selectedOrder.materials
                                 .filter(m => m.required_qty > 0)
                                 .reduce((sum, m) => {
                                   const remaining = Math.max(0, m.required_qty - m.completed_qty);
                                   return sum + remaining;
                                 }, 0)
-                                .toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                .toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
-                            <div className="text-slate-500 text-xs mt-1">still needed to complete</div>
-                          </div>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-slate-700/50">
-                          <div className="text-slate-400 text-xs mb-2 font-semibold">COMPONENT BREAKDOWN:</div>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {selectedOrder.materials
-                              .filter(m => m.required_qty > 0)
-                              .map((mat, idx) => {
-                                const remaining = Math.max(0, mat.required_qty - mat.completed_qty);
-                                return (
-                                  <div key={idx} className="flex justify-between items-center text-xs bg-slate-800/30 rounded px-2 py-1">
-                                    <span className="text-slate-300 font-mono">{mat.component_item_no}</span>
-                                    <div className="flex gap-3">
-                                      <span className="text-slate-400">
-                                        Need: <span className="text-white font-semibold">{mat.required_qty.toLocaleString()}</span>
-                                      </span>
-                                      <span className="text-yellow-400">
-                                        Left: <span className="font-semibold">{remaining.toLocaleString()}</span>
-                                      </span>
-                                      <span className="text-slate-500">{mat.unit}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                            <div className="text-slate-500 text-xs mt-2">still needed to complete</div>
                           </div>
                         </div>
                       </div>
