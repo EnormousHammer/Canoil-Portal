@@ -25,6 +25,7 @@ def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.h
     date_str = ''
     if so_data.get('order_date'):
         try:
+            z
             # Try to parse and format date
             order_date = so_data.get('order_date')
             if isinstance(order_date, str):
@@ -94,19 +95,23 @@ def get_uploads_dir():
 
 def get_document_folder_structure(so_data: dict) -> dict:
     """
-    Generate folder structure for documents: CompanyName_SO_PO_Date with HTML Format and PDF Format subfolders
+    Generate hierarchical folder structure for documents:
+    CompanyName/Year/Month/CompanyName_SO_PO/HTML Format & PDF Format
+    
+    ZIP structure will be:
+    CompanyName.zip
+    └── CompanyName/
+        └── 2026/
+            └── January/
+                └── CompanyName_SO1234_PO5678/
+                    ├── HTML Format/
+                    └── PDF Format/
     
     Args:
         so_data: Sales order data dictionary
         
     Returns:
-        Dictionary with:
-            - base_folder: Full path to the main folder (CompanyName_SO_PO_Date)
-            - html_folder: Full path to HTML Format subfolder
-            - pdf_folder: Full path to PDF Format subfolder
-            - html_folder_name: Subfolder name for HTML Format
-            - pdf_folder_name: Subfolder name for PDF Format
-            - folder_name: Just the folder name (for display)
+        Dictionary with folder paths and names for document generation
     """
     # Get company name
     company_name = (
@@ -131,53 +136,56 @@ def get_document_folder_structure(so_data: dict) -> dict:
     po_number = so_data.get('po_number', '') or so_data.get('order_details', {}).get('po_number', '')
     
     # Get date - prefer order_date, then ship_date, then current date
-    date_str = ''
+    # We need year and month for folder structure
+    parsed_date = None
     if so_data.get('order_date'):
         try:
             order_date = so_data.get('order_date')
             if isinstance(order_date, str):
                 for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
                     try:
-                        parsed = datetime.strptime(order_date, fmt)
-                        date_str = parsed.strftime('%Y%m%d')
+                        parsed_date = datetime.strptime(order_date, fmt)
                         break
                     except:
                         continue
-                if not date_str:
-                    date_str = order_date[:10].replace('-', '') if len(order_date) >= 10 else datetime.now().strftime('%Y%m%d')
-            else:
-                date_str = str(order_date)[:10].replace('-', '') if len(str(order_date)) >= 10 else datetime.now().strftime('%Y%m%d')
         except:
-            date_str = datetime.now().strftime('%Y%m%d')
-    elif so_data.get('ship_date'):
+            pass
+    
+    if not parsed_date and so_data.get('ship_date'):
         try:
             ship_date = so_data.get('ship_date')
             if isinstance(ship_date, str):
                 for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
                     try:
-                        parsed = datetime.strptime(ship_date, fmt)
-                        date_str = parsed.strftime('%Y%m%d')
+                        parsed_date = datetime.strptime(ship_date, fmt)
                         break
                     except:
                         continue
-                if not date_str:
-                    date_str = ship_date[:10].replace('-', '') if len(ship_date) >= 10 else datetime.now().strftime('%Y%m%d')
-            else:
-                date_str = str(ship_date)[:10].replace('-', '') if len(str(ship_date)) >= 10 else datetime.now().strftime('%Y%m%d')
         except:
-            date_str = datetime.now().strftime('%Y%m%d')
-    else:
-        date_str = datetime.now().strftime('%Y%m%d')
+            pass
     
-    # Build folder name: CompanyName_SO{SO}_PO{PO}_{Date}
+    if not parsed_date:
+        parsed_date = datetime.now()
+    
+    # Extract year and month name
+    year_str = parsed_date.strftime('%Y')
+    month_name = parsed_date.strftime('%B')  # Full month name (January, February, etc.)
+    
+    # Build order folder name: CompanyName_SO{SO}_PO{PO}
     if po_number:
-        folder_name = f"{clean_company}_SO{so_number}_PO{po_number}_{date_str}"
+        order_folder_name = f"{clean_company}_SO{so_number}_PO{po_number}"
     else:
-        folder_name = f"{clean_company}_SO{so_number}_{date_str}"
+        order_folder_name = f"{clean_company}_SO{so_number}"
     
     # Get base uploads directory
     uploads_dir = get_uploads_dir()
-    base_folder = os.path.join(uploads_dir, folder_name)
+    
+    # Build hierarchical path: CompanyName/Year/Month/OrderFolder
+    company_folder = os.path.join(uploads_dir, clean_company)
+    year_folder = os.path.join(company_folder, year_str)
+    month_folder = os.path.join(year_folder, month_name)
+    base_folder = os.path.join(month_folder, order_folder_name)
+    
     html_folder_name = 'HTML Format'
     pdf_folder_name = 'PDF Format'
     html_folder = os.path.join(base_folder, html_folder_name)
@@ -187,13 +195,22 @@ def get_document_folder_structure(so_data: dict) -> dict:
     os.makedirs(html_folder, exist_ok=True)
     os.makedirs(pdf_folder, exist_ok=True)
     
+    # For ZIP: the folder_name is the relative path from company folder
+    # This ensures ZIP contains: CompanyName/Year/Month/OrderFolder/...
+    relative_path = os.path.join(year_str, month_name, order_folder_name)
+    
     return {
         'base_folder': base_folder,
         'html_folder': html_folder,
         'pdf_folder': pdf_folder,
         'html_folder_name': html_folder_name,
         'pdf_folder_name': pdf_folder_name,
-        'folder_name': folder_name
+        'folder_name': relative_path,  # Used for download URLs
+        'order_folder_name': order_folder_name,  # Just the order folder name
+        'company_name': clean_company,  # For ZIP naming
+        'company_folder': company_folder,  # Full path to company folder (for ZIP)
+        'year': year_str,
+        'month': month_name
     }
 import PyPDF2
 try:
@@ -4789,8 +4806,22 @@ def generate_bol():
 @logistics_bp.route('/download/logistics/<path:filepath>', methods=['GET', 'OPTIONS'])
 def download_file(filepath):
     """Download generated logistics files automatically - Forces download dialog
-    Supports nested paths like: folder_name/HTML Format/filename.html
-    Also supports ZIP downloads: folder_name.zip (creates ZIP of entire folder)
+    Supports nested paths like: CompanyName/Year/Month/OrderFolder/HTML Format/filename.html
+    Also supports ZIP downloads: CompanyName.zip (creates ZIP of entire company folder with hierarchy)
+    
+    ZIP Structure:
+    CompanyName.zip
+    └── CompanyName/
+        └── 2026/
+            └── January/
+                └── CompanyName_SO1234_PO5678/
+                    ├── HTML Format/
+                    │   ├── BOL.html
+                    │   ├── PackingSlip.html
+                    │   └── CommercialInvoice.html
+                    └── PDF Format/
+                        ├── TSCA.pdf
+                        └── USMCA.pdf
     """
     import zipfile
     import shutil
@@ -4799,44 +4830,94 @@ def download_file(filepath):
         uploads_dir = get_uploads_dir()
         print(f"📥 Download request for: {filepath}")
         
-        # Check if this is a ZIP request for a folder
+        # Check if this is a ZIP request for a company folder
         if filepath.endswith('.zip'):
-            folder_name = filepath[:-4]  # Remove .zip extension
-            folder_path = os.path.join(uploads_dir, folder_name)
-            print(f"📦 ZIP request for folder: {folder_name}")
-            print(f"📁 Folder path: {folder_path}")
-            print(f"📁 Folder exists: {os.path.exists(folder_path)}")
+            # The filepath could be:
+            # 1. "CompanyName.zip" - ZIP entire company folder
+            # 2. "CompanyName/2026/January/OrderFolder.zip" - ZIP specific order folder
             
-            if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                # Create ZIP file in memory
-                zip_path = os.path.join(uploads_dir, f"{folder_name}.zip")
+            folder_path_without_zip = filepath[:-4]  # Remove .zip extension
+            
+            # Check if it's a company-level ZIP (just company name, no slashes)
+            if '/' not in folder_path_without_zip and '\\' not in folder_path_without_zip:
+                # Company-level ZIP - ZIP the entire company folder
+                company_name = folder_path_without_zip
+                company_folder = os.path.join(uploads_dir, company_name)
                 
-                # Create the ZIP file
-                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for root, dirs, files in os.walk(folder_path):
-                        for file in files:
-                            file_path = os.path.join(root, file)
-                            # Calculate archive name (relative path within ZIP)
-                            arcname = os.path.relpath(file_path, uploads_dir)
-                            zipf.write(file_path, arcname)
-                            print(f"   Added to ZIP: {arcname}")
+                print(f"📦 Company ZIP request for: {company_name}")
+                print(f"📁 Company folder path: {company_folder}")
+                print(f"📁 Folder exists: {os.path.exists(company_folder)}")
                 
-                print(f"✅ ZIP created: {zip_path}")
-                
-                # Send the ZIP file
-                response = send_file(
-                    zip_path,
-                    as_attachment=True,
-                    download_name=f"{folder_name}.zip",
-                    mimetype='application/zip'
-                )
-                response.headers['Access-Control-Allow-Origin'] = '*'
-                response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-                response.headers['Access-Control-Allow-Headers'] = '*'
-                return response
+                if os.path.exists(company_folder) and os.path.isdir(company_folder):
+                    # Create ZIP file
+                    zip_path = os.path.join(uploads_dir, f"{company_name}.zip")
+                    
+                    # Create the ZIP file with hierarchical structure
+                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        for root, dirs, files in os.walk(company_folder):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                # Archive name is relative to uploads_dir, so it includes CompanyName/Year/Month/...
+                                arcname = os.path.relpath(file_path, uploads_dir)
+                                zipf.write(file_path, arcname)
+                                print(f"   Added to ZIP: {arcname}")
+                    
+                    print(f"✅ Company ZIP created: {zip_path}")
+                    
+                    # Send the ZIP file
+                    response = send_file(
+                        zip_path,
+                        as_attachment=True,
+                        download_name=f"{company_name}.zip",
+                        mimetype='application/zip'
+                    )
+                    response.headers['Access-Control-Allow-Origin'] = '*'
+                    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                    response.headers['Access-Control-Allow-Headers'] = '*'
+                    return response
+                else:
+                    print(f"❌ Company folder not found: {company_folder}")
+                    return jsonify({'error': f'Company folder not found: {company_name}'}), 404
             else:
-                print(f"❌ Folder not found: {folder_path}")
-                return jsonify({'error': f'Folder not found: {folder_name}'}), 404
+                # Order-level ZIP - ZIP a specific order folder (Year/Month/OrderFolder)
+                folder_path = os.path.join(uploads_dir, folder_path_without_zip)
+                # Get just the order folder name for the ZIP filename
+                order_folder_name = os.path.basename(folder_path_without_zip)
+                
+                print(f"📦 Order ZIP request for: {folder_path_without_zip}")
+                print(f"📁 Folder path: {folder_path}")
+                print(f"📁 Folder exists: {os.path.exists(folder_path)}")
+                
+                if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                    # Create ZIP file
+                    zip_path = os.path.join(uploads_dir, f"{order_folder_name}.zip")
+                    
+                    # Create the ZIP file - include full path structure
+                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        for root, dirs, files in os.walk(folder_path):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                # Archive name is relative to uploads_dir to preserve hierarchy
+                                arcname = os.path.relpath(file_path, uploads_dir)
+                                zipf.write(file_path, arcname)
+                                print(f"   Added to ZIP: {arcname}")
+                    
+                    print(f"✅ Order ZIP created: {zip_path}")
+                    
+                    # Send the ZIP file
+                    response = send_file(
+                        zip_path,
+                        as_attachment=True,
+                        download_name=f"{order_folder_name}.zip",
+                        mimetype='application/zip'
+                    )
+                    response.headers['Access-Control-Allow-Origin'] = '*'
+                    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                    response.headers['Access-Control-Allow-Headers'] = '*'
+                    return response
+                else:
+                    print(f"❌ Order folder not found: {folder_path}")
+                    return jsonify({'error': f'Folder not found: {folder_path_without_zip}'}), 404
         
         # Regular file download
         # filepath can be just filename or nested path like "folder/subfolder/file.html"
@@ -6647,6 +6728,7 @@ def generate_all_documents():
             print(f"✅ Added AEC Manufacturer's Affidavit to documents array")
         
         # Add CORS headers to response
+        # ZIP download URL uses company name only - downloads entire company folder with Year/Month/Order hierarchy
         response = jsonify({
             'success': len(documents) > 0,
             'documents': documents,
@@ -6659,7 +6741,14 @@ def generate_all_documents():
             'usmca_required': has_usmca,
             'summary': summary_message,
             'folder_name': folder_structure['folder_name'],
-            'zip_download_url': f'/download/logistics/{folder_structure["folder_name"]}.zip'
+            'company_name': folder_structure['company_name'],
+            'order_folder': folder_structure['order_folder_name'],
+            'year': folder_structure['year'],
+            'month': folder_structure['month'],
+            # ZIP URL is just company name - creates hierarchical ZIP with Year/Month/Order structure
+            'zip_download_url': f'/download/logistics/{folder_structure["company_name"]}.zip',
+            # Also provide order-specific ZIP URL if user wants just this order
+            'order_zip_download_url': f'/download/logistics/{folder_structure["folder_name"]}.zip'
         })
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
