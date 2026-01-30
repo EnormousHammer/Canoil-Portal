@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// Vercel rebuild trigger - 2026-01-30 v5.0
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { NavigationHeader } from './components/NavigationHeader';
 import { ProductionScheduleMPS } from './components/ProductionScheduleMPS';
