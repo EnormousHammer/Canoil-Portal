@@ -6716,29 +6716,37 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Sales Orders - PREMIUM ENTERPRISE DESIGN */}
           {activeSection === 'orders' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               
-              {/* Premium Breadcrumb Navigation */}
+              {/* Premium Dark Breadcrumb Navigation */}
               {soCurrentPath.length > 0 && (
-                <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl p-6 border border-slate-200 shadow-lg">
-                  <div className="flex items-center gap-3 text-sm">
+                <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 rounded-2xl p-5 border border-slate-700/50 shadow-xl">
+                  <div className="flex items-center gap-2 text-sm flex-wrap">
                     <button 
                       onClick={resetSONavigation}
-                      className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 rounded-xl hover:bg-blue-50 hover:text-blue-700 font-medium transition-all shadow-sm border border-slate-200"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-500 hover:to-indigo-500 font-semibold transition-all shadow-lg"
                     >
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
                       Sales Orders
                     </button>
                     {soCurrentPath.map((folder, index) => (
                       <React.Fragment key={index}>
-                        <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                         <button 
                           onClick={() => {
                             const newPath = soCurrentPath.slice(0, index + 1);
                             setSoCurrentPath(newPath);
                             loadSOFolderData(newPath);
                           }}
-                          className="px-4 py-2 bg-white text-slate-600 rounded-xl hover:bg-blue-50 hover:text-blue-700 font-medium transition-all shadow-sm border border-slate-200"
+                          className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
+                            index === soCurrentPath.length - 1
+                              ? 'bg-slate-700 text-white border border-slate-600'
+                              : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50'
+                          }`}
                         >
                           {folder}
                         </button>
@@ -6746,9 +6754,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     ))}
                     <button 
                       onClick={navigateBackSO}
-                      className="ml-auto px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg font-medium"
+                      className="ml-auto px-5 py-2.5 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all font-semibold flex items-center gap-2 border border-slate-600"
                     >
-                      ← Back
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      </svg>
+                      Back
                     </button>
                   </div>
                 </div>
@@ -6756,245 +6767,365 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
               {/* Premium Main Navigation - Show when at root */}
               {soCurrentPath.length === 0 && (
-              <div className="bg-gradient-to-br from-white via-slate-50 to-blue-50 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/60 p-6">
-                {/* Compact Premium Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <div className="text-xl">📊</div>
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl shadow-2xl border border-slate-700/50 overflow-hidden">
+                {/* Header Section */}
+                <div className="bg-gradient-to-r from-blue-600/20 via-indigo-600/20 to-violet-600/20 border-b border-slate-700/50 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30">
+                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-slate-900">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-white tracking-tight">
+                          Sales Orders
+                        </h2>
+                        <p className="text-slate-400 text-sm mt-0.5">Enterprise Order Management System</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-blue-900 bg-clip-text text-transparent">
-                        Sales Orders
-                      </h2>
-                      <p className="text-slate-600 text-sm">Enterprise Order Management System</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <div className="px-3 py-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 rounded-lg font-medium text-xs border border-blue-200">
-                      G: DRIVE STRUCTURE
-                  </div>
-                    <div className="px-3 py-1 bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 rounded-lg font-medium text-xs border border-emerald-200">
-                      {salesOrderAnalytics.total.toLocaleString()} Total Orders
-                  </div>
-                    {onRefreshData && (
-                      <button
-                        onClick={async () => {
-                          console.log('🔄 Manual refresh requested');
-                          await onRefreshData();
-                        }}
-                        className="px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-xs border border-blue-700 hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center gap-1 shadow-lg hover:shadow-xl"
-                        title="Refresh sales orders data"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="px-4 py-2 bg-slate-800/80 text-slate-300 rounded-xl font-medium text-sm border border-slate-700/50 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
-                        Sync Now
-                      </button>
-                    )}
+                        G: Drive Structure
+                      </div>
+                      <div className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl font-bold text-sm border border-emerald-500/30">
+                        {salesOrderAnalytics.total.toLocaleString()} Total Orders
+                      </div>
+                      {onRefreshData && (
+                        <button
+                          onClick={async () => {
+                            console.log('🔄 Manual refresh requested');
+                            await onRefreshData();
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
+                          title="Refresh sales orders data"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Sync Now
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                  
-                <p className="text-slate-600 mb-4 text-sm">Navigate exactly like the G: Drive folders with enterprise-grade precision</p>
                 
-                {/* Compact Search Bar */}
-                  <div className="mb-6">
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                {/* Content Section */}
+                <div className="p-6">
+                  {/* Premium Search Bar */}
+                  <div className="mb-8">
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="🔍 Search for SO Number (e.g., 2961)..."
+                        placeholder="Search for SO Number (e.g., 2961)..."
                         value={soSearchQuery}
                         onChange={(e) => setSoSearchQuery(e.target.value)}
-                        className="w-full px-4 py-3 pl-12 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-lg"
+                        className="w-full px-5 py-4 pl-14 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all text-base"
                       />
-                      <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400">
-                        🔍
+                      <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
+                        <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
                       </div>
                       {soSearchQuery && (
                         <button
                           onClick={() => setSoSearchQuery('')}
-                          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                          className="absolute right-5 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1 hover:bg-slate-700 rounded-lg"
                         >
-                          ✕
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       )}
                     </div>
-                    </div>
                     {soSearchQuery && (
-                    <div className="mt-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
-                        🔍 Searching for: <strong>{soSearchQuery}</strong>
+                      <div className="mt-3 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-xl text-sm font-medium border border-blue-500/20 inline-flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Searching for: <strong>{soSearchQuery}</strong>
                       </div>
                     )}
                   </div>
                   
-                {/* Premium Status Folders Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                  {/* New and Revised - Premium Card */}
+                  {/* Premium Status Folders Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                    {/* New and Revised - Premium Card */}
                     <div 
                       onClick={() => navigateToSOFolder('New and Revised')}
-                    className="group relative bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 rounded-2xl p-8 border border-emerald-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer overflow-hidden"
+                      className="group relative bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-teal-500/10 rounded-2xl p-6 border border-emerald-500/30 hover:border-emerald-400/50 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all cursor-pointer overflow-hidden"
                     >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-200/30 to-green-200/30 rounded-full -translate-y-16 translate-x-16"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <div className="text-2xl">🆕</div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-emerald-900 text-lg">New and Revised</div>
-                          <div className="text-sm text-emerald-700 font-medium">Active orders</div>
-                    </div>
-                      </div>
-                      <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-xl p-4 mb-4 border border-emerald-200">
-                        <div className="text-3xl font-black text-emerald-900">{salesOrderAnalytics.newAndRevised.count}</div>
-                        <div className="text-xs text-emerald-700 font-bold uppercase tracking-wider">ACTIVE SOs</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-emerald-600">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        Last updated: {salesOrderAnalytics.newAndRevised.lastUpdated}
-                      </div>
-                      </div>
-                  </div>
-                  
-                  {/* In Production - Premium Card */}
-                    <div 
-                      onClick={() => navigateToSOFolder('In Production')}
-                    className="group relative bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-2xl p-8 border border-orange-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer overflow-hidden"
-                    >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-200/30 to-amber-200/30 rounded-full -translate-y-16 translate-x-16"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <div className="text-2xl">🏭</div>
-                        </div>
-                        <div>
-                          <div className="font-bold text-orange-900 text-lg">In Production</div>
-                          <div className="text-sm text-orange-700 font-medium">Manufacturing</div>
-                    </div>
-                      </div>
-                      <div className="bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl p-4 mb-4 border border-orange-200">
-                        <div className="text-3xl font-black text-orange-900">{salesOrderAnalytics.inProduction.count}</div>
-                        <div className="text-xs text-orange-700 font-bold uppercase tracking-wider">SCHEDULED SOs</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-orange-600">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                        Last updated: {salesOrderAnalytics.inProduction.lastUpdated}
-                      </div>
-                      </div>
-                  </div>
-                  
-                </div>
-                </div>
-              )}
-
-              {/* ACTUAL FOLDER CONTENTS FROM G: DRIVE */}
-              {soCurrentPath.length >= 1 && (
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-slate-900 flex items-center">
-                      📁 {soCurrentPath.join(' / ')} /
-                      <div className="ml-4 text-sm font-normal text-gray-600">
-                        {soLoading ? 'Loading from G: Drive...' : (soFolderData ? `${soFolderData.total_folders} folders, ${soFolderData.total_files} files` : 'Loading...')}
-                      </div>
-                    </h3>
-                    
-                    {soLoading && (
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <div className="animate-spin text-lg">⏳</div>
-                        <span className="text-sm">Syncing with G: Drive...</span>
-                      </div>
-                    )}
-                      </div>
+                      {/* Decorative elements */}
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-green-500/10 to-transparent rounded-full translate-y-12 -translate-x-12"></div>
                       
-                  {soFolderData && !soLoading && (
-                    <>
-                      {/* Show Subfolders */}
-                      {soFolderData.folders && soFolderData.folders.length > 0 && (
-                        <div className="mb-6">
-                          <h4 className="text-lg font-bold text-gray-800 mb-3">📁 Subfolders</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                            {soFolderData.folders.map((folder: any, index: number) => (
-                              <div 
-                                key={index}
-                                onClick={() => navigateToSOFolder(folder.name)}
-                                className="bg-blue-50 rounded-lg p-4 text-center hover:bg-blue-100 transition-colors cursor-pointer border border-blue-200"
-                              >
-                                <div className="text-xl mb-2">📁</div>
-                                <div className="font-bold text-blue-900 text-sm">{folder.name}</div>
-                                <div className="text-xs text-blue-600 mt-1">
-                                  {folder.file_count} files
-                                  {folder.folder_count > 0 && `, ${folder.folder_count} folders`}
+                      <div className="relative">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 group-hover:scale-110 transition-transform">
+                              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <div className="font-bold text-white text-xl">New and Revised</div>
+                              <div className="text-sm text-emerald-400 font-medium">Active orders awaiting production</div>
+                            </div>
+                          </div>
+                          <svg className="w-6 h-6 text-emerald-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
                         </div>
-                        </div>
-                            ))}
+                        
+                        <div className="bg-slate-800/50 rounded-xl p-5 mb-5 border border-slate-700/50">
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <div className="text-5xl font-black text-white tracking-tight">{salesOrderAnalytics.newAndRevised.count}</div>
+                              <div className="text-sm text-emerald-400 font-bold uppercase tracking-wider mt-1">Active SOs</div>
+                            </div>
+                            <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                              <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
                           </div>
                         </div>
-                      )}
-
-                      {/* Show Actual Sales Order Files */}
-                      {soFolderData.files && soFolderData.files.length > 0 && (
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-800 mb-3">📄 Sales Order Files ({soFolderData.files.length})</h4>
-                          <div className="space-y-2 max-h-96 overflow-y-auto">
-                            {soFolderData.files.map((file: any, index: number) => (
-                              <div 
-                                key={index}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                                onClick={() => openSOViewer(file)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="text-lg">
-                                    {file.is_pdf ? '📄' : file.is_excel ? '📊' : '📋'}
-                                  </div>
-                                  <div>
-                                    <div className="font-medium text-gray-900">{file.name}</div>
-                                    <div className="text-xs text-gray-600">
-                                      {(file.size / 1024).toFixed(1)} KB • Modified: {file.modified}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-xs text-blue-600">
-                                  👆 Click to view SO
+                        
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                          Last updated: {salesOrderAnalytics.newAndRevised.lastUpdated}
+                        </div>
                       </div>
                     </div>
-                  ))}
+                    
+                    {/* In Production - Premium Card */}
+                    <div 
+                      onClick={() => navigateToSOFolder('In Production')}
+                      className="group relative bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-yellow-500/10 rounded-2xl p-6 border border-orange-500/30 hover:border-orange-400/50 hover:shadow-2xl hover:shadow-orange-500/10 transition-all cursor-pointer overflow-hidden"
+                    >
+                      {/* Decorative elements */}
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-12 -translate-x-12"></div>
+                      
+                      <div className="relative">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-500/30 group-hover:scale-110 transition-transform">
+                              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                            </div>
+                            <div>
+                              <div className="font-bold text-white text-xl">In Production</div>
+                              <div className="text-sm text-orange-400 font-medium">Currently manufacturing</div>
+                            </div>
+                          </div>
+                          <svg className="w-6 h-6 text-orange-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                        
+                        <div className="bg-slate-800/50 rounded-xl p-5 mb-5 border border-slate-700/50">
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <div className="text-5xl font-black text-white tracking-tight">{salesOrderAnalytics.inProduction.count}</div>
+                              <div className="text-sm text-orange-400 font-bold uppercase tracking-wider mt-1">Scheduled SOs</div>
+                            </div>
+                            <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center">
+                              <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                          Last updated: {salesOrderAnalytics.inProduction.lastUpdated}
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div>
                 </div>
               </div>
-                      )}
+              )}
 
-                      {/* Empty Folder */}
-                      {(!soFolderData.folders || soFolderData.folders.length === 0) && 
-                       (!soFolderData.files || soFolderData.files.length === 0) && (
-                        <div className="text-center text-gray-500 py-8">
-                          <div className="text-4xl mb-2">📂</div>
-                          <div className="text-lg font-medium">Empty Folder</div>
-                          <div className="text-sm">No Sales Orders found in this folder</div>
-            </div>
+              {/* ACTUAL FOLDER CONTENTS FROM G: DRIVE - Premium Dark Theme */}
+              {soCurrentPath.length >= 1 && (
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-slate-700/50 overflow-hidden">
+                  {/* Folder Header */}
+                  <div className="bg-gradient-to-r from-slate-800/80 to-slate-800/50 border-b border-slate-700/50 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-white">{soCurrentPath[soCurrentPath.length - 1]}</h3>
+                          <div className="text-sm text-slate-400">
+                            {soLoading ? 'Loading from G: Drive...' : (soFolderData ? `${soFolderData.total_folders} folders, ${soFolderData.total_files} files` : 'Loading...')}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {soLoading && (
+                        <div className="flex items-center gap-2 text-blue-400 bg-blue-500/10 px-4 py-2 rounded-xl border border-blue-500/20">
+                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span className="text-sm font-medium">Syncing...</span>
+                        </div>
                       )}
-                    </>
-                  )}
-                  
-                  {/* Loading State */}
-                  {!soFolderData && soLoading && (
-                    <DataLoading 
-                      dataType="Sales Orders"
-                      stage="Loading from G: Drive"
-                      recordCount={undefined}
-                    />
-                  )}
-                  
-                  {/* Error State */}
-                  {!soFolderData && !soLoading && soCurrentPath.length > 0 && (
-                    <div className="text-center text-red-500 py-8">
-                      <div className="text-4xl mb-4">❌</div>
-                      <div className="text-lg font-medium">Failed to Load</div>
-                      <div className="text-sm">Could not access G: Drive folder</div>
                     </div>
-                  )}
+                  </div>
+                  
+                  <div className="p-6">
+                    {soFolderData && !soLoading && (
+                      <>
+                        {/* Show Subfolders */}
+                        {soFolderData.folders && soFolderData.folders.length > 0 && (
+                          <div className="mb-8">
+                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                              Subfolders ({soFolderData.folders.length})
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                              {soFolderData.folders.map((folder: any, index: number) => (
+                                <div 
+                                  key={index}
+                                  onClick={() => navigateToSOFolder(folder.name)}
+                                  className="group bg-slate-800/50 rounded-xl p-4 text-center hover:bg-slate-700/50 transition-all cursor-pointer border border-slate-700/50 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10"
+                                >
+                                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:from-blue-500/30 group-hover:to-indigo-500/30 transition-colors">
+                                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                  </div>
+                                  <div className="font-semibold text-white text-sm mb-1 truncate">{folder.name}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {folder.file_count} files
+                                    {folder.folder_count > 0 && ` • ${folder.folder_count} folders`}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show Actual Sales Order Files */}
+                        {soFolderData.files && soFolderData.files.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Sales Order Files ({soFolderData.files.length})
+                            </h4>
+                            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                              {soFolderData.files.map((file: any, index: number) => (
+                                <div 
+                                  key={index}
+                                  className="group flex items-center justify-between p-4 bg-slate-800/30 rounded-xl hover:bg-slate-700/50 transition-all cursor-pointer border border-slate-700/30 hover:border-blue-500/30"
+                                  onClick={() => openSOViewer(file)}
+                                >
+                                  <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                      file.is_pdf ? 'bg-red-500/20' : file.is_excel ? 'bg-green-500/20' : 'bg-blue-500/20'
+                                    }`}>
+                                      {file.is_pdf ? (
+                                        <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                      ) : file.is_excel ? (
+                                        <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">{file.name}</div>
+                                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                                        <span>{(file.size / 1024).toFixed(1)} KB</span>
+                                        <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
+                                        <span>Modified: {file.modified}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-slate-500 group-hover:text-blue-400 transition-colors font-medium">View SO</span>
+                                    <svg className="w-5 h-5 text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Empty Folder */}
+                        {(!soFolderData.folders || soFolderData.folders.length === 0) && 
+                         (!soFolderData.files || soFolderData.files.length === 0) && (
+                          <div className="text-center py-16">
+                            <div className="w-20 h-20 bg-slate-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                              <svg className="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="text-lg font-semibold text-slate-400">Empty Folder</div>
+                            <div className="text-sm text-slate-600 mt-1">No Sales Orders found in this folder</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* Loading State */}
+                    {!soFolderData && soLoading && (
+                      <div className="text-center py-16">
+                        <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+                          <svg className="w-10 h-10 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+                        <div className="text-lg font-semibold text-white">Loading Sales Orders</div>
+                        <div className="text-sm text-slate-500 mt-1">Fetching from G: Drive...</div>
+                      </div>
+                    )}
+                    
+                    {/* Error State */}
+                    {!soFolderData && !soLoading && soCurrentPath.length > 0 && (
+                      <div className="text-center py-16">
+                        <div className="w-20 h-20 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                        <div className="text-lg font-semibold text-red-400">Failed to Load</div>
+                        <div className="text-sm text-slate-500 mt-1">Could not access G: Drive folder</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
