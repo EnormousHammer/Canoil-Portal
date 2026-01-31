@@ -2897,12 +2897,16 @@ def get_sales_order_pdf(file_path):
 def get_sales_order_folder(folder_path):
     """Get Sales Order folder contents dynamically - REAL TIME SYNC"""
     try:
+        # URL decode the path to handle spaces and special characters
+        from urllib.parse import unquote
+        folder_path = unquote(folder_path)
         print(f"SEARCH: Loading Sales Order folder: {folder_path}")
         
         # Construct full path
         full_path = os.path.join(SALES_ORDERS_BASE, folder_path)
         
         if not os.path.exists(full_path):
+            print(f"ERROR: Folder not found at path: {full_path}")
             return jsonify({"error": f"Folder not found: {folder_path}"}), 404
         
         # Get folder contents

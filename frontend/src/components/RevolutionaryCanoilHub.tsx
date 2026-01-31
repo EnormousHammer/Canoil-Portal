@@ -1394,7 +1394,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     setSoLoading(true);
     try {
-      const folderPath = path.join('/');
+      // URL-encode each path segment to handle spaces and special characters
+      const folderPath = path.map(segment => encodeURIComponent(segment)).join('/');
       console.log('🔄 Loading SO folder data for:', folderPath);
       
       const response = await fetch(getApiUrl(`/api/sales-orders/folder/${folderPath}`));
