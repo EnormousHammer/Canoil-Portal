@@ -1393,23 +1393,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     }
     
     setSoLoading(true);
+    setSoFolderData(null); // Clear previous data while loading
     try {
       // URL-encode each path segment to handle spaces and special characters
       const folderPath = path.map(segment => encodeURIComponent(segment)).join('/');
       console.log('🔄 Loading SO folder data for:', folderPath);
+      console.log('🔗 API URL:', getApiUrl(`/api/sales-orders/folder/${folderPath}`));
       
       const response = await fetch(getApiUrl(`/api/sales-orders/folder/${folderPath}`));
+      console.log('📡 Response status:', response.status);
+      
       if (response.ok) {
         const folderData = await response.json();
         setSoFolderData(folderData);
         console.log('✅ Loaded SO folder data:', folderData);
       } else {
-        console.error('❌ Failed to load SO folder data');
-        setSoFolderData(null);
+        const errorText = await response.text();
+        console.error('❌ Failed to load SO folder data:', response.status, errorText);
+        setSoFolderData({ error: `Failed to load: ${response.status}`, folders: [], files: [] });
       }
     } catch (error) {
       console.error('❌ Error loading SO folder data:', error);
-      setSoFolderData(null);
+      setSoFolderData({ error: `Network error: ${error}`, folders: [], files: [] });
     } finally {
       setSoLoading(false);
     }
@@ -1863,103 +1868,94 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Manufacturing Orders */}
           {activeSection === 'manufacturing-orders' && (
-            <div className="space-y-4">
-              {/* Modern Manufacturing Operations Header */}
-              <div className="bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 text-white shadow-2xl">
-                <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="space-y-6">
+              {/* Premium Manufacturing Header */}
+              <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-violet-50 via-purple-50 to-indigo-50 border-b border-slate-200 p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
-                        <Factory className="w-10 h-10 text-white" />
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                          <Factory className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
                       </div>
                       <div>
-                        <h1 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Operations</h1>
-                        <p className="text-purple-100 text-base mt-1.5 font-medium">Production planning and order management</p>
+                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Manufacturing Operations</h2>
+                        <p className="text-slate-500 text-sm mt-0.5">Production planning and order management</p>
+                      </div>
                     </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
-                        <Download className="w-4 h-4 mr-2" />
+                    <div className="flex items-center gap-3">
+                      <button className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                        <Download className="w-4 h-4" />
                         Export
                       </button>
                     </div>
                   </div>
                 </div>
-                </div>
                 
-              {/* Modern Manufacturing Metrics Dashboard */}
-              <div className="max-w-7xl mx-auto px-4 py-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
-                  
-                  {/* Total Manufacturing Orders */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-purple-100 rounded-lg">
-                          <Factory className="w-4 h-4 text-purple-600" />
+                {/* KPI Cards Row */}
+                <div className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Total MOs */}
+                    <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-5 border border-violet-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                          <Factory className="w-5 h-5 text-violet-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Total MOs</dt>
+                        <span className="text-xs font-bold text-violet-600 bg-violet-100 px-2 py-1 rounded-lg">TOTAL</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">Manufacturing Orders</div>
                     </div>
-                  </div>
 
-                  {/* Active Orders */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-green-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-green-100 rounded-lg">
-                          <Activity className="w-4 h-4 text-green-600" />
+                    {/* Active Orders */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 border border-emerald-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                          <Activity className="w-5 h-5 text-emerald-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Active Orders</dt>
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">ACTIVE</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">In Production</div>
                     </div>
-                  </div>
 
-                  {/* Planned Orders */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-white to-amber-50/30 border-2 border-amber-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-amber-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-amber-100 rounded-lg">
-                          <Calendar className="w-4 h-4 text-amber-600" />
+                    {/* Planned Orders */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-amber-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Planned Orders</dt>
+                        <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded-lg">PLANNED</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">Awaiting Release</div>
                     </div>
-                  </div>
 
-                  {/* Total Components */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-indigo-100 rounded-lg">
-                          <Package2 className="w-4 h-4 text-indigo-600" />
+                    {/* Components */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                          <Package2 className="w-5 h-5 text-blue-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Total Components</dt>
+                        <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">PARTS</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">Total Components</div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Modern Manufacturing Orders Table */}
+                {/* Manufacturing Orders Table */}
                 {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
-                <div className="bg-white shadow-lg rounded-xl border-2 border-purple-200/50 overflow-hidden">
-                    <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-b-2 border-purple-200/50">
+                <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-violet-50 border-b border-slate-200">
                       <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center space-x-4">
                         <div className="text-sm text-gray-600">
@@ -2022,13 +2018,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setMoSearchQuery(e.target.value);
                               setMoCurrentPage(1); // Reset to first page when searching
                             }}
-                            className="w-full pl-10 pr-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm shadow-sm bg-white/90 backdrop-blur-sm"
+                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
                           />
                         </div>
                         <select
                           value={moSortField}
                           onChange={(e) => setMoSortField(e.target.value)}
-                          className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
+                          className="px-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
                         >
                           <option value="Mfg. Order No.">Sort by MO Number</option>
                           <option value="Customer">Sort by Customer</option>
@@ -2038,20 +2034,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </select>
                         <button
                           onClick={() => setMoSortDirection(moSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                          className="px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl hover:from-violet-500 hover:to-purple-500 text-sm font-semibold shadow-md transition-all"
                         >
-                          {moSortDirection === 'asc' ? '↑' : '↓'}
+                          {moSortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
                         </button>
                       </div>
 
                         {/* Filter Controls */}
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center space-x-2">
-                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Status:</label>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status:</label>
                             <select
                               value={moStatusFilter}
                               onChange={(e) => setMoStatusFilter(e.target.value)}
-                              className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
+                              className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
                             >
                               <option value="all">All Status</option>
                               <option value="0">Planned</option>
@@ -2062,12 +2058,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </select>
                   </div>
 
-                          <div className="flex items-center space-x-2">
-                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Customer:</label>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer:</label>
                             <select
                               value={moCustomerFilter}
                               onChange={(e) => setMoCustomerFilter(e.target.value)}
-                              className="px-3 py-2.5 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 text-sm min-w-[150px] bg-white/90 backdrop-blur-sm shadow-sm"
+                              className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm min-w-[150px] bg-white shadow-sm"
                             >
                               <option value="all">All Customers</option>
                               {(() => {
@@ -2091,69 +2087,69 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setMoSearchQuery('');
                               setMoCurrentPage(1);
                             }}
-                            className="px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                            className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-semibold transition-all border border-slate-200"
                           >
-                            Clear All
+                            Clear Filters
                           </button>
                         </div>
                       </div>
                   </div>
-                  <div className="overflow-x-auto max-h-[700px] shadow-inner">
+                  <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                      <thead className="bg-gradient-to-r from-purple-100 via-indigo-100 to-purple-100 sticky top-0 shadow-md border-b-2 border-purple-200/50">
+                      <thead className="bg-gradient-to-r from-slate-50 via-violet-50 to-slate-50 sticky top-0 border-b border-slate-200">
                         <tr>
-                            {/* PRIMARY COLUMNS - Most Important */}
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            {/* PRIMARY COLUMNS */}
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Mfg. Order No.', 'mo')}>
-                              MO Number {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              MO # {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[150px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[150px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Customer', 'mo')}>
-                              Customer Name {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              Customer {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Build Item No.', 'mo')}>
                               Build Item {moSortField === 'Build Item No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[200px] border-r border-purple-200/30">Description</th>
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[200px]">Description</th>
                             
-                            {/* QUANTITY & STATUS COLUMNS */}
-                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            {/* QUANTITY & STATUS */}
+                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Ordered', 'mo')}>
                               Ordered {moSortField === 'Ordered' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Completed', 'mo')}>
-                              Completed {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              Done {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-center p-3 font-semibold text-gray-800 min-w-[80px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-center p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Status', 'mo')}>
                               Status {moSortField === 'Status' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
                             
-                            {/* DATE COLUMNS */}
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            {/* DATES */}
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Order Date', 'mo')}>
                               Order Date {moSortField === 'Order Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Release Date', 'mo')}>
-                              Start Date {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              Start {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[90px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Completion Date', 'mo')}>
-                              Completion Date {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              Complete {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
                             
-                            {/* LOCATION & COST COLUMNS */}
-                            <th className="text-left p-3 font-semibold text-gray-800 min-w-[80px] border-r border-purple-200/30">Location</th>
-                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[100px] cursor-pointer hover:bg-purple-100/50 transition-colors border-r border-purple-200/30"
+                            {/* LOCATION & COST */}
+                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[80px]">Location</th>
+                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Projected Material Cost', 'mo')}>
                               Unit Cost {moSortField === 'Projected Material Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
-                            <th className="text-right p-3 font-semibold text-gray-800 min-w-[120px] cursor-pointer hover:bg-purple-100/50 transition-colors"
+                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[120px] cursor-pointer hover:bg-violet-100/50 transition-colors"
                                 onClick={() => handleSort('Cumulative Cost', 'mo')}>
-                              Total Cost {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
+                              Total {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
                         </tr>
                       </thead>
@@ -4152,98 +4148,92 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
-            <div className="space-y-4">
-              {/* Modern Purchase Orders Header */}
-              <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-700 text-white shadow-2xl">
-                <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="space-y-6">
+              {/* Premium Purchase Orders Header */}
+              <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-teal-50 border-b border-slate-200 p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
-                        <ShoppingBag className="w-10 h-10 text-white" />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <h1 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Orders</h1>
-                          <p className="text-blue-100 text-base mt-1.5 font-medium">Procurement and vendor management</p>
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg">
+                          <ShoppingBag className="w-7 h-7 text-white" />
                         </div>
-                        <button
-                          onClick={() => setShowPRModal(true)}
-                          className="inline-flex items-center px-4 py-2 bg-orange-500/90 backdrop-blur-sm border border-orange-300/50 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-orange-500 transition-all duration-200"
-                        >
-                          📝 Purchase Requisitions
-                        </button>
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Purchase Orders</h2>
+                        <p className="text-slate-500 text-sm mt-0.5">Procurement and vendor management</p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
-                        <Download className="w-4 h-4 mr-2" />
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowPRModal(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-md"
+                      >
+                        📝 Purchase Requisitions
+                      </button>
+                      <button className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                        <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg text-sm font-medium text-white hover:bg-white/30 transition-all duration-200">
-                        <Plus className="w-4 h-4 mr-2" />
+                      <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-md">
+                        <Plus className="w-4 h-4" />
                         New PO
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Modern Purchase Order Metrics Dashboard */}
-              <div className="max-w-7xl mx-auto px-4 py-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-4">
-                  {/* Total Purchase Orders */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-blue-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-blue-100 rounded-lg">
-                          <ShoppingBag className="w-4 h-4 text-blue-600" />
+                {/* KPI Cards Row */}
+                <div className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Total POs */}
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border border-blue-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                          <ShoppingBag className="w-5 h-5 text-blue-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Total POs</dt>
+                        <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">TOTAL</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {data?.['PurchaseOrders.json']?.length || 0}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{data?.['PurchaseOrders.json']?.length || 0}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">Purchase Orders</div>
                     </div>
-                  </div>
 
-                  {/* PO Line Items */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-green-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-green-100 rounded-lg">
-                          <Package2 className="w-4 h-4 text-green-600" />
+                    {/* Line Items */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 border border-emerald-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                          <Package2 className="w-5 h-5 text-emerald-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">PO Line Items</dt>
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">ITEMS</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {data?.['PurchaseOrderDetails.json']?.length || 0}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{data?.['PurchaseOrderDetails.json']?.length || 0}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">PO Line Items</div>
                     </div>
-                  </div>
 
-                  {/* Active Vendors */}
-                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-200/20 rounded-full -mr-10 -mt-10"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-purple-100 rounded-lg">
-                          <Users className="w-4 h-4 text-purple-600" />
+                    {/* Active Vendors */}
+                    <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-5 border border-purple-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                          <Users className="w-5 h-5 text-purple-600" />
                         </div>
-                        <dt className="text-xs font-semibold text-gray-700">Active Vendors</dt>
+                        <span className="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-lg">VENDORS</span>
                       </div>
-                      <dd className="text-2xl font-bold text-gray-900">
-                        {new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}
-                      </dd>
+                      <div className="text-3xl font-black text-slate-900">{new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
+                      <div className="text-sm text-slate-500 font-medium mt-1">Active Suppliers</div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Modern Purchase Orders Table */}
+                {/* Purchase Orders Table */}
                 {data?.['PurchaseOrders.json'] && Array.isArray(data['PurchaseOrders.json']) && data['PurchaseOrders.json'].length > 0 && (
-                  <div className="bg-white shadow-lg rounded-xl border-2 border-blue-200/50 overflow-hidden">
-                    <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200/50">
+                  <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center space-x-4">
                         <div className="text-sm text-gray-600">
@@ -4290,13 +4280,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setPoSearchQuery(e.target.value);
                               setPoCurrentPage(1); // Reset to first page when searching
                             }}
-                            className="w-full pl-10 pr-3 py-2.5 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm shadow-sm bg-white/90 backdrop-blur-sm"
+                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white shadow-sm"
                           />
                         </div>
                         <select
                           value={poSortField}
                           onChange={(e) => setPoSortField(e.target.value)}
-                          className="px-3 py-2.5 border-2 border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-sm bg-white/90 backdrop-blur-sm shadow-sm"
+                          className="px-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white shadow-sm"
                         >
                           <option value="PO No.">Sort by PO Number</option>
                           <option value="Supplier No.">Sort by Supplier</option>
@@ -4306,20 +4296,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </select>
                         <button
                           onClick={() => setPoSortDirection(poSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                          className="px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-500 hover:to-cyan-500 text-sm font-semibold shadow-md transition-all"
                         >
-                          {poSortDirection === 'asc' ? '↑' : '↓'}
+                          {poSortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
                         </button>
                       </div>
                     </div>
-                    <div className="overflow-x-auto max-h-[700px] shadow-inner">
+                    <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                        <thead className="bg-gradient-to-r from-blue-100 via-indigo-100 to-blue-100 sticky top-0 shadow-md border-b-2 border-blue-200/50">
+                        <thead className="bg-gradient-to-r from-slate-50 via-blue-50 to-slate-50 sticky top-0 border-b border-slate-200">
                           <tr>
                             {getAvailablePOColumns.map((col, index) => (
                               <th 
                                 key={col.key}
-                                className={`p-3 font-semibold text-gray-800 min-w-[80px] border-r border-blue-200/30 ${
+                                className={`p-3 font-semibold text-slate-700 min-w-[80px] ${
                                   col.key === 'Total Amount' || col.key === 'Invoiced Amount' || col.key === 'Received Amount' || col.key === 'Freight' ||
                                   col.key === 'totalOrderedQty' || col.key === 'totalReceivedQty' || col.key === 'remainingQty'
                                     ? 'text-right' : 'text-left'
@@ -6981,7 +6971,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     )}
                     
                     {/* Error State */}
-                    {!soFolderData && !soLoading && soCurrentPath.length > 0 && (
+                    {soFolderData?.error && !soLoading && (
                       <div className="text-center py-16">
                         <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                           <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6989,7 +6979,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </svg>
                         </div>
                         <div className="text-lg font-semibold text-red-600">Failed to Load</div>
-                        <div className="text-sm text-slate-500 mt-1">Could not access G: Drive folder</div>
+                        <div className="text-sm text-slate-500 mt-1">{soFolderData.error}</div>
+                        <button 
+                          onClick={() => loadSOFolderData(soCurrentPath)}
+                          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-500 transition-all"
+                        >
+                          Retry
+                        </button>
                       </div>
                     )}
                   </div>
