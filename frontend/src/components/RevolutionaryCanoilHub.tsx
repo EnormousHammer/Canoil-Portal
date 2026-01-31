@@ -6406,34 +6406,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }}
                       className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-emerald-300 hover:shadow-lg transition-all cursor-pointer"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-bold text-slate-900 truncate font-mono">{item["Item No."]}</h3>
-                          <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{item["Description"]}</p>
+                      {/* Item Header - Most Important */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <h3 className="text-base font-bold text-slate-900 truncate">{item["Item No."]}</h3>
+                          <p className="text-sm text-slate-600 line-clamp-2 mt-0.5 leading-tight">{item["Description"]}</p>
                         </div>
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${statusColor}`}>
+                        <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`}></span>
                           {statusText}
                         </span>
                       </div>
 
-                      {/* 2x2 Grid: Stock, WIP, On Order, Cost */}
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="text-center bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-                          <div className="text-2xl font-black text-blue-900">{stock.toLocaleString()}</div>
-                          <div className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">Stock</div>
+                      {/* Compact 2x2 Grid: Stock, WIP, On Order, Cost */}
+                      <div className="grid grid-cols-2 gap-1.5 mb-2">
+                        <div className="text-center bg-blue-50 rounded-md px-2 py-1.5 border border-blue-100">
+                          <div className="text-lg font-bold text-blue-900 leading-none">{stock.toLocaleString()}</div>
+                          <div className="text-[9px] text-blue-600 font-medium uppercase">Stock</div>
                         </div>
-                        <div className="text-center bg-amber-50 rounded-lg p-2.5 border border-amber-100">
-                          <div className="text-2xl font-black text-amber-700">{wip.toLocaleString()}</div>
-                          <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">WIP</div>
+                        <div className="text-center bg-amber-50 rounded-md px-2 py-1.5 border border-amber-100">
+                          <div className="text-lg font-bold text-amber-700 leading-none">{wip.toLocaleString()}</div>
+                          <div className="text-[9px] text-amber-600 font-medium uppercase">WIP</div>
                         </div>
-                        <div className="text-center bg-purple-50 rounded-lg p-2.5 border border-purple-100">
-                          <div className="text-2xl font-black text-purple-700">{onOrder.toLocaleString()}</div>
-                          <div className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">On Order</div>
+                        <div className="text-center bg-purple-50 rounded-md px-2 py-1.5 border border-purple-100">
+                          <div className="text-lg font-bold text-purple-700 leading-none">{onOrder.toLocaleString()}</div>
+                          <div className="text-[9px] text-purple-600 font-medium uppercase">Order</div>
                         </div>
-                        <div className="text-center bg-emerald-50 rounded-lg p-2.5 border border-emerald-100">
-                          <div className="text-2xl font-black text-emerald-700">{formatCAD(cost)}</div>
-                          <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Cost</div>
+                        <div className="text-center bg-emerald-50 rounded-md px-2 py-1.5 border border-emerald-100">
+                          <div className="text-lg font-bold text-emerald-700 leading-none">{formatCAD(cost)}</div>
+                          <div className="text-[9px] text-emerald-600 font-medium uppercase">Cost</div>
                         </div>
                       </div>
 
