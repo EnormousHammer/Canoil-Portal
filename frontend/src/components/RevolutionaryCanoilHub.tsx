@@ -2393,7 +2393,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
               </div>
 
-              {/* Production Schedule Section */}
+              {/* Production Schedule Section - v2 */}
               <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-2xl font-bold text-slate-900 flex items-center">
