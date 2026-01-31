@@ -6421,23 +6421,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </span>
                       </div>
 
-                      {/* 4-Column Grid: Stock, WIP, On Order, Cost */}
-                      <div className="grid grid-cols-4 gap-1.5 mb-3">
-                        <div className="text-center bg-blue-50 rounded-lg p-2 border border-blue-100">
-                          <div className="text-lg font-black text-blue-900">{stock.toLocaleString()}</div>
-                          <div className="text-[9px] text-blue-600 font-semibold uppercase">Stock</div>
+                      {/* 2x2 Grid: Stock, WIP, On Order, Cost */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="text-center bg-blue-50 rounded-lg p-2.5 border border-blue-100">
+                          <div className="text-2xl font-black text-blue-900">{stock.toLocaleString()}</div>
+                          <div className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide">Stock</div>
                         </div>
-                        <div className="text-center bg-amber-50 rounded-lg p-2 border border-amber-100">
-                          <div className="text-lg font-black text-amber-700">{wip.toLocaleString()}</div>
-                          <div className="text-[9px] text-amber-600 font-semibold uppercase">WIP</div>
+                        <div className="text-center bg-amber-50 rounded-lg p-2.5 border border-amber-100">
+                          <div className="text-2xl font-black text-amber-700">{wip.toLocaleString()}</div>
+                          <div className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">WIP</div>
                         </div>
-                        <div className="text-center bg-purple-50 rounded-lg p-2 border border-purple-100">
-                          <div className="text-lg font-black text-purple-700">{onOrder.toLocaleString()}</div>
-                          <div className="text-[9px] text-purple-600 font-semibold uppercase">On Order</div>
+                        <div className="text-center bg-purple-50 rounded-lg p-2.5 border border-purple-100">
+                          <div className="text-2xl font-black text-purple-700">{onOrder.toLocaleString()}</div>
+                          <div className="text-[10px] text-purple-600 font-semibold uppercase tracking-wide">On Order</div>
                         </div>
-                        <div className="text-center bg-emerald-50 rounded-lg p-2 border border-emerald-100">
-                          <div className="text-lg font-black text-emerald-700">{formatCAD(cost)}</div>
-                          <div className="text-[9px] text-emerald-600 font-semibold uppercase">Cost</div>
+                        <div className="text-center bg-emerald-50 rounded-lg p-2.5 border border-emerald-100">
+                          <div className="text-2xl font-black text-emerald-700">{formatCAD(cost)}</div>
+                          <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wide">Cost</div>
                         </div>
                       </div>
 
