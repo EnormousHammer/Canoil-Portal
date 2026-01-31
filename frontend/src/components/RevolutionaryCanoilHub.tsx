@@ -6367,7 +6367,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
               )}
 
-              {/* Inventory Cards */}
+              {/* Inventory Cards - Main Grid */}
               {!data || Object.keys(data).length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-4xl mb-4">⏳</div>
