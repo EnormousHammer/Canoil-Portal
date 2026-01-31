@@ -1952,9 +1952,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
 
-                {/* Manufacturing Orders Table */}
-                {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
-                <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
+              {/* Manufacturing Orders Table */}
+              {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
+              <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-violet-50 border-b border-slate-200">
                       <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center space-x-4">
@@ -2388,10 +2388,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         />
                       );
                     })()}
-                  </div>
-                )}
-
-              </div>
+                </div>
+              )}
 
               {/* Production Schedule Section - v2 */}
               <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
@@ -4611,11 +4609,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         />
                       );
                     })()}
-                  </div>
-                )}
+                </div>
+              )}
 
-
-              </div>
             </div>
           )}
 
