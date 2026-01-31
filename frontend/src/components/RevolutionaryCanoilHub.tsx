@@ -2324,7 +2324,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="text-center">
                                 <div className="font-semibold text-gray-900">
                                   {totalOrdered.toLocaleString()}
-                </div>
+                                </div>
                                 <div className="text-gray-600">Total Ordered</div>
                               </div>
                               <div className="text-center">
