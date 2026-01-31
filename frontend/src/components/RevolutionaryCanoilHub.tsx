@@ -5398,34 +5398,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
                 
-                {/* Search and Tools Row */}
-                <div className="px-6 py-4 flex items-center gap-4 bg-slate-50/50">
-                  {/* Search */}
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      placeholder="Search items by name, description, or item number..."
-                      value={inventorySearchQuery}
-                      onChange={(e) => setInventorySearchQuery(e.target.value)}
-                      className="w-full px-5 py-3 pl-12 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
-                    />
-                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    {inventorySearchQuery && (
-                      <button
-                        onClick={() => setInventorySearchQuery('')}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* BOM Tools - Compact */}
-                  <div className="flex items-center gap-2">
+                {/* Tools Row - BOM, Cart, History */}
+                <div className="px-6 py-3 flex items-center justify-end gap-2 bg-slate-50/50 border-t border-slate-100">
+                  {/* BOM Tools */}
                     <button 
                       onClick={() => setShowBOMPlanning(!showBOMPlanning)}
                       className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
@@ -5479,7 +5454,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </svg>
                       History
                     </button>
-                  </div>
                 </div>
               </div>
 
