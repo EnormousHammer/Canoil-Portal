@@ -5343,140 +5343,175 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Inventory */}
           {activeSection === 'inventory' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               
-              
-              {/* INVENTORY BROWSER */}
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-2xl font-bold text-slate-900 flex items-center">
-                    📦 Inventory Browser
-                    <span className="ml-3 text-sm font-normal text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
-                      Browse & Search Items
-                    </span>
-                  </h3>
-                  <div className="text-sm text-slate-600 font-medium">
-                    {filteredInventory.length} items found
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Compact Filter Badges - Aligned Right */}
-                    <button 
-                      onClick={() => setInventoryFilter('all')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                        inventoryFilter === 'all' 
-                          ? 'bg-blue-600 text-white shadow-md' 
-                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
-                      }`}
-                    >
-                      <span className="text-sm">📊</span>
-                      <span className="font-semibold">All:</span>
-                      <span className="font-bold">{(data['CustomAlert5.json'] || []).length.toLocaleString()}</span>
-                    </button>
-
-                    <button 
-                      onClick={() => setInventoryFilter('low-stock')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                        inventoryFilter === 'low-stock' 
-                          ? 'bg-amber-500 text-white shadow-md' 
-                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                      }`}
-                    >
-                      <span className="text-sm">⚠️</span>
-                      <span className="font-semibold">Low:</span>
-                      <span className="font-bold">{inventoryMetrics.lowStockCount.toLocaleString()}</span>
-                    </button>
-
-                    <button 
-                      onClick={() => setInventoryFilter('out-of-stock')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                        inventoryFilter === 'out-of-stock' 
-                          ? 'bg-red-500 text-white shadow-md' 
-                          : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                      }`}
-                    >
-                      <span className="text-sm">🚨</span>
-                      <span className="font-semibold">Out:</span>
-                      <span className="font-bold">{inventoryMetrics.outOfStock.toLocaleString()}</span>
-                    </button>
+              {/* STREAMLINED INVENTORY HEADER - Dark Theme */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-slate-700/50 overflow-hidden">
+                {/* Header Bar */}
+                <div className="bg-gradient-to-r from-emerald-600/20 via-green-600/20 to-teal-600/20 border-b border-slate-700/50 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white">Inventory & BOM</h2>
+                        <p className="text-slate-400 text-sm">{filteredInventory.length.toLocaleString()} items • Real-time MiSys data</p>
+                      </div>
+                    </div>
+                    
+                    {/* Quick Stats */}
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setInventoryFilter('all')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'all' 
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/50'
+                        }`}
+                      >
+                        All: {(data['CustomAlert5.json'] || []).length.toLocaleString()}
+                      </button>
+                      <button 
+                        onClick={() => setInventoryFilter('low-stock')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'low-stock' 
+                            ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                            : 'bg-slate-800/80 text-amber-400 hover:bg-slate-700 border border-amber-500/30'
+                        }`}
+                      >
+                        Low: {inventoryMetrics.lowStockCount.toLocaleString()}
+                      </button>
+                      <button 
+                        onClick={() => setInventoryFilter('out-of-stock')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'out-of-stock' 
+                            ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
+                            : 'bg-slate-800/80 text-red-400 hover:bg-slate-700 border border-red-500/30'
+                        }`}
+                      >
+                        Out: {inventoryMetrics.outOfStock.toLocaleString()}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
-                
-
-                <div className="mt-4 flex justify-between items-center">
-                  {inventorySearchQuery && (
-                    <div className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                      💡 Smart search: finds "{inventorySearchQuery}" anywhere in item details
-                    </div>
-                  )}
+                {/* Search and Tools Row */}
+                <div className="px-6 py-4 flex items-center gap-4">
+                  {/* Search */}
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Search items by name, description, or item number..."
+                      value={inventorySearchQuery}
+                      onChange={(e) => setInventorySearchQuery(e.target.value)}
+                      className="w-full px-5 py-3 pl-12 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                    />
+                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {inventorySearchQuery && (
+                      <button
+                        onClick={() => setInventorySearchQuery('')}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* BOM Tools - Compact */}
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowBOMPlanning(!showBOMPlanning)}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showBOMPlanning 
+                          ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' 
+                          : 'bg-slate-800/80 text-purple-400 hover:bg-slate-700 border border-purple-500/30'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      BOM
+                    </button>
+                    
+                    <button 
+                      onClick={() => setShowBomCart(!showBomCart)}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showBomCart 
+                          ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/30' 
+                          : bomCart.length > 0 
+                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50 animate-pulse' 
+                            : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700 border border-slate-700/50'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Cart
+                      {bomCart.length > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                          {bomCart.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    <button 
+                      onClick={() => {
+                        setShowPRHistory(!showPRHistory);
+                        if (!showPRHistory) {
+                          fetchPRHistory();
+                        }
+                      }}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showPRHistory 
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' 
+                          : 'bg-slate-800/80 text-indigo-400 hover:bg-slate-700 border border-indigo-500/30'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      History
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* BOM Planning Section */}
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                <h3 className="text-2xl font-bold text-slate-900 flex items-center mb-6">
-                  🏭 BOM Planning & Explosion
-                  <span className="ml-3 text-sm font-normal text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
-                    Search Item → Enter Quantity → See Requirements
-                  </span>
-                </h3>
-                
-                {/* BOM Planning Controls */}
-                <div className="flex items-center gap-4 mb-6">
-                  <button 
-                    onClick={() => setShowBOMPlanning(!showBOMPlanning)}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all ${
-                      showBOMPlanning ? 'bg-purple-600 text-white shadow-xl scale-105' : 'bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105'
-                    }`}
-                  >
-                    {showBOMPlanning ? '📊 Hide BOM Planning' : '📊 Show BOM Planning'}
-                  </button>
-                  
-                  {/* Cart Toggle Button */}
-                  <button 
-                    onClick={() => setShowBomCart(!showBomCart)}
-                    className={`px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                      showBomCart 
-                        ? 'bg-orange-600 text-white shadow-xl' 
-                        : bomCart.length > 0 
-                          ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 ring-2 ring-orange-400' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    🛒 PR Cart
-                    {bomCart.length > 0 && (
-                      <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                        {bomCart.length}
-                      </span>
-                    )}
-                  </button>
-                  
-                  {/* PR History Button */}
-                  <button 
-                    onClick={() => {
-                      setShowPRHistory(!showPRHistory);
-                      if (!showPRHistory) {
-                        fetchPRHistory();
-                      }
-                    }}
-                    className={`px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                      showPRHistory 
-                        ? 'bg-indigo-600 text-white shadow-xl' 
-                        : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                    }`}
-                  >
-                    📋 PR History
-                  </button>
-                  
-                  <div className="text-sm text-slate-600">
-                    {(() => {
-                      const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
-                        (data['BillOfMaterialDetails.json'] || []).some((bom: any) => 
-                          bom["Parent Item No."] === item["Item No."]
-                        )
-                      );
-                      return `${assembledItems.length} Assembled Items Available`;
-                    })()}
+              {/* COLLAPSIBLE BOM Planning Section - Only shows when toggled */}
+              {showBOMPlanning && (
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-xl border border-purple-500/30 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    BOM Planning & Explosion
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400">
+                      {(() => {
+                        const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
+                          (data['BillOfMaterialDetails.json'] || []).some((bom: any) => 
+                            bom["Parent Item No."] === item["Item No."]
+                          )
+                        );
+                        return `${assembledItems.length} Assembled Items`;
+                      })()}
+                    </span>
+                    <button 
+                      onClick={() => setShowBOMPlanning(false)}
+                      className="text-slate-500 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 
@@ -6333,35 +6368,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 )}
               </div>
 
-              {/* Pagination Controls */}
+              {/* Pagination Controls - Dark Theme */}
               {filteredInventory.length > 0 && itemsPerPage < 999999 && (
-                <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-4">
+                <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl border border-slate-700/50 p-4">
                   
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredInventory.length)} to {Math.min(currentPage * itemsPerPage, filteredInventory.length)} of {filteredInventory.length} items
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="text-sm text-slate-400">
+                      Showing <span className="text-white font-semibold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredInventory.length)}</span> to <span className="text-white font-semibold">{Math.min(currentPage * itemsPerPage, filteredInventory.length)}</span> of <span className="text-emerald-400 font-semibold">{filteredInventory.length}</span> items
                     </div>
                     
-                    {/* Sorting Controls - Moved to center */}
+                    {/* Sorting Controls */}
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-700">Sort by:</span>
+                      <span className="text-sm font-medium text-slate-400">Sort:</span>
                       <select 
                         value={sortBy} 
                         onChange={(e) => setSortBy(e.target.value as any)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                       >
                         <option value="name">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
                         <option value="description">Description (A-Z)</option>
                         <option value="description-desc">Description (Z-A)</option>
-                        <option value="quantity">Stock Quantity (High-Low)</option>
-                        <option value="quantity-asc">Stock Quantity (Low-High)</option>
+                        <option value="quantity">Stock (High-Low)</option>
+                        <option value="quantity-asc">Stock (Low-High)</option>
                         <option value="status">Status</option>
                       </select>
                       <select 
                         value={filterStatus} 
                         onChange={(e) => setFilterStatus(e.target.value as any)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                       >
                         <option value="all">All Items</option>
                         <option value="ready">In Stock Only</option>
@@ -6371,9 +6406,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         value={itemsPerPage} 
                         onChange={(e) => {
                           setItemsPerPage(parseInt(e.target.value));
-                          setCurrentPage(1); // Reset to first page when changing items per page
+                          setCurrentPage(1);
                         }}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
                       >
                         <option value={20}>20 per page</option>
                         <option value={50}>50 per page</option>
@@ -6387,13 +6422,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <button
                         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                         disabled={currentPage === 1}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                           currentPage === 1
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                            ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/30'
                         }`}
                       >
-                        ← Previous
+                        ← Prev
                       </button>
                       
                       {/* Page Numbers */}
@@ -6416,13 +6451,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <button
                                 key={1}
                                 onClick={() => setCurrentPage(1)}
-                                className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700"
                               >
                                 1
                               </button>
                             );
                             if (startPage > 2) {
-                              pages.push(<span key="ellipsis1" className="px-2 text-gray-400">...</span>);
+                              pages.push(<span key="ellipsis1" className="px-2 text-slate-600">...</span>);
                             }
                           }
                           
@@ -6434,8 +6469,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 onClick={() => setCurrentPage(i)}
                                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                                   i === currentPage
-                                    ? 'bg-blue-500 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                                 }`}
                               >
                                 {i}
@@ -6446,13 +6481,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           // Last page
                           if (endPage < totalPages) {
                             if (endPage < totalPages - 1) {
-                              pages.push(<span key="ellipsis2" className="px-2 text-gray-400">...</span>);
+                              pages.push(<span key="ellipsis2" className="px-2 text-slate-600">...</span>);
                             }
                             pages.push(
                               <button
                                 key={totalPages}
                                 onClick={() => setCurrentPage(totalPages)}
-                                className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700"
                               >
                                 {totalPages}
                               </button>
@@ -6467,10 +6502,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <button
                         onClick={() => setCurrentPage(Math.min(Math.ceil(filteredInventory.length / itemsPerPage), currentPage + 1))}
                         disabled={currentPage >= Math.ceil(filteredInventory.length / itemsPerPage)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                           currentPage >= Math.ceil(filteredInventory.length / itemsPerPage)
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                            ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-500/30'
                         }`}
                       >
                         Next →
@@ -6507,16 +6542,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                 {/* Results or No Results Message */}
                 {filteredInventory.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-4xl mb-4">🔍</div>
-                    <div className="text-xl text-gray-600">No items found</div>
-                    <div className="text-sm text-gray-500 mt-2">
+                  <div className="text-center py-16 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <div className="text-xl text-slate-400 font-semibold">No items found</div>
+                    <div className="text-sm text-slate-600 mt-2">
                       Try adjusting your search or filter criteria
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {(() => {
                   const startIndex = (currentPage - 1) * itemsPerPage;
                   const endIndex = itemsPerPage === 999999 ? filteredInventory.length : startIndex + itemsPerPage;
@@ -6526,14 +6565,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   const reorderLevel = parseStockValue(item["Reorder Level"]) || parseStockValue(item["Minimum"]);
                   const cost = parseCostValue(item["Recent Cost"] || item["Standard Cost"] || item["Unit Cost"]);
                   
-                  let statusColor = 'bg-green-100 text-green-800 border-green-200';
+                  let statusColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
                   let statusText = 'In Stock';
+                  let statusDot = 'bg-emerald-400';
                   if (stock <= 0) {
-                    statusColor = 'bg-red-100 text-red-800 border-red-200';
-                    statusText = 'Out of Stock';
+                    statusColor = 'bg-red-500/20 text-red-400 border-red-500/30';
+                    statusText = 'Out';
+                    statusDot = 'bg-red-400';
                   } else if (stock <= reorderLevel && reorderLevel > 0) {
-                    statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-200';
-                    statusText = 'Low Stock';
+                    statusColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                    statusText = 'Low';
+                    statusDot = 'bg-amber-400';
                   }
                   
                   // Check if item is assembled (PERFORMANCE: using pre-computed Set)
@@ -6548,54 +6590,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         setShowAnalytics(false);
                         setShowBOMPlanning(false);
                       }}
-                      className="group bg-white/90 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/50 hover:shadow-2xl hover:scale-[1.02] transition-all cursor-pointer"
+                      className="group bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all cursor-pointer"
                     >
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-start justify-between mb-3">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-slate-900 truncate">{item["Item No."]}</h3>
-                          <p className="text-sm text-slate-600 line-clamp-2">{item["Description"]}</p>
+                          <h3 className="text-sm font-bold text-white truncate font-mono">{item["Item No."]}</h3>
+                          <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">{item["Description"]}</p>
                         </div>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${statusColor}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${statusColor}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`}></span>
                           {statusText}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="text-center bg-blue-50 rounded-xl p-3">
-                          <div className="text-2xl font-black text-blue-900">{stock.toLocaleString()}</div>
-                          <div className="text-xs text-blue-600 font-medium">ON HAND</div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="text-center bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                          <div className="text-xl font-black text-white">{stock.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500 font-semibold uppercase">On Hand</div>
                         </div>
-                        <div className="text-center bg-green-50 rounded-xl p-3">
-                          <div className="text-2xl font-black text-green-900">{formatCAD(cost)}</div>
-                          <div className="text-xs text-green-600 font-medium">COST</div>
+                        <div className="text-center bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                          <div className="text-xl font-black text-emerald-400">{formatCAD(cost)}</div>
+                          <div className="text-[10px] text-slate-500 font-semibold uppercase">Cost</div>
                         </div>
                       </div>
 
-                      <div className="space-y-2 pt-3 border-t border-slate-200">
-                        <div className="flex justify-between items-center text-xs">
-                          <div className="flex items-center gap-2">
-                            {isAssembled ? (
-                              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
-                                🏭 ASSEMBLED
-                              </span>
-                            ) : (
-                              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
-                                🔧 RAW
-                              </span>
-                            )}
-                            <span className="text-slate-500">•</span>
-                            <span className="text-slate-600">{item["Item Type"] || item["Type"] || 'Standard'}</span>
-                          </div>
-                          {reorderLevel > 0 && (
-                            <span className="text-slate-600">Reorder: {reorderLevel.toLocaleString()}</span>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-700/30">
+                        <div className="flex items-center gap-2">
+                          {isAssembled ? (
+                            <span className="bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                              ASSEMBLED
+                            </span>
+                          ) : (
+                            <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                              RAW
+                            </span>
                           )}
                         </div>
-                        
-                        <div className="text-center">
-                          <div className="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200 transition-colors">
-                            👆 Click for details
-                          </div>
-                        </div>
+                        <svg className="w-4 h-4 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
                     </div>
                   );
