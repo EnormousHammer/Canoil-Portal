@@ -3505,8 +3505,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           }
                         }
                         
-                        // Use direct SO number first, then extracted from description
-                        const soNumber = directSONo || soFromDesc;
+                        // Validate direct SO number - should be clean numeric or simple format
+                        // If it contains pipes, slashes, or other separators, it's likely corrupted/combined data
+                        const isDirectSOValid = directSONo && 
+                          /^\d{3,6}$/.test(String(directSONo).trim()) && // Pure numeric 3-6 digits
+                          !String(directSONo).includes('|') && 
+                          !String(directSONo).includes('/');
+                        
+                        // Use validated direct SO first, then extracted from description
+                        // If direct SO looks corrupted (contains | or /), prefer the description-extracted one
+                        const soNumber = isDirectSOValid ? directSONo : (soFromDesc || (directSONo ? String(directSONo).split(/[|\/]/)[0].trim() : null));
                         
                         // Find the related SO in the data
                         const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
@@ -3558,11 +3566,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="text-sm text-slate-600 mb-3 font-medium">SO Detection Sources:</div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${directSONo ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                  <div className={`w-2 h-2 rounded-full ${isDirectSOValid ? 'bg-green-500' : directSONo ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
                                   <span className="text-slate-600">Direct SO Field:</span>
-                                  <span className={`font-medium ${directSONo ? 'text-green-700' : 'text-slate-400'}`}>
+                                  <span className={`font-medium ${isDirectSOValid ? 'text-green-700' : directSONo ? 'text-amber-600 line-through' : 'text-slate-400'}`}>
                                     {directSONo || 'Not set'}
                                   </span>
+                                  {directSONo && !isDirectSOValid && (
+                                    <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">invalid format</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <div className={`w-2 h-2 rounded-full ${soFromDesc ? 'bg-green-500' : 'bg-slate-300'}`}></div>
@@ -3570,6 +3581,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <span className={`font-medium ${soFromDesc ? 'text-green-700' : 'text-slate-400'}`}>
                                     {soFromDesc ? `SO ${soFromDesc}` : 'Not found'}
                                   </span>
+                                  {soFromDesc && !isDirectSOValid && (
+                                    <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">✓ using this</span>
+                                  )}
                                 </div>
                               </div>
                               {description && (
@@ -6633,6 +6647,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       ? 'border-l-amber-500'
                       : 'border-l-emerald-500';
 
+                  // Calculate stock health percentage for visual indicator
+                  const stockHealthPercent = reorderLevel > 0 ? Math.min((stock / reorderLevel) * 100, 100) : (stock > 0 ? 100 : 0);
+                  const stockHealthColor = stock <= 0 ? 'bg-red-500' : stock <= reorderLevel ? 'bg-amber-500' : 'bg-emerald-500';
+                  
                   return (
                     <div 
                       key={index} 
@@ -6642,41 +6660,71 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         setShowAnalytics(false);
                         setShowBOMPlanning(false);
                       }}
-                      className={`group bg-white rounded-lg border border-gray-200 border-l-4 ${borderAccent} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
+                      className={`group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 ${
+                        stock <= 0 
+                          ? 'bg-gradient-to-br from-red-50 via-white to-rose-50 shadow-lg shadow-red-100/50 hover:shadow-xl hover:shadow-red-200/60 ring-1 ring-red-200/60' 
+                          : stock <= reorderLevel && reorderLevel > 0
+                            ? 'bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-lg shadow-amber-100/50 hover:shadow-xl hover:shadow-amber-200/60 ring-1 ring-amber-200/60'
+                            : 'bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-emerald-200/40 ring-1 ring-slate-200/60'
+                      }`}
                     >
+                      {/* Decorative corner accent */}
+                      <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-20 ${
+                        stock <= 0 ? 'bg-red-400' : stock <= reorderLevel && reorderLevel > 0 ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`} />
+                      
                       {/* Header: Item + Badge */}
-                      <div className="flex items-center gap-2 px-3 py-2">
-                        <h3 className="text-sm font-bold text-gray-900 truncate flex-1">{item["Item No."]}</h3>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          isAssembled ? 'bg-orange-500 text-white' : 'bg-sky-500 text-white'
+                      <div className="relative flex items-start justify-between gap-2 px-4 pt-4 pb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-black text-gray-900 tracking-tight truncate">{item["Item No."]}</h3>
+                          <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">{item["Description"]}</p>
+                        </div>
+                        <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
+                          isAssembled 
+                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-200' 
+                            : 'bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-sky-200'
                         }`}>
                           {isAssembled ? 'ASM' : 'RAW'}
                         </span>
                       </div>
 
-                      {/* Description */}
-                      <div className="px-3 pb-2">
-                        <p className="text-xs text-gray-500 line-clamp-1">{item["Description"]}</p>
+                      {/* Stock & WIP - Modern Cards */}
+                      <div className="flex gap-2 mx-3 mb-3">
+                        <div className={`flex-1 py-3 px-3 rounded-xl ${
+                          stock <= 0 
+                            ? 'bg-gradient-to-br from-red-100 to-red-50' 
+                            : stock <= reorderLevel && reorderLevel > 0
+                              ? 'bg-gradient-to-br from-amber-100 to-amber-50'
+                              : 'bg-gradient-to-br from-emerald-100/80 to-emerald-50/50'
+                        }`}>
+                          <div className={`text-2xl font-black tracking-tight ${stockTextColor}`}>{stock.toLocaleString()}</div>
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Stock</div>
+                        </div>
+                        <div className="flex-1 py-3 px-3 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50">
+                          <div className="text-2xl font-black text-slate-700 tracking-tight">{wip.toLocaleString()}</div>
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">WIP</div>
+                        </div>
                       </div>
 
-                      {/* Stock & WIP - Side by Side */}
-                      <div className="flex mx-3 mb-2 rounded-lg overflow-hidden border border-gray-100">
-                        <div className="flex-1 py-2 px-3 bg-gray-50">
-                          <div className={`text-xl font-bold ${stockTextColor}`}>{stock.toLocaleString()}</div>
-                          <div className="text-[10px] text-gray-400 font-medium uppercase">Stock</div>
-                        </div>
-                        <div className="flex-1 py-2 px-3 bg-slate-100 border-l border-gray-200">
-                          <div className="text-xl font-bold text-slate-700">{wip.toLocaleString()}</div>
-                          <div className="text-[10px] text-gray-400 font-medium uppercase">WIP</div>
+                      {/* Stock Health Bar */}
+                      <div className="mx-3 mb-3">
+                        <div className="h-1.5 bg-gray-200/80 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${stockHealthColor} transition-all duration-500 rounded-full`}
+                            style={{ width: `${stockHealthPercent}%` }}
+                          />
                         </div>
                       </div>
 
                       {/* Footer: On Order + Cost */}
-                      <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 text-xs">
-                        <div className="text-gray-500">
-                          <span className="font-semibold text-gray-700">{onOrder.toLocaleString()}</span> on order
+                      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50/80 to-transparent border-t border-gray-100/80">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                          <span className="text-xs text-gray-500">
+                            <span className="font-bold text-gray-700">{onOrder.toLocaleString()}</span> on order
+                          </span>
                         </div>
-                        <div className="font-bold text-gray-800">{formatCAD(cost)}</div>
+                        <div className="text-sm font-black text-gray-800">{formatCAD(cost)}</div>
                       </div>
                     </div>
                   );
