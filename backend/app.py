@@ -2895,15 +2895,52 @@ def get_sales_order_pdf(file_path):
 
 @app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
 def get_sales_order_folder(folder_path):
-    """Get Sales Order folder contents dynamically - REAL TIME SYNC"""
+    """Get Sales Order folder contents dynamically - REAL TIME SYNC
+    
+    Works on both:
+    - Local development: Uses G: Drive directly
+    - Cloud (Render/Cloud Run): Uses Google Drive API
+    """
     try:
         # URL decode the path to handle spaces and special characters
         from urllib.parse import unquote
         folder_path = unquote(folder_path)
         print(f"SEARCH: Loading Sales Order folder: {folder_path}")
         
-        # Construct full path
+        # Detect if we're on cloud (Render or Cloud Run)
+        is_cloud = os.getenv('RENDER') is not None or os.getenv('K_SERVICE') is not None
+        
+        # Check if G: Drive is accessible (local development)
         full_path = os.path.join(SALES_ORDERS_BASE, folder_path)
+        use_gdrive_api = is_cloud or not os.path.exists(SALES_ORDERS_BASE)
+        
+        if use_gdrive_api:
+            # Cloud deployment or G: Drive not accessible - use Google Drive API
+            print(f"☁️ Using Google Drive API for folder: {folder_path}")
+            gdrive_service = get_google_drive_service()
+            
+            if not gdrive_service or not gdrive_service.authenticated:
+                print("❌ Google Drive API not available")
+                return jsonify({
+                    "error": "Google Drive API not available",
+                    "folders": [],
+                    "files": [],
+                    "total_folders": 0,
+                    "total_files": 0
+                }), 503
+            
+            # Use the new browse method
+            result = gdrive_service.browse_sales_orders_folder(folder_path)
+            
+            if 'error' in result and result.get('folders') == [] and result.get('files') == []:
+                print(f"❌ Folder not found via Google Drive API: {folder_path}")
+                return jsonify(result), 404
+            
+            print(f"✅ Loaded {result.get('total_folders', 0)} folders and {result.get('total_files', 0)} files via Google Drive API")
+            return jsonify(result)
+        
+        # Local development with G: Drive access
+        print(f"💻 Using local G: Drive: {full_path}")
         
         if not os.path.exists(full_path):
             print(f"ERROR: Folder not found at path: {full_path}")
@@ -2978,11 +3015,14 @@ def get_sales_order_folder(folder_path):
             'folders': folders,
             'files': files,
             'total_folders': len(folders),
-            'total_files': len(files)
+            'total_files': len(files),
+            'source': 'G: Drive'
         })
         
     except Exception as e:
         print(f"ERROR: Error loading folder {folder_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/sales-orders/find/<so_number>', methods=['GET'])

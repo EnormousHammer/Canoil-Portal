@@ -661,6 +661,167 @@ class GoogleDriveService:
                 traceback.print_exc()
                 return all_files_by_folder
     
+    def browse_sales_orders_folder(self, folder_path):
+        """Browse a specific folder within Sales Orders via Google Drive API
+        
+        Args:
+            folder_path: Path like "In Production" or "In Production/Scheduled"
+        
+        Returns:
+            dict with folders, files, total_folders, total_files
+        """
+        print(f"[INFO] ===== BROWSING FOLDER: {folder_path} =====")
+        
+        try:
+            if not self.authenticated:
+                print("[ERROR] Google Drive not authenticated")
+                return {'error': 'Google Drive not authenticated', 'folders': [], 'files': []}
+            
+            # Find Sales_CSR shared drive
+            sales_csr_drive_id = self.find_shared_drive("Sales_CSR")
+            if not sales_csr_drive_id:
+                print("[ERROR] Sales_CSR shared drive not found")
+                return {'error': 'Sales_CSR drive not found', 'folders': [], 'files': []}
+            
+            # Navigate to Customer Orders/Sales Orders
+            customer_orders_id = self.find_folder_by_path(sales_csr_drive_id, "Customer Orders")
+            if not customer_orders_id:
+                print("[ERROR] Customer Orders folder not found")
+                return {'error': 'Customer Orders folder not found', 'folders': [], 'files': []}
+            
+            # Find Sales Orders folder
+            query = f"'{customer_orders_id}' in parents and name='Sales Orders' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'corpora': 'drive',
+                'driveId': sales_csr_drive_id,
+                'fields': "files(id, name)"
+            }
+            result = self.service.files().list(**params).execute()
+            so_folders = result.get('files', [])
+            
+            if not so_folders:
+                print("[ERROR] Sales Orders folder not found")
+                return {'error': 'Sales Orders folder not found', 'folders': [], 'files': []}
+            
+            current_folder_id = so_folders[0]['id']
+            
+            # Navigate through the path (e.g., "In Production/Scheduled")
+            path_parts = [p for p in folder_path.split('/') if p]
+            for part in path_parts:
+                query = f"'{current_folder_id}' in parents and name='{part}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+                params = {
+                    'q': query,
+                    'includeItemsFromAllDrives': True,
+                    'supportsAllDrives': True,
+                    'corpora': 'drive',
+                    'driveId': sales_csr_drive_id,
+                    'fields': "files(id, name)"
+                }
+                result = self.service.files().list(**params).execute()
+                found_folders = result.get('files', [])
+                
+                if not found_folders:
+                    print(f"[ERROR] Folder '{part}' not found in path")
+                    return {'error': f'Folder not found: {part}', 'folders': [], 'files': []}
+                
+                current_folder_id = found_folders[0]['id']
+            
+            # Now list contents of the target folder
+            folders = []
+            files = []
+            
+            # Get subfolders
+            query = f"'{current_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'corpora': 'drive',
+                'driveId': sales_csr_drive_id,
+                'fields': "files(id, name)",
+                'pageSize': 100
+            }
+            result = self.service.files().list(**params).execute()
+            subfolder_list = result.get('files', [])
+            
+            for sf in subfolder_list:
+                # Count files in subfolder
+                count_query = f"'{sf['id']}' in parents and trashed=false"
+                count_params = {
+                    'q': count_query,
+                    'includeItemsFromAllDrives': True,
+                    'supportsAllDrives': True,
+                    'corpora': 'drive',
+                    'driveId': sales_csr_drive_id,
+                    'fields': "files(id, mimeType)",
+                    'pageSize': 500
+                }
+                count_result = self.service.files().list(**count_params).execute()
+                items = count_result.get('files', [])
+                file_count = len([f for f in items if f.get('mimeType') != 'application/vnd.google-apps.folder'])
+                folder_count = len([f for f in items if f.get('mimeType') == 'application/vnd.google-apps.folder'])
+                
+                folders.append({
+                    'name': sf['name'],
+                    'type': 'folder',
+                    'file_count': file_count,
+                    'folder_count': folder_count,
+                    'path': f"{folder_path}/{sf['name']}".replace('//', '/'),
+                    'gdrive_id': sf['id']
+                })
+            
+            # Get files (PDFs, DOCXs, etc.)
+            query = f"'{current_folder_id}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false"
+            params = {
+                'q': query,
+                'includeItemsFromAllDrives': True,
+                'supportsAllDrives': True,
+                'corpora': 'drive',
+                'driveId': sales_csr_drive_id,
+                'fields': "files(id, name, mimeType, size, modifiedTime)",
+                'pageSize': 500,
+                'orderBy': 'name'
+            }
+            result = self.service.files().list(**params).execute()
+            file_list = result.get('files', [])
+            
+            for f in file_list:
+                name = f['name']
+                files.append({
+                    'name': name,
+                    'type': 'file',
+                    'size': int(f.get('size', 0)),
+                    'modified': f.get('modifiedTime', 'Unknown')[:16].replace('T', ' ') if f.get('modifiedTime') else 'Unknown',
+                    'path': f"{folder_path}/{name}".replace('//', '/'),
+                    'gdrive_id': f['id'],
+                    'is_pdf': name.lower().endswith('.pdf'),
+                    'is_excel': name.lower().endswith(('.xlsx', '.xls'))
+                })
+            
+            # Sort
+            folders.sort(key=lambda x: x['name'])
+            files.sort(key=lambda x: x['name'])
+            
+            print(f"[OK] Found {len(folders)} folders and {len(files)} files in {folder_path}")
+            
+            return {
+                'path': folder_path,
+                'folders': folders,
+                'files': files,
+                'total_folders': len(folders),
+                'total_files': len(files),
+                'source': 'Google Drive API'
+            }
+            
+        except Exception as e:
+            print(f"[ERROR] Error browsing folder {folder_path}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e), 'folders': [], 'files': []}
+    
     def load_sales_orders_data(self, drive_id, filter_folders=None):
         """Load sales orders data from Google Drive - supports folder filtering
         Returns file metadata extracted from filenames (like local version - simple and reliable)
