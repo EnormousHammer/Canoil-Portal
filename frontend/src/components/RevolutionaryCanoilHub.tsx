@@ -6395,24 +6395,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   // Check if item is assembled (PERFORMANCE: using pre-computed Set)
                   const isAssembled = assembledItemsSet.has(item["Item No."]);
                   
-                  // Dynamic card styling based on stock status
-                  const cardBg = stock <= 0 
-                    ? 'bg-gradient-to-br from-red-50 via-white to-rose-50/50' 
+                  // Status colors - accent on left border + stock number
+                  const stockTextColor = stock <= 0 
+                    ? 'text-red-600' 
                     : stock <= reorderLevel && reorderLevel > 0 
-                      ? 'bg-gradient-to-br from-amber-50 via-white to-orange-50/30'
-                      : 'bg-gradient-to-br from-slate-50 via-white to-emerald-50/30';
+                      ? 'text-amber-600'
+                      : 'text-emerald-600';
                   
-                  const cardBorder = stock <= 0 
-                    ? 'border-red-200 hover:border-red-400' 
+                  const borderAccent = stock <= 0 
+                    ? 'border-l-red-500' 
                     : stock <= reorderLevel && reorderLevel > 0 
-                      ? 'border-amber-200 hover:border-amber-400'
-                      : 'border-slate-200 hover:border-emerald-400';
-                  
-                  const stockBg = stock <= 0 
-                    ? 'bg-gradient-to-br from-red-500 to-rose-600' 
-                    : stock <= reorderLevel && reorderLevel > 0 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500'
-                      : 'bg-gradient-to-br from-emerald-500 to-teal-600';
+                      ? 'border-l-amber-500'
+                      : 'border-l-emerald-500';
 
                   return (
                     <div 
@@ -6423,80 +6417,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         setShowAnalytics(false);
                         setShowBOMPlanning(false);
                       }}
-                      className={`group relative overflow-hidden rounded-2xl p-4 border-2 ${cardBorder} ${cardBg} hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer`}
+                      className={`group bg-white rounded-lg border border-gray-200 border-l-4 ${borderAccent} hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
                     >
-                      {/* Subtle animated glow for out-of-stock items */}
-                      {stock <= 0 && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 via-transparent to-red-500/5 animate-pulse pointer-events-none" />
-                      )}
-                      
-                      {/* Top Section: Item ID + Type Badge */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-sm font-bold text-slate-800 tracking-tight truncate font-mono">{item["Item No."]}</h3>
-                            {isAssembled ? (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600 text-[9px] font-bold uppercase tracking-wider">
-                                ASM
-                              </span>
-                            ) : (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 text-[9px] font-bold uppercase tracking-wider">
-                                RAW
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{item["Description"]}</p>
+                      {/* Header: Item + Badge */}
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <h3 className="text-sm font-bold text-gray-900 truncate flex-1">{item["Item No."]}</h3>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          isAssembled ? 'bg-orange-500 text-white' : 'bg-sky-500 text-white'
+                        }`}>
+                          {isAssembled ? 'ASM' : 'RAW'}
+                        </span>
+                      </div>
+
+                      {/* Description */}
+                      <div className="px-3 pb-2">
+                        <p className="text-xs text-gray-500 line-clamp-1">{item["Description"]}</p>
+                      </div>
+
+                      {/* Stock & WIP - Side by Side */}
+                      <div className="flex mx-3 mb-2 rounded-lg overflow-hidden border border-gray-100">
+                        <div className="flex-1 py-2 px-3 bg-gray-50">
+                          <div className={`text-xl font-bold ${stockTextColor}`}>{stock.toLocaleString()}</div>
+                          <div className="text-[10px] text-gray-400 font-medium uppercase">Stock</div>
+                        </div>
+                        <div className="flex-1 py-2 px-3 bg-slate-100 border-l border-gray-200">
+                          <div className="text-xl font-bold text-slate-700">{wip.toLocaleString()}</div>
+                          <div className="text-[10px] text-gray-400 font-medium uppercase">WIP</div>
                         </div>
                       </div>
 
-                      {/* Hero Stock Display - The Star of the Show */}
-                      <div className={`relative rounded-xl p-3 mb-3 ${stockBg} shadow-lg`}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-3xl font-black text-white tracking-tight drop-shadow-sm">
-                              {stock.toLocaleString()}
-                            </div>
-                            <div className="text-[10px] text-white/80 font-semibold uppercase tracking-widest">
-                              In Stock
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-white/90">
-                              {formatCAD(cost)}
-                            </div>
-                            <div className="text-[9px] text-white/70 font-medium uppercase">
-                              Unit Cost
-                            </div>
-                          </div>
+                      {/* Footer: On Order + Cost */}
+                      <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 text-xs">
+                        <div className="text-gray-500">
+                          <span className="font-semibold text-gray-700">{onOrder.toLocaleString()}</span> on order
                         </div>
-                        {/* Status indicator line */}
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 rounded-b-xl overflow-hidden">
-                          <div 
-                            className="h-full bg-white/40 transition-all duration-500"
-                            style={{ 
-                              width: reorderLevel > 0 
-                                ? `${Math.min(100, (stock / (reorderLevel * 2)) * 100)}%` 
-                                : '100%' 
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Secondary Metrics Row */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 text-center py-2 px-2 rounded-lg bg-white/80 border border-slate-100">
-                          <div className="text-base font-bold text-slate-700">{wip.toLocaleString()}</div>
-                          <div className="text-[8px] text-slate-400 font-semibold uppercase tracking-wider">WIP</div>
-                        </div>
-                        <div className="flex-1 text-center py-2 px-2 rounded-lg bg-white/80 border border-slate-100">
-                          <div className="text-base font-bold text-slate-700">{onOrder.toLocaleString()}</div>
-                          <div className="text-[8px] text-slate-400 font-semibold uppercase tracking-wider">On Order</div>
-                        </div>
-                        <div className="shrink-0 w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:bg-emerald-500 group-hover:border-emerald-500 transition-all duration-300">
-                          <svg className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
+                        <div className="font-bold text-gray-800">{formatCAD(cost)}</div>
                       </div>
                     </div>
                   );
