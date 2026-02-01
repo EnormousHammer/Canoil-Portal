@@ -6588,13 +6588,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {activeSection === 'orders' && (
             <div className="space-y-6">
               
-              {/* Light Breadcrumb Navigation */}
+              {/* Premium Dark Breadcrumb Navigation */}
               {soCurrentPath.length > 0 && (
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-lg">
-                  <div className="flex items-center gap-2 text-sm flex-wrap">
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-4 border border-slate-700/50 shadow-xl">
+                  <div className="flex items-center gap-3 text-sm flex-wrap">
                     <button 
                       onClick={resetSONavigation}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-500 hover:to-indigo-500 font-semibold transition-all shadow-md"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-500 hover:to-indigo-500 font-semibold transition-all shadow-lg shadow-blue-500/25"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -6603,7 +6603,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </button>
                     {soCurrentPath.map((folder, index) => (
                       <React.Fragment key={index}>
-                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                         <button 
@@ -6614,8 +6614,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           }}
                           className={`px-4 py-2.5 rounded-xl font-semibold transition-all ${
                             index === soCurrentPath.length - 1
-                              ? 'bg-slate-100 text-slate-900 border border-slate-200'
-                              : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                              ? 'bg-slate-700/50 text-white border border-slate-600/50'
+                              : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-white border border-slate-700/50'
                           }`}
                         >
                           {folder}
@@ -6624,7 +6624,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     ))}
                     <button 
                       onClick={navigateBackSO}
-                      className="ml-auto px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-semibold flex items-center gap-2 border border-slate-200"
+                      className="ml-auto px-5 py-2.5 bg-slate-700/50 text-slate-300 rounded-xl hover:bg-slate-600/50 hover:text-white transition-all font-semibold flex items-center gap-2 border border-slate-600/50"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -6829,65 +6829,106 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
               )}
 
-              {/* ACTUAL FOLDER CONTENTS FROM G: DRIVE - Light Theme */}
+              {/* FOLDER CONTENTS - Premium Dark Theme */}
               {soCurrentPath.length >= 1 && (
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-                  {/* Folder Header */}
-                  <div className="bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200 px-6 py-4">
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-700/50">
+                  {/* Folder Header - Premium Design */}
+                  <div className="bg-gradient-to-r from-slate-800/80 to-indigo-900/50 border-b border-slate-700/50 px-6 py-5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                           </svg>
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-slate-900">{soCurrentPath[soCurrentPath.length - 1]}</h3>
-                          <div className="text-sm text-slate-500">
-                            {soLoading ? 'Loading from G: Drive...' : (soFolderData ? `${soFolderData.total_folders} folders, ${soFolderData.total_files} files` : 'Loading...')}
+                          <h3 className="text-xl font-bold text-white tracking-tight">{soCurrentPath[soCurrentPath.length - 1]}</h3>
+                          <div className="text-sm text-slate-400 mt-0.5 flex items-center gap-2">
+                            {soLoading ? (
+                              <>
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                <span>Syncing with Google Drive...</span>
+                              </>
+                            ) : soFolderData ? (
+                              <>
+                                <span className="text-blue-400 font-medium">{soFolderData.total_folders}</span> folders
+                                <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
+                                <span className="text-emerald-400 font-medium">{soFolderData.total_files}</span> files
+                              </>
+                            ) : (
+                              <span>Loading...</span>
+                            )}
                           </div>
                         </div>
                       </div>
                       
-                      {soLoading && (
-                        <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-4 py-2 rounded-xl border border-blue-200">
-                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center gap-3">
+                        {soLoading && (
+                          <div className="flex items-center gap-2 text-blue-400 bg-blue-500/10 px-4 py-2 rounded-xl border border-blue-500/30">
+                            <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="text-sm font-medium">Syncing...</span>
+                          </div>
+                        )}
+                        
+                        {/* Refresh Button */}
+                        <button
+                          onClick={() => loadSOFolderData(soCurrentPath)}
+                          className="w-10 h-10 bg-slate-700/50 hover:bg-slate-600/50 rounded-xl flex items-center justify-center transition-all text-slate-400 hover:text-white border border-slate-600/50"
+                          title="Refresh folder"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
-                          <span className="text-sm font-medium">Syncing...</span>
-                        </div>
-                      )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="p-6">
                     {soFolderData && !soLoading && (
                       <>
-                        {/* Show Subfolders */}
+                        {/* Show Subfolders - Premium Cards */}
                         {soFolderData.folders && soFolderData.folders.length > 0 && (
                           <div className="mb-8">
-                            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                              </svg>
-                              Subfolders ({soFolderData.folders.length})
-                            </h4>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                                Subfolders
+                              </h4>
+                              <span className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                                {soFolderData.folders.length} folder{soFolderData.folders.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                               {soFolderData.folders.map((folder: any, index: number) => (
                                 <div 
                                   key={index}
                                   onClick={() => navigateToSOFolder(folder.name)}
-                                  className="group bg-blue-50 rounded-xl p-4 text-center hover:bg-blue-100 transition-all cursor-pointer border border-blue-200 hover:border-blue-300 hover:shadow-md"
+                                  className="group bg-gradient-to-br from-slate-800/80 to-slate-800/40 rounded-2xl p-5 hover:from-blue-900/40 hover:to-indigo-900/30 transition-all cursor-pointer border border-slate-700/50 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10"
                                 >
-                                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-200 transition-colors">
-                                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-indigo-500/30 transition-colors border border-blue-500/20">
+                                      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                      </svg>
+                                    </div>
+                                    <svg className="w-5 h-5 text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                     </svg>
                                   </div>
-                                  <div className="font-semibold text-slate-900 text-sm mb-1 truncate">{folder.name}</div>
-                                  <div className="text-xs text-slate-500">
-                                    {folder.file_count} files
-                                    {folder.folder_count > 0 && ` • ${folder.folder_count} folders`}
+                                  <div className="font-bold text-white text-base mb-2 truncate group-hover:text-blue-300 transition-colors">{folder.name}</div>
+                                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <span className="text-emerald-400 font-medium">{folder.file_count}</span> files
+                                    {folder.folder_count > 0 && (
+                                      <>
+                                        <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
+                                        <span className="text-blue-400 font-medium">{folder.folder_count}</span> folders
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -6895,21 +6936,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </div>
                         )}
 
-                        {/* Show Actual Sales Order Files - Premium Design */}
+                        {/* Show Actual Sales Order Files - Premium Dark Design */}
                         {soFolderData.files && soFolderData.files.length > 0 && (
                           <div>
                             <div className="flex items-center justify-between mb-4">
-                              <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Sales Order Files ({soFolderData.files.length})
+                                Sales Order Files
                               </h4>
-                              <div className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                                Click any file to view options
-                              </div>
+                              <span className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                                {soFolderData.files.length} file{soFolderData.files.length !== 1 ? 's' : ''}
+                              </span>
                             </div>
-                            <div className="grid gap-3 max-h-[600px] overflow-y-auto pr-2">
+                            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                               {soFolderData.files.map((file: any, index: number) => {
                                 // Extract SO number from filename
                                 const soMatch = file.name.match(/salesorder[_-]?(\d+)/i);
@@ -6918,14 +6959,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 return (
                                   <div 
                                     key={index}
-                                    className="group bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all overflow-hidden"
+                                    className="group bg-gradient-to-r from-slate-800/60 to-slate-800/30 rounded-2xl border border-slate-700/50 hover:border-blue-500/50 hover:from-slate-800/80 hover:to-blue-900/20 transition-all overflow-hidden"
                                   >
                                     <div className="flex items-center gap-4 p-4">
-                                      {/* File Icon */}
-                                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                                        file.is_pdf ? 'bg-gradient-to-br from-red-500 to-rose-600' : 
-                                        file.is_excel ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 
-                                        'bg-gradient-to-br from-blue-500 to-indigo-600'
+                                      {/* File Icon with Glow Effect */}
+                                      <div className={`relative w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${
+                                        file.is_pdf ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/25' : 
+                                        file.is_excel ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/25' : 
+                                        'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25'
                                       }`}>
                                         {file.is_pdf ? (
                                           <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -6940,19 +6981,25 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                           </svg>
                                         )}
+                                        {/* SO Number Badge */}
+                                        {soNumber && (
+                                          <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-slate-900 rounded-md text-[10px] font-bold text-white border border-slate-700">
+                                            #{soNumber}
+                                          </div>
+                                        )}
                                       </div>
                                       
                                       {/* File Info */}
                                       <div className="flex-1 min-w-0">
-                                        <div className="font-bold text-slate-900 truncate text-base">{file.name}</div>
+                                        <div className="font-bold text-white truncate text-base group-hover:text-blue-300 transition-colors">{file.name}</div>
                                         <div className="flex items-center gap-3 mt-1.5 text-sm text-slate-500">
-                                          <span className="font-medium">{(file.size / 1024).toFixed(1)} KB</span>
-                                          <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                          <span>Modified: {file.modified}</span>
+                                          <span className="text-slate-400 font-medium">{(file.size / 1024).toFixed(1)} KB</span>
+                                          <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
+                                          <span className="text-slate-500">Modified: {file.modified}</span>
                                         </div>
                                       </div>
                                       
-                                      {/* Action Buttons */}
+                                      {/* Action Buttons - Glassmorphism Style */}
                                       <div className="flex items-center gap-2 flex-shrink-0">
                                         {/* Quick View Button */}
                                         <button
@@ -6960,11 +7007,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             e.stopPropagation();
                                             openQuickView({...file, so_number: soNumber});
                                           }}
-                                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-all text-sm font-medium border border-purple-200 hover:border-purple-300"
+                                          className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-500/20 text-purple-300 rounded-xl hover:bg-purple-500/30 transition-all text-sm font-medium border border-purple-500/30 hover:border-purple-400/50 backdrop-blur-sm"
                                           title="Quick View PDF"
                                         >
                                           <Eye className="w-4 h-4" />
-                                          <span className="hidden sm:inline">Quick View</span>
+                                          <span className="hidden lg:inline">Quick View</span>
                                         </button>
                                         
                                         {/* View in Browser Button */}
@@ -6973,11 +7020,30 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             e.stopPropagation();
                                             viewSOInBrowser({...file, so_number: soNumber});
                                           }}
-                                          className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all text-sm font-medium border border-blue-200 hover:border-blue-300"
+                                          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/30 transition-all text-sm font-medium border border-blue-500/30 hover:border-blue-400/50 backdrop-blur-sm"
                                           title="View in Browser"
                                         >
                                           <Globe className="w-4 h-4" />
-                                          <span className="hidden sm:inline">Browser</span>
+                                          <span className="hidden lg:inline">Browser</span>
+                                        </button>
+                                        
+                                        {/* Download Button */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const url = file.gdrive_id 
+                                              ? getApiUrl(`/api/gdrive/download/${file.gdrive_id}`)
+                                              : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(file.path)}`);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = file.name;
+                                            link.click();
+                                          }}
+                                          className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl hover:bg-emerald-500/30 transition-all text-sm font-medium border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-sm"
+                                          title="Download File"
+                                        >
+                                          <Download className="w-4 h-4" />
+                                          <span className="hidden xl:inline">Download</span>
                                         </button>
                                         
                                         {/* View Details Arrow */}
@@ -6986,7 +7052,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             e.stopPropagation();
                                             openSOViewer({...file, so_number: soNumber});
                                           }}
-                                          className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+                                          className="w-10 h-10 flex items-center justify-center bg-slate-700/50 text-slate-400 rounded-xl hover:bg-blue-500 hover:text-white transition-all border border-slate-600/50 hover:border-blue-400"
                                           title="View Details"
                                         >
                                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -7002,50 +7068,64 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </div>
                         )}
 
-                        {/* Empty Folder */}
+                        {/* Empty Folder - Dark Theme */}
                         {(!soFolderData.folders || soFolderData.folders.length === 0) && 
                          (!soFolderData.files || soFolderData.files.length === 0) && (
-                          <div className="text-center py-16">
-                            <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                          <div className="text-center py-20">
+                            <div className="w-24 h-24 bg-slate-800/50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-slate-700/50">
+                              <svg className="w-12 h-12 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                               </svg>
                             </div>
-                            <div className="text-lg font-semibold text-slate-600">Empty Folder</div>
-                            <div className="text-sm text-slate-500 mt-1">No Sales Orders found in this folder</div>
+                            <div className="text-xl font-bold text-slate-400">Empty Folder</div>
+                            <div className="text-sm text-slate-600 mt-2 max-w-md mx-auto">No Sales Orders found in this folder. Files may have been moved or the folder is empty.</div>
+                            <button 
+                              onClick={() => loadSOFolderData(soCurrentPath)}
+                              className="mt-6 px-6 py-2.5 bg-blue-500/20 text-blue-400 rounded-xl font-medium hover:bg-blue-500/30 transition-all border border-blue-500/30"
+                            >
+                              Refresh Folder
+                            </button>
                           </div>
                         )}
                       </>
                     )}
                     
-                    {/* Loading State */}
+                    {/* Loading State - Dark Theme */}
                     {!soFolderData && soLoading && (
-                      <div className="text-center py-16">
-                        <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-                          <svg className="w-10 h-10 text-blue-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
+                      <div className="text-center py-20">
+                        <div className="relative w-24 h-24 mx-auto mb-6">
+                          <div className="absolute inset-0 bg-blue-500/20 rounded-3xl animate-ping"></div>
+                          <div className="relative w-24 h-24 bg-gradient-to-br from-blue-500/30 to-indigo-500/30 rounded-3xl flex items-center justify-center border border-blue-500/30">
+                            <svg className="w-12 h-12 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </div>
                         </div>
-                        <div className="text-lg font-semibold text-slate-900">Loading Sales Orders</div>
-                        <div className="text-sm text-slate-500 mt-1">Fetching from G: Drive...</div>
+                        <div className="text-xl font-bold text-white">Loading Sales Orders</div>
+                        <div className="text-sm text-slate-500 mt-2">Fetching from Google Drive...</div>
+                        <div className="flex items-center justify-center gap-1 mt-4">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
                       </div>
                     )}
                     
-                    {/* Error State */}
+                    {/* Error State - Dark Theme */}
                     {soFolderData?.error && !soLoading && (
-                      <div className="text-center py-16">
-                        <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="text-center py-20">
+                        <div className="w-24 h-24 bg-red-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-500/30">
+                          <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
                         </div>
-                        <div className="text-lg font-semibold text-red-600">Failed to Load</div>
-                        <div className="text-sm text-slate-500 mt-1">{soFolderData.error}</div>
+                        <div className="text-xl font-bold text-red-400">Failed to Load</div>
+                        <div className="text-sm text-slate-500 mt-2 max-w-md mx-auto">{soFolderData.error}</div>
                         <button 
                           onClick={() => loadSOFolderData(soCurrentPath)}
-                          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-500 transition-all"
+                          className="mt-6 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/25"
                         >
-                          Retry
+                          Try Again
                         </button>
                       </div>
                     )}
