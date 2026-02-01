@@ -7122,359 +7122,197 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         console.log('  SO matches for this item:', itemSOMatches.length);
         console.log('  SO matches sample:', itemSOMatches.slice(0, 2));
         
+        // Calculate key metrics for this item
+        const currentStock = parseStockValue(selectedItem['On Hand'] || selectedItem['Stock'] || 0);
+        const currentWIP = parseStockValue(selectedItem['WIP'] || 0);
+        const onOrder = parseStockValue(selectedItem['On Order'] || selectedItem['Qty On Order'] || 0);
+        const reorderLevel = parseStockValue(selectedItem['Reorder Level'] || selectedItem['Minimum'] || 0);
+        const unitCost = parseCostValue(selectedItem['Unit Cost'] || selectedItem['Recent Cost'] || selectedItem['Standard Cost'] || 0);
+        const totalValue = currentStock * unitCost;
+        const availableStock = currentStock + currentWIP + onOrder;
+        const stockStatus = currentStock <= 0 ? 'out' : currentStock <= reorderLevel ? 'low' : 'ok';
+        
         return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Compact Header */}
+            <div className="bg-slate-800 text-white px-6 py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                    <Package2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold">{selectedItem['Item No.'] || 'Unknown Item'}</h2>
-                    <p className="text-blue-100 text-sm">{selectedItem['Description'] || 'No description available'}</p>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold">{selectedItem['Item No.'] || 'Unknown Item'}</h2>
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${
+                    assembledItemsSet.has(selectedItem['Item No.']) 
+                      ? 'bg-orange-500' 
+                      : 'bg-sky-500'
+                  }`}>
+                    {assembledItemsSet.has(selectedItem['Item No.']) ? 'ASSEMBLED' : 'RAW MATERIAL'}
+                  </span>
                 </div>
                 <button
                   onClick={closeItemModal}
-                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-colors"
+                  className="w-8 h-8 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              <p className="text-slate-300 text-sm mt-1">{selectedItem['Description'] || 'No description available'}</p>
+            </div>
+
+            {/* Key Stats Bar - Stock Focused */}
+            <div className="bg-slate-100 border-b border-slate-200">
+              <div className="flex divide-x divide-slate-200">
+                {/* Stock - Primary */}
+                <div className={`flex-1 py-4 px-5 ${
+                  stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
+                }`}>
+                  <div className={`text-3xl font-bold ${
+                    stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
+                  }`}>
+                    {currentStock.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">In Stock</div>
+                </div>
+                {/* WIP */}
+                <div className="flex-1 py-4 px-5 bg-blue-50">
+                  <div className="text-3xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
+                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Work in Progress</div>
+                </div>
+                {/* On Order */}
+                <div className="flex-1 py-4 px-5">
+                  <div className="text-3xl font-bold text-slate-700">{onOrder.toLocaleString()}</div>
+                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">On Order</div>
+                </div>
+                {/* Available (Stock + WIP + On Order) */}
+                <div className="flex-1 py-4 px-5 bg-slate-50">
+                  <div className="text-3xl font-bold text-slate-800">{availableStock.toLocaleString()}</div>
+                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Available</div>
+                </div>
+                {/* Unit Cost */}
+                <div className="flex-1 py-4 px-5">
+                  <div className="text-2xl font-bold text-slate-700">{formatCAD(unitCost)}</div>
+                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Unit Cost</div>
+                </div>
+              </div>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-              {/* Top Priority Information Row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-4 border border-green-200">
-                  <div className="text-2xl font-bold text-green-700">
-                    {parseStockValue(selectedItem['On Hand'] || selectedItem['Stock'] || 0).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-green-600 font-medium">Current Stock</div>
-                </div>
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-100 rounded-xl p-4 border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-700">
-                    {formatCAD(parseCostValue(selectedItem['Unit Cost'] || selectedItem['Cost'] || 0))}
-                  </div>
-                  <div className="text-sm text-blue-600 font-medium">Unit Cost</div>
-                </div>
-                <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-xl p-4 border border-purple-200">
-                  <div className="text-2xl font-bold text-purple-700">
-                    {formatCAD(parseStockValue(selectedItem['On Hand'] || 0) * parseCostValue(selectedItem['Unit Cost'] || 0))}
-                  </div>
-                  <div className="text-sm text-purple-600 font-medium">Total Value</div>
-                </div>
-                <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-xl p-4 border border-orange-200">
-                  <div className="text-2xl font-bold text-orange-700">
-                    {parseStockValue(selectedItem['Reorder Level'] || selectedItem['Min Stock'] || 0).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-orange-600 font-medium">Reorder Level</div>
-                </div>
-              </div>
+            <div className="p-5 overflow-y-auto max-h-[calc(90vh-220px)]">
 
-              {/* Clickable Navigation Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                {/* Purchase Orders Button */}
+              {/* Tab Navigation */}
+              <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-lg">
+                {/* Purchase Orders Tab */}
                 <button 
                   onClick={() => setItemModalActiveView('po')}
-                  className={`rounded-lg p-4 text-center border shadow-sm transition-all hover:shadow-md ${
+                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
                     itemModalActiveView === 'po' 
-                      ? 'bg-blue-500 text-white border-blue-600' 
-                      : 'bg-white border-gray-200 hover:bg-blue-50'
+                      ? 'bg-white text-blue-600 shadow-sm' 
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <div className="text-xl font-bold">
+                  <span className="font-bold mr-1.5">
                     {(() => {
                       const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                      
-                      // COMPREHENSIVE PO COUNT - Same logic as detailed view
-                      // 1. From processed PO lines
                       const processedPOLines = processPurchaseOrders.lines.filter((line: any) => 
                         (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
                       );
-                      
-                      // 2. From raw PurchaseOrderDetails.json
                       const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
-                        const itemFields = [
-                          detail['Item No.'],
-                          detail['ItemNo'], 
-                          detail['Item_No'],
-                          detail['ITEM_NO'],
-                          detail['Component Item No.'],
-                          detail['Product Code'],
-                          detail['Part No.'],
-                          detail['SKU']
-                        ];
-                        return itemFields.some(field => 
-                          (field || '').toString().trim().toUpperCase() === itemNoUpper
-                        );
+                        const itemFields = [detail['Item No.'], detail['ItemNo'], detail['Item_No'], detail['ITEM_NO'], detail['Component Item No.'], detail['Product Code'], detail['Part No.'], detail['SKU']];
+                        return itemFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
                       });
-                      
-                      // 3. From PurchaseOrders.json headers
-                      const rawPOHeaders = (data['PurchaseOrders.json'] || []).filter((header: any) => {
-                        const itemFields = [
-                          header['Item No.'],
-                          header['ItemNo'],
-                          header['Build Item No.'],
-                          header['Product Code'],
-                          header['Description']
-                        ];
-                        return itemFields.some(field => 
-                          (field || '').toString().trim().toUpperCase() === itemNoUpper ||
-                          (field || '').toString().toLowerCase().includes((selectedItem?.['Description'] || '').toLowerCase().substring(0, 10))
-                        );
-                      });
-                      
-                      // Count unique PO records (avoid duplicates)
                       const allPONumbers = new Set();
                       processedPOLines.forEach((line: any) => allPONumbers.add(line.poId));
-                      rawPODetails.forEach((detail: any) => {
-                        if (!Array.from(allPONumbers).some(poId => poId === detail['PO No.'])) {
-                          allPONumbers.add(detail['PO No.'] + '-' + detail['Line No.']);
-                        }
-                      });
-                      rawPOHeaders.forEach((header: any) => {
-                        if (!Array.from(allPONumbers).some(poId => poId === header['PO No.'])) {
-                          allPONumbers.add(header['PO No.']);
-                        }
-                      });
-                      
+                      rawPODetails.forEach((detail: any) => allPONumbers.add(detail['PO No.'] + '-' + detail['Line No.']));
                       return allPONumbers.size;
                     })()}
-                  </div>
-                  <div className="text-sm">Purchase Orders</div>
+                  </span>
+                  Purchase Orders
                 </button>
 
-                {/* Manufacturing Orders Button */}
+                {/* Manufacturing Orders Tab */}
                 <button 
                   onClick={() => setItemModalActiveView('mo')}
-                  className={`rounded-lg p-4 text-center border shadow-sm transition-all hover:shadow-md ${
+                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
                     itemModalActiveView === 'mo' 
-                      ? 'bg-green-500 text-white border-green-600' 
-                      : 'bg-white border-gray-200 hover:bg-green-50'
+                      ? 'bg-white text-green-600 shadow-sm' 
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <div className="text-xl font-bold">
+                  <span className="font-bold mr-1.5">
                     {(() => {
                       const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                      
-                      // COMPREHENSIVE MO COUNT - Same logic as detailed view
-                      // 1. From ManufacturingOrderDetails - where this item is a component
                       const moDetailsAsComponent = (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => {
-                        const componentFields = [
-                          mo['Component Item No.'],
-                          mo['Item No.'],
-                          mo['Part No.'],
-                          mo['Material No.']
-                        ];
-                        return componentFields.some(field => 
-                          (field || '').toString().trim().toUpperCase() === itemNoUpper
-                        );
+                        const componentFields = [mo['Component Item No.'], mo['Item No.'], mo['Part No.'], mo['Material No.']];
+                        return componentFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
                       });
-                      
-                      // 2. From ManufacturingOrderHeaders - where this item is being built
                       const moHeadersAsBuild = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => {
-                        const buildFields = [
-                          mo['Build Item No.'],
-                          mo['Assembly No.'],
-                          mo['Sales Item No.'],
-                          mo['Item No.']
-                        ];
-                        return buildFields.some(field => 
-                          (field || '').toString().trim().toUpperCase() === itemNoUpper
-                        );
+                        const buildFields = [mo['Build Item No.'], mo['Assembly No.'], mo['Sales Item No.'], mo['Item No.']];
+                        return buildFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
                       });
-                      
-                      // Count unique MO records (avoid duplicates)
                       const allMONumbers = new Set();
                       moDetailsAsComponent.forEach((detail: any) => allMONumbers.add(detail['Mfg. Order No.']));
                       moHeadersAsBuild.forEach((header: any) => allMONumbers.add(header['Mfg. Order No.']));
-                      
                       return allMONumbers.size;
                     })()}
-                  </div>
-                  <div className="text-sm">Manufacturing Orders</div>
+                  </span>
+                  Mfg Orders
                 </button>
 
-                {/* Sales Orders Button */}
+                {/* Sales Orders Tab */}
                 <button 
                   onClick={() => setItemModalActiveView('so')}
-                  className={`rounded-lg p-4 text-center border shadow-sm transition-all hover:shadow-md ${
+                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
                     itemModalActiveView === 'so' 
-                      ? 'bg-purple-500 text-white border-purple-600' 
-                      : 'bg-white border-gray-200 hover:bg-purple-50'
+                      ? 'bg-white text-purple-600 shadow-sm' 
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <div className="text-xl font-bold">
+                  <span className="font-bold mr-1.5">
                     {(() => {
-                      // 🎯 UNIVERSAL ITEM IDENTIFICATION - Works for ANY item from ANY source
-                      const itemFields = [
-                        selectedItem?.['Item No.'],
-                        selectedItem?.['ItemNo'], 
-                        selectedItem?.['Item_No'],
-                        selectedItem?.['ITEM_NO'],
-                        selectedItem?.['Component Item No.'],
-                        selectedItem?.['Product Code'],
-                        selectedItem?.['Part No.'],
-                        selectedItem?.['SKU'],
-                        selectedItem?.['Build Item No.'],
-                        selectedItem?.['Assembly No.']
-                      ];
+                      const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
+                      const selectedItemName = (selectedItem?.['Description'] || '').toString().toLowerCase().trim();
+                      if (!itemNoUpper) return 0;
                       
-                      const itemNoUpper = (itemFields.find(field => field && field.toString().trim()) || '').toString().trim().toUpperCase();
-                      
-                      // 🎯 UNIVERSAL DESCRIPTION IDENTIFICATION - Check all possible description fields
-                      const descriptionFields = [
-                        selectedItem?.['Description'],
-                        selectedItem?.['Item Description'],
-                        selectedItem?.['Product Description'],
-                        selectedItem?.['Item Name'],
-                        selectedItem?.['Name'],
-                        selectedItem?.['Title']
-                      ];
-                      
-                      const selectedItemName = (descriptionFields.find(field => field && field.toString().trim()) || '').toString().toLowerCase().trim();
-                      
-                      console.log(`🔍 UNIVERSAL ITEM MATCHING: "${itemNoUpper}" | "${selectedItemName}"`);
-                      console.log('  Available item fields:', Object.keys(selectedItem || {}));
-                      
-                      // 🚨 CRITICAL: If no item code found, this item might not be matchable
-                      if (!itemNoUpper) {
-                        console.error('❌ NO ITEM CODE FOUND - Cannot match SOs without item identifier');
-                        console.error('  Item data:', selectedItem);
-                        return 0; // No matches possible without item identifier
-                      }
-                      
-                      // 1. MAIN SOURCE: ParsedSalesOrders.json with strict matching
                       const parsedSOs = data['ParsedSalesOrders.json'] || [];
-                      let salesOrdersWithItemMatch: any[] = [];
-                      
-                      if (parsedSOs.length > 0) {
-                        // 🎯 SIMPLE UNIVERSAL SEARCH - Same as main SO tab
-                        salesOrdersWithItemMatch = parsedSOs.filter((so: any) => {
-                          const items = so.items || [];
-                          
-                          return items.some((item: any) => {
-                            const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                            const itemDesc = (item.description || '').toString().toLowerCase().trim();
-                            
-                            // 1. EXACT ITEM CODE MATCH
-                            if (itemCode && itemCode === itemNoUpper) {
-                              return true;
-                            }
-                            
-                            // 2. ITEM CODE IN DESCRIPTION (word boundary)
-                            if (itemNoUpper && itemDesc) {
-                              const codeRegex = new RegExp(`\\b${itemNoUpper}\\b`, 'i');
-                              if (codeRegex.test(itemDesc)) {
-                                return true;
-                              }
-                            }
-                            
-                            // 3. DESCRIPTION MATCHING - Simple and effective
-                            if (selectedItemName && selectedItemName.length > 3 && itemDesc) {
-                              // Direct substring match
-                              if (itemDesc.includes(selectedItemName) || selectedItemName.includes(itemDesc)) {
-                                return true;
-                              }
-                              
-                              // Word-based matching
-                              const inventoryWords = selectedItemName.split(/[\s\-_,()×x\/\\]+/)
-                                .filter((word: string) => word.length > 2)
-                                .filter((word: string) => !['and', 'the', 'for', 'with', 'oil', 'lube'].includes(word));
-                              
-                              const soWords = itemDesc.split(/[\s\-_,()×x\/\\]+/)
-                                .filter((word: string) => word.length > 2);
-                              
-                              if (inventoryWords.length > 0) {
-                                const matchingWords = inventoryWords.filter((invWord: string) => 
-                                  soWords.some((soWord: string) => 
-                                    invWord === soWord || 
-                                    (invWord.length > 3 && soWord.length > 3 && 
-                                     (invWord.includes(soWord) || soWord.includes(invWord)))
-                                  )
-                                );
-                                
-                                const matchRatio = matchingWords.length / inventoryWords.length;
-                                if (matchRatio >= 0.4) {
-                                  return true;
-                                }
-                              }
-                            }
-                            
-                            return false;
-                          });
+                      const salesOrdersWithItemMatch = parsedSOs.filter((so: any) => {
+                        const items = so.items || [];
+                        return items.some((item: any) => {
+                          const itemCode = (item.item_code || '').toString().trim().toUpperCase();
+                          const itemDesc = (item.description || '').toString().toLowerCase().trim();
+                          if (itemCode && itemCode === itemNoUpper) return true;
+                          if (itemNoUpper && itemDesc) {
+                            const codeRegex = new RegExp(`\\b${itemNoUpper}\\b`, 'i');
+                            if (codeRegex.test(itemDesc)) return true;
+                          }
+                          if (selectedItemName && selectedItemName.length > 3 && itemDesc) {
+                            if (itemDesc.includes(selectedItemName) || selectedItemName.includes(itemDesc)) return true;
+                          }
+                          return false;
                         });
-                      }
-                      
-                      // 🚨 NO FALLBACK - ONLY PARSED SO DATA
-                      console.log('🚨 HEADER COUNT: Using only parsed SO data, no fallback mixing');
-                      
-                      // Count unique SOs from parsed data only
+                      });
                       const allSONumbers = new Set();
                       salesOrdersWithItemMatch.forEach((so: any) => {
                         const soNumber = so['Order No.'] || so.order_number || so.so_number || so.id || so['SO No.'];
                         if (soNumber) allSONumbers.add(soNumber);
                       });
-                      
                       return allSONumbers.size;
                     })()}
-                  </div>
-                  <div className="text-sm">Sales Orders</div>
+                  </span>
+                  Sales Orders
                 </button>
 
-                {/* Locations Button */}
-                <button 
-                  onClick={() => setItemModalActiveView('locations')}
-                  className={`rounded-lg p-4 text-center border shadow-sm transition-all hover:shadow-md ${
-                    itemModalActiveView === 'locations' 
-                      ? 'bg-orange-500 text-white border-orange-600' 
-                      : 'bg-white border-gray-200 hover:bg-orange-50'
-                  }`}
-                >
-                  <div className="text-xl font-bold">
-                    {(() => {
-                      // 🔍 DEBUG: Check what location fields are available in CustomAlert5.json
-                      console.log('🔍 ITEM LOCATION DEBUG:');
-                      console.log('  Available item fields:', Object.keys(selectedItem || {}));
-                      console.log('  Location fields check:', {
-                        'Location': selectedItem?.['Location'],
-                        'Location No.': selectedItem?.['Location No.'],
-                        'Primary Location': selectedItem?.['Primary Location'],
-                        'Location Code': selectedItem?.['Location Code'],
-                        'Warehouse': selectedItem?.['Warehouse'],
-                        'Site': selectedItem?.['Site'],
-                        'Bin': selectedItem?.['Bin'],
-                        'Zone': selectedItem?.['Zone'],
-                        'Bin Location': selectedItem?.['Bin Location'],
-                        'Storage Location': selectedItem?.['Storage Location'],
-                        'Default Location': selectedItem?.['Default Location'],
-                        'Preferred Location': selectedItem?.['Preferred Location']
-                      });
-                      
-                      const location = selectedItem?.['Location'] || 
-                                     selectedItem?.['Location No.'] || 
-                                     selectedItem?.['Primary Location'] || 
-                                     selectedItem?.['Location Code'] ||
-                                     selectedItem?.['Warehouse'] ||
-                                     selectedItem?.['Site'] ||
-                                     selectedItem?.['Bin'] ||
-                                     selectedItem?.['Zone'] ||
-                                     selectedItem?.['Bin Location'] ||
-                                     selectedItem?.['Storage Location'] ||
-                                     selectedItem?.['Default Location'] ||
-                                     selectedItem?.['Preferred Location'] || '—';
-                      
-                      console.log('  Final location value:', location);
-                      return location;
-                    })()}
-                  </div>
-                  <div className="text-sm">Location</div>
-                </button>
+                {/* BOM Tab (if assembled) */}
+                {assembledItemsSet.has(selectedItem['Item No.']) && (
+                  <button 
+                    onClick={() => setItemModalActiveView('bom')}
+                    className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+                      itemModalActiveView === 'bom' 
+                        ? 'bg-white text-orange-600 shadow-sm' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    BOM
+                  </button>
+                )}
               </div>
 
               {/* Conditional Content Based on Active View */}
