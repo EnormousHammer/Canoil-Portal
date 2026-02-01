@@ -1882,84 +1882,96 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Manufacturing Orders */}
           {activeSection === 'manufacturing-orders' && (
             <div className="space-y-6">
-              {/* Premium Manufacturing Header */}
+              {/* Enhanced Manufacturing Header */}
               <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                <div className="bg-gradient-to-r from-violet-50 via-purple-50 to-indigo-50 border-b border-slate-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                <div className="relative bg-gradient-to-r from-violet-100 via-purple-50 to-indigo-100 border-b border-violet-200/50 p-6 overflow-hidden">
+                  {/* Decorative background elements */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-violet-200/30 to-transparent rounded-full -translate-y-32 translate-x-32"></div>
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full translate-y-24 -translate-x-24"></div>
+                  
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-5">
                       <div className="relative">
-                        <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                          <Factory className="w-7 h-7 text-white" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-violet-500/30 ring-4 ring-white">
+                          <Factory className="w-8 h-8 text-white" />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center border-3 border-white shadow-lg">
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Manufacturing Operations</h2>
-                        <p className="text-slate-500 text-sm mt-0.5">Production planning and order management</p>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manufacturing Operations</h2>
+                        <p className="text-violet-700 text-sm mt-1 font-medium">Production planning and order management</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                      <button className="px-5 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-white hover:shadow-md transition-all flex items-center gap-2">
                         <Download className="w-4 h-4" />
                         Export
+                      </button>
+                      <button className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-500 hover:to-purple-500 transition-all flex items-center gap-2 shadow-lg shadow-violet-500/25">
+                        <RefreshCw className="w-4 h-4" />
+                        Refresh
                       </button>
                     </div>
                   </div>
                 </div>
                 
-                {/* KPI Cards Row */}
-                <div className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Enhanced KPI Cards Row */}
+                <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Total MOs */}
-                    <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-5 border border-violet-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
-                          <Factory className="w-5 h-5 text-violet-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-violet-200 shadow-sm hover:shadow-xl hover:border-violet-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-violet-100 to-purple-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Factory className="w-6 h-6 text-violet-600" />
                         </div>
-                        <span className="text-xs font-bold text-violet-600 bg-violet-100 px-2 py-1 rounded-lg">TOTAL</span>
+                        <span className="text-xs font-bold text-violet-700 bg-violet-100 px-3 py-1.5 rounded-lg">TOTAL</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">Manufacturing Orders</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Manufacturing Orders</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-violet-500 to-purple-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Active Orders */}
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 border border-emerald-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                          <Activity className="w-5 h-5 text-emerald-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-emerald-200 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Activity className="w-6 h-6 text-emerald-600" />
                         </div>
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">ACTIVE</span>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">ACTIVE</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">In Production</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">In Production</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Planned Orders */}
-                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border border-amber-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-amber-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-amber-200 shadow-sm hover:shadow-xl hover:border-amber-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Calendar className="w-6 h-6 text-amber-600" />
                         </div>
-                        <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-1 rounded-lg">PLANNED</span>
+                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1.5 rounded-lg">PLANNED</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">Awaiting Release</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Awaiting Release</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Components */}
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                          <Package2 className="w-5 h-5 text-blue-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-blue-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Package2 className="w-6 h-6 text-blue-600" />
                         </div>
-                        <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">PARTS</span>
+                        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg">PARTS</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">Total Components</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Total Components</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full opacity-60"></div>
                     </div>
                   </div>
                 </div>
@@ -4353,38 +4365,42 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
             <div className="space-y-6">
-              {/* Premium Purchase Orders Header */}
+              {/* Enhanced Purchase Orders Header */}
               <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-teal-50 border-b border-slate-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                <div className="relative bg-gradient-to-r from-blue-100 via-cyan-50 to-teal-100 border-b border-blue-200/50 p-6 overflow-hidden">
+                  {/* Decorative background elements */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/30 to-transparent rounded-full -translate-y-32 translate-x-32"></div>
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-cyan-200/30 to-transparent rounded-full translate-y-24 -translate-x-24"></div>
+                  
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-5">
                       <div className="relative">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg">
-                          <ShoppingBag className="w-7 h-7 text-white" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 ring-4 ring-white">
+                          <ShoppingBag className="w-8 h-8 text-white" />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center border-3 border-white shadow-lg">
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Purchase Orders</h2>
-                        <p className="text-slate-500 text-sm mt-0.5">Procurement and vendor management</p>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Purchase Orders</h2>
+                        <p className="text-blue-700 text-sm mt-1 font-medium">Procurement and vendor management</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setShowPRModal(true)}
-                        className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-md"
+                        className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-orange-500/25"
                       >
                         📝 Purchase Requisitions
                       </button>
-                      <button className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                      <button className="px-5 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-white hover:shadow-md transition-all flex items-center gap-2">
                         <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-md">
+                      <button className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25">
                         <Plus className="w-4 h-4" />
                         New PO
                       </button>
@@ -4392,43 +4408,46 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
 
-                {/* KPI Cards Row */}
-                <div className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Enhanced KPI Cards Row */}
+                <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     {/* Total POs */}
-                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border border-blue-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                          <ShoppingBag className="w-5 h-5 text-blue-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-blue-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <ShoppingBag className="w-6 h-6 text-blue-600" />
                         </div>
-                        <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-lg">TOTAL</span>
+                        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg">TOTAL</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{data?.['PurchaseOrders.json']?.length || 0}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">Purchase Orders</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{data?.['PurchaseOrders.json']?.length || 0}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Purchase Orders</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Line Items */}
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 border border-emerald-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                          <Package2 className="w-5 h-5 text-emerald-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-emerald-200 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Package2 className="w-6 h-6 text-emerald-600" />
                         </div>
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">ITEMS</span>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">ITEMS</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{data?.['PurchaseOrderDetails.json']?.length || 0}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">PO Line Items</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{data?.['PurchaseOrderDetails.json']?.length || 0}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">PO Line Items</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Active Vendors */}
-                    <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-5 border border-purple-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                          <Users className="w-5 h-5 text-purple-600" />
+                    <div className="group bg-white rounded-2xl p-5 border border-purple-200 shadow-sm hover:shadow-xl hover:border-purple-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-violet-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Users className="w-6 h-6 text-purple-600" />
                         </div>
-                        <span className="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-lg">VENDORS</span>
+                        <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-1.5 rounded-lg">VENDORS</span>
                       </div>
-                      <div className="text-3xl font-black text-slate-900">{new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
-                      <div className="text-sm text-slate-500 font-medium mt-1">Active Suppliers</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Active Suppliers</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-purple-500 to-violet-500 rounded-full opacity-60"></div>
                     </div>
                   </div>
                 </div>
@@ -6828,41 +6847,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               )}
 
-              {/* Light Main Navigation - Show when at root */}
+              {/* Enhanced Light Main Navigation - Show when at root */}
               {soCurrentPath.length === 0 && (
               <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
-                {/* Header Section - Light Theme */}
-                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 border-b border-slate-200 px-6 py-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                {/* Header Section - Enhanced Light Theme */}
+                <div className="relative bg-gradient-to-r from-blue-100 via-indigo-50 to-violet-100 border-b border-blue-200/50 px-6 py-6 overflow-hidden">
+                  {/* Decorative background elements */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/30 to-transparent rounded-full -translate-y-32 translate-x-32"></div>
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-indigo-200/30 to-transparent rounded-full translate-y-24 -translate-x-24"></div>
+                  
+                  <div className="relative flex items-center justify-between">
+                    <div className="flex items-center gap-5">
                       <div className="relative">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 ring-4 ring-white">
+                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center border-3 border-white shadow-lg">
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                           Sales Orders
                         </h2>
-                        <p className="text-slate-500 text-sm mt-0.5">Enterprise Order Management System</p>
+                        <p className="text-blue-700 text-sm mt-1 font-medium">Enterprise Order Management System</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 flex items-center gap-2 shadow-sm">
+                      <div className="px-4 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 flex items-center gap-2 shadow-sm">
                         <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
                         Google Drive
                       </div>
-                      <div className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
+                      <div className="px-4 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200 shadow-sm">
                         {salesOrderAnalytics.total.toLocaleString()} Total Orders
                       </div>
                       {onRefreshData && (
@@ -6871,7 +6894,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             console.log('🔄 Manual refresh requested');
                             await onRefreshData();
                           }}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center gap-2 shadow-md"
+                          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
                           title="Refresh sales orders data"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6884,9 +6907,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
                 
-                {/* Content Section - Light Theme */}
-                <div className="p-6">
-                  {/* Search Bar - Light Theme */}
+                {/* Content Section - Enhanced Light Theme */}
+                <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
+                  {/* Search Bar - Enhanced Light Theme */}
                   <div className="mb-8">
                     <div className="relative">
                       <input
@@ -6894,7 +6917,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         placeholder="Search for SO Number (e.g., 2961)..."
                         value={soSearchQuery}
                         onChange={(e) => setSoSearchQuery(e.target.value)}
-                        className="w-full px-5 py-4 pl-14 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-base"
+                        className="w-full px-5 py-4 pl-14 bg-white border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-base shadow-sm"
                       />
                       <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
                         <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6922,42 +6945,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     )}
                   </div>
                   
-                  {/* Status Folders Grid - Light Theme */}
+                  {/* Status Folders Grid - Enhanced Light Theme */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       
-                    {/* New and Revised Card - Light Theme */}
+                    {/* New and Revised Card - Enhanced */}
                     <div 
                       onClick={() => navigateToSOFolder('New and Revised')}
-                      className="group relative bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 rounded-2xl p-6 border border-emerald-200 hover:border-emerald-300 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                      className="group relative bg-white rounded-2xl p-6 border border-emerald-200 hover:border-emerald-300 hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-1"
                     >
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-100/50 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-emerald-100/60 to-transparent rounded-full -translate-y-24 translate-x-24 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-green-100/40 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
                       
                       <div className="relative">
                         <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/30 group-hover:scale-110 transition-transform ring-4 ring-white">
+                              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                             </div>
                             <div>
-                              <div className="font-bold text-slate-900 text-xl">New and Revised</div>
-                              <div className="text-sm text-emerald-600 font-medium">Active orders awaiting production</div>
+                              <div className="font-extrabold text-slate-900 text-xl">New and Revised</div>
+                              <div className="text-sm text-emerald-600 font-semibold">Active orders awaiting production</div>
                             </div>
                           </div>
-                          <svg className="w-6 h-6 text-emerald-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6 text-emerald-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
                         
-                        <div className="bg-white rounded-xl p-5 mb-5 border border-emerald-100 shadow-sm">
+                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-5 mb-5 border border-emerald-100">
                           <div className="flex items-end justify-between">
                             <div>
                               <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.newAndRevised.count}</div>
-                              <div className="text-sm text-emerald-600 font-bold uppercase tracking-wider mt-1">Active SOs</div>
+                              <div className="text-sm text-emerald-700 font-bold uppercase tracking-wider mt-1">Active SOs</div>
                             </div>
-                            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm border border-emerald-100">
+                              <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                               </svg>
                             </div>
@@ -6965,45 +6989,47 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                         
                         <div className="flex items-center gap-2 text-sm text-slate-500">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                          <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
                           Last updated: {salesOrderAnalytics.newAndRevised.lastUpdated}
                         </div>
+                        <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
                       </div>
                     </div>
                     
-                    {/* In Production Card - Light Theme */}
+                    {/* In Production Card - Enhanced */}
                     <div 
                       onClick={() => navigateToSOFolder('In Production')}
-                      className="group relative bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-2xl p-6 border border-orange-200 hover:border-orange-300 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                      className="group relative bg-white rounded-2xl p-6 border border-orange-200 hover:border-orange-300 hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-1"
                     >
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-100/50 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-orange-100/60 to-transparent rounded-full -translate-y-24 translate-x-24 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-amber-100/40 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
                       
                       <div className="relative">
                         <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-16 h-16 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-600 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-500/30 group-hover:scale-110 transition-transform ring-4 ring-white">
+                              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                               </svg>
                             </div>
                             <div>
-                              <div className="font-bold text-slate-900 text-xl">In Production</div>
-                              <div className="text-sm text-orange-600 font-medium">Currently manufacturing</div>
+                              <div className="font-extrabold text-slate-900 text-xl">In Production</div>
+                              <div className="text-sm text-orange-600 font-semibold">Currently manufacturing</div>
                             </div>
                           </div>
-                          <svg className="w-6 h-6 text-orange-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6 text-orange-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
                         
-                        <div className="bg-white rounded-xl p-5 mb-5 border border-orange-100 shadow-sm">
+                        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-5 mb-5 border border-orange-100">
                           <div className="flex items-end justify-between">
                             <div>
                               <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.inProduction.count}</div>
-                              <div className="text-sm text-orange-600 font-bold uppercase tracking-wider mt-1">Scheduled SOs</div>
+                              <div className="text-sm text-orange-700 font-bold uppercase tracking-wider mt-1">Scheduled SOs</div>
                             </div>
-                            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm border border-orange-100">
+                              <svg className="w-7 h-7 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                               </svg>
                             </div>
@@ -7011,9 +7037,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                         
                         <div className="flex items-center gap-2 text-sm text-slate-500">
-                          <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                          <div className="w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse"></div>
                           Last updated: {salesOrderAnalytics.inProduction.lastUpdated}
                         </div>
+                        <div className="mt-3 h-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full opacity-60"></div>
                       </div>
                     </div>
                     
