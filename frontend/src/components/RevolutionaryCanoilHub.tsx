@@ -6635,41 +6635,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               )}
 
-              {/* Light Main Navigation - Show when at root */}
+              {/* Premium Dark Main Navigation - Show when at root */}
               {soCurrentPath.length === 0 && (
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                {/* Header Section */}
-                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 border-b border-slate-200 p-6">
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-700/50">
+                {/* Header Section - Dark Theme */}
+                <div className="bg-gradient-to-r from-slate-800/80 to-indigo-900/50 border-b border-slate-700/50 px-6 py-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="relative">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
                           <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-slate-800">
                           <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         </div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                        <h2 className="text-2xl font-bold text-white tracking-tight">
                           Sales Orders
                         </h2>
-                        <p className="text-slate-500 text-sm mt-0.5">Enterprise Order Management System</p>
+                        <p className="text-slate-400 text-sm mt-0.5">Enterprise Order Management System</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <div className="px-4 py-2 bg-white text-slate-600 rounded-xl font-medium text-sm border border-slate-200 flex items-center gap-2 shadow-sm">
-                        <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="px-4 py-2 bg-slate-800/50 text-slate-300 rounded-xl font-medium text-sm border border-slate-700/50 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                         </svg>
-                        G: Drive Structure
+                        Google Drive
                       </div>
-                      <div className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200">
+                      <div className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl font-bold text-sm border border-emerald-500/30">
                         {salesOrderAnalytics.total.toLocaleString()} Total Orders
                       </div>
                       {onRefreshData && (
@@ -6678,7 +6678,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             console.log('🔄 Manual refresh requested');
                             await onRefreshData();
                           }}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center gap-2 shadow-md"
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
                           title="Refresh sales orders data"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6691,9 +6691,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
                 
-                {/* Content Section */}
+                {/* Content Section - Dark Theme */}
                 <div className="p-6">
-                  {/* Search Bar */}
+                  {/* Search Bar - Dark Theme */}
                   <div className="mb-8">
                     <div className="relative">
                       <input
@@ -6701,17 +6701,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         placeholder="Search for SO Number (e.g., 2961)..."
                         value={soSearchQuery}
                         onChange={(e) => setSoSearchQuery(e.target.value)}
-                        className="w-full px-5 py-4 pl-14 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-base"
+                        className="w-full px-5 py-4 pl-14 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 transition-all text-base"
                       />
                       <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
-                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                       </div>
                       {soSearchQuery && (
                         <button
                           onClick={() => setSoSearchQuery('')}
-                          className="absolute right-5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-lg"
+                          className="absolute right-5 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1 hover:bg-slate-700/50 rounded-lg"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -6720,7 +6720,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       )}
                     </div>
                     {soSearchQuery && (
-                      <div className="mt-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium border border-blue-200 inline-flex items-center gap-2">
+                      <div className="mt-3 px-4 py-2 bg-blue-500/20 text-blue-300 rounded-xl text-sm font-medium border border-blue-500/30 inline-flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
@@ -6729,95 +6729,95 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     )}
                   </div>
                   
-                  {/* Status Folders Grid - Light Theme */}
+                  {/* Status Folders Grid - Premium Dark Theme */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       
-                    {/* New and Revised Card */}
+                    {/* New and Revised Card - Dark Theme */}
                     <div 
                       onClick={() => navigateToSOFolder('New and Revised')}
-                      className="group relative bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 rounded-2xl p-6 border border-emerald-200 hover:border-emerald-300 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                      className="group relative bg-gradient-to-br from-emerald-900/30 via-green-900/20 to-teal-900/30 rounded-2xl p-6 border border-emerald-500/30 hover:border-emerald-400/50 hover:shadow-xl hover:shadow-emerald-500/10 transition-all cursor-pointer overflow-hidden"
                     >
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-100/50 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
                       
                       <div className="relative">
                         <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-110 transition-transform">
                               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                             </div>
                             <div>
-                              <div className="font-bold text-slate-900 text-xl">New and Revised</div>
-                              <div className="text-sm text-emerald-600 font-medium">Active orders awaiting production</div>
+                              <div className="font-bold text-white text-xl">New and Revised</div>
+                              <div className="text-sm text-emerald-400 font-medium">Active orders awaiting production</div>
                             </div>
                           </div>
-                          <svg className="w-6 h-6 text-emerald-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6 text-emerald-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
                         
-                        <div className="bg-white rounded-xl p-5 mb-5 border border-emerald-100 shadow-sm">
+                        <div className="bg-slate-800/50 rounded-xl p-5 mb-5 border border-emerald-500/20">
                           <div className="flex items-end justify-between">
                             <div>
-                              <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.newAndRevised.count}</div>
-                              <div className="text-sm text-emerald-600 font-bold uppercase tracking-wider mt-1">Active SOs</div>
+                              <div className="text-5xl font-black text-white tracking-tight">{salesOrderAnalytics.newAndRevised.count}</div>
+                              <div className="text-sm text-emerald-400 font-bold uppercase tracking-wider mt-1">Active SOs</div>
                             </div>
-                            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                              <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
+                              <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                               </svg>
                             </div>
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
                           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                           Last updated: {salesOrderAnalytics.newAndRevised.lastUpdated}
                         </div>
                       </div>
                     </div>
                     
-                    {/* In Production Card */}
+                    {/* In Production Card - Dark Theme */}
                     <div 
                       onClick={() => navigateToSOFolder('In Production')}
-                      className="group relative bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-2xl p-6 border border-orange-200 hover:border-orange-300 hover:shadow-xl transition-all cursor-pointer overflow-hidden"
+                      className="group relative bg-gradient-to-br from-orange-900/30 via-amber-900/20 to-yellow-900/30 rounded-2xl p-6 border border-orange-500/30 hover:border-orange-400/50 hover:shadow-xl hover:shadow-orange-500/10 transition-all cursor-pointer overflow-hidden"
                     >
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-100/50 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-500"></div>
                       
                       <div className="relative">
                         <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:scale-110 transition-transform">
                               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                               </svg>
                             </div>
                             <div>
-                              <div className="font-bold text-slate-900 text-xl">In Production</div>
-                              <div className="text-sm text-orange-600 font-medium">Currently manufacturing</div>
+                              <div className="font-bold text-white text-xl">In Production</div>
+                              <div className="text-sm text-orange-400 font-medium">Currently manufacturing</div>
                             </div>
                           </div>
-                          <svg className="w-6 h-6 text-orange-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6 text-orange-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
                         
-                        <div className="bg-white rounded-xl p-5 mb-5 border border-orange-100 shadow-sm">
+                        <div className="bg-slate-800/50 rounded-xl p-5 mb-5 border border-orange-500/20">
                           <div className="flex items-end justify-between">
                             <div>
-                              <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.inProduction.count}</div>
-                              <div className="text-sm text-orange-600 font-bold uppercase tracking-wider mt-1">Scheduled SOs</div>
+                              <div className="text-5xl font-black text-white tracking-tight">{salesOrderAnalytics.inProduction.count}</div>
+                              <div className="text-sm text-orange-400 font-bold uppercase tracking-wider mt-1">Scheduled SOs</div>
                             </div>
-                            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center border border-orange-500/30">
+                              <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                               </svg>
                             </div>
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
                           <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                           Last updated: {salesOrderAnalytics.inProduction.lastUpdated}
                         </div>
