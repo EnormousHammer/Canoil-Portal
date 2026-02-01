@@ -2552,7 +2552,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                     >
                       <Link2 className="w-4 h-4" />
-                      Pegged SOs
+                      Sales Order Related
                     </button>
                   </div>
 
@@ -3462,96 +3462,239 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
 
-                  {/* Pegged SOs Tab */}
+                  {/* Sales Order Related Tab */}
                   {moActiveTab === 'pegged' && (
                     <div className="space-y-6">
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Link2 className="w-5 h-5 text-blue-600" />
-                          <h4 className="font-semibold text-blue-900">Pegged Sales Orders</h4>
-                        </div>
-                        <p className="text-sm text-blue-700">
-                          Sales Orders that will be covered by this Manufacturing Order
-                        </p>
-                      </div>
+                      {(() => {
+                        // Extract SO number from multiple sources
+                        const directSONo = selectedMO['Sales Order No.'];
+                        const description = selectedMO['Description'] || '';
+                        const moNo = selectedMO['Mfg. Order No.'] || '';
+                        
+                        // Try to extract SO number from description (e.g., "SO 3130" or "SO3130" or "Sales Order 3130")
+                        const soFromDescMatch = description.match(/SO\s*#?\s*(\d+)/i) || 
+                                                description.match(/Sales\s*Order\s*#?\s*(\d+)/i) ||
+                                                description.match(/,\s*SO\s*(\d+)/i);
+                        const soFromDesc = soFromDescMatch ? soFromDescMatch[1] : null;
+                        
+                        // Use direct SO number first, then extracted from description
+                        const soNumber = directSONo || soFromDesc;
+                        
+                        // Find the related SO in the data
+                        const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
+                        const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
+                        
+                        // Combine all SOs from different sources
+                        let allSOs: any[] = [...salesOrdersData];
+                        Object.values(salesOrdersByStatus).forEach((statusSOs: any) => {
+                          if (Array.isArray(statusSOs)) {
+                            allSOs = [...allSOs, ...statusSOs];
+                          }
+                        });
+                        
+                        // Find matching SO
+                        const relatedSO = soNumber ? allSOs.find((so: any) => {
+                          const soNum = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['Order No.'];
+                          // Extract just the number for comparison
+                          const soNumStr = String(soNum || '').replace(/\D/g, '');
+                          const searchNum = String(soNumber).replace(/\D/g, '');
+                          return soNumStr === searchNum || soNum === soNumber;
+                        }) : null;
+                        
+                        // Also find SO file from folder data if available
+                        const soFile = soNumber ? allSOs.find((so: any) => {
+                          const fileName = so.name || so.file_name || '';
+                          return fileName.toLowerCase().includes(`salesorder_${soNumber}`) ||
+                                 fileName.toLowerCase().includes(`salesorder${soNumber}`);
+                        }) : null;
 
-                      {/* SO Search and Filter */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center space-x-4 mb-4">
-                          <input
-                            type="text"
-                            placeholder="Search SO Number, Customer, or Item..."
-                            value={soSearchQuery}
-                            onChange={(e) => setSoSearchQuery(e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                          />
-                          <button
-                            onClick={() => {
-                              // Filter SOs that match this MO's build item
-                              const matchingSOs = (data['SalesOrders.json'] || []).filter((so: any) => 
-                                so.items && so.items.some((item: any) => 
-                                  item.item_code === selectedMO['Build Item No.'] ||
-                                  item.itemId === selectedMO['Build Item No.']
-                                )
-                              );
-                              console.log('Matching SOs:', matchingSOs);
-                            }}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                          >
-                            🔍 Find Matching SOs
-                          </button>
-                        </div>
+                        return (
+                          <>
+                            {/* Header */}
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-5 shadow-lg">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                  <Link2 className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-white text-lg">Sales Order Related</h4>
+                                  <p className="text-blue-100 text-sm">
+                                    Sales Order linked to this Manufacturing Order
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
 
-                        {/* SO Results */}
-                        <div className="space-y-2">
-                          {(() => {
-                            const matchingSOs = (data['SalesOrders.json'] || []).filter((so: any) => {
-                              if (!so.items) return false;
-                              
-                              const hasMatchingItem = so.items.some((item: any) => 
-                                item.item_code === selectedMO['Build Item No.'] ||
-                                item.itemId === selectedMO['Build Item No.']
-                              );
-                              
-                              const matchesSearch = !soSearchQuery || 
-                                so.so_number?.toLowerCase().includes(soSearchQuery.toLowerCase()) ||
-                                so.customer_name?.toLowerCase().includes(soSearchQuery.toLowerCase());
-                              
-                              return hasMatchingItem && matchesSearch;
-                            });
+                            {/* SO Detection Info */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                              <div className="text-sm text-slate-600 mb-3 font-medium">SO Detection Sources:</div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${directSONo ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                  <span className="text-slate-600">Direct SO Field:</span>
+                                  <span className={`font-medium ${directSONo ? 'text-green-700' : 'text-slate-400'}`}>
+                                    {directSONo || 'Not set'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${soFromDesc ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                  <span className="text-slate-600">From Description:</span>
+                                  <span className={`font-medium ${soFromDesc ? 'text-green-700' : 'text-slate-400'}`}>
+                                    {soFromDesc ? `SO ${soFromDesc}` : 'Not found'}
+                                  </span>
+                                </div>
+                              </div>
+                              {description && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                  <div className="text-xs text-slate-500 mb-1">MO Description:</div>
+                                  <div className="text-sm text-slate-700 font-mono bg-white px-3 py-2 rounded-lg border border-slate-200">
+                                    {description}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
 
-                            return matchingSOs.length > 0 ? (
-                              matchingSOs.map((so: any, index: number) => (
-                                <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            {/* Related SO Card */}
+                            {soNumber ? (
+                              <div className="bg-white border-2 border-blue-200 rounded-2xl overflow-hidden shadow-lg">
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 border-b border-blue-200">
                                   <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="font-semibold text-gray-900">SO #{so.so_number}</div>
-                                      <div className="text-sm text-gray-600">{so.customer_name}</div>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                                        <FileText className="w-6 h-6 text-white" />
+                                      </div>
+                                      <div>
+                                        <div className="text-2xl font-bold text-blue-900">SO #{soNumber}</div>
+                                        <div className="text-sm text-blue-600">
+                                          {relatedSO?.['Customer'] || relatedSO?.['Customer Name'] || relatedSO?.customer_name || 'Customer info loading...'}
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="text-right">
-                                      <div className="text-sm text-gray-600">
-                                        {so.items?.find((item: any) => 
-                                          item.item_code === selectedMO['Build Item No.'] ||
-                                          item.itemId === selectedMO['Build Item No.']
-                                        )?.quantity || 0} units
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        Due: {so.due_date || 'TBD'}
-                                      </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium border border-green-200">
+                                        ✓ Linked
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
-                              ))
-                            ) : (
-                              <div className="text-center py-12 text-gray-500">
-                                <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                                <div className="font-medium text-lg mb-1">No matching Sales Orders found</div>
-                                <div className="text-sm">This MO may not be pegged to any SOs</div>
+                                
+                                <div className="p-5">
+                                  {relatedSO ? (
+                                    <div className="space-y-4">
+                                      {/* SO Details Grid */}
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Order Date</div>
+                                          <div className="font-bold text-slate-900">
+                                            {relatedSO['Order Date'] || relatedSO.order_date || '—'}
+                                          </div>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Due Date</div>
+                                          <div className="font-bold text-slate-900">
+                                            {relatedSO['Due Date'] || relatedSO.due_date || '—'}
+                                          </div>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Status</div>
+                                          <div className="font-bold text-slate-900">
+                                            {relatedSO['Status'] || relatedSO.status || 'Active'}
+                                          </div>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total</div>
+                                          <div className="font-bold text-slate-900">
+                                            {relatedSO['Total'] || relatedSO.total ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center gap-3 pt-3 border-t border-slate-200">
+                                        <button
+                                          onClick={() => {
+                                            // Navigate to Sales Orders section and search for this SO
+                                            setActiveSection('sales');
+                                            setSoSearchQuery(soNumber);
+                                          }}
+                                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                          View in Sales Orders
+                                        </button>
+                                        {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
+                                          <button
+                                            onClick={() => {
+                                              const file = soFile || relatedSO;
+                                              if (file?.gdrive_id) {
+                                                window.open(getApiUrl(`/api/gdrive/preview/${file.gdrive_id}`), '_blank');
+                                              } else if (file?.path) {
+                                                window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(file.path)}`), '_blank');
+                                              }
+                                            }}
+                                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all text-sm font-medium"
+                                          >
+                                            <FileText className="w-4 h-4" />
+                                            View PDF
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-6">
+                                      <div className="text-slate-600 mb-2">
+                                        SO #{soNumber} detected but detailed data not loaded yet.
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setActiveSection('sales');
+                                          setSoSearchQuery(soNumber);
+                                        }}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
+                                      >
+                                        Search in Sales Orders →
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
+                            ) : (
+                              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+                                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                  <Search className="w-8 h-8 text-slate-400" />
+                                </div>
+                                <div className="font-semibold text-slate-700 text-lg mb-2">No Sales Order Linked</div>
+                                <div className="text-sm text-slate-500 max-w-md mx-auto">
+                                  This Manufacturing Order doesn't have a Sales Order number in its data or description.
+                                  The MO may be for stock replenishment rather than a specific customer order.
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Search for other SOs */}
+                            <div className="bg-white border border-gray-200 rounded-xl p-4">
+                              <div className="text-sm font-medium text-slate-700 mb-3">Search Other Sales Orders</div>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="text"
+                                  placeholder="Search SO Number, Customer, or Item..."
+                                  value={soSearchQuery}
+                                  onChange={(e) => setSoSearchQuery(e.target.value)}
+                                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                                />
+                                <button
+                                  onClick={() => {
+                                    setActiveSection('sales');
+                                  }}
+                                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-medium border border-slate-200"
+                                >
+                                  Go to Sales Orders
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
