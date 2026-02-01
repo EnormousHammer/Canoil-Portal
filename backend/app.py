@@ -2893,6 +2893,106 @@ def get_sales_order_pdf(file_path):
         print(f"ERROR: Error serving PDF {file_path}: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/gdrive/preview/<file_id>', methods=['GET'])
+def preview_gdrive_file(file_id):
+    """Preview a file from Google Drive by file ID - streams the file content"""
+    try:
+        print(f"📄 Previewing Google Drive file: {file_id}")
+        
+        gdrive_service = get_google_drive_service()
+        if not gdrive_service or not gdrive_service.authenticated:
+            return jsonify({"error": "Google Drive not authenticated"}), 503
+        
+        # Get file metadata first
+        file_metadata = gdrive_service.service.files().get(
+            fileId=file_id,
+            fields='name, mimeType, size',
+            supportsAllDrives=True
+        ).execute()
+        
+        filename = file_metadata.get('name', 'file')
+        mime_type = file_metadata.get('mimeType', 'application/octet-stream')
+        
+        print(f"📄 File: {filename}, Type: {mime_type}")
+        
+        # Download file content
+        from io import BytesIO
+        from googleapiclient.http import MediaIoBaseDownload
+        
+        request = gdrive_service.service.files().get_media(fileId=file_id)
+        file_buffer = BytesIO()
+        downloader = MediaIoBaseDownload(file_buffer, request)
+        
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        
+        file_buffer.seek(0)
+        
+        from flask import send_file
+        return send_file(
+            file_buffer,
+            as_attachment=False,
+            download_name=filename,
+            mimetype=mime_type
+        )
+        
+    except Exception as e:
+        print(f"❌ Error previewing Google Drive file {file_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/gdrive/download/<file_id>', methods=['GET'])
+def download_gdrive_file(file_id):
+    """Download a file from Google Drive by file ID"""
+    try:
+        print(f"📥 Downloading Google Drive file: {file_id}")
+        
+        gdrive_service = get_google_drive_service()
+        if not gdrive_service or not gdrive_service.authenticated:
+            return jsonify({"error": "Google Drive not authenticated"}), 503
+        
+        # Get file metadata first
+        file_metadata = gdrive_service.service.files().get(
+            fileId=file_id,
+            fields='name, mimeType, size',
+            supportsAllDrives=True
+        ).execute()
+        
+        filename = file_metadata.get('name', 'file')
+        mime_type = file_metadata.get('mimeType', 'application/octet-stream')
+        
+        print(f"📥 Downloading: {filename}, Type: {mime_type}")
+        
+        # Download file content
+        from io import BytesIO
+        from googleapiclient.http import MediaIoBaseDownload
+        
+        request = gdrive_service.service.files().get_media(fileId=file_id)
+        file_buffer = BytesIO()
+        downloader = MediaIoBaseDownload(file_buffer, request)
+        
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        
+        file_buffer.seek(0)
+        
+        from flask import send_file
+        return send_file(
+            file_buffer,
+            as_attachment=True,  # Force download
+            download_name=filename,
+            mimetype=mime_type
+        )
+        
+    except Exception as e:
+        print(f"❌ Error downloading Google Drive file {file_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/sales-orders/folder/<path:folder_path>', methods=['GET'])
 def get_sales_order_folder(folder_path):
     """Get Sales Order folder contents dynamically - REAL TIME SYNC

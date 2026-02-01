@@ -1459,10 +1459,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const viewSOInBrowser = async (file: any) => {
     setPdfLoading(true);
     try {
-      // View PDF in browser via backend using full file path
-      const encodedPath = encodeURIComponent(file.path);
-      const url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
-      console.log('🌐 Opening PDF in browser:', url);
+      // Determine the correct URL based on whether it's a Google Drive file or local file
+      let url: string;
+      
+      if (file.gdrive_id) {
+        // Google Drive file - use the preview endpoint
+        url = getApiUrl(`/api/gdrive/preview/${file.gdrive_id}`);
+        console.log('🌐 Opening Google Drive PDF in browser:', url);
+      } else if (file.path) {
+        // Local file - use the existing endpoint
+        const encodedPath = encodeURIComponent(file.path);
+        url = getApiUrl(`/api/sales-order-pdf/${encodedPath}`);
+        console.log('🌐 Opening local PDF in browser:', url);
+      } else {
+        console.error('❌ No valid path or gdrive_id for file:', file);
+        setPdfLoading(false);
+        return;
+      }
       
       // Give immediate feedback
       setTimeout(() => {
@@ -6882,57 +6895,109 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </div>
                         )}
 
-                        {/* Show Actual Sales Order Files */}
+                        {/* Show Actual Sales Order Files - Premium Design */}
                         {soFolderData.files && soFolderData.files.length > 0 && (
                           <div>
-                            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Sales Order Files ({soFolderData.files.length})
-                            </h4>
-                            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                              {soFolderData.files.map((file: any, index: number) => (
-                                <div 
-                                  key={index}
-                                  className="group flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-blue-50 transition-all cursor-pointer border border-slate-200 hover:border-blue-300"
-                                  onClick={() => openSOViewer(file)}
-                                >
-                                  <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                      file.is_pdf ? 'bg-red-100' : file.is_excel ? 'bg-green-100' : 'bg-blue-100'
-                                    }`}>
-                                      {file.is_pdf ? (
-                                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                      ) : file.is_excel ? (
-                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                      ) : (
-                                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">{file.name}</div>
-                                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
-                                        <span>{(file.size / 1024).toFixed(1)} KB</span>
-                                        <span className="w-1 h-1 bg-slate-400 rounded-full"></span>
-                                        <span>Modified: {file.modified}</span>
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Sales Order Files ({soFolderData.files.length})
+                              </h4>
+                              <div className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                                Click any file to view options
+                              </div>
+                            </div>
+                            <div className="grid gap-3 max-h-[600px] overflow-y-auto pr-2">
+                              {soFolderData.files.map((file: any, index: number) => {
+                                // Extract SO number from filename
+                                const soMatch = file.name.match(/salesorder[_-]?(\d+)/i);
+                                const soNumber = soMatch ? soMatch[1] : file.name.split('.')[0];
+                                
+                                return (
+                                  <div 
+                                    key={index}
+                                    className="group bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all overflow-hidden"
+                                  >
+                                    <div className="flex items-center gap-4 p-4">
+                                      {/* File Icon */}
+                                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                        file.is_pdf ? 'bg-gradient-to-br from-red-500 to-rose-600' : 
+                                        file.is_excel ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 
+                                        'bg-gradient-to-br from-blue-500 to-indigo-600'
+                                      }`}>
+                                        {file.is_pdf ? (
+                                          <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 13h1.5v4H8.5v-4zm3 0h1.5v4H11.5v-4zm3 0h1.5v4H14.5v-4z"/>
+                                          </svg>
+                                        ) : file.is_excel ? (
+                                          <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8 13h2v2H8v-2zm0 3h2v2H8v-2zm3-3h2v2h-2v-2zm0 3h2v2h-2v-2zm3-3h2v2h-2v-2zm0 3h2v2h-2v-2z"/>
+                                          </svg>
+                                        ) : (
+                                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                      
+                                      {/* File Info */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-slate-900 truncate text-base">{file.name}</div>
+                                        <div className="flex items-center gap-3 mt-1.5 text-sm text-slate-500">
+                                          <span className="font-medium">{(file.size / 1024).toFixed(1)} KB</span>
+                                          <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                          <span>Modified: {file.modified}</span>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        {/* Quick View Button */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openQuickView({...file, so_number: soNumber});
+                                          }}
+                                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-all text-sm font-medium border border-purple-200 hover:border-purple-300"
+                                          title="Quick View PDF"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                          <span className="hidden sm:inline">Quick View</span>
+                                        </button>
+                                        
+                                        {/* View in Browser Button */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            viewSOInBrowser({...file, so_number: soNumber});
+                                          }}
+                                          className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-all text-sm font-medium border border-blue-200 hover:border-blue-300"
+                                          title="View in Browser"
+                                        >
+                                          <Globe className="w-4 h-4" />
+                                          <span className="hidden sm:inline">Browser</span>
+                                        </button>
+                                        
+                                        {/* View Details Arrow */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openSOViewer({...file, so_number: soNumber});
+                                          }}
+                                          className="w-10 h-10 flex items-center justify-center bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+                                          title="View Details"
+                                        >
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                          </svg>
+                                        </button>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs text-slate-500 group-hover:text-blue-600 transition-colors font-medium">View SO</span>
-                                    <svg className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -7712,39 +7777,54 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         );
       })()}
 
-      {/* SO VIEWER MODAL - Reusable for both dedicated SO page and item modal */}
+      {/* SO VIEWER MODAL - Premium Design with Embedded PDF */}
       {showSOViewer && selectedSOFile && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
+            {/* Modal Header - Sleek Design */}
+            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white px-6 py-4 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                    <FileText className="w-6 h-6" />
+                  <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <FileText className="w-7 h-7" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">Sales Order #{selectedSOFile.so_number}</h2>
-                    <p className="text-blue-100 text-sm">{selectedSOFile.customer} • {selectedSOFile.order_date}</p>
+                    <h2 className="text-2xl font-bold tracking-tight">Sales Order #{selectedSOFile.so_number || 'N/A'}</h2>
+                    <p className="text-blue-200 text-sm mt-0.5 flex items-center gap-2">
+                      <span>{selectedSOFile.name}</span>
+                      {selectedSOFile.size && (
+                        <>
+                          <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                          <span>{(selectedSOFile.size / 1024).toFixed(1)} KB</span>
+                        </>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowSOViewer(false)}
-                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-colors"
+                  className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center transition-all hover:scale-105"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-6">
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 mb-6">
+            {/* Action Bar */}
+            <div className="bg-slate-50 border-b border-slate-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => openQuickView(selectedSOFile)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
+                >
+                  <Eye className="w-4 h-4" />
+                  Quick View PDF
+                </button>
+                
                 <button
                   onClick={() => viewSOInBrowser(selectedSOFile)}
                   disabled={pdfLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 transition-all shadow-md hover:shadow-lg font-medium"
                 >
                   {pdfLoading ? (
                     <>
@@ -7754,140 +7834,175 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   ) : (
                     <>
                       <Globe className="w-4 h-4" />
-                      View in Browser
+                      Open in New Tab
                     </>
                   )}
                 </button>
                 
                 <button
-                  onClick={() => launchSOPDF(selectedSOFile)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  onClick={() => {
+                    // Download the PDF
+                    const url = selectedSOFile.gdrive_id 
+                      ? getApiUrl(`/api/gdrive/download/${selectedSOFile.gdrive_id}`)
+                      : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = selectedSOFile.name;
+                    link.click();
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-md hover:shadow-lg font-medium"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  Open PDF
-                </button>
-                
-                <button
-                  onClick={() => openQuickView(selectedSOFile)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  <Eye className="w-4 h-4" />
-                  Quick View
+                  <Download className="w-4 h-4" />
+                  Download
                 </button>
               </div>
+              
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                {selectedSOFile.gdrive_id ? 'Google Drive' : 'Local File'}
+              </div>
+            </div>
 
-              {/* SO Details from Parsed Data */}
-              {selectedSOFile.raw_data && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Sales Order Details</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <div className="text-sm text-gray-600">SO Number</div>
-                      <div className="font-medium">{selectedSOFile.so_number}</div>
+            {/* PDF Preview Area */}
+            <div className="flex-1 overflow-hidden bg-slate-100 p-4">
+              <div className="h-full bg-white rounded-2xl shadow-inner overflow-hidden border border-slate-200">
+                {selectedSOFile.is_pdf ? (
+                  <iframe
+                    src={selectedSOFile.gdrive_id 
+                      ? getApiUrl(`/api/gdrive/preview/${selectedSOFile.gdrive_id}`)
+                      : `${getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`)}#toolbar=1&navpanes=0`}
+                    className="w-full h-full min-h-[500px] border-0"
+                    title={`Sales Order ${selectedSOFile.so_number}`}
+                  />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500 p-8">
+                    <div className="w-24 h-24 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+                      {selectedSOFile.is_excel ? (
+                        <svg className="w-12 h-12 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8 13h2v2H8v-2zm0 3h2v2H8v-2zm3-3h2v2h-2v-2zm0 3h2v2h-2v-2zm3-3h2v2h-2v-2zm0 3h2v2h-2v-2z"/>
+                        </svg>
+                      ) : (
+                        <FileText className="w-12 h-12 text-slate-400" />
+                      )}
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Customer</div>
-                      <div className="font-medium">{selectedSOFile.customer}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Order Date</div>
-                      <div className="font-medium">{selectedSOFile.order_date}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Status</div>
-                      <div className="font-medium">{selectedSOFile.raw_data.status || 'Active'}</div>
-                    </div>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Preview Not Available</h3>
+                    <p className="text-slate-500 text-center max-w-md">
+                      This file type cannot be previewed in the browser. Use the download button to open it in the appropriate application.
+                    </p>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* Items List */}
-                  {selectedSOFile.raw_data.items && selectedSOFile.raw_data.items.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Items ({selectedSOFile.raw_data.items.length})</h4>
-                      <div className="max-h-40 overflow-y-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="text-left p-2">Item Code</th>
-                              <th className="text-left p-2">Description</th>
-                              <th className="text-right p-2">Qty</th>
-                              <th className="text-right p-2">Price</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedSOFile.raw_data.items.map((item: any, idx: number) => (
-                              <tr key={idx} className="border-b border-gray-200">
-                                <td className="p-2 font-mono text-xs">{item.item_code}</td>
-                                <td className="p-2">{item.description}</td>
-                                <td className="p-2 text-right">{item.quantity}</td>
-                                <td className="p-2 text-right">{formatCAD(item.unit_price || item.price || 0)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* File Info Footer */}
+            <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 flex items-center justify-between text-sm text-slate-600 flex-shrink-0">
+              <div className="flex items-center gap-4">
+                <span className="font-medium">{selectedSOFile.name}</span>
+                {selectedSOFile.modified && (
+                  <span className="text-slate-400">Last modified: {selectedSOFile.modified}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                  selectedSOFile.is_pdf ? 'bg-red-100 text-red-700' : 
+                  selectedSOFile.is_excel ? 'bg-green-100 text-green-700' : 
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {selectedSOFile.is_pdf ? 'PDF' : selectedSOFile.is_excel ? 'Excel' : 'Document'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* QUICK VIEW MODAL */}
+      {/* QUICK VIEW MODAL - Full Screen PDF Viewer */}
       {showQuickView && selectedSOFile && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden">
-            {/* Quick View Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Eye className="w-6 h-6" />
-                  <div>
-                    <h2 className="text-xl font-bold">Quick View: SO #{selectedSOFile.so_number}</h2>
-                    <p className="text-purple-100 text-sm">{selectedSOFile.customer}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={zoomOut}
-                    className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-colors"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="text-sm font-medium min-w-[60px] text-center">{pdfZoom}%</span>
-                  <button
-                    onClick={zoomIn}
-                    className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={resetZoom}
-                    className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={() => setShowQuickView(false)}
-                    className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center transition-colors ml-2"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+        <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col">
+          {/* Quick View Header - Floating Toolbar */}
+          <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
+            {/* Left Side - File Info */}
+            <div className="flex items-center gap-3 bg-black/60 backdrop-blur-xl rounded-2xl px-5 py-3 shadow-2xl border border-white/10">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                <Eye className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-white font-bold text-lg">SO #{selectedSOFile.so_number || 'N/A'}</h2>
+                <p className="text-white/60 text-xs">{selectedSOFile.name}</p>
               </div>
             </div>
-
-            {/* PDF Viewer */}
-            <div className="h-[calc(95vh-80px)] overflow-auto bg-gray-100 p-4">
-              <div className="flex justify-center">
-                <iframe
-                  src={`${getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`)}#zoom=${pdfZoom}`}
-                  className="w-full h-full min-h-[800px] border-0 rounded-lg shadow-lg bg-white"
-                  title={`Sales Order ${selectedSOFile.so_number}`}
-                />
+            
+            {/* Center - Zoom Controls */}
+            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl rounded-2xl px-4 py-2 shadow-2xl border border-white/10">
+              <button
+                onClick={zoomOut}
+                className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center transition-all text-white"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <div className="px-4 py-1.5 bg-white/10 rounded-xl min-w-[80px] text-center">
+                <span className="text-white font-bold">{pdfZoom}%</span>
               </div>
+              <button
+                onClick={zoomIn}
+                className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center transition-all text-white"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <div className="w-px h-6 bg-white/20 mx-2"></div>
+              <button
+                onClick={resetZoom}
+                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-all text-white font-medium"
+              >
+                Reset
+              </button>
+            </div>
+            
+            {/* Right Side - Actions */}
+            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-xl rounded-2xl px-3 py-2 shadow-2xl border border-white/10">
+              <button
+                onClick={() => viewSOInBrowser(selectedSOFile)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-white text-sm font-medium transition-all"
+              >
+                <ExternalLink className="w-4 h-4" />
+                New Tab
+              </button>
+              <button
+                onClick={() => {
+                  const url = selectedSOFile.gdrive_id 
+                    ? getApiUrl(`/api/gdrive/download/${selectedSOFile.gdrive_id}`)
+                    : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = selectedSOFile.name;
+                  link.click();
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white text-sm font-medium transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <div className="w-px h-6 bg-white/20 mx-1"></div>
+              <button
+                onClick={() => setShowQuickView(false)}
+                className="w-9 h-9 bg-red-500/80 hover:bg-red-600 rounded-xl flex items-center justify-center transition-all text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* PDF Viewer - Full Screen */}
+          <div className="flex-1 overflow-auto pt-20 pb-4 px-4">
+            <div className="h-full flex justify-center">
+              <iframe
+                src={selectedSOFile.gdrive_id 
+                  ? getApiUrl(`/api/gdrive/preview/${selectedSOFile.gdrive_id}`)
+                  : `${getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(selectedSOFile.path)}`)}#zoom=${pdfZoom}&toolbar=0&navpanes=0`}
+                className="w-full max-w-5xl h-full min-h-[calc(100vh-120px)] border-0 rounded-2xl shadow-2xl bg-white"
+                title={`Sales Order ${selectedSOFile.so_number}`}
+                style={{ transform: `scale(${pdfZoom / 100})`, transformOrigin: 'top center' }}
+              />
             </div>
           </div>
         </div>
