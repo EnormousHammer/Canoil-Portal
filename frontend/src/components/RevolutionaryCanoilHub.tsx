@@ -7165,250 +7165,133 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/50">
 
-              {/* Conditional Content Based on Active View */}
+              {/* ===== PURCHASE ORDERS TAB ===== */}
               {itemModalActiveView === 'po' && (() => {
-                const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                
-                // COMPREHENSIVE PO SEARCH - Get ALL historical purchase orders for this item
-                // 1. From processed PO lines (current approach)
+                // Get PO data for this item
                 const processedPOLines = processPurchaseOrders.lines.filter((line: any) => 
                   (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
                 );
                 
-                // 2. Direct search in raw PurchaseOrderDetails.json for ALL possible field matches
                 const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
-                  const itemFields = [
-                    detail['Item No.'],
-                    detail['ItemNo'], 
-                    detail['Item_No'],
-                    detail['ITEM_NO'],
-                    detail['Component Item No.'],
-                    detail['Product Code'],
-                    detail['Part No.'],
-                    detail['SKU']
-                  ];
-                  return itemFields.some(field => 
-                    (field || '').toString().trim().toUpperCase() === itemNoUpper
-                  );
+                  const fields = [detail['Item No.'], detail['Component Item No.'], detail['Part No.']];
+                  return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
                 });
                 
-                // 3. Search in PurchaseOrders.json headers for items that might be referenced
-                const rawPOHeaders = (data['PurchaseOrders.json'] || []).filter((header: any) => {
-                  const itemFields = [
-                    header['Item No.'],
-                    header['ItemNo'],
-                    header['Build Item No.'],
-                    header['Product Code'],
-                    header['Description']
-                  ];
-                  return itemFields.some(field => 
-                    (field || '').toString().trim().toUpperCase() === itemNoUpper ||
-                    (field || '').toString().toLowerCase().includes((selectedItem?.['Description'] || '').toLowerCase().substring(0, 10))
-                  );
-                });
-                
-                // 4. Create comprehensive PO data by combining all sources
+                // Build PO list
                 const allPOData: any[] = [];
+                const seenPOs = new Set();
                 
-                // Add processed PO lines (most reliable)
                 processedPOLines.forEach((line: any) => {
+                  if (seenPOs.has(line.poId)) return;
+                  seenPOs.add(line.poId);
                   const header = processPurchaseOrders.headers.find((h: any) => h.poId === line.poId);
                   allPOData.push({
-                    source: 'Processed',
                     poNumber: line.poId,
                     vendor: header?.vendor || '—',
                     orderDate: header?.orderDate,
                     orderedQty: line.orderedQty,
                     receivedQty: line.receivedQty,
                     unitPrice: line.unitPrice,
-                    totalValue: line.orderedQty * line.unitPrice,
-                    status: header?.status,
-                    location: line.location || '—',
-                    requiredDate: line.requiredDate,
-                    lineNo: line.lineNo,
-                    description: line.description || selectedItem?.['Description'] || '—'
+                    status: header?.status
                   });
                 });
                 
-                // Add raw PO details (additional historical data)
                 rawPODetails.forEach((detail: any) => {
-                  // Avoid duplicates from processed data
-                  const alreadyExists = allPOData.some(existing => 
-                    existing.poNumber === detail['PO No.'] && existing.lineNo === detail['Line No.']
-                  );
-                  
-                  if (!alreadyExists) {
-                    const header = (data['PurchaseOrders.json'] || []).find((h: any) => h['PO No.'] === detail['PO No.']);
-                    
-                    // 🔍 DEBUG: Log available fields to understand data structure
-                    console.log(`🔍 PO DETAIL FIELDS for ${detail['PO No.']}:`, Object.keys(detail));
-                    console.log(`🔍 PO DETAIL DATA:`, {
-                      'Ordered Qty': detail['Ordered Qty'],
-                      'Qty Ordered': detail['Qty Ordered'],
-                      'Quantity': detail['Quantity'],
-                      'Ordered': detail['Ordered'],
-                      'Received Qty': detail['Received Qty'],
-                      'Qty Received': detail['Qty Received'],
-                      'Received': detail['Received'],
-                      'Unit Price': detail['Unit Price'],
-                      'Price': detail['Price'],
-                      'Cost': detail['Cost']
-                    });
-                    
-                    allPOData.push({
-                      source: 'Raw Detail',
-                      poNumber: detail['PO No.'] || '—',
-                      vendor: header?.['Vendor'] || header?.['Supplier'] || header?.['Name'] || '—',
-                      orderDate: header?.['Order Date'] || detail['Order Date'],
-                      orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Qty Ordered'] || detail['Quantity'] || detail['Ordered'] || 0),
-                      receivedQty: parseStockValue(detail['Received Qty'] || detail['Qty Received'] || detail['Received'] || 0),
-                      unitPrice: parseCostValue(detail['Unit Price'] || detail['Price'] || detail['Cost'] || 0),
-                      totalValue: parseStockValue(detail['Ordered Qty'] || detail['Qty Ordered'] || detail['Quantity'] || detail['Ordered'] || 0) * parseCostValue(detail['Unit Price'] || detail['Price'] || detail['Cost'] || 0),
-                      status: header?.['Status'] || detail['Status'],
-                      location: detail['Location'] || '—',
-                      requiredDate: detail['Required Date'] || detail['Due Date'],
-                      lineNo: detail['Line No.'] || 0,
-                      description: detail['Description'] || detail['Item Description'] || selectedItem?.['Description'] || '—'
-                    });
-                  }
+                  const poNo = detail['PO No.'];
+                  if (seenPOs.has(poNo)) return;
+                  seenPOs.add(poNo);
+                  const header = (data['PurchaseOrders.json'] || []).find((h: any) => h['PO No.'] === poNo);
+                  allPOData.push({
+                    poNumber: poNo || '—',
+                    vendor: header?.['Vendor'] || header?.['Supplier'] || '—',
+                    orderDate: header?.['Order Date'] || detail['Order Date'],
+                    orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Quantity'] || 0),
+                    receivedQty: parseStockValue(detail['Received Qty'] || 0),
+                    unitPrice: parseCostValue(detail['Unit Price'] || 0),
+                    status: header?.['Status'] || detail['Status']
+                  });
                 });
                 
-                // Add raw PO headers (for items directly referenced in headers)
-                rawPOHeaders.forEach((header: any) => {
-                  const alreadyExists = allPOData.some(existing => existing.poNumber === header['PO No.']);
-                  
-                  if (!alreadyExists) {
-                    allPOData.push({
-                      source: 'Raw Header',
-                      poNumber: header['PO No.'] || '—',
-                      vendor: header['Vendor'] || header['Supplier'] || header['Name'] || '—',
-                      orderDate: header['Order Date'],
-                      orderedQty: parseStockValue(header['Total Quantity'] || header['Ordered Qty'] || header['Total Ordered Qty'] || 0),
-                      receivedQty: parseStockValue(header['Received Quantity'] || header['Received Qty'] || header['Total Received Qty'] || 0),
-                      unitPrice: parseCostValue(header['Unit Price'] || header['Price'] || header['Cost'] || 0),
-                      totalValue: parseCostValue(header['Total Amount'] || header['Amount'] || header['Total Value'] || 0),
-                      status: header['Status'],
-                      location: header['Location'] || '—',
-                      requiredDate: header['Required Date'] || header['Due Date'],
-                      lineNo: 0,
-                      description: header['Description'] || selectedItem?.['Description'] || '—'
-                    });
-                  }
-                });
-                
-                // Sort by order date (newest first)
-                allPOData.sort((a, b) => {
-                  const dateA = new Date(a.orderDate || 0).getTime();
-                  const dateB = new Date(b.orderDate || 0).getTime();
-                  return dateB - dateA;
-                });
+                allPOData.sort((a, b) => new Date(b.orderDate || 0).getTime() - new Date(a.orderDate || 0).getTime());
                 
                 if (allPOData.length === 0) {
                   return (
-                    <div className="text-center py-12 text-gray-500">
-                      <Package2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                      <div className="text-xl font-medium">No Purchase Orders</div>
-                      <div className="text-sm">This item has no related purchase orders in historical data</div>
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No Purchase Orders</div>
+                      <div className="text-sm">No PO history found for this item</div>
                     </div>
                   );
                 }
 
+                // Summary stats
+                const totalOrdered = allPOData.reduce((sum, po) => sum + (po.orderedQty || 0), 0);
+                const totalReceived = allPOData.reduce((sum, po) => sum + (po.receivedQty || 0), 0);
+                const totalValue = allPOData.reduce((sum, po) => sum + ((po.orderedQty || 0) * (po.unitPrice || 0)), 0);
+
                 return (
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      🛒 Complete Purchase Order History ({allPOData.length} Records)
-                      <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                        All Historical Data
-                      </span>
-                    </h3>
-                    
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{allPOData.length}</div>
-                        <div className="text-sm text-gray-600">Total PO Records</div>
+                  <div>
+                    {/* Summary Row */}
+                    <div className="grid grid-cols-4 gap-3 mb-4">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-blue-600">{allPOData.length}</div>
+                        <div className="text-xs text-gray-500">Total POs</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {allPOData.reduce((sum, po) => sum + po.orderedQty, 0).toLocaleString()}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Ordered</div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-gray-800">{totalOrdered.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Ordered</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {allPOData.reduce((sum, po) => sum + po.receivedQty, 0).toLocaleString()}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Received</div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-emerald-600">{totalReceived.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Received</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {formatCAD(allPOData.reduce((sum, po) => sum + po.totalValue, 0))}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Value</div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-gray-800">{formatCAD(totalValue)}</div>
+                        <div className="text-xs text-gray-500">Total Value</div>
                       </div>
                     </div>
                     
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="text-left p-3 font-medium text-gray-700">PO Number</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Vendor</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Order Date</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Qty Ordered</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Qty Received</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Unit Price</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Total Value</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Status</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Source</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {allPOData.map((po, index) => {
-                              const getStatusInfo = (status: any) => {
-                                switch(status?.toString()) {
-                                  case '0': return { text: 'Open', color: 'bg-blue-100 text-blue-700' };
-                                  case '1': return { text: 'Released', color: 'bg-yellow-100 text-yellow-700' };
-                                  case '2': return { text: 'Received', color: 'bg-green-100 text-green-700' };
-                                  case '3': return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
-                                  default: return { text: status || 'Active', color: 'bg-blue-100 text-blue-700' };
-                                }
-                              };
-                              const statusInfo = getStatusInfo(po.status);
-                              
-                              return (
-                                <tr key={index} className="border-b border-gray-200 hover:bg-blue-50">
-                                  <td className="p-3 font-mono text-blue-600">{po.poNumber}</td>
-                                  <td className="p-3">{po.vendor}</td>
-                                  <td className="p-3">{formatDisplayDate(po.orderDate) || '—'}</td>
-                                  <td className="p-3 text-right font-medium">{po.orderedQty.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{po.receivedQty.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{formatCAD(po.unitPrice)}</td>
-                                  <td className="p-3 text-right font-bold text-green-600">{formatCAD(po.totalValue)}</td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                                      {statusInfo.text}
-                                    </span>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      po.source === 'Processed' ? 'bg-green-100 text-green-700' :
-                                      po.source === 'Raw Detail' ? 'bg-blue-100 text-blue-700' :
-                                      'bg-purple-100 text-purple-700'
-                                    }`}>
-                                      {po.source}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                    {/* Table */}
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">PO #</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Vendor</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Ordered</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Received</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {allPOData.slice(0, 20).map((po, index) => {
+                            const statusColor = po.status === '2' || po.status === '3' ? 'bg-green-100 text-green-700' 
+                              : po.status === '1' ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-blue-100 text-blue-700';
+                            const statusText = po.status === '2' ? 'Received' : po.status === '3' ? 'Closed' 
+                              : po.status === '1' ? 'Released' : 'Open';
+                            
+                            return (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-mono text-blue-600 font-medium">{po.poNumber}</td>
+                                <td className="px-4 py-3 text-gray-700">{po.vendor}</td>
+                                <td className="px-4 py-3 text-gray-500">{formatDisplayDate(po.orderDate) || '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium">{(po.orderedQty || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{(po.receivedQty || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right">{formatCAD(po.unitPrice || 0)}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor}`}>{statusText}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                       {allPOData.length > 20 && (
-                        <div className="p-3 bg-gray-100 text-center text-sm text-gray-600">
-                          Showing all {allPOData.length} purchase order records (sorted by newest first)
+                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
+                          Showing 20 of {allPOData.length} records
                         </div>
                       )}
                     </div>
@@ -7416,250 +7299,302 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
+              {/* ===== MANUFACTURING ORDERS TAB ===== */}
               {itemModalActiveView === 'mo' && (() => {
-                const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                
-                // COMPREHENSIVE MO SEARCH - Get ALL historical manufacturing orders for this item
-                // 1. From ManufacturingOrderDetails - where this item is a component
-                const moDetailsAsComponent = (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => {
-                  const componentFields = [
-                    mo['Component Item No.'],
-                    mo['Item No.'],
-                    mo['Part No.'],
-                    mo['Material No.']
-                  ];
-                  return componentFields.some(field => 
-                    (field || '').toString().trim().toUpperCase() === itemNoUpper
-                  );
+                // Get MO data - as component and as build item
+                const moDetails = (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => {
+                  const fields = [mo['Component Item No.'], mo['Item No.'], mo['Part No.']];
+                  return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
                 });
                 
-                // 2. From ManufacturingOrderHeaders - where this item is being built
-                const moHeadersAsBuild = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => {
-                  const buildFields = [
-                    mo['Build Item No.'],
-                    mo['Assembly No.'],
-                    mo['Sales Item No.'],
-                    mo['Item No.']
-                  ];
-                  return buildFields.some(field => 
-                    (field || '').toString().trim().toUpperCase() === itemNoUpper
-                  );
+                const moHeaders = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => {
+                  const fields = [mo['Build Item No.'], mo['Assembly No.'], mo['Item No.']];
+                  return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
                 });
                 
-                // 3. Create comprehensive MO data
+                // Build MO list
                 const allMOData: any[] = [];
+                const seenMOs = new Set();
                 
-                // Add component usage records
-                moDetailsAsComponent.forEach((detail: any) => {
-                  const header = (data['ManufacturingOrderHeaders.json'] || []).find((h: any) => 
-                    h['Mfg. Order No.'] === detail['Mfg. Order No.']
-                  );
-                  
+                moDetails.forEach((detail: any) => {
+                  const moNo = detail['Mfg. Order No.'];
+                  if (seenMOs.has(moNo)) return;
+                  seenMOs.add(moNo);
+                  const header = (data['ManufacturingOrderHeaders.json'] || []).find((h: any) => h['Mfg. Order No.'] === moNo);
                   allMOData.push({
-                    source: 'Component Usage',
-                    moNumber: detail['Mfg. Order No.'] || '—',
-                    buildItem: header?.['Build Item No.'] || header?.['Assembly No.'] || '—',
-                    buildDescription: header?.['Description'] || '—',
-                    componentItem: detail['Component Item No.'] || itemNoUpper,
+                    moNumber: moNo,
+                    buildItem: header?.['Build Item No.'] || '—',
                     orderDate: header?.['Order Date'],
-                    startDate: header?.['Start Date'],
-                    releaseDate: header?.['Release Date'],
-                    completionDate: header?.['Completion Date'],
                     requiredQty: parseStockValue(detail['Required Qty.'] || 0),
-                    releasedQty: parseStockValue(detail['Released Qty.'] || 0),
                     completedQty: parseStockValue(detail['Completed'] || 0),
-                    scrappedQty: parseStockValue(detail['Scrapped'] || 0),
-                    unitRequiredQty: parseStockValue(detail['Unit Required Qty.'] || 0),
-                    materialCost: parseCostValue(detail['Material Cost'] || 0),
-                    scrapCost: parseCostValue(detail['Scrap Cost'] || 0),
-                    operationNo: detail['Operation No.'] || '—',
-                    line: detail['Line'] || '—',
-                    detailType: detail['Detail Type'] || 'Material',
-                    status: header?.['Status'] || '—',
-                    customer: header?.['Customer'] || '—',
-                    priority: header?.['Priority'] || '—',
-                    location: detail['Source Location'] || header?.['Location No.'] || '—'
+                    status: header?.['Status'],
+                    type: 'Component'
                   });
                 });
                 
-                // Add build item records (where this item is being manufactured)
-                moHeadersAsBuild.forEach((header: any) => {
-                  // Avoid duplicates
-                  const alreadyExists = allMOData.some(existing => 
-                    existing.moNumber === header['Mfg. Order No.'] && existing.source === 'Build Item'
+                moHeaders.forEach((header: any) => {
+                  const moNo = header['Mfg. Order No.'];
+                  if (seenMOs.has(moNo)) return;
+                  seenMOs.add(moNo);
+                  allMOData.push({
+                    moNumber: moNo,
+                    buildItem: header['Build Item No.'] || itemNoUpper,
+                    orderDate: header['Order Date'],
+                    requiredQty: parseStockValue(header['Ordered'] || 0),
+                    completedQty: parseStockValue(header['Completed'] || 0),
+                    status: header['Status'],
+                    type: 'Build'
+                  });
+                });
+                
+                allMOData.sort((a, b) => new Date(b.orderDate || 0).getTime() - new Date(a.orderDate || 0).getTime());
+                
+                if (allMOData.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Factory className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No Manufacturing Orders</div>
+                      <div className="text-sm">No MO history found for this item</div>
+                    </div>
                   );
+                }
+                
+                const totalRequired = allMOData.reduce((sum, mo) => sum + (mo.requiredQty || 0), 0);
+                const totalCompleted = allMOData.reduce((sum, mo) => sum + (mo.completedQty || 0), 0);
+
+                return (
+                  <div>
+                    {/* Summary Row */}
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-green-600">{allMOData.length}</div>
+                        <div className="text-xs text-gray-500">Total MOs</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-gray-800">{totalRequired.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Required</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-emerald-600">{totalCompleted.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Completed</div>
+                      </div>
+                    </div>
+                    
+                    {/* Table */}
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">MO #</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Build Item</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Required</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Completed</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {allMOData.slice(0, 20).map((mo, index) => {
+                            const statusColor = mo.status === '3' || mo.status === '4' ? 'bg-green-100 text-green-700' 
+                              : mo.status === '2' ? 'bg-orange-100 text-orange-700' 
+                              : mo.status === '1' ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-blue-100 text-blue-700';
+                            const statusText = mo.status === '3' ? 'Completed' : mo.status === '4' ? 'Closed' 
+                              : mo.status === '2' ? 'In Progress' : mo.status === '1' ? 'Released' : 'Open';
+                            
+                            return (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-mono text-green-600 font-medium">{mo.moNumber}</td>
+                                <td className="px-4 py-3 text-gray-700">{mo.buildItem}</td>
+                                <td className="px-4 py-3 text-gray-500">{formatDisplayDate(mo.orderDate) || '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium">{(mo.requiredQty || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{(mo.completedQty || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${mo.type === 'Build' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{mo.type}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor}`}>{statusText}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {allMOData.length > 20 && (
+                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
+                          Showing 20 of {allMOData.length} records
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ===== SALES ORDERS TAB ===== */}
+              {itemModalActiveView === 'so' && (() => {
+                const itemName = (description || '').toLowerCase().trim();
+                
+                // Search ALL available SO data sources
+                const parsedSOs = data['ParsedSalesOrders.json'] || [];
+                const soDetails = data['SalesOrderDetails.json'] || [];
+                const soHeaders = data['SalesOrderHeaders.json'] || [];
+                
+                // Build SO list from all sources
+                const allSOData: any[] = [];
+                const seenSOs = new Set();
+                
+                // 1. Search ParsedSalesOrders (from PDF parsing)
+                parsedSOs.forEach((so: any) => {
+                  const items = so.items || [];
+                  const hasMatch = items.some((item: any) => {
+                    const code = (item.item_code || '').toString().trim().toUpperCase();
+                    const desc = (item.description || '').toString().toLowerCase();
+                    // Match by item code
+                    if (code === itemNoUpper) return true;
+                    // Match by item code in description
+                    if (desc.includes(itemNoUpper.toLowerCase())) return true;
+                    // Match by description similarity
+                    if (itemName.length > 5 && (desc.includes(itemName) || itemName.includes(desc))) return true;
+                    return false;
+                  });
                   
-                  if (!alreadyExists) {
-                    allMOData.push({
-                      source: 'Build Item',
-                      moNumber: header['Mfg. Order No.'] || '—',
-                      buildItem: header['Build Item No.'] || header['Assembly No.'] || itemNoUpper,
-                      buildDescription: header['Description'] || selectedItem?.['Description'] || '—',
-                      componentItem: '—',
-                      orderDate: header['Order Date'],
-                      startDate: header['Start Date'],
-                      releaseDate: header['Release Date'],
-                      completionDate: header['Completion Date'],
-                      requiredQty: parseStockValue(header['Ordered'] || 0),
-                      releasedQty: parseStockValue(header['Released'] || 0),
-                      completedQty: parseStockValue(header['Completed'] || 0),
-                      scrappedQty: 0,
-                      unitRequiredQty: 1,
-                      materialCost: parseCostValue(header['Projected Material Cost'] || header['Actual Material Cost'] || 0),
-                      scrapCost: parseCostValue(header['Total Scrap Cost'] || 0),
-                      operationNo: '—',
-                      line: '—',
-                      detailType: 'Assembly',
-                      status: header['Status'] || '—',
-                      customer: header['Customer'] || '—',
-                      priority: header['Priority'] || '—',
-                      location: header['Location No.'] || '—'
-                    });
+                  if (hasMatch) {
+                    const soNo = so.so_number || so.order_number || so['Order No.'] || '';
+                    if (soNo && !seenSOs.has(soNo)) {
+                      seenSOs.add(soNo);
+                      // Find matching item details
+                      const matchingItem = items.find((item: any) => {
+                        const code = (item.item_code || '').toString().trim().toUpperCase();
+                        return code === itemNoUpper;
+                      }) || items[0];
+                      
+                      allSOData.push({
+                        soNumber: soNo,
+                        customer: so.customer_name || so.customer || so.sold_to || '—',
+                        orderDate: so.order_date || so.order_details?.order_date || '—',
+                        shipDate: so.ship_date || so.order_details?.ship_date || '—',
+                        quantity: parseStockValue(matchingItem?.quantity || matchingItem?.ordered || 0),
+                        unitPrice: parseCostValue(matchingItem?.unit_price || matchingItem?.price || 0),
+                        status: so.status || 'Active',
+                        source: 'Parsed'
+                      });
+                    }
                   }
                 });
                 
-                // Sort by order date (newest first)
-                allMOData.sort((a, b) => {
+                // 2. Search SalesOrderDetails
+                soDetails.forEach((so: any) => {
+                  const soItemNo = (so['Item No.'] || '').toString().trim().toUpperCase();
+                  if (soItemNo === itemNoUpper) {
+                    const soNo = so['SO No.'] || so['Order No.'] || '';
+                    if (soNo && !seenSOs.has(soNo)) {
+                      seenSOs.add(soNo);
+                      allSOData.push({
+                        soNumber: soNo,
+                        customer: so['Customer'] || so['Customer No.'] || '—',
+                        orderDate: so['Order Date'] || '—',
+                        shipDate: so['Ship Date'] || so['Required Date'] || '—',
+                        quantity: parseStockValue(so['Quantity'] || so['Ordered Qty'] || 0),
+                        unitPrice: parseCostValue(so['Unit Price'] || so['Price'] || 0),
+                        status: so['Status'] || 'Active',
+                        source: 'Details'
+                      });
+                    }
+                  }
+                });
+                
+                // 3. Search SalesOrderHeaders
+                soHeaders.forEach((so: any) => {
+                  const soItemNo = (so['Item No.'] || so['Build Item No.'] || '').toString().trim().toUpperCase();
+                  if (soItemNo === itemNoUpper) {
+                    const soNo = so['SO No.'] || so['Order No.'] || '';
+                    if (soNo && !seenSOs.has(soNo)) {
+                      seenSOs.add(soNo);
+                      allSOData.push({
+                        soNumber: soNo,
+                        customer: so['Customer'] || so['Customer No.'] || '—',
+                        orderDate: so['Order Date'] || '—',
+                        shipDate: so['Ship Date'] || so['Required Date'] || '—',
+                        quantity: parseStockValue(so['Quantity'] || so['Total Qty'] || 0),
+                        unitPrice: parseCostValue(so['Unit Price'] || 0),
+                        status: so['Status'] || 'Active',
+                        source: 'Headers'
+                      });
+                    }
+                  }
+                });
+                
+                // Sort by date (newest first)
+                allSOData.sort((a, b) => {
                   const dateA = new Date(a.orderDate || 0).getTime();
                   const dateB = new Date(b.orderDate || 0).getTime();
                   return dateB - dateA;
                 });
                 
-                if (allMOData.length === 0) {
+                if (allSOData.length === 0) {
                   return (
-                    <div className="text-center py-12 text-gray-500">
-                      <Factory className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                      <div className="text-xl font-medium">No Manufacturing Orders</div>
-                      <div className="text-sm">This item has no related manufacturing orders in historical data</div>
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <ShoppingBag className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No Sales Orders Found</div>
+                      <div className="text-sm mt-1">No SO history found for this item</div>
+                      <div className="text-xs mt-3 text-gray-300">
+                        Searched: {parsedSOs.length} parsed SOs, {soDetails.length} SO details, {soHeaders.length} SO headers
+                      </div>
                     </div>
                   );
                 }
+                
+                const totalQty = allSOData.reduce((sum, so) => sum + (so.quantity || 0), 0);
+                const totalRevenue = allSOData.reduce((sum, so) => sum + ((so.quantity || 0) * (so.unitPrice || 0)), 0);
 
                 return (
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      🏭 Complete Manufacturing Order History ({allMOData.length} Records)
-                      <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                        All Historical Data
-                      </span>
-                    </h3>
-                    
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{allMOData.length}</div>
-                        <div className="text-sm text-gray-600">Total MO Records</div>
+                  <div>
+                    {/* Summary Row */}
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-purple-600">{allSOData.length}</div>
+                        <div className="text-xs text-gray-500">Total SOs</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {allMOData.reduce((sum, mo) => sum + mo.requiredQty, 0).toLocaleString()}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Required</div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-gray-800">{totalQty.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Total Sold</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {allMOData.reduce((sum, mo) => sum + mo.completedQty, 0).toLocaleString()}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Completed</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {formatCAD(allMOData.reduce((sum, mo) => sum + mo.materialCost, 0))}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Material Cost</div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xl font-bold text-emerald-600">{formatCAD(totalRevenue)}</div>
+                        <div className="text-xs text-gray-500">Revenue</div>
                       </div>
                     </div>
                     
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="text-left p-3 font-medium text-gray-700">MO Number</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Build Item</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Order Date</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Required Qty</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Completed Qty</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Material Cost</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Status</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Type</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Source</th>
+                    {/* Table */}
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">SO #</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Qty</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {allSOData.slice(0, 20).map((so, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-purple-600 font-medium">{so.soNumber}</td>
+                              <td className="px-4 py-3 text-gray-700">{so.customer}</td>
+                              <td className="px-4 py-3 text-gray-500">{so.orderDate}</td>
+                              <td className="px-4 py-3 text-right font-medium">{(so.quantity || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 text-right">{formatCAD(so.unitPrice || 0)}</td>
+                              <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCAD((so.quantity || 0) * (so.unitPrice || 0))}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {allMOData.map((mo, index) => {
-                              const getStatusInfo = (status: any, orderDate: any) => {
-                                // Check if order is old (more than 1 year ago)
-                                const orderYear = orderDate ? new Date(orderDate).getFullYear() : new Date().getFullYear();
-                                const currentYear = new Date().getFullYear();
-                                const isOldOrder = (currentYear - orderYear) > 1;
-                                
-                                switch(status?.toString()) {
-                                  case '0': 
-                                    return isOldOrder 
-                                      ? { text: 'Cancelled', color: 'bg-red-100 text-red-700' }
-                                      : { text: 'Open', color: 'bg-blue-100 text-blue-700' };
-                                  case '1': 
-                                    return isOldOrder 
-                                      ? { text: 'Completed', color: 'bg-green-100 text-green-700' }
-                                      : { text: 'Released', color: 'bg-yellow-100 text-yellow-700' };
-                                  case '2': 
-                                    return isOldOrder 
-                                      ? { text: 'Completed', color: 'bg-green-100 text-green-700' }
-                                      : { text: 'In Production', color: 'bg-orange-100 text-orange-700' };
-                                  case '3': return { text: 'Completed', color: 'bg-green-100 text-green-700' };
-                                  case '4': return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
-                                  default: 
-                                    return isOldOrder 
-                                      ? { text: 'Completed', color: 'bg-green-100 text-green-700' }
-                                      : { text: status || 'Active', color: 'bg-blue-100 text-blue-700' };
-                                }
-                              };
-                              const statusInfo = getStatusInfo(mo.status, mo.orderDate);
-                              
-                              return (
-                                <tr key={index} className="border-b border-gray-200 hover:bg-green-50">
-                                  <td className="p-3 font-mono text-green-600">{mo.moNumber}</td>
-                                  <td className="p-3 max-w-xs truncate" title={mo.buildDescription}>
-                                    <div className="font-medium">{mo.buildItem}</div>
-                                    <div className="text-xs text-gray-500 truncate">{mo.buildDescription}</div>
-                                  </td>
-                                  <td className="p-3">{formatDisplayDate(mo.orderDate) || '—'}</td>
-                                  <td className="p-3 text-right font-medium">{mo.requiredQty.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{mo.completedQty.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{formatCAD(mo.materialCost)}</td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                                      {statusInfo.text}
-                                    </span>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      mo.detailType === 'Material' ? 'bg-blue-100 text-blue-700' :
-                                      mo.detailType === 'Assembly' ? 'bg-purple-100 text-purple-700' :
-                                      mo.detailType === 'Labor' ? 'bg-green-100 text-green-700' :
-                                      'bg-gray-100 text-gray-700'
-                                    }`}>
-                                      {mo.detailType}
-                                    </span>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      mo.source === 'Component Usage' ? 'bg-blue-100 text-blue-700' :
-                                      'bg-green-100 text-green-700'
-                                    }`}>
-                                      {mo.source}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                      {allMOData.length > 20 && (
-                        <div className="p-3 bg-gray-100 text-center text-sm text-gray-600">
-                          Showing all {allMOData.length} manufacturing order records (sorted by newest first)
+                          ))}
+                        </tbody>
+                      </table>
+                      {allSOData.length > 20 && (
+                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
+                          Showing 20 of {allSOData.length} records
                         </div>
                       )}
                     </div>
@@ -7667,1004 +7602,106 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {itemModalActiveView === 'so' && (() => {
-                // 🎯 UNIVERSAL ITEM IDENTIFICATION - Works for ANY item from ANY source
-                const itemFields = [
-                  selectedItem?.['Item No.'],
-                  selectedItem?.['ItemNo'], 
-                  selectedItem?.['Item_No'],
-                  selectedItem?.['ITEM_NO'],
-                  selectedItem?.['Component Item No.'],
-                  selectedItem?.['Product Code'],
-                  selectedItem?.['Part No.'],
-                  selectedItem?.['SKU'],
-                  selectedItem?.['Build Item No.'],
-                  selectedItem?.['Assembly No.']
-                ];
+              {/* ===== BOM TAB (for assembled items) ===== */}
+              {itemModalActiveView === 'bom' && isAssembled && (() => {
+                const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
+                  (bom['Parent Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                );
                 
-                const itemNoUpper = (itemFields.find(field => field && field.toString().trim()) || '').toString().trim().toUpperCase();
-                
-                // 🎯 UNIVERSAL DESCRIPTION IDENTIFICATION - Check all possible description fields
-                const descriptionFields = [
-                  selectedItem?.['Description'],
-                  selectedItem?.['Item Description'],
-                  selectedItem?.['Product Description'],
-                  selectedItem?.['Item Name'],
-                  selectedItem?.['Name'],
-                  selectedItem?.['Title']
-                ];
-                
-                const selectedItemName = (descriptionFields.find(field => field && field.toString().trim()) || '').toString().toLowerCase().trim();
-                const selectedItemDisplayName = (descriptionFields.find(field => field && field.toString().trim()) || '').toString().trim(); // Keep original case for display
-                
-                console.log(`🔍 UNIVERSAL SO MATCHING: "${itemNoUpper}" | "${selectedItemName}"`);
-                console.log('  Available item fields:', Object.keys(selectedItem || {}));
-                
-                // 🚨 CRITICAL: If no item code found, this item might not be matchable
-                if (!itemNoUpper) {
-                  console.error('❌ NO ITEM CODE FOUND - Cannot match SOs without item identifier');
-                  console.error('  Item data:', selectedItem);
-                  console.error('  Checked item fields:', itemFields.map((field, i) => `${i}: ${field}`));
-                  console.error('  Checked description fields:', descriptionFields.map((field, i) => `${i}: ${field}`));
-                } else {
-                  console.log('✅ ITEM IDENTIFICATION SUCCESS:');
-                  console.log(`  Item Code: "${itemNoUpper}"`);
-                  console.log(`  Description: "${selectedItemName}"`);
-                  console.log(`  Source: Item from field with value "${itemFields.find(field => field && field.toString().trim())}"`);
-                }
-                
-                // COMPREHENSIVE SO SEARCH - Focus on DESCRIPTION/NAME MATCHING as requested
-                // This matches the G Drive PDF-based SO system where we match by item descriptions
-                
-                console.log('🔍 SO MATCHING DEBUG:');
-                console.log('  Item No:', itemNoUpper);
-                console.log('  Item Description:', selectedItemName);
-                console.log('  Total SalesOrders to search:', (data['SalesOrders.json'] || []).length);
-                
-                // 1. MAIN SOURCE: SalesOrders.json - REVISED APPROACH
-                // The SalesOrders.json contains PDF metadata, not item data
-                // We need to match differently - by looking for the item in the PDF filename or customer data
-                
-                console.log('  🔄 REVISED APPROACH: SalesOrders.json contains PDF metadata, not items');
-                
-                let sosWithoutItems = 1357; // All SOs are PDF metadata
-                let sosWithItems = 0;
-                
-                // Get all sales orders from ALL sources (same as dedicated SO page)
-                const salesOrdersJson = data['SalesOrders.json'] || [];
-                const realSalesOrders = data['RealSalesOrders'] || [];
-                const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-                
-                // Combine all SO sources
-                let allSalesOrderSources: any[] = [...salesOrdersJson, ...realSalesOrders];
-                
-                // Add orders from status folders
-                if (typeof salesOrdersByStatus === 'object') {
-                  Object.values(salesOrdersByStatus).forEach((orders: any) => {
-                    if (Array.isArray(orders)) {
-                      allSalesOrderSources = [...allSalesOrderSources, ...orders];
-                    }
-                  });
-                }
-                
-                console.log('🔍 COMPREHENSIVE SO SOURCES:');
-                console.log('  SalesOrders.json:', salesOrdersJson.length);
-                console.log('  RealSalesOrders:', realSalesOrders.length);
-                console.log('  SalesOrdersByStatus folders:', Object.keys(salesOrdersByStatus).length);
-                console.log('  Total combined SOs:', allSalesOrderSources.length);
-                
-                // DEBUG: Check what's actually inside these SOs
-                if (realSalesOrders.length > 0) {
-                  console.log('  RealSalesOrders sample structure:', Object.keys(realSalesOrders[0]));
-                  console.log('  RealSalesOrders sample:', realSalesOrders[0]);
-                }
-                if (Object.keys(salesOrdersByStatus).length > 0) {
-                  const firstStatusKey = Object.keys(salesOrdersByStatus)[0];
-                  const firstStatusOrders = salesOrdersByStatus[firstStatusKey];
-                  if (Array.isArray(firstStatusOrders) && firstStatusOrders.length > 0) {
-                    console.log(`  ${firstStatusKey} sample structure:`, Object.keys(firstStatusOrders[0]));
-                    console.log(`  ${firstStatusKey} sample:`, firstStatusOrders[0]);
-                  }
-                }
-                
-                // 🎯 INSTANT SO MATCHING - Use cached parsed data
-                console.log('🎯 CHECKING FOR CACHED PARSED SO DATA...');
-                
-                const parsedSOs = data['ParsedSalesOrders.json'] || [];
-                const soItemIndex = data['SOItemIndex.json'] || [];
-                const cacheStatus = data['SOCacheStatus'];
-                
-                console.log('📊 CACHE STATUS:');
-                console.log('  ParsedSalesOrders.json:', parsedSOs.length, 'SOs');
-                console.log('  SOItemIndex.json:', soItemIndex.length, 'items');
-                console.log('  Cache last updated:', cacheStatus?.last_updated || 'Never');
-                
-                let salesOrdersWithItemMatch: any[] = [];
-                
-                if (parsedSOs.length > 0) {
-                  // Use cached parsed data for INSTANT results
-                  console.log('✅ Using cached parsed SO data for instant matching');
-                  console.log(`🔍 Searching for item: "${itemNoUpper}" in ${parsedSOs.length} cached SOs`);
-                  
-                  // Debug: Show sample SO structure
-                  if (parsedSOs[0]) {
-                    console.log('📋 Sample SO structure:', Object.keys(parsedSOs[0]));
-                    console.log('📋 Sample SO items:', parsedSOs[0].items?.slice(0, 2));
-                  }
-                  
-                  // 🎯 SIMPLE UNIVERSAL SEARCH: Search ALL items in ALL parsed SOs
-                  console.log(`🔍 SIMPLE SEARCH: Looking for "${itemNoUpper}" OR "${selectedItemName}" in ALL parsed SOs`);
-                  
-                  salesOrdersWithItemMatch = parsedSOs.filter((so: any) => {
-                    const items = so.items || [];
-                    
-                    return items.some((item: any) => {
-                      const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                      const itemDesc = (item.description || '').toString().toLowerCase().trim();
-                      
-                      // 1. EXACT ITEM CODE MATCH
-                      if (itemCode && itemCode === itemNoUpper) {
-                        console.log(`  ✅ EXACT CODE: ${itemCode} in SO ${so.so_number || so.order_number}`);
-                        return true;
-                      }
-                      
-                      // 2. ITEM CODE IN DESCRIPTION (word boundary)
-                      if (itemNoUpper && itemDesc) {
-                        const codeRegex = new RegExp(`\\b${itemNoUpper}\\b`, 'i');
-                        if (codeRegex.test(itemDesc)) {
-                          console.log(`  ✅ CODE IN DESC: "${itemNoUpper}" found in "${itemDesc}"`);
-                          return true;
-                        }
-                      }
-                      
-                      // 3. DESCRIPTION MATCHING - Simple and effective
-                      if (selectedItemName && selectedItemName.length > 3 && itemDesc) {
-                        // Direct substring match
-                        if (itemDesc.includes(selectedItemName) || selectedItemName.includes(itemDesc)) {
-                          console.log(`  ✅ DESC MATCH: "${selectedItemName}" <-> "${itemDesc}"`);
-                          return true;
-                        }
-                        
-                        // Word-based matching for complex descriptions
-                        const inventoryWords = selectedItemName.split(/[\s\-_,()×x\/\\]+/)
-                          .filter((word: string) => word.length > 2)
-                          .filter((word: string) => !['and', 'the', 'for', 'with', 'oil', 'lube'].includes(word));
-                        
-                        const soWords = itemDesc.split(/[\s\-_,()×x\/\\]+/)
-                          .filter((word: string) => word.length > 2);
-                        
-                        if (inventoryWords.length > 0) {
-                          const matchingWords = inventoryWords.filter((invWord: string) => 
-                            soWords.some((soWord: string) => 
-                              invWord === soWord || 
-                              (invWord.length > 3 && soWord.length > 3 && 
-                               (invWord.includes(soWord) || soWord.includes(invWord)))
-                            )
-                          );
-                          
-                          // Match if 40%+ of words match (more lenient for universal matching)
-                          const matchRatio = matchingWords.length / inventoryWords.length;
-                          if (matchRatio >= 0.4) {
-                            console.log(`  ✅ WORD MATCH: ${matchingWords.length}/${inventoryWords.length} (${Math.round(matchRatio*100)}%)`);
-                            console.log(`    Words: [${matchingWords.join(', ')}]`);
-                        return true;
-                      }
-                        }
-                      }
-                      
-                      return false;
-                    });
-                  });
-                  
-                  console.log(`🎯 SEARCH COMPLETE: Found ${salesOrdersWithItemMatch.length} SOs containing item ${itemNoUpper}`);
-                  
-                  // Debug: If no matches, show what items we actually have
-                  if (salesOrdersWithItemMatch.length === 0) {
-                    console.log('🔍 DEBUG: No matches found. Sample item codes from cache:');
-                    const sampleItemCodes = parsedSOs.slice(0, 5).flatMap((so: any) => 
-                      (so.items || []).map((item: any) => item.item_code)
-                    ).filter(Boolean);
-                    console.log('   Sample item codes:', sampleItemCodes);
-                  }
-                  
-                } else {
-                  console.log('⚠️ NO CACHED SO DATA - NEED TO BUILD CACHE');
-                  console.log('  Cache appears to be empty or not loaded');
-                  console.log('🚨 CRITICAL: Without parsed SO data, we cannot provide accurate results');
-                  salesOrdersWithItemMatch = [];
-                }
-                
-                // 🚨 NO FALLBACK LOGIC - ONLY USE PARSED SO DATA
-                // If we have parsed SOs, that's the complete and accurate data source
-                console.log('🚨 SKIPPING FALLBACK - Using only parsed SO data to avoid mixing real and incomplete data');
-                const fallbackSODetails: any[] = [];
-                const fallbackSOHeaders: any[] = [];
-                
-                // Combine all matches (avoid duplicates)
-                const allMatchingSOs: any[] = [];
-                const seenSONumbers = new Set();
-                
-                // Add item matches
-                salesOrdersWithItemMatch.forEach((so: any) => {
-                  // Try multiple possible SO number fields from parsed data
-                  const soNumber = so['Order No.'] || so.order_number || so.so_number || so.id || so['SO No.'];
-                  console.log(`  📋 Adding SO to results: ${soNumber} (fields: ${Object.keys(so).join(', ')})`);
-                  
-                  if (soNumber && !seenSONumbers.has(soNumber)) {
-                    allMatchingSOs.push(so);
-                    seenSONumbers.add(soNumber);
-                    console.log(`  ✅ Added SO ${soNumber} to final results`);
-                  } else if (!soNumber) {
-                    console.log(`  ⚠️ SO has no number field, adding anyway:`, so);
-                    allMatchingSOs.push(so);
-                  } else {
-                    console.log(`  🔄 Duplicate SO ${soNumber}, skipping`);
-                  }
-                });
-                
-                // Add fallback matches
-                fallbackSODetails.forEach((so: any) => {
-                  const soNumber = so['Order No.'] || so.order_number || so.id;
-                  if (soNumber && !seenSONumbers.has(soNumber)) {
-                    allMatchingSOs.push({ ...so, source: 'SO Details' });
-                    seenSONumbers.add(soNumber);
-                  }
-                });
-                
-                fallbackSOHeaders.forEach((so: any) => {
-                  const soNumber = so['Order No.'] || so.order_number || so.id;
-                  if (soNumber && !seenSONumbers.has(soNumber)) {
-                    allMatchingSOs.push({ ...so, source: 'SO Headers' });
-                    seenSONumbers.add(soNumber);
-                  }
-                });
-                
-                
-                console.log('📊 SO MATCHING SUMMARY:');
-                console.log('  SOs are PDF metadata (no items):', sosWithoutItems);
-                console.log('  SOs with actual items:', sosWithItems);
-                console.log('  Item matches found:', salesOrdersWithItemMatch.length);
-                console.log('  Fallback SO Details matches:', fallbackSODetails.length);
-                console.log('  Fallback SO Headers matches:', fallbackSOHeaders.length);
-                
-                // ADDITIONAL DEBUGGING: Check what other SO-related data we have
-                console.log('🔍 CHECKING OTHER POTENTIAL SO DATA SOURCES:');
-                Object.keys(data).forEach(key => {
-                  if (key.toLowerCase().includes('sales') || key.toLowerCase().includes('order')) {
-                    const records = data[key] || [];
-                    console.log(`  ${key}: ${Array.isArray(records) ? records.length : 'not array'} records`);
-                    if (Array.isArray(records) && records.length > 0) {
-                      console.log(`    Sample fields:`, Object.keys(records[0]));
-                    }
-                  }
-                });
-                
-                console.log('🎯 FINAL SO MATCHING RESULTS:');
-                console.log('  Item matches found:', salesOrdersWithItemMatch.length);
-                console.log('  Total SO matches found:', allMatchingSOs.length);
-                console.log('  Final allMatchingSOs array:', allMatchingSOs);
-                console.log('  Sample SO structure:', allMatchingSOs[0]);
-                
-                const directSOs = allMatchingSOs;
-                
-                // Find assembled items that use this item as a component (BOM logic)
-                const assembledItemsUsing = (data['BillOfMaterialDetails.json'] || [])
-                  .filter((bom: any) => 
-                    (bom["Component Item No."] || '').toString().trim().toUpperCase() === itemNoUpper
-                  )
-                  .map((bom: any) => bom["Parent Item No."]);
-                
-                // Smart SOs using fuzzy matching and BOM logic - check both SO files
-                const smartSODetails = (data['SalesOrderDetails.json'] || []).filter((so: any) => {
-                  const soItemName = (so['Item Name'] || so['Description'] || '').toLowerCase();
-                  const soItemNo = (so['Item No.'] || '').toString().trim().toUpperCase();
-                  
-                  // Skip if already counted in direct SOs
-                  if (soItemNo === itemNoUpper) return false;
-                  
-                  // Smart name matching - find SOs with similar item names/descriptions
-                  if (selectedItemName && soItemName) {
-                    const selectedWords = selectedItemName.split(/\s+/).filter((w: string) => w.length > 2);
-                    const soWords = soItemName.split(/\s+/).filter((w: string) => w.length > 2);
-                    const matchCount = selectedWords.filter((word: string) => 
-                      soWords.some((soWord: string) => soWord.includes(word) || word.includes(soWord))
-                    ).length;
-                    if (matchCount >= Math.min(2, selectedWords.length * 0.5)) return true;
-                  }
-                  
-                  // BOM logic - SOs for assembled items that use this component
-                  if (assembledItemsUsing.includes(soItemNo)) return true;
-                  
-                  return false;
-                });
-                
-                const smartSOHeaders = (data['SalesOrderHeaders.json'] || []).filter((so: any) => {
-                  const soItemName = (so['Item Name'] || so['Description'] || '').toLowerCase();
-                  const soItemNo = (so['Item No.'] || so['Build Item No.'] || '').toString().trim().toUpperCase();
-                  
-                  // Skip if already counted in direct SOs
-                  if (soItemNo === itemNoUpper) return false;
-                  
-                  // Smart name matching
-                  if (selectedItemName && soItemName) {
-                    const selectedWords = selectedItemName.split(/\s+/).filter((w: string) => w.length > 2);
-                    const soWords = soItemName.split(/\s+/).filter((w: string) => w.length > 2);
-                    const matchCount = selectedWords.filter((word: string) => 
-                      soWords.some((soWord: string) => soWord.includes(word) || word.includes(soWord))
-                    ).length;
-                    if (matchCount >= Math.min(2, selectedWords.length * 0.5)) return true;
-                  }
-                  
-                  // BOM logic
-                  if (assembledItemsUsing.includes(soItemNo)) return true;
-                  
-                  return false;
-                });
-                
-                // ADDITIONAL SMART MATCHING: Find more SOs using fuzzy logic
-                const smartSalesOrders = allSalesOrderSources.filter((so: any) => {
-                  // Skip if already found as direct match
-                  const alreadyDirect = allMatchingSOs.some((existing: any) => 
-                    (existing['Order No.'] || existing.order_number || existing.id) === (so['Order No.'] || so.order_number || so.id)
-                  );
-                  if (alreadyDirect) return false;
-                  
-                  // Check items array for fuzzy matches
-                  if (so.items && Array.isArray(so.items)) {
-                    return so.items.some((item: any) => {
-                      const itemName = (item.item_name || item.description || '').toLowerCase();
-                      const itemCode = (item.item_code || item.itemId || '').toString().trim().toUpperCase();
-                      
-                      // Skip direct matches (already found)
-                      if (itemCode === itemNoUpper) return false;
-                      
-                      // Fuzzy name matching
-                      if (selectedItemName && itemName) {
-                        const selectedWords = selectedItemName.split(/\s+/).filter((w: string) => w.length > 2);
-                        const soWords = itemName.split(/\s+/).filter((w: string) => w.length > 2);
-                        const matchCount = selectedWords.filter((word: string) => 
-                          soWords.some((soWord: string) => soWord.includes(word) || word.includes(soWord))
-                        ).length;
-                        if (matchCount >= Math.min(2, selectedWords.length * 0.5)) return true;
-                      }
-                      
-                      // Check if this item is an assembled item that uses our component
-                      if (assembledItemsUsing.includes(itemCode)) {
-                        return true;
-                      }
-                      
-                      return false;
-                    });
-                  }
-                  
-                  return false;
-                });
-                
-                const smartSOs = [...smartSODetails, ...smartSOHeaders, ...smartSalesOrders];
-                
-                // Combine all relevant SOs and sort by newest first
-                const allRelevantSOs = [...directSOs, ...smartSOs].sort((a: any, b: any) => {
-                  const dateA = new Date(a['Order Date'] || 0).getTime();
-                  const dateB = new Date(b['Order Date'] || 0).getTime();
-                  return dateB - dateA; // Newest first
-                });
-                
-                console.log('🎯 FINAL UI RENDERING:');
-                console.log('  directSOs length:', directSOs.length);
-                console.log('  smartSOs length:', smartSOs.length);
-                console.log('  allRelevantSOs length:', allRelevantSOs.length);
-                console.log('  allRelevantSOs sample:', allRelevantSOs.slice(0, 2));
-                
-                if (allRelevantSOs.length === 0) {
+                if (bomDetails.length === 0) {
                   return (
-                    <div className="text-center py-12 text-gray-500">
-                      <ShoppingBag className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                      <div className="text-xl font-medium">No Sales Orders</div>
-                      <div className="text-sm">This item has no related sales orders</div>
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No BOM Data</div>
+                      <div className="text-sm">No bill of materials found for this item</div>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      📦 Smart Sales Orders Analysis ({allRelevantSOs.length} SOs)
-                      {smartSOs.length > 0 && (
-                        <span className="text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                          +{smartSOs.length} via Smart Match
-                        </span>
-                      )}
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
-                      {/* SO Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-600">{allRelevantSOs.length}</div>
-                          <div className="text-sm text-gray-600">Total SOs</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600">
-                            {(() => {
-                              const totalQuantity = allRelevantSOs.reduce((sum: number, so: any) => {
-                                if (so.items && Array.isArray(so.items)) {
-                                  // Parsed SO - find matching item
-                                  const matchingItem = so.items.find((item: any) => {
-                                    const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                                    return itemCode === itemNoUpper;
-                                  });
-                                  // 🚨 SAME BULLETPROOF LOGIC AS TABLE ROWS - NO MOCK DATA
-                                  const quantityFields = {
-                                    quantity: matchingItem?.quantity,
-                                    ordered: matchingItem?.ordered,
-                                    qty: matchingItem?.qty,
-                                    ordered_qty: matchingItem?.ordered_qty,
-                                    order_quantity: matchingItem?.order_quantity,
-                                    amount: matchingItem?.amount,
-                                    order_amount: matchingItem?.order_amount
-                                  };
-                                  
-                                  let realQuantity = 0;
-                                  for (const [fieldName, fieldValue] of Object.entries(quantityFields)) {
-                                    if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && fieldValue !== 0) {
-                                      const parsed = parseStockValue(fieldValue);
-                                      if (parsed > 0) {
-                                        realQuantity = parsed;
-                                        break;
-                                      }
-                                    }
-                                  }
-                                  
-                                  return sum + realQuantity;
-                                } else {
-                                  // Traditional SO
-                                  return sum + parseStockValue(so['Quantity'] || so['Order Quantity'] || 0);
-                                }
-                              }, 0);
-                              return totalQuantity.toLocaleString();
-                            })()}
-                          </div>
-                          <div className="text-sm text-gray-600">Total Sold</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {(() => {
-                              const totalRevenue = allRelevantSOs.reduce((sum: number, so: any) => {
-                                if (so.items && Array.isArray(so.items)) {
-                                  // Parsed SO - find matching item
-                                  const matchingItem = so.items.find((item: any) => {
-                                    const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                                    return itemCode === itemNoUpper;
-                                  });
-                                  // Use same field logic as table rows
-                                  const qty = parseStockValue(
-                                    matchingItem?.quantity || 
-                                    matchingItem?.ordered || 
-                                    matchingItem?.qty || 
-                                    matchingItem?.ordered_qty ||
-                                    matchingItem?.order_quantity ||
-                                    0
-                                  );
-                                  const price = parseCostValue(
-                                    matchingItem?.unit_price || 
-                                    matchingItem?.price || 
-                                    matchingItem?.amount ||
-                                    matchingItem?.unit_amount ||
-                                    0
-                                  );
-                                  return sum + (qty * price);
-                                } else {
-                                  // Traditional SO
-                              const qty = parseStockValue(so['Quantity'] || so['Order Quantity'] || 0);
-                              const price = parseCostValue(so['Unit Price'] || so['Price'] || 0);
-                              return sum + (qty * price);
-                                }
-                              }, 0);
-                              return formatCAD(totalRevenue);
-                            })()}
-                          </div>
-                          <div className="text-sm text-gray-600">Total Revenue</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-orange-600">{directSOs.length}</div>
-                          <div className="text-sm text-gray-600">Direct Sales</div>
-                        </div>
-                      </div>
-
-                      {/* Comprehensive SO Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="text-left p-3 font-medium text-gray-700">SO Number</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Customer</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Item Description</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Order Date</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Ship Date</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Qty Ordered</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Unit Price</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Total Value</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Status</th>
-                              <th className="text-left p-3 font-medium text-gray-700">Match Type</th>
+                  <div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
+                      <div className="text-xl font-bold text-orange-600">{bomDetails.length}</div>
+                      <div className="text-xs text-gray-500">Components</div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Component</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Qty Per</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {bomDetails.map((bom: any, index: number) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-orange-600 font-medium">{bom['Component Item No.']}</td>
+                              <td className="px-4 py-3 text-gray-700">{bom['Description'] || '—'}</td>
+                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {allRelevantSOs.map((so: any, index: number) => {
-                              // 🎯 HANDLE PARSED SO DATA - Support both parsed and traditional SO formats
-                              
-                              // Extract SO number from multiple possible fields
-                              const soNumber = so['SO No.'] || so['Order No.'] || so.so_number || so.order_number || so.id || '—';
-                              
-                              // Extract customer info from multiple possible fields
-                              const customer = so['Customer No.'] || so['Customer'] || so.customer_name || so.sold_to || '—';
-                              
-                              // Extract order and ship dates from multiple possible fields - check SO-level data
-                              console.log(`🔍 SO DATE FIELDS for ${soNumber}:`, {
-                                'Order Date': so['Order Date'],
-                                'order_date': so.order_date,
-                                'Date': so['Date'],
-                                'Created Date': so['Created Date'],
-                                'Ship Date': so['Ship Date'],
-                                'ship_date': so.ship_date,
-                                'Shipping Date': so['Shipping Date'],
-                                'Required Date': so['Required Date'],
-                                'Due Date': so['Due Date'],
-                                'Delivery Date': so['Delivery Date']
-                              });
-                              
-                              // Extract order date and ship date from parsed SO data
-                              let soOrderDate = '—';
-                              let soShipDate = '—';
-                              
-                              if (so.order_details) {
-                                // Parsed SO format
-                                soOrderDate = so.order_details.order_date || '—';
-                                soShipDate = so.order_details.ship_date || '—';
-                                
-                                // Always try to extract order date from raw_text since backend doesn't parse it
-                                if (so.raw_text) {
-                                  // Pattern: "Date: 07/24/25" - date comes after Date: label
-                                  const dateMatch = so.raw_text.match(/Date:\s*(\d{2}\/\d{2}\/\d{2})/);
-                                  if (dateMatch) {
-                                    soOrderDate = dateMatch[1];
-                                    console.log(`📅 EXTRACTED ORDER DATE: ${soOrderDate} for SO ${soNumber}`);
-                                  }
-                                }
-                              } else {
-                                // Traditional SO format - check multiple field names
-                                soOrderDate = so['Order Date'] || so['Date'] || so['Created Date'] || so.order_date || so.created_date || so.date || '—';
-                                soShipDate = so['Ship Date'] || so['Shipping Date'] || so['Required Date'] || so['Due Date'] || so['Delivery Date'] || so.ship_date || so.shipping_date || so.required_date || '—';
-                              }
-                              
-                              console.log(`📅 DATES for SO ${soNumber}: Order=${soOrderDate}, Ship=${soShipDate}`);
-                              
-                              // For parsed SOs, we need to find the matching item in the items array
-                              let itemInfo = { description: '—', quantity: 0, unitPrice: 0 };
-                              
-                              if (so.items && Array.isArray(so.items)) {
-                                // This is a parsed SO - find the matching item
-                                console.log(`🔍 SO ${soNumber} COMPLETE DEBUG:`, {
-                                  total_items: so.items.length,
-                                  sample_items: so.items.slice(0, 2),
-                                  looking_for: itemNoUpper,
-                                  so_level_fields: Object.keys(so),
-                                  so_dates: {
-                                    'Order Date': so['Order Date'],
-                                    'order_date': so.order_date,
-                                    'created_date': so.created_date,
-                                    'date': so.date,
-                                    'Ship Date': so['Ship Date'],
-                                    'ship_date': so.ship_date,
-                                    'Shipping Date': so['Shipping Date'],
-                                    'shipping_date': so.shipping_date,
-                                    'Required Date': so['Required Date'],
-                                    'required_date': so.required_date
-                                  }
-                                });
-                                
-                                console.log(`🔍 SEARCHING FOR EXACT MATCH in SO ${soNumber}:`);
-                                console.log(`  Looking for item code: "${itemNoUpper}"`);
-                                console.log(`  Available items in SO:`, so.items.map((item: any) => ({
-                                  code: (item.item_code || '').toString().trim().toUpperCase(),
-                                  desc: item.description,
-                                  qty: item.quantity,
-                                  price: item.unit_price || item.price
-                                })));
-                                
-                                const matchingItem = so.items.find((item: any) => {
-                                  const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                                  const isMatch = itemCode === itemNoUpper;
-                                  if (isMatch) {
-                                    console.log(`  ✅ EXACT MATCH FOUND: ${itemCode} === ${itemNoUpper}`);
-                                  }
-                                  return isMatch;
-                                });
-                                
-                                if (!matchingItem) {
-                                  console.error(`❌ NO EXACT MATCH FOUND in SO ${soNumber} for item "${itemNoUpper}"`);
-                                  console.error(`  Available item codes:`, so.items.map((item: any) => (item.item_code || '').toString().trim().toUpperCase()));
-                                }
-                                
-                                if (matchingItem) {
-                                  // 🚨 ABSOLUTELY NO MOCK DATA - Extract real quantity from parsed SO
-                                  console.log(`🔍 RAW ITEM DATA for SO ${soNumber}:`, matchingItem);
-                                  console.log(`🔍 ITEM FIELD NAMES:`, Object.keys(matchingItem));
-                                  console.log(`🔍 ALL ITEM FIELDS:`, matchingItem);
-                                  
-                                  // Check ALL possible quantity fields and log what we find
-                                  const quantityFields = {
-                                    quantity: matchingItem.quantity,
-                                    ordered: matchingItem.ordered,
-                                    qty: matchingItem.qty,
-                                    ordered_qty: matchingItem.ordered_qty,
-                                    order_quantity: matchingItem.order_quantity,
-                                    amount: matchingItem.amount,
-                                    order_amount: matchingItem.order_amount,
-                                    'Quantity': matchingItem['Quantity'],
-                                    'Ordered': matchingItem['Ordered'],
-                                    'Qty': matchingItem['Qty'],
-                                    'Ordered Qty': matchingItem['Ordered Qty'],
-                                    'Order Quantity': matchingItem['Order Quantity'],
-                                    'Sales Quantity': matchingItem['Sales Quantity'],
-                                    'Line Quantity': matchingItem['Line Quantity']
-                                  };
-                                  
-                                  console.log(`🔍 ALL QUANTITY FIELDS for SO ${soNumber}:`, quantityFields);
-                                  
-                                  // Find the first non-zero, non-null quantity field
-                                  let realQuantity = 0;
-                                  let quantitySource = 'NONE_FOUND';
-                                  
-                                  for (const [fieldName, fieldValue] of Object.entries(quantityFields)) {
-                                    if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && fieldValue !== 0) {
-                                      const parsed = parseStockValue(fieldValue);
-                                      if (parsed > 0) {
-                                        realQuantity = parsed;
-                                        quantitySource = fieldName;
-                                        console.log(`✅ FOUND REAL QUANTITY: ${realQuantity} from field "${fieldName}" (raw: ${fieldValue})`);
-                                        break;
-                                      }
-                                    }
-                                  }
-                                  
-                                  // Same for price fields - check ALL possible price field names
-                                  const priceFields = {
-                                    unit_price: matchingItem.unit_price,
-                                    price: matchingItem.price,
-                                    amount: matchingItem.amount,
-                                    unit_amount: matchingItem.unit_amount,
-                                    total_price: matchingItem.total_price,
-                                    line_total: matchingItem.line_total,
-                                    'Unit Price': matchingItem['Unit Price'],
-                                    'Price': matchingItem['Price'],
-                                    'Amount': matchingItem['Amount'],
-                                    'Unit Amount': matchingItem['Unit Amount'],
-                                    'Total Price': matchingItem['Total Price'],
-                                    'Line Total': matchingItem['Line Total'],
-                                    'Sales Price': matchingItem['Sales Price'],
-                                    'List Price': matchingItem['List Price'],
-                                    'Net Price': matchingItem['Net Price']
-                                  };
-                                  
-                                  console.log(`🔍 ALL PRICE FIELDS for SO ${soNumber}:`, priceFields);
-                                  
-                                  let realPrice = 0;
-                                  let priceSource = 'NONE_FOUND';
-                                  
-                                  for (const [fieldName, fieldValue] of Object.entries(priceFields)) {
-                                    if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && fieldValue !== 0) {
-                                      const parsed = parseCostValue(fieldValue);
-                                      if (parsed > 0) {
-                                        realPrice = parsed;
-                                        priceSource = fieldName;
-                                        console.log(`✅ FOUND REAL PRICE: ${realPrice} from field "${fieldName}" (raw: ${fieldValue})`);
-                                        break;
-                                      }
-                                    }
-                                  }
-                                  
-                                  // 🚨 CRITICAL: If no real quantity found OR if quantity is 46 (mock data), EXCLUDE completely
-                                  if (realQuantity === 0 || realQuantity === 46) {
-                                    console.error(`❌ MOCK DATA DETECTED! Quantity: ${realQuantity} for SO ${soNumber}, item ${itemNoUpper} - EXCLUDING FROM RESULTS!`);
-                                    console.error(`Available fields:`, Object.keys(matchingItem));
-                                    console.error(`Full item data:`, matchingItem);
-                                    console.error(`🚨 PROJECT RULE VIOLATION: Cannot show SO with mock quantity ${realQuantity} - NO MOCK DATA EVER!`);
-                                    return null; // EXCLUDE this SO completely
-                                  }
-                                  
-                                  console.log(`🎯 FINAL VALUES for SO ${soNumber}: Qty=${realQuantity} (from ${quantitySource}), Price=${realPrice} (from ${priceSource})`);
-                                  console.log(`🎯 FINAL DATES for SO ${soNumber}: OrderDate=${soOrderDate}, ShipDate=${soShipDate}`);
-                                  console.log(`🎯 FINAL CUSTOMER for SO ${soNumber}: ${customer}`);
-                                  
-                                  itemInfo = {
-                                    description: selectedItemDisplayName || matchingItem.description || matchingItem.item_code || '—',
-                                    quantity: realQuantity,  // 🚨 REAL QUANTITY FROM PARSED SO DATA
-                                    unitPrice: realPrice     // 🚨 REAL PRICE FROM PARSED SO DATA
-                                  };
-                                  
-                                  console.log(`✅ FINAL ITEM INFO for SO ${soNumber}:`, itemInfo);
-                                } else {
-                                  // 🚨 CRITICAL ERROR: This should NEVER happen if our matching logic is correct
-                                  console.error(`🚨 CRITICAL ERROR: SO ${soNumber} was matched but no exact item found!`);
-                                  console.error(`  This indicates a bug in the matching logic!`);
-                                  console.error(`  SO was matched for item "${itemNoUpper}" but exact item not found in items array`);
-                                  
-                                  // Use first item as emergency fallback but log it as an error
-                                  const firstItem = so.items[0];
-                                  console.error(`  EMERGENCY FALLBACK: Using first item:`, firstItem);
-                                  
-                                  itemInfo = {
-                                    description: selectedItemDisplayName || `${firstItem?.item_code || ''} - ${firstItem?.description || ''}`.trim(),
-                                    quantity: parseStockValue(firstItem?.quantity || 0),
-                                    unitPrice: parseCostValue(firstItem?.unit_price || firstItem?.price || 0)
-                                  };
-                                }
-                              } else {
-                                // Traditional SO format - use the SO-level data directly
-                                console.log(`🔍 TRADITIONAL SO FORMAT for ${soNumber}:`, Object.keys(so));
-                                console.log(`🔍 SO QUANTITY FIELDS:`, {
-                                  'Quantity': so['Quantity'],
-                                  'Order Quantity': so['Order Quantity'],
-                                  'Ordered Qty': so['Ordered Qty'],
-                                  'Qty': so['Qty'],
-                                  'Sales Quantity': so['Sales Quantity']
-                                });
-                                console.log(`🔍 SO PRICE FIELDS:`, {
-                                  'Unit Price': so['Unit Price'],
-                                  'Price': so['Price'],
-                                  'Sales Price': so['Sales Price'],
-                                  'List Price': so['List Price']
-                                });
-                                
-                                const soQuantity = parseStockValue(
-                                  so['Quantity'] || 
-                                  so['Order Quantity'] || 
-                                  so['Ordered Qty'] || 
-                                  so['Qty'] || 
-                                  so['Sales Quantity'] || 
-                                  0
-                                );
-                                
-                                const soPrice = parseCostValue(
-                                  so['Unit Price'] || 
-                                  so['Price'] || 
-                                  so['Sales Price'] || 
-                                  so['List Price'] || 
-                                  0
-                                );
-                                
-                                // 🚨 NO MOCK DATA - exclude if quantity is 0 or mock value
-                                if (soQuantity === 0 || soQuantity === 46) {
-                                  console.error(`❌ MOCK DATA in traditional SO ${soNumber}: quantity=${soQuantity} - EXCLUDING!`);
-                                  return null;
-                                }
-                                
-                                itemInfo = {
-                                  description: selectedItemDisplayName || so['Item Name'] || so['Description'] || '—',
-                                  quantity: soQuantity,
-                                  unitPrice: soPrice
-                                };
-                                
-                                console.log(`✅ TRADITIONAL SO FINAL: ${soNumber} - Qty=${soQuantity}, Price=${soPrice}`);
-                              }
-                              
-                              const totalValue = itemInfo.quantity * itemInfo.unitPrice;
-                              const isDirect = directSOs.some((direct) => direct === so);
-                              const isAssembled = assembledItemsUsing.includes((so['Item No.'] || '').toString().trim().toUpperCase());
-                              
-                              
-                              const getStatusInfo = (status: any) => {
-                                // Handle parsed SO status
-                                if (so.status && typeof so.status === 'string') {
-                                  return { text: so.status, color: 'bg-blue-100 text-blue-700' };
-                                }
-                                
-                                switch(status?.toString()) {
-                                  case '0': return { text: 'Open', color: 'bg-blue-100 text-blue-700' };
-                                  case '1': return { text: 'Released', color: 'bg-yellow-100 text-yellow-700' };
-                                  case '2': return { text: 'Shipped', color: 'bg-green-100 text-green-700' };
-                                  case '3': return { text: 'Invoiced', color: 'bg-purple-100 text-purple-700' };
-                                  case '4': return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
-                                  default: return { text: status || 'Active', color: 'bg-blue-100 text-blue-700' };
-                                }
-                              };
-                              const statusInfo = getStatusInfo(so['Status'] || so.status);
-                              
-                              return (
-                                <tr 
-                                  key={index} 
-                                  className="border-b border-gray-200 hover:bg-purple-50 cursor-pointer transition-colors"
-                                  onClick={() => {
-                                    // Create a file object for the SO viewer
-                                    const soFile = {
-                                      name: `SO_${soNumber}.pdf`,
-                                      path: so.file_path || `SO_${soNumber}.pdf`,
-                                      so_number: soNumber,
-                                      customer: customer,
-                                      order_date: soOrderDate,
-                                      ship_date: soShipDate,
-                                      raw_data: so
-                                    };
-                                    openSOViewer(soFile);
-                                  }}
-                                  title="Click to view Sales Order details"
-                                >
-                                  <td className="p-3 font-mono text-purple-600 hover:text-purple-800 font-medium">
-                                    {soNumber}
-                                    <div className="text-xs text-gray-500">Click to view</div>
-                                  </td>
-                                  <td className="p-3">{customer}</td>
-                                  <td className="p-3 text-sm max-w-xs truncate" title={itemInfo.description}>
-                                    {itemInfo.description}
-                                  </td>
-                                  <td className="p-3">{formatDisplayDate(soOrderDate) || soOrderDate}</td>
-                                  <td className="p-3">{formatDisplayDate(soShipDate) || soShipDate}</td>
-                                  <td className="p-3 text-right font-medium">{itemInfo.quantity.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{formatCAD(itemInfo.unitPrice)}</td>
-                                  <td className="p-3 text-right font-bold text-green-600">{formatCAD(totalValue)}</td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                                      {statusInfo.text}
-                                    </span>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                      isDirect ? 'bg-green-100 text-green-700' : 
-                                      isAssembled ? 'bg-blue-100 text-blue-700' : 
-                                      'bg-purple-100 text-purple-700'
-                                    }`}>
-                                      {isDirect ? 'Direct' : isAssembled ? 'BOM' : 'Smart'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            }).filter(Boolean)} {/* 🚨 FILTER OUT NULL RESULTS - NO MOCK DATA EVER */}
-                          </tbody>
-                        </table>
-                      </div>
-                      {allRelevantSOs.filter(so => {
-                        // Count only SOs with real quantities
-                        if (so.items && Array.isArray(so.items)) {
-                          const matchingItem = so.items.find((item: any) => {
-                            const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                            return itemCode === itemNoUpper;
-                          });
-                          if (matchingItem) {
-                            const quantityFields = {
-                              quantity: matchingItem.quantity,
-                              ordered: matchingItem.ordered,
-                              qty: matchingItem.qty,
-                              ordered_qty: matchingItem.ordered_qty,
-                              order_quantity: matchingItem.order_quantity,
-                              'Quantity': matchingItem['Quantity'],
-                              'Ordered': matchingItem['Ordered'],
-                              'Qty': matchingItem['Qty'],
-                              'Ordered Qty': matchingItem['Ordered Qty'],
-                              'Order Quantity': matchingItem['Order Quantity'],
-                              'Sales Quantity': matchingItem['Sales Quantity'],
-                              'Line Quantity': matchingItem['Line Quantity']
-                            };
-                            for (const [fieldName, fieldValue] of Object.entries(quantityFields)) {
-                              if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && fieldValue !== 0) {
-                                const parsed = parseStockValue(fieldValue);
-                                if (parsed > 0) return true;
-                              }
-                            }
-                          }
-                        }
-                        return false;
-                      }).length > 15 && (
-                        <div className="p-3 bg-gray-100 text-center text-sm text-gray-600">
-                          Showing all {allRelevantSOs.filter(so => {
-                            // Count only SOs with real quantities - NO MOCK DATA
-                            if (so.items && Array.isArray(so.items)) {
-                              const matchingItem = so.items.find((item: any) => {
-                                const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                                return itemCode === itemNoUpper;
-                              });
-                              if (matchingItem) {
-                                const quantityFields = {
-                                  quantity: matchingItem.quantity,
-                                  ordered: matchingItem.ordered,
-                                  qty: matchingItem.qty,
-                                  ordered_qty: matchingItem.ordered_qty,
-                                  order_quantity: matchingItem.order_quantity,
-                                  'Quantity': matchingItem['Quantity'],
-                                  'Ordered': matchingItem['Ordered'],
-                                  'Qty': matchingItem['Qty'],
-                                  'Ordered Qty': matchingItem['Ordered Qty'],
-                                  'Order Quantity': matchingItem['Order Quantity'],
-                                  'Sales Quantity': matchingItem['Sales Quantity'],
-                                  'Line Quantity': matchingItem['Line Quantity']
-                                };
-                                for (const [fieldName, fieldValue] of Object.entries(quantityFields)) {
-                                  if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && fieldValue !== 0) {
-                                    const parsed = parseStockValue(fieldValue);
-                                    if (parsed > 0) return true;
-                                  }
-                                }
-                              }
-                            }
-                            return false;
-                          }).length} sales orders with real quantities (sorted by newest first)
-                        </div>
-                      )}
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
               })()}
 
+              {/* ===== LOCATIONS TAB ===== */}
               {itemModalActiveView === 'locations' && (() => {
-                const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                
-                // 🔍 DEBUG: Check MIILOC.json data structure
-                console.log('🔍 MIILOC LOCATION DEBUG:');
-                console.log('  Looking for item:', itemNoUpper);
-                console.log('  Total MowQIILOC records:', (data['MIILOC.json'] || []).length);
-                
-                if ((data['MIILOC.json'] || []).length > 0) {
-                  console.log('  MIILOC sample record fields:', Object.keys(data['MIILOC.json'][0]));
-                  console.log('  MIILOC sample record:', data['MIILOC.json'][0]);
-                }
-                
                 const itemLocations = (data['MIILOC.json'] || []).filter((loc: any) => 
                   (loc['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
                 );
                 
-                console.log('  Found location matches:', itemLocations.length);
-                if (itemLocations.length > 0) {
-                  console.log('  Location matches:', itemLocations);
-                }
-                
                 if (itemLocations.length === 0) {
                   return (
-                    <div className="text-center py-12 text-gray-500">
-                      <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                      <div className="text-xl font-medium">No Locations</div>
-                      <div className="text-sm">This item has no location records</div>
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <MapPin className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No Locations</div>
+                      <div className="text-sm">No location records found for this item</div>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      📍 Location Analysis ({itemLocations.length} Locations)
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="text-left p-3 font-medium text-gray-700">Location</th>
-                              <th className="text-right p-3 font-medium text-gray-700">On Hand</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Allocated</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Available</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Unit Cost</th>
-                              <th className="text-right p-3 font-medium text-gray-700">Total Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itemLocations.map((loc: any, index: number) => {
-                              const onHand = parseStockValue(loc['On Hand'] || 0);
-                              const allocated = parseStockValue(loc['Allocated'] || 0);
-                              const available = onHand - allocated;
-                              const unitCost = parseCostValue(loc['Unit Cost'] || 0);
-                              const totalValue = onHand * unitCost;
-                              
-                              return (
-                                <tr key={index} className="border-b border-gray-200 hover:bg-orange-50">
-                                  <td className="p-3 font-medium text-orange-600">{loc['Location'] || '—'}</td>
-                                  <td className="p-3 text-right font-medium">{onHand.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{allocated.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{available.toLocaleString()}</td>
-                                  <td className="p-3 text-right font-medium">{formatCAD(unitCost)}</td>
-                                  <td className="p-3 text-right font-bold text-green-600">{formatCAD(totalValue)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                  <div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
+                      <div className="text-xl font-bold text-amber-600">{itemLocations.length}</div>
+                      <div className="text-xs text-gray-500">Locations</div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">On Hand</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Allocated</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Available</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {itemLocations.map((loc: any, index: number) => {
+                            const onHand = parseStockValue(loc['On Hand'] || 0);
+                            const allocated = parseStockValue(loc['Allocated'] || 0);
+                            const available = onHand - allocated;
+                            const unitCost = parseCostValue(loc['Unit Cost'] || 0);
+                            
+                            return (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-mono text-amber-600 font-medium">{loc['Location'] || '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium">{onHand.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right text-gray-500">{allocated.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{available.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right">{formatCAD(onHand * unitCost)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
