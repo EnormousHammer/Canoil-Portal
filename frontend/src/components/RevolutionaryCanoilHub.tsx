@@ -6994,326 +6994,176 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         </div>
       </div>
 
-      {/* COMPREHENSIVE ITEM DETAILS MODAL */}
+      {/* ITEM DETAILS MODAL - Clean Redesign */}
       {showItemModal && selectedItem && (() => {
-        // DEBUG: Log data structure to understand field names
-        console.log('🔍 DEBUGGING ITEM MODAL DATA:');
-        console.log('Selected Item:', selectedItem);
-        console.log('Selected Item No:', selectedItem?.['Item No.']);
-        console.log('Available data keys:', Object.keys(data || {}));
+        // Calculate key metrics
+        const itemNo = selectedItem['Item No.'] || 'Unknown';
+        const itemNoUpper = itemNo.toString().trim().toUpperCase();
+        const description = selectedItem['Description'] || 'No description';
+        const isAssembled = assembledItemsSet.has(itemNo);
         
-        // DETAILED MO DEBUGGING
-        const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
-        const moDetails = data['ManufacturingOrderDetails.json'] || [];
-        console.log('📊 MO DEBUGGING:');
-        console.log('  ManufacturingOrderHeaders count:', moHeaders.length);
-        console.log('  ManufacturingOrderHeaders sample:', moHeaders.slice(0, 2));
-        console.log('  ManufacturingOrderDetails count:', moDetails.length);
-        console.log('  ManufacturingOrderDetails sample:', moDetails.slice(0, 2));
-        
-        // DETAILED PO DEBUGGING
-        const poHeaders = data['PurchaseOrders.json'] || [];
-        const poDetails = data['PurchaseOrderDetails.json'] || [];
-        console.log('🛒 PO DEBUGGING:');
-        console.log('  PurchaseOrders count:', poHeaders.length);
-        console.log('  PurchaseOrders sample:', poHeaders.slice(0, 2));
-        console.log('  PurchaseOrderDetails count:', poDetails.length);
-        console.log('  PurchaseOrderDetails sample:', poDetails.slice(0, 2));
-        console.log('  ProcessedPO lines count:', processPurchaseOrders.lines.length);
-        console.log('  ProcessedPO lines sample:', processPurchaseOrders.lines.slice(0, 2));
-        
-        // DETAILED SO DEBUGGING
-        const soHeaders = data['SalesOrderHeaders.json'] || [];
-        const soDetails = data['SalesOrderDetails.json'] || [];
-        const salesOrders = data['SalesOrders.json'] || [];
-        console.log('📦 SO DEBUGGING:');
-        console.log('  SalesOrderHeaders count:', soHeaders.length);
-        console.log('  SalesOrderDetails count:', soDetails.length);
-        console.log('  SalesOrders.json count:', salesOrders.length);
-        console.log('  RealSalesOrders count:', (data['RealSalesOrders'] || []).length);
-        console.log('  SalesOrdersByStatus:', typeof data['SalesOrdersByStatus'], Object.keys(data['SalesOrdersByStatus'] || {}));
-        
-        // FIELD NAME DEBUGGING
-        if (moHeaders.length > 0) {
-          console.log('  MO Header field names:', Object.keys(moHeaders[0]));
-        }
-        if (moDetails.length > 0) {
-          console.log('  MO Detail field names:', Object.keys(moDetails[0]));
-        }
-        if (soHeaders.length > 0) {
-          console.log('  SO Header field names:', Object.keys(soHeaders[0]));
-        }
-        if (soDetails.length > 0) {
-          console.log('  SO Detail field names:', Object.keys(soDetails[0]));
-        }
-        if (salesOrders.length > 0) {
-          console.log('  SalesOrders field names:', Object.keys(salesOrders[0]));
-          console.log('  SalesOrders sample record:', salesOrders[0]);
-          if (salesOrders[0].items && Array.isArray(salesOrders[0].items) && salesOrders[0].items.length > 0) {
-            console.log('  SalesOrders item field names:', Object.keys(salesOrders[0].items[0]));
-            console.log('  SalesOrders item sample:', salesOrders[0].items[0]);
-          } else {
-            console.log('  ⚠️ SalesOrders[0] has no items array or items is empty');
-            console.log('  SalesOrders[0] structure:', JSON.stringify(salesOrders[0], null, 2));
-          }
-          
-          // Check first few records for items arrays
-          console.log('  📋 CHECKING FIRST 5 SOs FOR ITEMS:');
-          salesOrders.slice(0, 5).forEach((so: any, index: number) => {
-            console.log(`    SO ${index + 1}:`, {
-              orderNo: so['Order No.'] || so.order_number || so.id,
-              hasItems: !!(so.items && Array.isArray(so.items)),
-              itemsCount: so.items ? so.items.length : 0,
-              itemsSample: so.items && so.items.length > 0 ? so.items[0] : 'No items'
-            });
-          });
-        }
-        
-        console.log('BillOfMaterialDetails sample:', (data['BillOfMaterialDetails.json'] || []).slice(0, 2));
-        
-        // SPECIFIC ITEM DEBUGGING
-        const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-        console.log('🔍 ITEM-SPECIFIC DEBUGGING for:', itemNoUpper);
-        
-        // Check PO matches
-        const itemPOMatches = processPurchaseOrders.lines.filter((line: any) => 
-          (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
-        );
-        console.log('  PO matches for this item:', itemPOMatches.length);
-        console.log('  PO matches sample:', itemPOMatches.slice(0, 2));
-        
-        // Check MO matches
-        const itemMOMatches = moDetails.filter((mo: any) => 
-          (mo['Component Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper ||
-          (mo['Build Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-        );
-        console.log('  MO matches for this item:', itemMOMatches.length);
-        console.log('  MO matches sample:', itemMOMatches.slice(0, 2));
-        
-        // Check location matches
-        const allLocations = data['MIILOC.json'] || [];
-        console.log('  Total MIILOC records:', allLocations.length);
-        if (allLocations.length > 0) {
-          console.log('  MIILOC field names:', Object.keys(allLocations[0]));
-          console.log('  MIILOC sample record:', allLocations[0]);
-        }
-        
-        const itemLocationMatches = allLocations.filter((loc: any) => 
-          (loc['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-        );
-        console.log('  Location matches for this item:', itemLocationMatches.length);
-        console.log('  Location matches sample:', itemLocationMatches.slice(0, 2));
-        
-        // Try alternative location field names
-        const itemLocationMatches2 = allLocations.filter((loc: any) => 
-          (loc['ItemNo'] || loc['Item_No'] || loc['ITEM_NO'] || '').toString().trim().toUpperCase() === itemNoUpper
-        );
-        console.log('  Location matches (alt fields):', itemLocationMatches2.length);
-        
-        // Check SO matches from SalesOrders.json
-        const itemSOMatches = salesOrders.filter((so: any) => {
-          if (so.items && Array.isArray(so.items)) {
-            return so.items.some((item: any) => 
-              (item.item_code || item.itemId || item['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-            );
-          }
-          return (so['Item No.'] || so['Build Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper;
-        });
-        console.log('  SO matches for this item:', itemSOMatches.length);
-        console.log('  SO matches sample:', itemSOMatches.slice(0, 2));
-        
-        // Calculate key metrics for this item
         const currentStock = parseStockValue(selectedItem['On Hand'] || selectedItem['Stock'] || 0);
         const currentWIP = parseStockValue(selectedItem['WIP'] || 0);
         const onOrder = parseStockValue(selectedItem['On Order'] || selectedItem['Qty On Order'] || 0);
         const reorderLevel = parseStockValue(selectedItem['Reorder Level'] || selectedItem['Minimum'] || 0);
         const unitCost = parseCostValue(selectedItem['Unit Cost'] || selectedItem['Recent Cost'] || selectedItem['Standard Cost'] || 0);
         const totalValue = currentStock * unitCost;
-        const availableStock = currentStock + currentWIP + onOrder;
+        
         const stockStatus = currentStock <= 0 ? 'out' : currentStock <= reorderLevel ? 'low' : 'ok';
         
+        // Count related records
+        const poCount = (() => {
+          const processedPOLines = processPurchaseOrders.lines.filter((line: any) => 
+            (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
+          );
+          const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
+            const fields = [detail['Item No.'], detail['ItemNo'], detail['Component Item No.'], detail['Part No.']];
+            return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
+          });
+          const allPOs = new Set();
+          processedPOLines.forEach((l: any) => allPOs.add(l.poId));
+          rawPODetails.forEach((d: any) => allPOs.add(d['PO No.']));
+          return allPOs.size;
+        })();
+        
+        const moCount = (() => {
+          const moDetails = (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => {
+            const fields = [mo['Component Item No.'], mo['Item No.'], mo['Part No.']];
+            return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
+          });
+          const moHeaders = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => {
+            const fields = [mo['Build Item No.'], mo['Assembly No.'], mo['Item No.']];
+            return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
+          });
+          const allMOs = new Set();
+          moDetails.forEach((d: any) => allMOs.add(d['Mfg. Order No.']));
+          moHeaders.forEach((h: any) => allMOs.add(h['Mfg. Order No.']));
+          return allMOs.size;
+        })();
+        
+        const soCount = (() => {
+          const parsedSOs = data['ParsedSalesOrders.json'] || [];
+          const itemName = (description || '').toLowerCase().trim();
+          const matches = parsedSOs.filter((so: any) => {
+            const items = so.items || [];
+            return items.some((item: any) => {
+              const code = (item.item_code || '').toString().trim().toUpperCase();
+              const desc = (item.description || '').toString().toLowerCase();
+              if (code === itemNoUpper) return true;
+              if (itemName.length > 3 && (desc.includes(itemName) || itemName.includes(desc))) return true;
+              return false;
+            });
+          });
+          return matches.length;
+        })();
+        
         return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            {/* Compact Header */}
-            <div className="bg-slate-800 text-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold">{selectedItem['Item No.'] || 'Unknown Item'}</h2>
-                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                    assembledItemsSet.has(selectedItem['Item No.']) 
-                      ? 'bg-orange-500' 
-                      : 'bg-sky-500'
-                  }`}>
-                    {assembledItemsSet.has(selectedItem['Item No.']) ? 'ASSEMBLED' : 'RAW MATERIAL'}
-                  </span>
-                </div>
-                <button
-                  onClick={closeItemModal}
-                  className="w-8 h-8 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <p className="text-slate-300 text-sm mt-1">{selectedItem['Description'] || 'No description available'}</p>
-            </div>
-
-            {/* Key Stats Bar - Stock Focused */}
-            <div className="bg-slate-100 border-b border-slate-200">
-              <div className="flex divide-x divide-slate-200">
-                {/* Stock - Primary */}
-                <div className={`flex-1 py-4 px-5 ${
-                  stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Header - Minimal */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  stockStatus === 'out' ? 'bg-red-100' : stockStatus === 'low' ? 'bg-amber-100' : 'bg-emerald-100'
                 }`}>
-                  <div className={`text-3xl font-bold ${
+                  <Package2 className={`w-5 h-5 ${
                     stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
-                  }`}>
-                    {currentStock.toLocaleString()}
+                  }`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-gray-900">{itemNo}</h2>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isAssembled ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {isAssembled ? 'ASSEMBLED' : 'RAW'}
+                    </span>
                   </div>
-                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">In Stock</div>
+                  <p className="text-sm text-gray-500 line-clamp-1">{description}</p>
                 </div>
-                {/* WIP */}
-                <div className="flex-1 py-4 px-5 bg-blue-50">
-                  <div className="text-3xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
-                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Work in Progress</div>
-                </div>
-                {/* On Order */}
-                <div className="flex-1 py-4 px-5">
-                  <div className="text-3xl font-bold text-slate-700">{onOrder.toLocaleString()}</div>
-                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">On Order</div>
-                </div>
-                {/* Available (Stock + WIP + On Order) */}
-                <div className="flex-1 py-4 px-5 bg-slate-50">
-                  <div className="text-3xl font-bold text-slate-800">{availableStock.toLocaleString()}</div>
-                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Available</div>
-                </div>
-                {/* Unit Cost */}
-                <div className="flex-1 py-4 px-5">
-                  <div className="text-2xl font-bold text-slate-700">{formatCAD(unitCost)}</div>
-                  <div className="text-xs text-slate-500 font-medium uppercase tracking-wide">Unit Cost</div>
-                </div>
+              </div>
+              <button onClick={closeItemModal} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Stats Row - Clean Grid */}
+            <div className="grid grid-cols-5 border-b border-gray-100">
+              <div className={`p-4 text-center ${
+                stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
+              }`}>
+                <div className={`text-2xl font-bold ${
+                  stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
+                }`}>{currentStock.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-500 font-medium uppercase">Stock</div>
+              </div>
+              <div className="p-4 text-center bg-blue-50">
+                <div className="text-2xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-500 font-medium uppercase">WIP</div>
+              </div>
+              <div className="p-4 text-center">
+                <div className="text-2xl font-bold text-gray-700">{onOrder.toLocaleString()}</div>
+                <div className="text-[10px] text-gray-500 font-medium uppercase">On Order</div>
+              </div>
+              <div className="p-4 text-center bg-gray-50">
+                <div className="text-2xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
+                <div className="text-[10px] text-gray-500 font-medium uppercase">Available</div>
+              </div>
+              <div className="p-4 text-center">
+                <div className="text-xl font-bold text-gray-700">{formatCAD(unitCost)}</div>
+                <div className="text-[10px] text-gray-500 font-medium uppercase">Unit Cost</div>
               </div>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-5 overflow-y-auto max-h-[calc(90vh-220px)]">
-
-              {/* Tab Navigation */}
-              <div className="flex gap-1 mb-5 bg-slate-100 p-1 rounded-lg">
-                {/* Purchase Orders Tab */}
+            {/* Tab Bar - Sleek */}
+            <div className="flex px-6 pt-4 gap-1">
+              <button 
+                onClick={() => setItemModalActiveView('po')}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
+                  itemModalActiveView === 'po' 
+                    ? 'border-blue-500 text-blue-600 bg-blue-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Purchase Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{poCount}</span>
+              </button>
+              <button 
+                onClick={() => setItemModalActiveView('mo')}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
+                  itemModalActiveView === 'mo' 
+                    ? 'border-green-500 text-green-600 bg-green-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Mfg Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{moCount}</span>
+              </button>
+              <button 
+                onClick={() => setItemModalActiveView('so')}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
+                  itemModalActiveView === 'so' 
+                    ? 'border-purple-500 text-purple-600 bg-purple-50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Sales Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{soCount}</span>
+              </button>
+              {isAssembled && (
                 <button 
-                  onClick={() => setItemModalActiveView('po')}
-                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                    itemModalActiveView === 'po' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
-                      : 'text-slate-600 hover:text-slate-900'
+                  onClick={() => setItemModalActiveView('bom')}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
+                    itemModalActiveView === 'bom' 
+                      ? 'border-orange-500 text-orange-600 bg-orange-50' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <span className="font-bold mr-1.5">
-                    {(() => {
-                      const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                      const processedPOLines = processPurchaseOrders.lines.filter((line: any) => 
-                        (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
-                      );
-                      const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
-                        const itemFields = [detail['Item No.'], detail['ItemNo'], detail['Item_No'], detail['ITEM_NO'], detail['Component Item No.'], detail['Product Code'], detail['Part No.'], detail['SKU']];
-                        return itemFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
-                      });
-                      const allPONumbers = new Set();
-                      processedPOLines.forEach((line: any) => allPONumbers.add(line.poId));
-                      rawPODetails.forEach((detail: any) => allPONumbers.add(detail['PO No.'] + '-' + detail['Line No.']));
-                      return allPONumbers.size;
-                    })()}
-                  </span>
-                  Purchase Orders
+                  BOM
                 </button>
+              )}
+            </div>
 
-                {/* Manufacturing Orders Tab */}
-                <button 
-                  onClick={() => setItemModalActiveView('mo')}
-                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                    itemModalActiveView === 'mo' 
-                      ? 'bg-white text-green-600 shadow-sm' 
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="font-bold mr-1.5">
-                    {(() => {
-                      const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                      const moDetailsAsComponent = (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => {
-                        const componentFields = [mo['Component Item No.'], mo['Item No.'], mo['Part No.'], mo['Material No.']];
-                        return componentFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
-                      });
-                      const moHeadersAsBuild = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => {
-                        const buildFields = [mo['Build Item No.'], mo['Assembly No.'], mo['Sales Item No.'], mo['Item No.']];
-                        return buildFields.some(field => (field || '').toString().trim().toUpperCase() === itemNoUpper);
-                      });
-                      const allMONumbers = new Set();
-                      moDetailsAsComponent.forEach((detail: any) => allMONumbers.add(detail['Mfg. Order No.']));
-                      moHeadersAsBuild.forEach((header: any) => allMONumbers.add(header['Mfg. Order No.']));
-                      return allMONumbers.size;
-                    })()}
-                  </span>
-                  Mfg Orders
-                </button>
-
-                {/* Sales Orders Tab */}
-                <button 
-                  onClick={() => setItemModalActiveView('so')}
-                  className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                    itemModalActiveView === 'so' 
-                      ? 'bg-white text-purple-600 shadow-sm' 
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="font-bold mr-1.5">
-                    {(() => {
-                      const itemNoUpper = (selectedItem?.['Item No.'] || '').toString().trim().toUpperCase();
-                      const selectedItemName = (selectedItem?.['Description'] || '').toString().toLowerCase().trim();
-                      if (!itemNoUpper) return 0;
-                      
-                      const parsedSOs = data['ParsedSalesOrders.json'] || [];
-                      const salesOrdersWithItemMatch = parsedSOs.filter((so: any) => {
-                        const items = so.items || [];
-                        return items.some((item: any) => {
-                          const itemCode = (item.item_code || '').toString().trim().toUpperCase();
-                          const itemDesc = (item.description || '').toString().toLowerCase().trim();
-                          if (itemCode && itemCode === itemNoUpper) return true;
-                          if (itemNoUpper && itemDesc) {
-                            const codeRegex = new RegExp(`\\b${itemNoUpper}\\b`, 'i');
-                            if (codeRegex.test(itemDesc)) return true;
-                          }
-                          if (selectedItemName && selectedItemName.length > 3 && itemDesc) {
-                            if (itemDesc.includes(selectedItemName) || selectedItemName.includes(itemDesc)) return true;
-                          }
-                          return false;
-                        });
-                      });
-                      const allSONumbers = new Set();
-                      salesOrdersWithItemMatch.forEach((so: any) => {
-                        const soNumber = so['Order No.'] || so.order_number || so.so_number || so.id || so['SO No.'];
-                        if (soNumber) allSONumbers.add(soNumber);
-                      });
-                      return allSONumbers.size;
-                    })()}
-                  </span>
-                  Sales Orders
-                </button>
-
-                {/* BOM Tab (if assembled) */}
-                {assembledItemsSet.has(selectedItem['Item No.']) && (
-                  <button 
-                    onClick={() => setItemModalActiveView('bom')}
-                    className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                      itemModalActiveView === 'bom' 
-                        ? 'bg-white text-orange-600 shadow-sm' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    BOM
-                  </button>
-                )}
-              </div>
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/50">
 
               {/* Conditional Content Based on Active View */}
               {itemModalActiveView === 'po' && (() => {
