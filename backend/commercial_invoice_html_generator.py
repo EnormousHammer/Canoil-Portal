@@ -207,6 +207,31 @@ def enhance_mov_description_for_crossborder(description: str, unit: str) -> str:
         return f"{description}\nPetroleum Lubricating Grease"
 
 
+def enhance_description_for_ci(description: str, unit: str, item_code: str = '') -> str:
+    """
+    Enhance item descriptions for Commercial Invoice with proper customs naming.
+    
+    Specific products have required CI naming conventions:
+    - ANDEROL FGCS-2: "Petroleum Oil Based Lubricating Grease (Food Grade), ANDEROL FGCS-2, 12kg per case (30 x 400g)"
+    """
+    desc_upper = description.upper()
+    code_upper = (item_code or '').upper()
+    
+    # ANDEROL FGCS-2 Food Grade Grease - specific CI naming required
+    if 'FGCS' in desc_upper or 'FGCS' in code_upper or ('ANDEROL' in desc_upper and 'FOOD GRADE' in desc_upper):
+        # Check if already enhanced
+        if 'Petroleum Oil Based Lubricating Grease (Food Grade)' in description:
+            return description
+        return "Petroleum Oil Based Lubricating Grease (Food Grade), ANDEROL FGCS-2, 12kg per case (30 x 400g)"
+    
+    # MOV products - use existing enhancement
+    if 'MOV' in desc_upper:
+        return enhance_mov_description_for_crossborder(description, unit)
+    
+    # Default - return original description
+    return description
+
+
 def process_items_with_steel_separation(items: List[Dict[str, Any]], sample_pail_count: int = 0, is_aec: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process items to separate steel container costs from product costs.
@@ -1689,8 +1714,9 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             desc_cell = soup.new_tag('td')
             description = str(item.get('description', ''))
             unit = str(item.get('unit', ''))
-            # Enhance MOV descriptions for cross-border with size and product type
-            description = enhance_mov_description_for_crossborder(description, unit)
+            item_code = str(item.get('item_code', ''))
+            # Enhance descriptions for cross-border CI (ANDEROL FGCS-2, MOV, etc.)
+            description = enhance_description_for_ci(description, unit, item_code)
             # Set rows to match content - no extra space
             line_count = description.count('\n') + 1
             desc_textarea = soup.new_tag('textarea', **{'class': 'item-description'}, rows=str(line_count))
