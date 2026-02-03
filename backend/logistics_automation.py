@@ -21,46 +21,9 @@ def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.h
     so_number = so_data.get('so_number', 'Unknown')
     po_number = so_data.get('po_number', '') or so_data.get('order_details', {}).get('po_number', '')
     
-    # Get date - prefer order_date, then ship_date, then current date
-    date_str = ''
-    if so_data.get('order_date'):
-        try:
-            # Try to parse and format date
-            order_date = so_data.get('order_date')
-            if isinstance(order_date, str):
-                # Try common date formats
-                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
-                    try:
-                        parsed = datetime.strptime(order_date, fmt)
-                        date_str = parsed.strftime('%Y-%m-%d')
-                        break
-                    except:
-                        continue
-                if not date_str:
-                    date_str = order_date[:10] if len(order_date) >= 10 else order_date
-            else:
-                date_str = str(order_date)[:10]
-        except:
-            date_str = datetime.now().strftime('%Y-%m-%d')
-    elif so_data.get('ship_date'):
-        try:
-            ship_date = so_data.get('ship_date')
-            if isinstance(ship_date, str):
-                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
-                    try:
-                        parsed = datetime.strptime(ship_date, fmt)
-                        date_str = parsed.strftime('%Y-%m-%d')
-                        break
-                    except:
-                        continue
-                if not date_str:
-                    date_str = ship_date[:10] if len(ship_date) >= 10 else ship_date
-            else:
-                date_str = str(ship_date)[:10]
-        except:
-            date_str = datetime.now().strftime('%Y-%m-%d')
-    else:
-        date_str = datetime.now().strftime('%Y-%m-%d')
+    # ALWAYS use CURRENT DATE for filename
+    # This ensures files are named with the date when paperwork is actually generated
+    date_str = datetime.now().strftime('%Y-%m-%d')
     
     # Build filename: "DOC_TYPE SO# | PO# | Date.ext"
     if po_number:
@@ -134,37 +97,10 @@ def get_document_folder_structure(so_data: dict) -> dict:
     # Get PO number
     po_number = so_data.get('po_number', '') or so_data.get('order_details', {}).get('po_number', '')
     
-    # Get date - prefer order_date, then ship_date, then current date
-    # We need year and month for folder structure
-    parsed_date = None
-    if so_data.get('order_date'):
-        try:
-            order_date = so_data.get('order_date')
-            if isinstance(order_date, str):
-                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
-                    try:
-                        parsed_date = datetime.strptime(order_date, fmt)
-                        break
-                    except:
-                        continue
-        except:
-            pass
-    
-    if not parsed_date and so_data.get('ship_date'):
-        try:
-            ship_date = so_data.get('ship_date')
-            if isinstance(ship_date, str):
-                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y']:
-                    try:
-                        parsed_date = datetime.strptime(ship_date, fmt)
-                        break
-                    except:
-                        continue
-        except:
-            pass
-    
-    if not parsed_date:
-        parsed_date = datetime.now()
+    # ALWAYS use CURRENT DATE for folder structure
+    # This ensures files are saved in the month when paperwork is actually generated
+    # (SO date is just reference - shipment goes out when we make the paperwork)
+    parsed_date = datetime.now()
     
     # Extract year and month name
     year_str = parsed_date.strftime('%Y')
