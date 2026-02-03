@@ -83,6 +83,9 @@ const LogisticsAutomation: React.FC = () => {
   const [selectedShipperKey, setSelectedShipperKey] = useState('');
   const [shipperOverride, setShipperOverride] = useState<any>(null);
   
+  // International payment warning popup
+  const [showInternationalPaymentWarning, setShowInternationalPaymentWarning] = useState(false);
+  
   // History state
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -617,6 +620,23 @@ const LogisticsAutomation: React.FC = () => {
     return destination && !['CANADA', 'CA', 'CAN'].includes(destination);
   };
 
+  // Check if shipment is INTERNATIONAL (not just cross-border US/Canada)
+  // International = NOT Canada AND NOT USA
+  const isInternationalShipment = () => {
+    if (!result?.so_data) return false;
+    
+    const destination = (result.so_data.ship_to?.country || 
+                        result.so_data.shipping_address?.country || 
+                        result.email_shipping?.destination_country ||
+                        result.email_shipping?.final_destination ||
+                        result.email_analysis?.destination_country ||
+                        result.email_analysis?.final_destination || '').toUpperCase();
+    
+    // International = NOT Canada AND NOT USA (these are cross-border, not international)
+    const northAmerica = ['CANADA', 'CA', 'CAN', 'USA', 'US', 'UNITED STATES', 'MEXICO', 'MX', 'MEX'];
+    return destination && !northAmerica.includes(destination);
+  };
+
   const generateTSCA = async () => {
     if (!result) return;
 
@@ -778,6 +798,12 @@ const LogisticsAutomation: React.FC = () => {
   };
 
   const continueGenerateAllDocuments = async () => {
+    // For INTERNATIONAL shipments (not US/Canada), show payment warning
+    if (isInternationalShipment() && !showInternationalPaymentWarning) {
+      setShowInternationalPaymentWarning(true);
+      return;
+    }
+    
     // For Axel France orders, show booking number popup
     if (isAxelFranceOrder()) {
       setShowAxelFrancePopup(true);
@@ -1505,6 +1531,66 @@ const LogisticsAutomation: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* INTERNATIONAL SHIPMENT - Payment Warning Popup */}
+      {showInternationalPaymentWarning && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg mx-4 border-4 border-red-500 animate-pulse-once">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="bg-red-100 p-4 rounded-full">
+                <DollarSign className="w-10 h-10 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-red-700">⚠️ INTERNATIONAL SHIPMENT</h3>
+                <p className="text-red-600 font-semibold">Payment Verification Required</p>
+              </div>
+            </div>
+            
+            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 mb-6">
+              <p className="text-red-800 text-lg font-bold mb-3 text-center">
+                🚨 STOP - VERIFY PAYMENT BEFORE SHIPPING 🚨
+              </p>
+              <p className="text-red-700 text-center mb-4">
+                This is an <strong>INTERNATIONAL shipment</strong>. 
+              </p>
+              <p className="text-red-900 font-bold text-xl text-center bg-yellow-100 py-3 px-4 rounded-lg border-2 border-yellow-400">
+                Payment MUST be received BEFORE shipping!
+              </p>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6">
+              <p className="text-amber-800 font-medium">
+                ✅ Please confirm with accounting that payment has been received before proceeding.
+              </p>
+            </div>
+            
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowInternationalPaymentWarning(false);
+                }}
+                className="flex-1 px-6 py-3 border-2 border-gray-400 rounded-xl text-gray-700 hover:bg-gray-100 font-bold text-lg"
+              >
+                ← Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowInternationalPaymentWarning(false);
+                  // Continue with document generation
+                  if (isAxelFranceOrder()) {
+                    setShowAxelFrancePopup(true);
+                  } else {
+                    actualGenerateAllDocuments();
+                  }
+                }}
+                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg"
+              >
+                ✓ Payment Confirmed - Proceed
+              </button>
+            </div>
           </div>
         </div>
       )}
