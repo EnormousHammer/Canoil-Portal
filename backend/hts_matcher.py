@@ -175,10 +175,10 @@ class HTSMatcher:
                     'country_of_origin': 'USA',
                     'description': 'Anderol 555 Synthetic Compressor/Vacuum Oil'
                 }
-            # Anderol FGCS-2 Food Grade Grease - 3403.19.0000 (food-grade specialty lubricant)
+            # Anderol FGCS-2 Food Grade Grease - 2710.19.3400
             elif 'FGCS' in code_upper or 'FGCS' in desc_upper or 'FOOD GRADE' in desc_upper:
                 return {
-                    'hts_code': '3403.19.0000',
+                    'hts_code': '2710.19.3400',
                     'country_of_origin': 'USA',
                     'description': 'Petroleum Lubricating Grease (Food Grade)'
                 }

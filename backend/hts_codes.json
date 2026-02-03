@@ -36,10 +36,10 @@
       "item_codes": ["ANDEP2C30", "ANDEROL86EP2DRM"]
     },
     {
-      "hts_code": "3403.19.0000",
+      "hts_code": "2710.19.3400",
       "description": "Petroleum Lubricating Grease (Food Grade)",
       "country_of_origin": "USA",
-      "source_document": "Food-grade specialty lubricant classification",
+      "source_document": "Confirmed HTS",
       "item_codes": ["ANDEROLFGCS2", "FGCS2", "ANDEROL FGCS-2", "ANDEROLFGCS-2"]
     }
   ],

@@ -217,7 +217,7 @@ def enhance_description_for_ci(description: str, unit: str, item_code: str = '')
     desc_upper = description.upper()
     code_upper = (item_code or '').upper()
     
-    # ANDEROL FGCS-2 Food Grade Grease - 3403.19.0000 (food-grade specialty lubricant)
+    # ANDEROL FGCS-2 Food Grade Grease - 2710.19.3400 (USMCA approved)
     if 'FGCS' in desc_upper or 'FGCS' in code_upper or ('ANDEROL' in desc_upper and 'FOOD GRADE' in desc_upper):
         # Check if already enhanced
         if 'Petroleum Lubricating Grease (Food Grade)' in description:

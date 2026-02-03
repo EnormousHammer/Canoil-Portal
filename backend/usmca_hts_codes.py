@@ -13,6 +13,12 @@ APPROVED_USMCA_HTS_CODES = {
         'products': ['MOV Extra', 'MOV Long Life', 'MOV LL', 'Anderol 86EP-2 Lubricating Grease']
     },
     
+    # Petroleum Lubricating Grease (Food Grade) - 2710.19.3400
+    '2710.19.3400': {
+        'description': 'Petroleum Lubricating Grease (Food Grade)',
+        'products': ['ANDEROL FGCS-2', 'Anderol FGCS-2 Food Grade Grease']
+    },
+    
     # Petroleum Oils - 2710.19.3080
     '2710.19.3080': {
         'description': 'Petroleum Oils',
