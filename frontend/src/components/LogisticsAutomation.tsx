@@ -1570,6 +1570,15 @@ const LogisticsAutomation: React.FC = () => {
               </p>
             </div>
             
+            <div className="bg-blue-50 border border-blue-400 rounded-lg p-4 mb-4">
+              <p className="text-blue-900 font-semibold mb-2">📋 <strong>Payment Methods by Customer:</strong></p>
+              <ul className="text-blue-800 text-sm space-y-1 ml-4">
+                <li>• <strong>Pengxin, China customers:</strong> Proforma Invoice - check if PI has been paid</li>
+                <li>• <strong>Axel France, European customers:</strong> Wire transfer - confirm funds received</li>
+                <li>• <strong>Other international:</strong> Check with accounting for payment terms</li>
+              </ul>
+            </div>
+            
             <div className="bg-amber-50 border border-amber-400 rounded-lg p-4 mb-6">
               <p className="text-amber-900 font-bold text-center">
                 ✅ Only proceed if you have CONFIRMED payment has cleared in Canoil's bank account
