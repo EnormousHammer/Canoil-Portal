@@ -1537,33 +1537,42 @@ const LogisticsAutomation: React.FC = () => {
 
       {/* INTERNATIONAL SHIPMENT - Payment Warning Popup */}
       {showInternationalPaymentWarning && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg mx-4 border-4 border-red-500 animate-pulse-once">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl mx-4 border-4 border-red-500">
             <div className="flex items-center gap-4 mb-6">
-              <div className="bg-red-100 p-4 rounded-full">
-                <DollarSign className="w-10 h-10 text-red-600" />
+              <div className="bg-red-100 p-4 rounded-full animate-pulse">
+                <DollarSign className="w-12 h-12 text-red-600" />
               </div>
               <div>
-                <h3 className="text-2xl font-black text-red-700">⚠️ INTERNATIONAL SHIPMENT</h3>
-                <p className="text-red-600 font-semibold">Payment Verification Required</p>
+                <h3 className="text-2xl font-black text-red-700">🚨 INTERNATIONAL SHIPMENT WARNING</h3>
+                <p className="text-red-600 font-semibold text-lg">Payment Verification Required</p>
               </div>
             </div>
             
-            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 mb-6">
-              <p className="text-red-800 text-lg font-bold mb-3 text-center">
-                🚨 STOP - VERIFY PAYMENT BEFORE SHIPPING 🚨
+            <div className="bg-red-50 border-2 border-red-400 rounded-xl p-6 mb-6">
+              <p className="text-red-900 text-xl font-black mb-4 text-center">
+                ⛔ DO NOT SHIP BEFORE PAYMENT IS RECEIVED ⛔
               </p>
-              <p className="text-red-700 text-center mb-4">
-                This is an <strong>INTERNATIONAL shipment</strong>. 
-              </p>
-              <p className="text-red-900 font-bold text-xl text-center bg-yellow-100 py-3 px-4 rounded-lg border-2 border-yellow-400">
-                Payment MUST be received BEFORE shipping!
+              <div className="bg-white rounded-lg p-4 border border-red-200 mb-4">
+                <p className="text-gray-800 font-semibold mb-2">
+                  <strong>Why Canoil Canada Ltd. requires payment BEFORE shipping internationally:</strong>
+                </p>
+                <ul className="text-gray-700 space-y-2 ml-4">
+                  <li>• <strong>No legal recourse</strong> - Once goods leave Canada, it's extremely difficult and costly to recover payment through international courts</li>
+                  <li>• <strong>Collection is nearly impossible</strong> - International debt collection is expensive and rarely successful</li>
+                  <li>• <strong>Currency & banking risks</strong> - Wire transfer issues, currency fluctuations, and bank holds can delay or prevent payment</li>
+                  <li>• <strong>Customs complications</strong> - Goods can be held, returned, or abandoned, leaving Canoil with losses</li>
+                  <li>• <strong>Company policy</strong> - Canoil does not extend credit terms for international shipments</li>
+                </ul>
+              </div>
+              <p className="text-red-800 font-bold text-lg text-center bg-yellow-100 py-3 px-4 rounded-lg border-2 border-yellow-500">
+                💰 CONFIRM WITH ACCOUNTING THAT PAYMENT HAS BEEN RECEIVED 💰
               </p>
             </div>
             
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6">
-              <p className="text-amber-800 font-medium">
-                ✅ Please confirm with accounting that payment has been received before proceeding.
+            <div className="bg-amber-50 border border-amber-400 rounded-lg p-4 mb-6">
+              <p className="text-amber-900 font-bold text-center">
+                ✅ Only proceed if you have CONFIRMED payment has cleared in Canoil's bank account
               </p>
             </div>
             
@@ -1572,9 +1581,9 @@ const LogisticsAutomation: React.FC = () => {
                 onClick={() => {
                   setShowInternationalPaymentWarning(false);
                 }}
-                className="flex-1 px-6 py-3 border-2 border-gray-400 rounded-xl text-gray-700 hover:bg-gray-100 font-bold text-lg"
+                className="flex-1 px-6 py-4 border-2 border-gray-400 rounded-xl text-gray-700 hover:bg-gray-100 font-bold text-lg"
               >
-                ← Cancel
+                ← Cancel - Check Payment First
               </button>
               <button
                 onClick={() => {
@@ -1586,9 +1595,9 @@ const LogisticsAutomation: React.FC = () => {
                     actualGenerateAllDocuments();
                   }
                 }}
-                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg"
+                className="flex-1 px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg"
               >
-                ✓ Payment Confirmed - Proceed
+                ✓ Payment Received & Confirmed - Proceed
               </button>
             </div>
           </div>
