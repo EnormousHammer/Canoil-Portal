@@ -87,35 +87,11 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
                      shipped_by)
     field_values['shipped_by'] = shipped_by
     
-    # SCHEDULED SHIP DATE - Use ship date from parsed SO data ONLY - NO FAKE DATA
-    ship_date_raw = (
-        so_data.get('ship_date') or 
-        so_data.get('order_details', {}).get('ship_date') or 
-        so_data.get('scheduled_ship_date') or
-        email_shipping.get('ship_date')
-    )
-    
-    if ship_date_raw:
-        # Parse the date and format as "October 02, 2025"
-        try:
-            # Try different date formats including short year formats
-            for date_format in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%B %d, %Y', '%m/%d/%y', '%d/%m/%y']:
-                try:
-                    parsed_date = datetime.strptime(str(ship_date_raw), date_format)
-                    field_values['scheduled_ship_date'] = parsed_date.strftime('%B %d, %Y')
-                    print(f"DEBUG: Parsed ship_date '{ship_date_raw}' as '{field_values['scheduled_ship_date']}'")
-                    break
-                except ValueError:
-                    continue
-            else:
-                # If parsing fails, try to handle it manually
-                print(f"WARNING: Could not parse ship_date '{ship_date_raw}', using as-is")
-                field_values['scheduled_ship_date'] = str(ship_date_raw)
-        except Exception as e:
-            print(f"ERROR: Exception parsing ship_date '{ship_date_raw}': {e}")
-            field_values['scheduled_ship_date'] = str(ship_date_raw)
-    else:
-        field_values['scheduled_ship_date'] = ''  # Leave empty if not in SO - NO FAKE DATA
+    # SCHEDULED SHIP DATE - Use CURRENT DATE (when paperwork is generated)
+    # This ensures all documents have consistent dates matching when shipment actually goes out
+    current_date = datetime.now()
+    field_values['scheduled_ship_date'] = current_date.strftime('%B %d, %Y')
+    print(f"DEBUG: Using current date for ship_date: '{field_values['scheduled_ship_date']}'")
     
     # TRACKING NUMBER - from email only, leave empty if not present - NO FAKE DATA
     field_values['tracking_number'] = email_shipping.get('tracking_number', '')

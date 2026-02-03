@@ -1140,13 +1140,11 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
         'saleDate': '',  # Will be set after with proper normalization and debug
     }
     
-    # Handle sale date separately with debugging
-    # Date of Sale = Order Date (when customer placed order)
-    raw_sale_date = so_data.get('order_date', '') or so_data.get('ship_date', '') or so_data.get('shipping_date', '')
-    print(f"DEBUG CI: Raw sale date (order date) from SO: '{raw_sale_date}'")
-    normalized_sale_date = normalize_date_format(raw_sale_date)
-    print(f"DEBUG CI: Normalized sale date: '{normalized_sale_date}'")
-    field_values['saleDate'] = normalized_sale_date
+    # Handle sale date - USE CURRENT DATE (when paperwork is generated)
+    # This ensures all documents have consistent dates matching when shipment actually goes out
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    print(f"DEBUG CI: Using current date for sale date: '{current_date}'")
+    field_values['saleDate'] = current_date
     
     # Additional duty and terms fields
     field_values['dutyAccountOther'] = ''  # Leave empty for manual entry
