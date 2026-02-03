@@ -167,14 +167,22 @@ class HTSMatcher:
                 }
         
         # Method 7: Anderol products
-        if 'ANDEROL' in desc_upper or 'ANDER' in code_upper or 'ANDEP' in code_upper:
-            # Anderol 555 is oil (3080), Anderol 86EP-2 is grease (3500)
+        if 'ANDEROL' in desc_upper or 'ANDER' in code_upper or 'ANDEP' in code_upper or 'FGCS' in code_upper or 'FGCS' in desc_upper:
+            # Anderol 555 is oil (3080)
             if '555' in code_upper or '555' in desc_upper or 'COMPRESSOR' in desc_upper or 'VACUUM' in desc_upper:
                 return {
                     'hts_code': '2710.19.3080',
                     'country_of_origin': 'USA',
                     'description': 'Anderol 555 Synthetic Compressor/Vacuum Oil'
                 }
+            # Anderol FGCS-2 Food Grade Grease - 3403.19.0000
+            elif 'FGCS' in code_upper or 'FGCS' in desc_upper or 'FOOD GRADE' in desc_upper:
+                return {
+                    'hts_code': '3403.19.0000',
+                    'country_of_origin': 'USA',
+                    'description': 'Petroleum Oil Based Lubricating Grease (Food Grade), ANDEROL FGCS-2'
+                }
+            # Anderol 86EP-2 is grease (3500)
             elif '86' in code_upper or '86' in desc_upper or 'EP-2' in desc_upper or 'EP2' in code_upper:
                 return {
                     'hts_code': '2710.19.3500',

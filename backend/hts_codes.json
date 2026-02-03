@@ -34,6 +34,13 @@
       "country_of_origin": "Canada",
       "source_document": "Master HTS + ERP",
       "item_codes": ["ANDEP2C30", "ANDEROL86EP2DRM"]
+    },
+    {
+      "hts_code": "3403.19.0000",
+      "description": "Petroleum Oil Based Lubricating Grease (Food Grade), ANDEROL FGCS-2",
+      "country_of_origin": "USA",
+      "source_document": "Master HTS + ERP",
+      "item_codes": ["ANDEROLFGCS2", "FGCS2", "ANDEROL FGCS-2", "ANDEROLFGCS-2"]
     }
   ],
   "B": [],
