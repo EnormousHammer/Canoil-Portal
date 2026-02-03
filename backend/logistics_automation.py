@@ -6582,6 +6582,56 @@ def generate_all_documents():
             errors.append(f"Delivery Note generation failed: {str(e)}")
             results['delivery_note'] = {'success': False, 'error': str(e)}
         
+        # SALES ORDER PDF - Always include the original SO PDF with the documents
+        try:
+            print("\n📄 Including Sales Order PDF...")
+            import shutil
+            
+            # Get SO PDF path from so_data (set during email processing)
+            so_pdf_path = so_data.get('file_path') or so_data.get('so_pdf_path') or data.get('so_pdf_file')
+            so_number = so_data.get('so_number', 'Unknown')
+            
+            # Also check cache folder for downloaded SO PDFs
+            if not so_pdf_path or not os.path.exists(so_pdf_path):
+                cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'so_pdfs')
+                possible_names = [
+                    f"salesorder_{so_number}.pdf",
+                    f"SalesOrder_{so_number}.pdf", 
+                    f"Sales_Order_{so_number}.pdf",
+                    f"SO_{so_number}.pdf"
+                ]
+                for name in possible_names:
+                    test_path = os.path.join(cache_dir, name)
+                    if os.path.exists(test_path):
+                        so_pdf_path = test_path
+                        print(f"   Found SO PDF in cache: {name}")
+                        break
+            
+            if so_pdf_path and os.path.exists(so_pdf_path):
+                # Copy SO PDF to the PDF Format folder
+                so_pdf_filename = f"SalesOrder_{so_number}.pdf"
+                so_pdf_dest = os.path.join(folder_structure['pdf_folder'], so_pdf_filename)
+                
+                shutil.copy2(so_pdf_path, so_pdf_dest)
+                
+                results['sales_order_pdf'] = {
+                    'success': True,
+                    'filename': so_pdf_filename,
+                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["pdf_folder_name"]}/{so_pdf_filename}',
+                    'note': 'Original Sales Order document'
+                }
+                print(f"   ✅ Sales Order PDF included: {so_pdf_filename}")
+            else:
+                print(f"   ⚠️ Sales Order PDF not found (path: {so_pdf_path})")
+                results['sales_order_pdf'] = {
+                    'success': False,
+                    'skipped': True,
+                    'reason': 'SO PDF file not found'
+                }
+        except Exception as e:
+            print(f"❌ Sales Order PDF copy error: {e}")
+            results['sales_order_pdf'] = {'success': False, 'error': str(e)}
+        
         # Summary - handle both dict results and list results (for dangerous_goods)
         successful_docs = []
         for doc, result in results.items():
@@ -6696,6 +6746,14 @@ def generate_all_documents():
                 'document_type': 'USMCA Certificate',
                 'filename': results['usmca_certificate']['filename'],
                 'download_url': results['usmca_certificate']['download_url']
+            })
+        
+        # Add Sales Order PDF
+        if results.get('sales_order_pdf', {}).get('success'):
+            documents.append({
+                'document_type': 'Sales Order',
+                'filename': results['sales_order_pdf']['filename'],
+                'download_url': results['sales_order_pdf']['download_url']
             })
         
         # Add Delivery Note (Axel France)
