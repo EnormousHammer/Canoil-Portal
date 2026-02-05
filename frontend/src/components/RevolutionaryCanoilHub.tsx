@@ -6644,9 +6644,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   const cost = parseCostValue(item["Recent Cost"] || item["Standard Cost"] || item["Unit Cost"]);
                   
                   // Get stock ownership breakdown (Canoil vs Customer stock)
+                  // Pick Sequence contains location: 62TODD/HOME = Canoil, BRO/LANXESS/etc = Customer
                   const stockOwnership = getStockByOwnership(item["Item No."], data);
                   const hasCustomerStock = stockOwnership.customerStock > 0;
                   const canoilStock = stockOwnership.canoilStock;
+                  const isCustomerOwned = hasCustomerStock && canoilStock === 0; // ALL stock is customer's
+                  const customerName = stockOwnership.customerBreakdown[0]?.location || stockOwnership.location;
                   
                   let statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
                   let statusText = 'In Stock';
@@ -6738,10 +6741,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
                             {hasCustomerStock ? 'Our Stock' : 'Stock'}
                           </div>
-                          {/* Customer stock indicator */}
+                          {/* Customer stock indicator - show owner name */}
                           {hasCustomerStock && (
-                            <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-purple-500 text-white text-[8px] font-bold rounded-full">
-                              +{stockOwnership.customerStock.toLocaleString()} Cust
+                            <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-purple-500 text-white text-[8px] font-bold rounded-full" title={`Customer stock at ${customerName}`}>
+                              {isCustomerOwned ? customerName : `+${stockOwnership.customerStock.toLocaleString()}`}
                             </div>
                           )}
                         </div>

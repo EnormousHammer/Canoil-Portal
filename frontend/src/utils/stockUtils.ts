@@ -207,11 +207,16 @@ export function getItemStock(itemNo: string, milocData: any[]): {total: number} 
 /**
  * Get stock breakdown by ownership (Canoil vs Customer)
  * Returns separate totals for Canoil stock and customer stock
+ * 
+ * Uses Pick Sequence from CustomAlert5.json as the location identifier
+ * - 62TODD, HOME = Canoil stock
+ * - BRO, LANXESS, etc. = Customer stock (stored at Canoil but owned by customer)
  */
 export function getStockByOwnership(itemNo: string, data: any): {
   canoilStock: number;
   customerStock: number;
   totalStock: number;
+  location: string;
   customerBreakdown: Array<{location: string, stock: number}>;
 } {
   const milocData = data['MIILOC.json'] || [];
@@ -219,32 +224,54 @@ export function getStockByOwnership(itemNo: string, data: any): {
   
   let canoilStock = 0;
   let customerStock = 0;
+  let itemLocation = '';
   const customerBreakdown: Array<{location: string, stock: number}> = [];
   
-  if (milocData.length > 0) {
-    // Get location-specific stock from MIILOC
-    const itemLocations = milocData.filter((loc: any) => loc.itemId === itemNo);
+  // FIRST: Try to get from CustomAlert5 using Pick Sequence as location
+  const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
+  if (mainItem) {
+    const stock = parseFloat(mainItem["Stock"] || 0);
+    // Pick Sequence contains the location (62TODD, BRO, LANXESS, etc.)
+    const location = (mainItem["Pick Sequence"] || '').toString().trim();
+    itemLocation = location;
     
-    for (const loc of itemLocations) {
-      const stock = parseFloat(loc.qStk || 0);
-      const location = loc.locId || '';
-      
-      if (stock > 0) {
-        if (isCanoilLocation(location)) {
-          canoilStock += stock;
-        } else {
-          customerStock += stock;
+    if (stock > 0) {
+      if (isCanoilLocation(location)) {
+        canoilStock = stock;
+      } else {
+        customerStock = stock;
+        if (location) {
           customerBreakdown.push({ location, stock });
         }
       }
     }
   }
   
-  // If no MIILOC data, use CustomAlert5 total as Canoil stock
-  if (canoilStock === 0 && customerStock === 0) {
-    const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
-    if (mainItem) {
-      canoilStock = parseFloat(mainItem["Stock"] || 0);
+  // SECOND: If MIILOC data exists, use it for more detailed breakdown
+  if (milocData.length > 0) {
+    const itemLocations = milocData.filter((loc: any) => loc.itemId === itemNo);
+    
+    if (itemLocations.length > 0) {
+      // Reset and recalculate from MIILOC
+      canoilStock = 0;
+      customerStock = 0;
+      customerBreakdown.length = 0;
+      
+      for (const loc of itemLocations) {
+        const stock = parseFloat(loc.qStk || 0);
+        const location = (loc.locId || '').toString().trim();
+        
+        if (stock > 0) {
+          if (isCanoilLocation(location)) {
+            canoilStock += stock;
+          } else {
+            customerStock += stock;
+            if (location) {
+              customerBreakdown.push({ location, stock });
+            }
+          }
+        }
+      }
     }
   }
   
@@ -252,6 +279,7 @@ export function getStockByOwnership(itemNo: string, data: any): {
     canoilStock,
     customerStock,
     totalStock: canoilStock + customerStock,
+    location: itemLocation,
     customerBreakdown
   };
 }
