@@ -205,10 +205,10 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
         <div className="text-center">
-          <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-600 text-xl">Loading Production Schedule...</p>
+          <Factory className="w-16 h-16 text-blue-400 animate-pulse mx-auto mb-4" />
+          <p className="text-slate-300 text-xl">Loading Production Schedule...</p>
         </div>
       </div>
     );
@@ -217,15 +217,15 @@ export function ProductionScheduleMPS() {
   const todayOffset = differenceInDays(new Date(), weekStart);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0 shadow-sm">
+      <div className="bg-slate-900/80 backdrop-blur border-b border-slate-700 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Factory className="w-8 h-8 text-blue-600" />
+            <Factory className="w-8 h-8 text-blue-400" />
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Production Schedule</h1>
-              <p className="text-slate-600 text-sm">
+              <h1 className="text-2xl font-bold text-white">Production Schedule</h1>
+              <p className="text-slate-400 text-sm">
                 {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
               </p>
             </div>
@@ -236,7 +236,7 @@ export function ProductionScheduleMPS() {
             <select
               value={viewDays}
               onChange={(e) => setViewDays(parseInt(e.target.value))}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm shadow-sm"
+              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
             >
               <option value={7}>1 Week</option>
               <option value={14}>2 Weeks</option>
@@ -245,15 +245,15 @@ export function ProductionScheduleMPS() {
             </select>
             
             {/* Navigation */}
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-200 rounded">
-                <ChevronLeft className="w-4 h-4 text-slate-700" />
+            <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
+              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-700 rounded">
+                <ChevronLeft className="w-4 h-4 text-slate-300" />
               </button>
-              <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-200 rounded text-slate-800 text-sm">
+              <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-700 rounded text-white text-sm font-medium">
                 Today
               </button>
-              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-200 rounded">
-                <ChevronRight className="w-4 h-4 text-slate-700" />
+              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-700 rounded">
+                <ChevronRight className="w-4 h-4 text-slate-300" />
               </button>
             </div>
             
@@ -283,14 +283,14 @@ export function ProductionScheduleMPS() {
                     className="fixed inset-0 z-40" 
                     onClick={() => setShowExportMenu(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-56 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 overflow-hidden">
                     <div className="py-1">
                       <button
                         onClick={() => {
                           exportToCSV(orders);
                           setShowExportMenu(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
                         Export to CSV
@@ -300,7 +300,7 @@ export function ProductionScheduleMPS() {
                           exportToExcel(orders);
                           setShowExportMenu(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
                         Export to Excel
@@ -310,7 +310,7 @@ export function ProductionScheduleMPS() {
                           exportToJSON(orders);
                           setShowExportMenu(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
                         Export to JSON
@@ -320,7 +320,7 @@ export function ProductionScheduleMPS() {
                           exportFullDataToJSON(orders);
                           setShowExportMenu(false);
                         }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                        className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                       >
                         <Download className="w-4 h-4" />
                         Export Full Data (JSON)
@@ -357,14 +357,14 @@ export function ProductionScheduleMPS() {
       </div>
 
       {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-900/50 border border-red-500 rounded-lg text-red-300 flex items-center gap-2">
+        <div className="mx-6 mt-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 flex items-center gap-2 backdrop-blur">
           <AlertTriangle className="w-5 h-5" />
           {error}
         </div>
       )}
 
       {/* Gantt Chart */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-6">
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden min-w-max">
           {/* Timeline Header */}
           <div className="flex border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
