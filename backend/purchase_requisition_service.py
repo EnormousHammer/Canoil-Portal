@@ -2061,6 +2061,84 @@ def get_pr_history():
         return jsonify({"error": str(e), "history": []}), 500
 
 
+@pr_service.route('/api/pr/history/<pr_id>', methods=['DELETE'])
+def delete_pr_history(pr_id):
+    """
+    Delete a PR history entry by ID.
+    """
+    try:
+        history = load_pr_history()
+        original_count = len(history)
+        
+        # Filter out the entry with matching ID
+        history = [h for h in history if h.get('id') != pr_id]
+        
+        if len(history) == original_count:
+            return jsonify({
+                "success": False,
+                "error": f"PR {pr_id} not found"
+            }), 404
+        
+        save_pr_history(history)
+        print(f"[PR] ✅ Deleted PR history entry: {pr_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"PR {pr_id} deleted successfully"
+        })
+    except Exception as e:
+        print(f"[PR] Error deleting history: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@pr_service.route('/api/pr/history/<pr_id>', methods=['PATCH'])
+def update_pr_history(pr_id):
+    """
+    Update a PR history entry (e.g., status, notes).
+    
+    Request Body:
+    {
+        "status": "ordered" | "received" | "cancelled",
+        "notes": "Optional notes",
+        "po_number": "PO reference number"
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        history = load_pr_history()
+        
+        # Find and update the entry
+        found = False
+        for entry in history:
+            if entry.get('id') == pr_id:
+                if 'status' in data:
+                    entry['status'] = data['status']
+                if 'notes' in data:
+                    entry['notes'] = data['notes']
+                if 'po_number' in data:
+                    entry['po_number'] = data['po_number']
+                entry['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                found = True
+                break
+        
+        if not found:
+            return jsonify({
+                "success": False,
+                "error": f"PR {pr_id} not found"
+            }), 404
+        
+        save_pr_history(history)
+        print(f"[PR] ✅ Updated PR history entry: {pr_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"PR {pr_id} updated successfully"
+        })
+    except Exception as e:
+        print(f"[PR] Error updating history: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @pr_service.route('/api/pr/search-items', methods=['GET'])
 def search_items():
     """Smart search for items with predictions"""

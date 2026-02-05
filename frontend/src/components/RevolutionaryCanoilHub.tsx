@@ -274,6 +274,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [prHistory, setPRHistory] = useState<any[]>([]);
   const [prHistoryLoading, setPRHistoryLoading] = useState(false);
   const [expandedPRHistory, setExpandedPRHistory] = useState<Set<string>>(new Set());
+  const [prHistorySearch, setPrHistorySearch] = useState('');
+  const [prHistoryStatusFilter, setPrHistoryStatusFilter] = useState<'all' | 'completed' | 'ordered' | 'received'>('all');
+  const [editingPRId, setEditingPRId] = useState<string | null>(null);
+  const [editPRNotes, setEditPRNotes] = useState('');
+  const [editPRPoNumber, setEditPRPoNumber] = useState('');
   
   // Redo PR Modal State
   const [showRedoPRModal, setShowRedoPRModal] = useState(false);
@@ -927,6 +932,107 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       setPRHistoryLoading(false);
     }
   };
+
+  // Function to delete PR history entry
+  const deletePRHistory = async (prId: string) => {
+    if (!confirm(`Are you sure you want to delete PR ${prId}?`)) return;
+    
+    try {
+      const response = await fetch(getApiUrl(`/api/pr/history/${prId}`), {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        addToast({ type: 'success', message: `PR ${prId} deleted successfully` });
+        // Remove from local state immediately for snappy UI
+        setPRHistory(prev => prev.filter(pr => pr.id !== prId));
+      } else {
+        addToast({ type: 'error', message: 'Failed to delete PR' });
+      }
+    } catch (error) {
+      console.error('Error deleting PR:', error);
+      addToast({ type: 'error', message: 'Error deleting PR' });
+    }
+  };
+
+  // Function to update PR history entry (status, notes, PO number)
+  const updatePRHistory = async (prId: string, updates: { status?: string; notes?: string; po_number?: string }) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/pr/history/${prId}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      
+      if (response.ok) {
+        addToast({ type: 'success', message: `PR updated: ${updates.status || 'saved'}` });
+        // Update local state immediately
+        setPRHistory(prev => prev.map(pr => 
+          pr.id === prId ? { ...pr, ...updates, updated_at: new Date().toISOString() } : pr
+        ));
+        setEditingPRId(null);
+      } else {
+        addToast({ type: 'error', message: 'Failed to update PR' });
+      }
+    } catch (error) {
+      console.error('Error updating PR:', error);
+      addToast({ type: 'error', message: 'Error updating PR' });
+    }
+  };
+
+  // Function to add PR items to BOM cart
+  const addPRItemsToCart = (prItems: any[]) => {
+    const newCartItems = prItems.map((item: any) => ({
+      'Item No.': item.item_no || '',
+      'Description': item.description || '',
+      qty: item.order_qty || item.qty || item.qty_needed || 1
+    }));
+    
+    setBomCart(prev => {
+      const updated = [...prev];
+      newCartItems.forEach(newItem => {
+        const existing = updated.find(i => i['Item No.'] === newItem['Item No.']);
+        if (existing) {
+          existing.qty += newItem.qty;
+        } else {
+          updated.push(newItem);
+        }
+      });
+      return updated;
+    });
+    
+    addToast({ 
+      type: 'success', 
+      message: `Added ${newCartItems.length} items to cart`,
+      action: { label: 'View Cart', onClick: () => setShowBomCart(true) }
+    });
+  };
+
+  // Filtered PR history based on search and status
+  const filteredPRHistory = useMemo(() => {
+    let filtered = prHistory;
+    
+    // Apply status filter
+    if (prHistoryStatusFilter !== 'all') {
+      filtered = filtered.filter(pr => pr.status === prHistoryStatusFilter);
+    }
+    
+    // Apply search filter
+    if (prHistorySearch.trim()) {
+      const search = prHistorySearch.toLowerCase();
+      filtered = filtered.filter(pr => 
+        pr.id?.toLowerCase().includes(search) ||
+        pr.user?.toLowerCase().includes(search) ||
+        pr.justification?.toLowerCase().includes(search) ||
+        pr.po_number?.toLowerCase().includes(search) ||
+        pr.notes?.toLowerCase().includes(search) ||
+        pr.short_items_detail?.some((item: any) => item.item_no?.toLowerCase().includes(search)) ||
+        pr.suppliers?.some((s: any) => s.supplier_name?.toLowerCase().includes(search) || s.supplier_no?.toLowerCase().includes(search))
+      );
+    }
+    
+    return filtered;
+  }, [prHistory, prHistorySearch, prHistoryStatusFilter]);
 
   // Handle ESC key press to close modal
   useEffect(() => {
@@ -5842,11 +5948,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 {/* PR History Panel */}
                 {showPRHistory && (
                   <div className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-200 p-4">
+                    {/* Header */}
                     <div className="flex justify-between items-center mb-4">
                       <h4 className="text-lg font-bold text-indigo-800 flex items-center gap-2">
                         📋 Purchase Requisition History
                         <span className="text-sm font-normal text-indigo-600">
-                          (Last 30 days)
+                          ({filteredPRHistory.length} of {prHistory.length})
                         </span>
                       </h4>
                       <button
@@ -5868,15 +5975,72 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </button>
                     </div>
                     
+                    {/* Search & Filter Bar */}
+                    <div className="mb-4 flex flex-wrap gap-3 items-center">
+                      {/* Search Input */}
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search PRs (item, supplier, user, notes...)"
+                            value={prHistorySearch}
+                            onChange={(e) => setPrHistorySearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                          />
+                          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          {prHistorySearch && (
+                            <button
+                              onClick={() => setPrHistorySearch('')}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Status Filter Buttons */}
+                      <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-indigo-200">
+                        {[
+                          { value: 'all', label: 'All', icon: '📋' },
+                          { value: 'completed', label: 'Generated', icon: '✅' },
+                          { value: 'ordered', label: 'Ordered', icon: '📦' },
+                          { value: 'received', label: 'Received', icon: '✔️' }
+                        ].map(status => (
+                          <button
+                            key={status.value}
+                            onClick={() => setPrHistoryStatusFilter(status.value as any)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                              prHistoryStatusFilter === status.value
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'text-indigo-700 hover:bg-indigo-100'
+                            }`}
+                          >
+                            {status.icon} {status.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
                     {prHistoryLoading && prHistory.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <div className="text-3xl mb-2 animate-pulse">📊</div>
                         <div>Loading PR history...</div>
                       </div>
-                    ) : prHistory.length === 0 ? (
+                    ) : filteredPRHistory.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <div className="text-3xl mb-2">📭</div>
-                        <div>No PRs generated in the last 30 days</div>
+                        <div>{prHistory.length > 0 ? 'No PRs match your search/filter' : 'No PRs generated in the last 30 days'}</div>
+                        {prHistory.length > 0 && prHistorySearch && (
+                          <button 
+                            onClick={() => { setPrHistorySearch(''); setPrHistoryStatusFilter('all'); }}
+                            className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm"
+                          >
+                            Clear filters
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
@@ -5884,19 +6048,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <thead>
                             <tr className="border-b-2 border-indigo-200">
                               <th className="text-left py-2 px-3 font-semibold text-indigo-900">Date</th>
-                              <th className="text-left py-2 px-3 font-semibold text-indigo-900">Time</th>
                               <th className="text-left py-2 px-3 font-semibold text-indigo-900">User</th>
                               <th className="text-left py-2 px-3 font-semibold text-indigo-900">Justification</th>
                               <th className="text-center py-2 px-3 font-semibold text-indigo-900">Items</th>
                               <th className="text-center py-2 px-3 font-semibold text-indigo-900">Suppliers</th>
-                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">PRs</th>
                               <th className="text-right py-2 px-3 font-semibold text-indigo-900">Value</th>
+                              <th className="text-center py-2 px-3 font-semibold text-indigo-900">Status</th>
                               <th className="text-center py-2 px-3 font-semibold text-indigo-900">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {prHistory.map((pr: any, index: number) => {
+                            {filteredPRHistory.map((pr: any, index: number) => {
                               const isExpanded = expandedPRHistory.has(pr.id || `pr-${index}`);
+                              const isEditing = editingPRId === pr.id;
                               const toggleExpand = () => {
                                 const newSet = new Set(expandedPRHistory);
                                 if (isExpanded) {
@@ -5908,11 +6072,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               };
                               
                               // Get components - prioritize short_items_detail (actual PR Excel items) over component_breakdown
-                              // short_items_detail = items that go on the Excel (raw materials that are SHORT)
-                              // component_breakdown = all exploded components (including those in stock)
-                              // items_requested = parent items selected (fallback for old PRs)
                               const hasFullData = pr.short_items_detail?.length > 0 || pr.component_breakdown?.length > 0;
                               const components = pr.short_items_detail || pr.component_breakdown || pr.items_requested || [];
+                              
+                              // Status badge colors
+                              const statusConfig: Record<string, { bg: string; text: string; label: string; icon: string }> = {
+                                completed: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Generated', icon: '✅' },
+                                ordered: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Ordered', icon: '📦' },
+                                received: { bg: 'bg-purple-100', text: 'text-purple-700', label: 'Received', icon: '✔️' },
+                                cancelled: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'Cancelled', icon: '❌' }
+                              };
+                              const currentStatus = statusConfig[pr.status] || statusConfig.completed;
                               
                               return (
                                 <React.Fragment key={pr.id || index}>
@@ -5921,69 +6091,181 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     onClick={toggleExpand}
                                   >
                                     <td className="py-3 px-3 font-medium text-gray-900">
-                                      <span className="mr-2">{isExpanded ? '▼' : '▶'}</span>
-                                      {pr.date}
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-indigo-400">{isExpanded ? '▼' : '▶'}</span>
+                                        <div>
+                                          <div className="font-semibold">{pr.date}</div>
+                                          <div className="text-xs text-gray-500">{pr.time}</div>
+                                        </div>
+                                      </div>
                                     </td>
-                                    <td className="py-3 px-3 text-gray-600">{pr.time}</td>
-                                    <td className="py-3 px-3 text-gray-800">{pr.user}</td>
-                                    <td className="py-3 px-3 text-gray-600 max-w-xs truncate" title={pr.justification}>
-                                      {pr.justification?.length > 30 ? `${pr.justification.substring(0, 30)}...` : pr.justification}
+                                    <td className="py-3 px-3 text-gray-800 text-sm">{pr.user}</td>
+                                    <td className="py-3 px-3 text-gray-600 max-w-xs">
+                                      <div className="truncate text-sm" title={pr.justification}>
+                                        {pr.justification?.length > 25 ? `${pr.justification.substring(0, 25)}...` : pr.justification}
+                                      </div>
+                                      {pr.po_number && (
+                                        <div className="text-xs text-blue-600 font-medium mt-0.5">
+                                          PO: {pr.po_number}
+                                        </div>
+                                      )}
+                                      {pr.notes && (
+                                        <div className="text-xs text-gray-400 mt-0.5 truncate" title={pr.notes}>
+                                          📝 {pr.notes.substring(0, 20)}...
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="py-3 px-3 text-center">
                                       <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                                        {components.length || pr.items_requested?.length || 0}
+                                        {components.length || 0}
                                       </span>
                                     </td>
                                     <td className="py-3 px-3 text-center">
                                       <div className="flex flex-wrap gap-1 justify-center">
-                                        {pr.suppliers?.slice(0, 3).map((s: any, i: number) => (
+                                        {pr.suppliers?.slice(0, 2).map((s: any, i: number) => (
                                           <span 
                                             key={i} 
-                                            className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium"
+                                            className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded text-[10px] font-medium"
                                             title={s.supplier_name}
                                           >
-                                            {s.supplier_no?.length > 10 ? `${s.supplier_no.substring(0, 10)}...` : s.supplier_no}
+                                            {s.supplier_no?.length > 8 ? `${s.supplier_no.substring(0, 8)}...` : s.supplier_no}
                                           </span>
                                         ))}
-                                        {pr.suppliers?.length > 3 && (
-                                          <span className="text-gray-500 text-xs">+{pr.suppliers.length - 3}</span>
+                                        {pr.suppliers?.length > 2 && (
+                                          <span className="text-gray-500 text-xs">+{pr.suppliers.length - 2}</span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="py-3 px-3 text-center">
-                                      <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                                        {pr.total_prs_generated || 0}
-                                      </span>
-                                    </td>
-                                    <td className="py-3 px-3 text-right font-medium text-gray-900">
-                                      ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <td className="py-3 px-3 text-right font-medium text-gray-900 text-sm">
+                                      ${(pr.total_value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                     </td>
                                     <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                      <button
-                                        onClick={() => {
-                                          // Use short_items_detail (actual PR items) or component_breakdown (all components) or fallback to items_requested
-                                          const itemsToUse = pr.short_items_detail || pr.component_breakdown || pr.items_requested || [];
-                                          
-                                          setRedoPRData({
-                                            originalPR: pr,
-                                            items: itemsToUse.map((item: any) => ({
-                                              item_no: item.item_no || item['Item No.'] || '',
-                                              qty: item.order_qty || item.qty || item.qty_needed || 1,
-                                              originalQty: item.order_qty || item.qty || item.qty_needed || 1
-                                            })),
-                                            justification: pr.justification || '',
-                                            requestedBy: pr.user || '',
-                                            leadTime: pr.lead_time || 7
-                                          });
-                                          setShowRedoPRModal(true);
-                                        }}
-                                        className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
-                                        title="Regenerate PRs with editable quantities"
-                                      >
-                                        🔄 Redo
-                                      </button>
+                                      <div className="relative group">
+                                        <button
+                                          className={`${currentStatus.bg} ${currentStatus.text} px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1`}
+                                        >
+                                          {currentStatus.icon} {currentStatus.label}
+                                        </button>
+                                        {/* Status Dropdown */}
+                                        <div className="absolute hidden group-hover:block right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[120px]">
+                                          {Object.entries(statusConfig).filter(([key]) => key !== 'cancelled').map(([key, config]) => (
+                                            <button
+                                              key={key}
+                                              onClick={() => updatePRHistory(pr.id, { status: key })}
+                                              className={`w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50 flex items-center gap-2 ${
+                                                pr.status === key ? 'bg-gray-100 font-medium' : ''
+                                              }`}
+                                            >
+                                              {config.icon} {config.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                      <div className="flex items-center justify-center gap-1">
+                                        {/* Redo Button */}
+                                        <button
+                                          onClick={() => {
+                                            const itemsToUse = pr.short_items_detail || pr.component_breakdown || pr.items_requested || [];
+                                            setRedoPRData({
+                                              originalPR: pr,
+                                              items: itemsToUse.map((item: any) => ({
+                                                item_no: item.item_no || item['Item No.'] || '',
+                                                qty: item.order_qty || item.qty || item.qty_needed || 1,
+                                                originalQty: item.order_qty || item.qty || item.qty_needed || 1
+                                              })),
+                                              justification: pr.justification || '',
+                                              requestedBy: pr.user || '',
+                                              leadTime: pr.lead_time || 7
+                                            });
+                                            setShowRedoPRModal(true);
+                                          }}
+                                          className="p-1.5 rounded hover:bg-orange-100 text-orange-600 transition-colors"
+                                          title="Regenerate PRs"
+                                        >
+                                          🔄
+                                        </button>
+                                        {/* Add to Cart */}
+                                        <button
+                                          onClick={() => addPRItemsToCart(components)}
+                                          className="p-1.5 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                                          title="Add items to cart"
+                                        >
+                                          🛒
+                                        </button>
+                                        {/* Edit Notes */}
+                                        <button
+                                          onClick={() => {
+                                            setEditingPRId(pr.id);
+                                            setEditPRNotes(pr.notes || '');
+                                            setEditPRPoNumber(pr.po_number || '');
+                                          }}
+                                          className="p-1.5 rounded hover:bg-purple-100 text-purple-600 transition-colors"
+                                          title="Edit notes/PO"
+                                        >
+                                          ✏️
+                                        </button>
+                                        {/* Delete */}
+                                        <button
+                                          onClick={() => deletePRHistory(pr.id)}
+                                          className="p-1.5 rounded hover:bg-red-100 text-red-600 transition-colors"
+                                          title="Delete PR"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
+                                  
+                                  {/* Edit Notes/PO Inline Form */}
+                                  {isEditing && (
+                                    <tr className="bg-purple-50 border-b border-purple-200">
+                                      <td colSpan={8} className="px-4 py-3">
+                                        <div className="flex items-center gap-4">
+                                          <div className="flex-1">
+                                            <label className="text-xs font-medium text-purple-700 mb-1 block">PO Number</label>
+                                            <input
+                                              type="text"
+                                              value={editPRPoNumber}
+                                              onChange={(e) => setEditPRPoNumber(e.target.value)}
+                                              placeholder="Enter PO number..."
+                                              className="w-full px-3 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-500"
+                                            />
+                                          </div>
+                                          <div className="flex-1">
+                                            <label className="text-xs font-medium text-purple-700 mb-1 block">Notes</label>
+                                            <input
+                                              type="text"
+                                              value={editPRNotes}
+                                              onChange={(e) => setEditPRNotes(e.target.value)}
+                                              placeholder="Add notes..."
+                                              className="w-full px-3 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-500"
+                                            />
+                                          </div>
+                                          <div className="flex gap-2 pt-5">
+                                            <button
+                                              onClick={() => {
+                                                updatePRHistory(pr.id, { 
+                                                  po_number: editPRPoNumber,
+                                                  notes: editPRNotes 
+                                                });
+                                              }}
+                                              className="px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded hover:bg-purple-700"
+                                            >
+                                              Save
+                                            </button>
+                                            <button
+                                              onClick={() => setEditingPRId(null)}
+                                              className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-300"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )
                                   
                                   {/* Expanded Component Breakdown - Total Components Needed for Batch */}
                                   {isExpanded && (
@@ -6016,7 +6298,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                   }).join('\n');
                                                   const text = `${headers}\n${rows}`;
                                                   navigator.clipboard.writeText(text);
-                                                  alert('✅ Copied to clipboard! Paste into Excel.');
+                                                  addToast({ type: 'success', message: 'Copied to clipboard! Paste into Excel.' });
                                                 }}
                                                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
                                               >
@@ -6109,7 +6391,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                     return `${c.item_no || ''}\t${c.qty ?? c.qty_needed ?? ''}`;
                                                   }).join('\n');
                                                   navigator.clipboard.writeText(`${headers}\n${rows}`);
-                                                  alert('✅ Copied to clipboard!');
+                                                  addToast({ type: 'success', message: 'Copied to clipboard!' });
                                                 }}
                                                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
                                               >
@@ -6153,10 +6435,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </table>
                         
                         {/* Summary Footer */}
-                        <div className="mt-4 pt-3 border-t border-indigo-200 flex justify-between text-sm text-indigo-700">
-                          <span>Total: {prHistory.length} PR generation{prHistory.length !== 1 ? 's' : ''}</span>
+                        <div className="mt-4 pt-3 border-t border-indigo-200 flex justify-between items-center text-sm text-indigo-700">
                           <span>
-                            Total Value: ${prHistory.reduce((sum: number, pr: any) => sum + (pr.total_value || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            Showing: {filteredPRHistory.length} PR{filteredPRHistory.length !== 1 ? 's' : ''}
+                            {filteredPRHistory.length !== prHistory.length && (
+                              <span className="text-gray-500"> of {prHistory.length} total</span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                              Generated: {filteredPRHistory.filter(pr => pr.status === 'completed' || !pr.status).length}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                              Ordered: {filteredPRHistory.filter(pr => pr.status === 'ordered').length}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                              Received: {filteredPRHistory.filter(pr => pr.status === 'received').length}
+                            </span>
+                          </div>
+                          <span className="font-semibold">
+                            Value: ${filteredPRHistory.reduce((sum: number, pr: any) => sum + (pr.total_value || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </span>
                         </div>
                       </div>
@@ -8990,7 +9291,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
                     
-                    alert(`✅ Regenerated PRs for ${redoPRData.items.length} items!\nDownloaded: ${filename}`);
+                    addToast({ 
+                      type: 'success', 
+                      message: `Regenerated PRs for ${redoPRData.items.length} items!`,
+                      action: { label: 'View History', onClick: () => { setShowPRHistory(true); fetchPRHistory(); } }
+                    });
                     
                     setShowRedoPRModal(false);
                     setRedoPRData(null);
