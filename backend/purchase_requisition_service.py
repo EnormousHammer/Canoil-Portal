@@ -230,7 +230,7 @@ def load_json_from_gdrive(file_name):
                 return []
             
             # Find the latest date folder
-            latest_folder_id, latest_folder_name = service.get_latest_folder(base_folder_id, drive_id)
+            latest_folder_id, latest_folder_name, _ = service.get_latest_folder(base_folder_id, drive_id)
             if not latest_folder_id:
                 print(f"[PR] ❌ Latest folder not found")
                 return []
@@ -548,7 +548,7 @@ def get_latest_folder():
                     service = get_google_drive_service()
                     if service and service.authenticated:
                         try:
-                            latest_id, latest_name = service.find_latest_api_extractions_folder()
+                            latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                             if latest_name:
                                 print(f"[PR] ✅ Latest MISys API extraction folder (via API): {latest_name}")
                                 _latest_folder_cache = latest_name

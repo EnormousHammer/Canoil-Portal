@@ -350,7 +350,11 @@ class GoogleDriveService:
     
     @retry_on_error(max_retries=3, delay=1, backoff=2)
     def get_latest_folder(self, parent_folder_id, drive_id=None):
-        """Get the latest folder (by name/date) from parent folder"""
+        """Get the latest folder (by name/date) from parent folder
+        
+        Returns:
+            (folder_id, folder_name, folder_metadata) where folder_metadata contains createdTime, modifiedTime
+        """
         try:
             query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             list_params = {
@@ -373,22 +377,31 @@ class GoogleDriveService:
             if folders:
                 latest = folders[0]
                 print(f"[OK] Latest folder: {latest['name']} (ID: {latest['id']})")
-                return latest['id'], latest['name']
+                print(f"[OK] Folder modified: {latest.get('modifiedTime', 'N/A')}")
+                # Return full metadata for accurate timestamps
+                return latest['id'], latest['name'], {
+                    'createdTime': latest.get('createdTime'),
+                    'modifiedTime': latest.get('modifiedTime')
+                }
             else:
                 print("[ERROR] No folders found")
-                return None, None
+                return None, None, None
         except HttpError as error:
             print(f"[ERROR] Error getting latest folder: {error}")
-            return None, None
+            return None, None, None
     
     def find_latest_api_extractions_folder(self):
-        """Find the latest folder in the API Extractions path"""
+        """Find the latest folder in the API Extractions path
+        
+        Returns:
+            (folder_id, folder_name, folder_metadata) where folder_metadata contains createdTime, modifiedTime
+        """
         try:
             # Find the shared drive
             drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
             if not drive_id:
                 print(f"[ERROR] Shared drive '{SHARED_DRIVE_NAME}' not found")
-                return None, None
+                return None, None, None
             
             # Store the shared drive ID for use in other methods
             self.shared_drive_id = drive_id
@@ -397,14 +410,14 @@ class GoogleDriveService:
             base_folder_id = self.find_folder_by_path(drive_id, BASE_FOLDER_PATH)
             if not base_folder_id:
                 print(f"[ERROR] Base folder '{BASE_FOLDER_PATH}' not found")
-                return None, None
+                return None, None, None
             
-            # Get latest folder
-            latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
-            return latest_folder_id, latest_folder_name
+            # Get latest folder (now returns metadata too)
+            latest_folder_id, latest_folder_name, folder_metadata = self.get_latest_folder(base_folder_id, drive_id)
+            return latest_folder_id, latest_folder_name, folder_metadata
         except Exception as error:
             print(f"[ERROR] Error finding latest API extractions folder: {error}")
-            return None, None
+            return None, None, None
     
     @retry_on_error(max_retries=3, delay=1, backoff=2)
     def download_file(self, file_id, file_name):
@@ -1133,7 +1146,7 @@ class GoogleDriveService:
         
         # Get latest folder
         print(f"[INFO] Getting latest folder from base folder...")
-        latest_folder_id, latest_folder_name = self.get_latest_folder(base_folder_id, drive_id)
+        latest_folder_id, latest_folder_name, folder_metadata = self.get_latest_folder(base_folder_id, drive_id)
         print(f"[INFO] get_latest_folder returned: {latest_folder_id}, {latest_folder_name}")
         
         if not latest_folder_id:
@@ -1156,15 +1169,23 @@ class GoogleDriveService:
         data['TotalOrders'] = 0
         data['StatusFolders'] = []
         
+        # Use actual folder timestamps from Google Drive for accurate sync info
+        # - modifiedTime: When files in this folder were last updated (actual data freshness)
+        # - folderName: The extraction date (e.g., "2026-02-05") which shows when MiSys data was pulled
+        folder_modified = folder_metadata.get('modifiedTime') if folder_metadata else None
+        folder_created = folder_metadata.get('createdTime') if folder_metadata else None
+        
         folder_info = {
             "folderName": latest_folder_name,
-            "syncDate": datetime.now().isoformat(),
-            "lastModified": datetime.now().isoformat(),
+            "syncDate": folder_modified or datetime.now().isoformat(),  # When data was last modified on G:Drive
+            "lastModified": folder_modified or datetime.now().isoformat(),
             "folder": latest_folder_name,
-            "created": datetime.now().isoformat(),
+            "created": folder_created or datetime.now().isoformat(),
             "size": "N/A",
             "fileCount": len(data)
         }
+        
+        print(f"[INFO] Folder sync info - Modified: {folder_info['syncDate']}, Created: {folder_info['created']}")
         
         return data, folder_info
     
@@ -1184,8 +1205,8 @@ class GoogleDriveService:
         print(f"[INFO] ===== INCREMENTAL SYNC =====")
         print(f"[INFO] Cached files: {len(cached_file_times)}")
         
-        # Find latest folder
-        latest_folder_id, latest_folder_name = self.find_latest_api_extractions_folder()
+        # Find latest folder (now returns metadata too)
+        latest_folder_id, latest_folder_name, folder_metadata = self.find_latest_api_extractions_folder()
         if not latest_folder_id:
             return {}, {}, {}
         
@@ -1234,15 +1255,21 @@ class GoogleDriveService:
         
         print(f"[INFO] Incremental sync: {changed_count} changed, {unchanged_count} unchanged")
         
+        # Use actual folder timestamps from Google Drive for accurate sync info
+        folder_modified = folder_metadata.get('modifiedTime') if folder_metadata else None
+        folder_created = folder_metadata.get('createdTime') if folder_metadata else None
+        
         folder_info = {
             "folderName": latest_folder_name,
-            "syncDate": datetime.now().isoformat(),
-            "lastModified": datetime.now().isoformat(),
+            "syncDate": folder_modified or datetime.now().isoformat(),  # When data was last modified on G:Drive
+            "lastModified": folder_modified or datetime.now().isoformat(),
             "folder": latest_folder_name,
-            "created": datetime.now().isoformat(),
+            "created": folder_created or datetime.now().isoformat(),
             "size": "N/A",
             "fileCount": len(files)
         }
+        
+        print(f"[INFO] Folder sync info - Modified: {folder_info['syncDate']}, Created: {folder_info['created']}")
         
         return data, folder_info, new_file_times
 

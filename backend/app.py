@@ -1514,7 +1514,7 @@ def get_latest_folder():
             print("☁️ Cloud environment detected - using Google Drive API only")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1528,7 +1528,7 @@ def get_latest_folder():
             print("SEARCH: Using Google Drive API to find latest folder...")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1543,7 +1543,7 @@ def get_latest_folder():
             print("RETRY: Attempting to use Google Drive API as fallback...")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
                     return latest_name, None
@@ -1784,7 +1784,7 @@ def get_latest_folder():
             print("☁️ Cloud environment detected - using Google Drive API only")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1798,7 +1798,7 @@ def get_latest_folder():
             print("SEARCH: Using Google Drive API to find latest folder...")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1814,7 +1814,7 @@ def get_latest_folder():
                 print("RETRY: Attempting to use Google Drive API as fallback...")
                 service = get_google_drive_service()
                 if service:
-                    latest_id, latest_name = service.find_latest_api_extractions_folder()
+                    latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                     if latest_name:
                         print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
                         return latest_name, None
@@ -1859,7 +1859,7 @@ def get_latest_folder():
             print("☁️ Cloud environment detected - using Google Drive API only")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1873,7 +1873,7 @@ def get_latest_folder():
             print("SEARCH: Using Google Drive API to find latest folder...")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API): {latest_name}")
                     return latest_name, None
@@ -1888,7 +1888,7 @@ def get_latest_folder():
             print("RETRY: Attempting to use Google Drive API as fallback...")
             service = get_google_drive_service()
             if service:
-                latest_id, latest_name = service.find_latest_api_extractions_folder()
+                latest_id, latest_name, _ = service.find_latest_api_extractions_folder()
                 if latest_name:
                     print(f"SUCCESS: Latest folder found (via API fallback): {latest_name}")
                     return latest_name, None
