@@ -236,7 +236,7 @@ export function ProductionScheduleMPS() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Production Schedule</h1>
-              <p className="text-slate-300 text-sm">
+              <p className="text-slate-400 text-sm">
                 {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
               </p>
             </div>
@@ -290,12 +290,12 @@ export function ProductionScheduleMPS() {
       {/* Customer Legend - Refined */}
       <div className="bg-slate-800/80 backdrop-blur-sm border-b border-slate-700/50 px-6 py-2.5 flex-shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-slate-300 text-sm font-semibold">Customers:</span>
+          <span className="text-slate-400 text-sm font-semibold">Customers:</span>
           {customerLegend.slice(0, 10).map(([name, { bg, count }]) => (
-            <div key={name} className="flex items-center gap-1.5 bg-slate-700/50 px-2 py-1 rounded-lg">
+            <div key={name} className="flex items-center gap-1.5 bg-slate-700/30 px-2 py-1 rounded-lg">
               <div className={`w-3 h-3 rounded-full ${bg} shadow-sm`}></div>
-              <span className="text-white text-sm font-medium">{name}</span>
-              <span className="text-slate-300 text-xs bg-slate-600 px-1.5 py-0.5 rounded">({count})</span>
+              <span className="text-slate-200 text-sm font-medium">{name}</span>
+              <span className="text-slate-500 text-xs bg-slate-800 px-1.5 py-0.5 rounded">({count})</span>
             </div>
           ))}
         </div>
@@ -328,7 +328,7 @@ export function ProductionScheduleMPS() {
                       isToday ? 'bg-blue-500/20 border-b-2 border-b-blue-400' : isWeekend ? 'bg-slate-700/20' : ''
                     }`}
                   >
-                    <div className={`text-xs font-bold uppercase tracking-wide ${isToday ? 'text-blue-400' : 'text-slate-300'}`}>
+                    <div className={`text-xs font-bold uppercase tracking-wide ${isToday ? 'text-blue-400' : 'text-slate-500'}`}>
                       {format(day, viewDays > 14 ? 'EEE' : 'EEE')}
                     </div>
                     <div className={`text-sm font-bold ${isToday ? 'text-blue-300' : 'text-slate-200'}`}>
@@ -506,7 +506,7 @@ export function ProductionScheduleMPS() {
                       <span className="w-1.5 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full"></span>
                       Production Progress
                     </h3>
-                    <span className="text-slate-300 text-sm bg-slate-800/50 px-3 py-1.5 rounded-lg">
+                    <span className="text-slate-400 text-sm bg-slate-800/50 px-3 py-1.5 rounded-lg">
                       Work Center: <span className="text-white font-bold">{selectedOrder.work_center}</span>
                     </span>
                   </div>
@@ -518,11 +518,11 @@ export function ProductionScheduleMPS() {
                         actualPct >= 100 ? 'text-green-400' :
                         actualPct >= 75 ? 'text-blue-400' :
                         actualPct >= 50 ? 'text-yellow-400' :
-                        actualPct > 0 ? 'text-orange-400' : 'text-slate-300'
+                        actualPct > 0 ? 'text-orange-400' : 'text-slate-500'
                       }`}>
                         {Math.round(actualPct)}%
                       </div>
-                      <div className="text-slate-300 text-sm mt-2 font-medium uppercase tracking-wide">Actual Complete</div>
+                      <div className="text-slate-400 text-sm mt-2 font-medium uppercase tracking-wide">Actual Complete</div>
                       <div className="mt-4 w-full bg-slate-700/50 rounded-full h-3 overflow-hidden">
                         <div 
                           className={`h-3 rounded-full transition-all duration-500 ${
@@ -538,9 +538,9 @@ export function ProductionScheduleMPS() {
                     {/* Quantities */}
                     <div className="col-span-2 grid grid-cols-3 gap-3">
                       <div className="bg-slate-800 rounded-xl p-4 text-center border border-slate-700">
-                        <div className="text-slate-300 text-xs mb-1">REQUIRED</div>
+                        <div className="text-slate-500 text-xs mb-1">REQUIRED</div>
                         <div className="text-3xl font-bold text-white">{selectedOrder.required}</div>
-                        <div className="text-slate-300 text-xs">{selectedOrder.packaging || 'units'}</div>
+                        <div className="text-slate-500 text-xs">{selectedOrder.packaging || 'units'}</div>
                       </div>
                       <div className="bg-green-500/10 rounded-xl p-4 text-center border border-green-500/30">
                         <div className="text-green-400 text-xs mb-1">READY</div>
@@ -565,7 +565,7 @@ export function ProductionScheduleMPS() {
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                     <div className="flex items-center justify-between">
                       <div className="text-center flex-1">
-                        <div className="text-slate-300 text-xs">START</div>
+                        <div className="text-slate-500 text-xs">START</div>
                         <div className="text-white font-semibold">{selectedOrder.start_date || '—'}</div>
                       </div>
                       <div className="flex-1 px-4">
@@ -577,18 +577,18 @@ export function ProductionScheduleMPS() {
                         </div>
                       </div>
                       <div className="text-center flex-1">
-                        <div className="text-slate-300 text-xs">END</div>
+                        <div className="text-slate-500 text-xs">END</div>
                         <div className="text-white font-semibold">{selectedOrder.end_date || '—'}</div>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-700">
                       <div className="text-center">
-                        <div className="text-slate-300 text-xs">PROMISED TO CUSTOMER</div>
+                        <div className="text-slate-500 text-xs">PROMISED TO CUSTOMER</div>
                         <div className="text-yellow-400 font-bold text-lg">{selectedOrder.promised_date || '—'}</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-300 text-xs">DAYS TO COMPLETE</div>
+                        <div className="text-slate-500 text-xs">DAYS TO COMPLETE</div>
                         <div className={`font-bold text-lg ${
                           selectedOrder.dtc <= 1 ? 'text-red-400' : 
                           selectedOrder.dtc <= 3 ? 'text-yellow-400' : 'text-green-400'
@@ -597,7 +597,7 @@ export function ProductionScheduleMPS() {
                         </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-300 text-xs">PLANNED</div>
+                        <div className="text-slate-500 text-xs">PLANNED</div>
                         <div className="text-blue-400 font-bold text-lg">{selectedOrder.planned_pct}</div>
                       </div>
                     </div>
@@ -613,26 +613,26 @@ export function ProductionScheduleMPS() {
                     <div className="bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
-                          <div className="text-slate-300 text-xs">MO Number</div>
+                          <div className="text-slate-500 text-xs">MO Number</div>
                           <div className="text-purple-300 font-mono font-bold text-lg">{selectedOrder.mo_data.mo_no}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Build Item</div>
+                          <div className="text-slate-500 text-xs">Build Item</div>
                           <div className="text-white font-mono">{selectedOrder.mo_data.item_no}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Status</div>
+                          <div className="text-slate-500 text-xs">Status</div>
                           <div className="text-white font-semibold">{selectedOrder.mo_data.status || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Priority</div>
+                          <div className="text-slate-500 text-xs">Priority</div>
                           <div className="text-white">{selectedOrder.mo_data.priority || '—'}</div>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-3 mb-4">
                         <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                          <div className="text-slate-300 text-xs">ORDERED</div>
+                          <div className="text-slate-500 text-xs">ORDERED</div>
                           <div className="text-2xl font-bold text-white">{selectedOrder.mo_data.qty_ordered}</div>
                         </div>
                         <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
@@ -647,19 +647,19 @@ export function ProductionScheduleMPS() {
 
                       <div className="grid grid-cols-4 gap-3 text-sm">
                         <div>
-                          <div className="text-slate-300 text-xs">Order Date</div>
+                          <div className="text-slate-500 text-xs">Order Date</div>
                           <div className="text-white">{selectedOrder.mo_data.order_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Start Date</div>
+                          <div className="text-slate-500 text-xs">Start Date</div>
                           <div className="text-white">{selectedOrder.mo_data.start_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Release Date</div>
+                          <div className="text-slate-500 text-xs">Release Date</div>
                           <div className="text-white">{selectedOrder.mo_data.release_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-300 text-xs">Due Date</div>
+                          <div className="text-slate-500 text-xs">Due Date</div>
                           <div className="text-yellow-400 font-semibold">{selectedOrder.mo_data.due_date || '—'}</div>
                         </div>
                       </div>
@@ -668,7 +668,7 @@ export function ProductionScheduleMPS() {
                         <div className="mt-4 pt-4 border-t border-purple-500/20">
                           {selectedOrder.mo_data.customer && (
                             <div className="mb-2">
-                              <span className="text-slate-300 text-sm">Customer: </span>
+                              <span className="text-slate-500 text-sm">Customer: </span>
                               <span className="text-white">{selectedOrder.mo_data.customer}</span>
                             </div>
                           )}
@@ -695,7 +695,7 @@ export function ProductionScheduleMPS() {
                       )}
                     </div>
                   ) : (
-                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-300">
+                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">
                       No MO data available from MISys
                     </div>
                   )}
@@ -719,14 +719,14 @@ export function ProductionScheduleMPS() {
                         <table className="w-full text-sm" style={{ minWidth: '800px' }}>
                           <thead>
                             <tr className="bg-slate-700/50 border-b border-slate-600/50">
-                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-200 font-bold uppercase tracking-wider">#</th>
-                              <th className="px-4 py-4 text-left text-xs text-slate-200 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Need</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Issued</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Left</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Stock</th>
-                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">WIP</th>
-                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-200 font-bold uppercase tracking-wider">Status</th>
+                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">#</th>
+                              <th className="px-4 py-4 text-left text-xs text-slate-400 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Need</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Issued</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Left</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Stock</th>
+                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">WIP</th>
+                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Status</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -763,13 +763,13 @@ export function ProductionScheduleMPS() {
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <div className="text-white font-bold text-base">{mat.required_qty.toLocaleString()}</div>
-                                    <div className="text-slate-300 text-xs">{mat.unit}</div>
+                                    <div className="text-slate-500 text-xs">{mat.unit}</div>
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <div className={`font-bold text-base ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
                                       {mat.completed_qty.toLocaleString()}
                                     </div>
-                                    <div className="text-slate-300 text-xs">({pctComplete}%)</div>
+                                    <div className="text-slate-500 text-xs">({pctComplete}%)</div>
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <span className={`font-bold text-base ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -829,7 +829,7 @@ export function ProductionScheduleMPS() {
                             <span className="text-white font-bold">
                               {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length}
                             </span>
-                            <span className="text-slate-300 text-sm">complete</span>
+                            <span className="text-slate-500 text-sm">complete</span>
                           </div>
                           {selectedOrder.materials.some(m => (m.wip || 0) > 0) && (
                             <span className="inline-flex items-center gap-1.5 text-cyan-400 bg-cyan-500/15 px-3 py-1 rounded-full text-sm font-medium">
@@ -877,7 +877,7 @@ export function ProductionScheduleMPS() {
                                 .reduce((sum, m) => sum + m.required_qty, 0)
                                 .toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
-                            <div className="text-slate-300 text-xs mt-2">across all components</div>
+                            <div className="text-slate-500 text-xs mt-2">across all components</div>
                           </div>
                           <div className="bg-slate-800/70 rounded-xl p-5 border border-slate-700/30">
                             <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Remaining</div>
@@ -890,7 +890,7 @@ export function ProductionScheduleMPS() {
                                 }, 0)
                                 .toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </div>
-                            <div className="text-slate-300 text-xs mt-2">still needed to complete</div>
+                            <div className="text-slate-500 text-xs mt-2">still needed to complete</div>
                           </div>
                         </div>
                       </div>
@@ -913,7 +913,7 @@ export function ProductionScheduleMPS() {
                           <div className="text-slate-400 text-sm">{selectedOrder.item_data.description}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-slate-300 text-xs">Unit Cost</div>
+                          <div className="text-slate-500 text-xs">Unit Cost</div>
                           <div className="text-white font-semibold">${selectedOrder.item_data.recent_cost?.toFixed(2) || '0.00'}</div>
                         </div>
                       </div>
@@ -947,19 +947,19 @@ export function ProductionScheduleMPS() {
                     <h3 className="text-sm font-bold text-slate-400 mb-2">📋 Sales Order</h3>
                     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 flex justify-between">
                       <div>
-                        <div className="text-slate-300 text-xs">Customer</div>
+                        <div className="text-slate-500 text-xs">Customer</div>
                         <div className="text-white font-semibold">{selectedOrder.so_data.customer}</div>
                       </div>
                       <div>
-                        <div className="text-slate-300 text-xs">Order Date</div>
+                        <div className="text-slate-500 text-xs">Order Date</div>
                         <div className="text-white">{selectedOrder.so_data.order_date || '—'}</div>
                       </div>
                       <div>
-                        <div className="text-slate-300 text-xs">Ship Date</div>
+                        <div className="text-slate-500 text-xs">Ship Date</div>
                         <div className="text-white">{selectedOrder.so_data.ship_date || '—'}</div>
                       </div>
                       <div>
-                        <div className="text-slate-300 text-xs">SO Status</div>
+                        <div className="text-slate-500 text-xs">SO Status</div>
                         <div className="text-white">{selectedOrder.so_data.status || '—'}</div>
                       </div>
                     </div>
