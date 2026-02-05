@@ -1598,14 +1598,22 @@ def create_pr_from_bom():
                 
                 # Get most recent PO price (price is per purchasing unit)
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
+                last_po_supplier = ''  # Fallback supplier from most recent PO
                 if recent_prices:
                     unit_price = recent_prices[0].get('unit_price', 0)
                     last_po_date = recent_prices[0].get('order_date', '')
+                    last_po_supplier = recent_prices[0].get('supplier_no', '')  # Capture supplier from PO!
                 else:
                     # Fallback to item master recent cost
                     item_data = get_item_master(item_no)
                     unit_price = item_data.get('recent_cost', 0) if item_data else 0
                     last_po_date = ''
+                
+                # Use preferred supplier from item master, OR fallback to most recent PO supplier
+                preferred_supplier = comp.get('preferred_supplier', '')
+                if not preferred_supplier and last_po_supplier:
+                    preferred_supplier = last_po_supplier
+                    print(f"    📋 Using last PO supplier for {item_no}: {last_po_supplier}")
                 
                 short_items.append({
                     'item_no': item_no,
@@ -1616,7 +1624,7 @@ def create_pr_from_bom():
                     'order_qty': order_qty,  # In purchasing units (converted!)
                     'unit_price': unit_price,
                     'last_po_date': last_po_date,
-                    'preferred_supplier': comp.get('preferred_supplier', ''),
+                    'preferred_supplier': preferred_supplier,  # Now includes fallback from PO!
                     'purchasing_units': purchasing_units,
                     'stocking_units': stocking_units,
                     'conversion_factor': conversion_factor,
