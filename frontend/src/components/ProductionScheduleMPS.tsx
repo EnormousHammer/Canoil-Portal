@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Factory, ChevronLeft, ChevronRight, Calendar, AlertTriangle, X, Info, HelpCircle } from 'lucide-react';
-import { fetchMPSData, openSalesOrder, getSOUrl, clearMPSCache } from '../services/mpsDataService';
+import { RefreshCw, Factory, ChevronLeft, ChevronRight, Calendar, AlertTriangle, X, Info, HelpCircle, Download, ChevronDown } from 'lucide-react';
+import { fetchMPSData, openSalesOrder, getSOUrl } from '../services/mpsDataService';
 import { MPSOrder } from '../types/mps';
 import { format, addDays, startOfWeek, differenceInDays, parseISO, isValid } from 'date-fns';
+import { exportToCSV, exportToJSON, exportToExcel, exportFullDataToJSON, exportMaterialsToCSV } from '../services/exportService';
 
 // Customer color palette - each customer gets a unique consistent color
 const CUSTOMER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -90,6 +91,7 @@ export function ProductionScheduleMPS() {
   const [showLegend, setShowLegend] = useState(false);
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -203,21 +205,10 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/30 animate-pulse">
-              <Factory className="w-10 h-10 text-white" />
-            </div>
-            <div className="absolute -inset-4 bg-blue-500/20 rounded-3xl blur-xl animate-pulse"></div>
-          </div>
-          <p className="text-white text-xl font-semibold mb-2">Loading Production Schedule</p>
-          <p className="text-slate-400 text-sm">Fetching data from MiSys...</p>
-          <div className="mt-6 flex justify-center gap-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-          </div>
+          <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
+          <p className="text-slate-600 text-xl">Loading Production Schedule...</p>
         </div>
       </div>
     );
@@ -226,17 +217,15 @@ export function ProductionScheduleMPS() {
   const todayOffset = differenceInDays(new Date(), weekStart);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      {/* Header - Dark Theme */}
-      <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 border-b border-slate-700 px-6 py-4 flex-shrink-0 shadow-lg">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20">
-              <Factory className="w-7 h-7 text-white" />
-            </div>
+            <Factory className="w-8 h-8 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Production Schedule</h1>
-              <p className="text-slate-400 text-sm">
+              <h1 className="text-2xl font-bold text-slate-900">Production Schedule</h1>
+              <p className="text-slate-600 text-sm">
                 {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
               </p>
             </div>
@@ -247,7 +236,7 @@ export function ProductionScheduleMPS() {
             <select
               value={viewDays}
               onChange={(e) => setViewDays(parseInt(e.target.value))}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm shadow-sm"
             >
               <option value={7}>1 Week</option>
               <option value={14}>2 Weeks</option>
@@ -256,30 +245,96 @@ export function ProductionScheduleMPS() {
             </select>
             
             {/* Navigation */}
-            <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-1 border border-slate-600">
-              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-600 rounded transition-colors">
-                <ChevronLeft className="w-4 h-4 text-slate-300" />
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-200 rounded">
+                <ChevronLeft className="w-4 h-4 text-slate-700" />
               </button>
-              <button onClick={goToToday} className="px-3 py-1.5 hover:bg-slate-600 rounded text-white text-sm font-medium transition-colors">
+              <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-200 rounded text-slate-800 text-sm">
                 Today
               </button>
-              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-600 rounded transition-colors">
-                <ChevronRight className="w-4 h-4 text-slate-300" />
+              <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-200 rounded">
+                <ChevronRight className="w-4 h-4 text-slate-700" />
               </button>
             </div>
             
             <button
               onClick={() => setShowLegend(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg shadow-sm border border-slate-600 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
               title="Production Capacity & Legend"
             >
               <HelpCircle className="w-4 h-4" />
             </button>
             
+            {/* Export Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                title="Export Data"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              
+              {showExportMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowExportMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          exportToCSV(orders);
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export to CSV
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportToExcel(orders);
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export to Excel
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportToJSON(orders);
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export to JSON
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportFullDataToJSON(orders);
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export Full Data (JSON)
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
             <button
               onClick={loadData}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg shadow-lg shadow-blue-500/25 transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -287,34 +342,34 @@ export function ProductionScheduleMPS() {
         </div>
       </div>
 
-      {/* Customer Legend - Refined */}
-      <div className="bg-slate-800/80 backdrop-blur-sm border-b border-slate-700/50 px-6 py-2.5 flex-shrink-0">
+      {/* Customer Legend */}
+      <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-2 flex-shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-slate-400 text-sm font-semibold">Customers:</span>
+          <span className="text-slate-500 text-sm font-medium">Customers:</span>
           {customerLegend.slice(0, 10).map(([name, { bg, count }]) => (
-            <div key={name} className="flex items-center gap-1.5 bg-slate-700/30 px-2 py-1 rounded-lg">
-              <div className={`w-3 h-3 rounded-full ${bg} shadow-sm`}></div>
-              <span className="text-slate-200 text-sm font-medium">{name}</span>
-              <span className="text-slate-500 text-xs bg-slate-800 px-1.5 py-0.5 rounded">({count})</span>
+            <div key={name} className="flex items-center gap-1.5">
+              <div className={`w-3 h-3 rounded ${bg}`}></div>
+              <span className="text-slate-300 text-sm">{name}</span>
+              <span className="text-slate-500 text-xs">({count})</span>
             </div>
           ))}
         </div>
       </div>
 
       {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-900/30 border border-red-500/50 rounded-xl text-red-300 flex items-center gap-3 backdrop-blur-sm">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-          <span className="font-medium">{error}</span>
+        <div className="mx-6 mt-4 p-4 bg-red-900/50 border border-red-500 rounded-lg text-red-300 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5" />
+          {error}
         </div>
       )}
 
-      {/* Gantt Chart - Premium Dark Theme */}
+      {/* Gantt Chart */}
       <div className="flex-1 overflow-auto p-4">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-700/50 overflow-hidden min-w-max shadow-xl">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden min-w-max">
           {/* Timeline Header */}
-          <div className="flex border-b border-slate-600/50 sticky top-0 bg-slate-800/95 backdrop-blur-sm z-10">
-            <div className="w-24 flex-shrink-0 px-3 py-3 border-r border-slate-600/50 bg-slate-800/95">
-              <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Work<br/>Center</span>
+          <div className="flex border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
+            <div className="w-24 flex-shrink-0 px-3 py-2 border-r border-slate-700 bg-slate-800">
+              <span className="text-slate-400 text-xs font-semibold">WORK CENTER</span>
             </div>
             <div className="flex">
               {days.map((day, i) => {
@@ -324,14 +379,14 @@ export function ProductionScheduleMPS() {
                   <div 
                     key={i} 
                     style={{ width: `${columnWidth}px` }}
-                    className={`flex-shrink-0 px-1 py-2.5 text-center border-r border-slate-700/30 transition-colors ${
-                      isToday ? 'bg-blue-500/20 border-b-2 border-b-blue-400' : isWeekend ? 'bg-slate-700/20' : ''
+                    className={`flex-shrink-0 px-1 py-2 text-center border-r border-slate-700/50 ${
+                      isToday ? 'bg-blue-500/20' : isWeekend ? 'bg-slate-700/30' : ''
                     }`}
                   >
-                    <div className={`text-xs font-bold uppercase tracking-wide ${isToday ? 'text-blue-400' : 'text-slate-500'}`}>
+                    <div className={`text-xs font-semibold ${isToday ? 'text-blue-400' : 'text-slate-400'}`}>
                       {format(day, viewDays > 14 ? 'EEE' : 'EEE')}
                     </div>
-                    <div className={`text-sm font-bold ${isToday ? 'text-blue-300' : 'text-slate-200'}`}>
+                    <div className={`text-sm font-bold ${isToday ? 'text-blue-300' : 'text-white'}`}>
                       {format(day, viewDays > 14 ? 'd' : 'MMM d')}
                     </div>
                   </div>
@@ -345,16 +400,16 @@ export function ProductionScheduleMPS() {
             const wcOrders = getOrdersForWorkCenter(wc);
             
             return (
-              <div key={wc} className="flex border-b border-slate-700/30 hover:bg-slate-700/10 transition-colors">
+              <div key={wc} className="flex border-b border-slate-700/50 hover:bg-slate-700/20">
                 {/* Work Center Label */}
-                <div className="w-24 flex-shrink-0 px-2 py-3 border-r border-slate-700/30 flex items-center justify-center">
-                  <span className="bg-gradient-to-r from-slate-600 to-slate-700 px-2.5 py-1.5 rounded-lg text-white text-xs font-bold shadow-sm border border-slate-500/30">
+                <div className="w-24 flex-shrink-0 px-3 py-3 border-r border-slate-700 flex items-center">
+                  <span className="bg-slate-600 px-2 py-1 rounded text-white text-xs font-bold">
                     {wc}
                   </span>
                 </div>
                 
                 {/* Timeline */}
-                <div className="flex relative" style={{ height: '76px' }}>
+                <div className="flex relative" style={{ height: '70px' }}>
                   {/* Day columns */}
                   {days.map((day, i) => {
                     const isToday = i === todayOffset;
@@ -363,18 +418,18 @@ export function ProductionScheduleMPS() {
                       <div 
                         key={i} 
                         style={{ width: `${columnWidth}px` }}
-                        className={`flex-shrink-0 border-r border-slate-700/20 ${
-                          isToday ? 'bg-blue-500/10' : isWeekend ? 'bg-slate-800/30' : ''
+                        className={`flex-shrink-0 border-r border-slate-700/30 ${
+                          isToday ? 'bg-blue-500/10' : isWeekend ? 'bg-slate-700/20' : ''
                         }`}
                       />
                     );
                   })}
                   
-                  {/* Order bars - Enhanced styling */}
+                  {/* Order bars */}
                   {wcOrders.map((order, idx) => {
                     const colors = getCustomerColor(order.product);
                     const left = Math.max(0, order.startOffset) * columnWidth;
-                    const width = Math.min(order.duration, viewDays - Math.max(0, order.startOffset)) * columnWidth - 6;
+                    const width = Math.min(order.duration, viewDays - Math.max(0, order.startOffset)) * columnWidth - 4;
                     const actualPct = parseFloat(order.actual_pct) || 0;
                     
                     // Extract customer name from product or SO data
@@ -388,31 +443,31 @@ export function ProductionScheduleMPS() {
                     return (
                       <div
                         key={`${order.so_number}-${idx}`}
-                        className={`absolute top-2 h-[60px] rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.03] hover:z-20 hover:shadow-lg overflow-hidden ${colors.bg} ${colors.border} ${
-                          order.isShortage ? 'opacity-70 border-dashed' : 'shadow-md'
+                        className={`absolute top-1 h-14 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] hover:z-20 overflow-hidden ${colors.bg} ${colors.border} ${
+                          order.isShortage ? 'opacity-60 border-dashed' : ''
                         }`}
-                        style={{ left: `${left + 3}px`, width: `${width}px` }}
+                        style={{ left: `${left}px`, width: `${width}px` }}
                         onClick={() => setSelectedOrder(order)}
                         title={`${customerName}\n${order.product}\nSO: ${order.so_number} | MO: ${order.mo_number}`}
                       >
-                        {/* Progress fill overlay */}
+                        {/* Progress fill */}
                         <div 
-                          className="absolute inset-0 bg-black/25"
+                          className="absolute inset-0 bg-black/30"
                           style={{ width: `${100 - actualPct}%`, right: 0, left: 'auto' }}
                         />
                         
                         {/* Content */}
-                        <div className={`relative px-2 py-1 h-full flex flex-col justify-center ${colors.text}`}>
-                          <div className="text-[10px] font-bold flex items-center gap-1.5 mb-0.5">
-                            <span className="bg-black/25 px-1.5 py-0.5 rounded font-mono">{order.so_number}</span>
-                            <span className="opacity-80 text-[9px]">MO:{order.mo_number}</span>
-                            {order.isShortage && <span className="text-yellow-300">⚠️</span>}
+                        <div className={`relative px-2 py-0.5 ${colors.text}`}>
+                          <div className="text-[10px] font-bold flex items-center gap-1">
+                            <span className="bg-black/20 px-1 rounded">{order.so_number}</span>
+                            <span className="opacity-70">MO:{order.mo_number}</span>
+                            {order.isShortage && <span>⚠️</span>}
                           </div>
-                          <div className="text-xs font-bold truncate leading-tight">
+                          <div className="text-xs font-semibold truncate">
                             {customerName}
                           </div>
-                          <div className="text-[9px] truncate opacity-90 leading-tight">
-                            {order.product.length > 45 ? order.product.substring(0, 42) + '...' : order.product}
+                          <div className="text-[9px] truncate opacity-80">
+                            {order.product.length > 50 ? order.product.substring(0, 47) + '...' : order.product}
                           </div>
                         </div>
                       </div>
@@ -425,7 +480,7 @@ export function ProductionScheduleMPS() {
         </div>
       </div>
 
-      {/* Order Detail Modal - Premium Dark Theme */}
+      {/* Order Detail Modal */}
       {selectedOrder && (() => {
         const actualPct = parseFloat(selectedOrder.actual_pct) || 0;
         const remaining = Math.max(0, selectedOrder.required - (selectedOrder.ready || 0));
@@ -433,88 +488,80 @@ export function ProductionScheduleMPS() {
         const colors = getCustomerColor(selectedOrder.product);
         
         return (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
-            <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 rounded-3xl border border-slate-700/50 shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
+            <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
               
-              {/* Header with Customer Color - Premium styling */}
-              <div className={`${colors.bg} px-6 py-5 flex-shrink-0 relative overflow-hidden`}>
-                {/* Subtle pattern overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10"></div>
-                <div className="relative flex items-start justify-between">
+              {/* Header with Customer Color - fixed, never shrinks */}
+              <div className={`${colors.bg} px-6 py-4 flex-shrink-0`}>
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
                     {/* Order Numbers Row */}
-                    <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      <div className="bg-black/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
-                        <div className="text-white/70 text-[10px] uppercase tracking-wider font-semibold">Sales Order</div>
-                        <div className="text-white text-xl font-bold tracking-tight">{selectedOrder.so_number}</div>
-                        <div className="flex gap-1.5 mt-1.5">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
+                        <div className="text-white/60 text-[10px] uppercase">Sales Order</div>
+                        <div className="text-white text-lg font-bold">{selectedOrder.so_number}</div>
+                        <div className="flex gap-1 mt-1">
                           <button
                             onClick={() => {
                               const url = getSOUrl(selectedOrder.so_number);
                               if (url) { setPdfUrl(url); setShowPdfViewer(true); }
                             }}
-                            className="text-[10px] bg-blue-500/40 hover:bg-blue-500/60 text-white px-2.5 py-1 rounded-lg font-medium transition-colors"
+                            className="text-[10px] bg-blue-500/30 hover:bg-blue-500/50 text-blue-300 px-2 py-0.5 rounded"
                             title="View in app"
                           >
                             👁 View
                           </button>
                           <button
                             onClick={() => openSalesOrder(selectedOrder.so_number)}
-                            className="text-[10px] bg-slate-500/40 hover:bg-slate-500/60 text-white px-2.5 py-1 rounded-lg font-medium transition-colors"
+                            className="text-[10px] bg-slate-500/30 hover:bg-slate-500/50 text-slate-300 px-2 py-0.5 rounded"
                             title="Open in new tab"
                           >
                             ↗ Tab
                           </button>
                         </div>
                       </div>
-                      <div className="bg-black/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
-                        <div className="text-white/70 text-[10px] uppercase tracking-wider font-semibold">Mfg Order</div>
-                        <div className="text-white text-xl font-bold tracking-tight">{selectedOrder.mo_number}</div>
+                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
+                        <div className="text-white/60 text-[10px] uppercase">Mfg Order</div>
+                        <div className="text-white text-lg font-bold">{selectedOrder.mo_number}</div>
                       </div>
-                      <div className="bg-black/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
-                        <div className="text-white/70 text-[10px] uppercase tracking-wider font-semibold">Work Center</div>
-                        <div className="text-white text-xl font-bold tracking-tight">{selectedOrder.work_center}</div>
+                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
+                        <div className="text-white/60 text-[10px] uppercase">Work Center</div>
+                        <div className="text-white text-lg font-bold">{selectedOrder.work_center}</div>
                       </div>
-                      <span className={`px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg ${
-                        selectedOrder.status.toLowerCase().includes('shortage') ? 'bg-red-500 text-white' :
-                        selectedOrder.status.toLowerCase().includes('released') ? 'bg-emerald-500 text-white' :
-                        selectedOrder.status.toLowerCase().includes('completed') ? 'bg-green-500 text-white' :
-                        'bg-black/40 text-white border border-white/20'
+                      <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
+                        selectedOrder.status.toLowerCase().includes('shortage') ? 'bg-red-600 text-white' :
+                        selectedOrder.status.toLowerCase().includes('released') ? 'bg-green-600 text-white' :
+                        'bg-black/30 text-white'
                       }`}>
                         {selectedOrder.status}
                       </span>
                     </div>
                     {/* Customer & Product */}
-                    <h2 className={`text-2xl font-bold ${colors.text} mt-1`}>{customerName}</h2>
-                    <p className={`${colors.text} opacity-90 text-sm mt-0.5`}>{selectedOrder.product}</p>
+                    <h2 className={`text-xl font-bold ${colors.text}`}>{customerName}</h2>
+                    <p className={`${colors.text} opacity-90 text-sm`}>{selectedOrder.product}</p>
                     {selectedOrder.packaging && (
-                      <span className={`${colors.text} opacity-80 text-xs inline-flex items-center gap-1 mt-1`}>📦 {selectedOrder.packaging}</span>
+                      <span className={`${colors.text} opacity-70 text-xs`}> 📦 {selectedOrder.packaging}</span>
                     )}
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="text-white/80 hover:text-white bg-black/30 hover:bg-black/50 rounded-xl p-2.5 transition-colors">
-                    <X className="w-6 h-6" />
+                  <button onClick={() => setSelectedOrder(null)} className="text-white/70 hover:text-white bg-black/20 rounded-full p-2">
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
+              <div className="p-6 flex-1 overflow-y-auto">
                 
                 {/* Big Progress Section */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full"></span>
-                      Production Progress
-                    </h3>
-                    <span className="text-slate-400 text-sm bg-slate-800/50 px-3 py-1.5 rounded-lg">
-                      Work Center: <span className="text-white font-bold">{selectedOrder.work_center}</span>
-                    </span>
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-white">Production Progress</h3>
+                    <span className="text-slate-400 text-sm">Work Center: <span className="text-white font-bold">{selectedOrder.work_center}</span></span>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-5 mb-4">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
                     {/* Big Percentage */}
-                    <div className="col-span-1 bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 rounded-2xl p-6 text-center border border-slate-700/50 shadow-lg">
-                      <div className={`text-6xl font-black tracking-tight ${
+                    <div className="col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-center border border-slate-700">
+                      <div className={`text-6xl font-black ${
                         actualPct >= 100 ? 'text-green-400' :
                         actualPct >= 75 ? 'text-blue-400' :
                         actualPct >= 50 ? 'text-yellow-400' :
@@ -522,13 +569,13 @@ export function ProductionScheduleMPS() {
                       }`}>
                         {Math.round(actualPct)}%
                       </div>
-                      <div className="text-slate-400 text-sm mt-2 font-medium uppercase tracking-wide">Actual Complete</div>
-                      <div className="mt-4 w-full bg-slate-700/50 rounded-full h-3 overflow-hidden">
+                      <div className="text-slate-400 text-sm mt-1">ACTUAL COMPLETE</div>
+                      <div className="mt-3 w-full bg-slate-700 rounded-full h-3">
                         <div 
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            actualPct >= 100 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
-                            actualPct >= 75 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
-                            actualPct >= 50 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' : 'bg-gradient-to-r from-orange-500 to-red-400'
+                          className={`h-3 rounded-full transition-all ${
+                            actualPct >= 100 ? 'bg-green-500' :
+                            actualPct >= 75 ? 'bg-blue-500' :
+                            actualPct >= 50 ? 'bg-yellow-500' : 'bg-orange-500'
                           }`}
                           style={{ width: `${Math.min(actualPct, 100)}%` }}
                         />
@@ -701,198 +748,127 @@ export function ProductionScheduleMPS() {
                   )}
                 </div>
 
-                {/* Materials / BOM - Premium Card Design */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
-                      <span className="w-1.5 h-6 bg-gradient-to-b from-emerald-400 to-green-500 rounded-full"></span>
+                {/* Materials / BOM */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
                       📦 Bill of Materials
                     </h3>
-                    <span className="text-slate-300 text-sm bg-slate-700/50 px-4 py-2 rounded-xl font-semibold">
-                      {selectedOrder.materials?.filter(m => m.required_qty > 0).length || 0} unique components
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-400 text-sm">{selectedOrder.materials?.length || 0} unique components</span>
+                      {selectedOrder.materials && selectedOrder.materials.length > 0 && (
+                        <button
+                          onClick={() => exportMaterialsToCSV(selectedOrder!)}
+                          className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
+                          title="Export materials to CSV"
+                        >
+                          <Download className="w-3 h-3" />
+                          Export Materials
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {selectedOrder.materials && selectedOrder.materials.length > 0 ? (
-                    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
-                      {/* Table with fixed layout */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm" style={{ minWidth: '800px' }}>
-                          <thead>
-                            <tr className="bg-slate-700/50 border-b border-slate-600/50">
-                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">#</th>
-                              <th className="px-4 py-4 text-left text-xs text-slate-400 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Need</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Issued</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Left</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Stock</th>
-                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">WIP</th>
-                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
-                              // SMART LOGIC: Account for WIP (Work In Progress)
-                              const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
-                              const availableTotal = mat.stock_on_hand + (mat.wip || 0);
-                              const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
-                              const isInProgress = (mat.wip || 0) > 0;
-                              const isDone = mat.completed_qty >= mat.required_qty;
-                              const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
-                              
-                              return (
-                                <tr 
-                                  key={idx} 
-                                  className={`border-b border-slate-700/30 transition-all duration-200 ${
-                                    isShort ? 'bg-red-500/10 hover:bg-red-500/15' : 
-                                    isDone ? 'bg-green-500/5 hover:bg-green-500/10' :
-                                    'hover:bg-slate-700/30'
-                                  }`}
-                                >
-                                  <td className="px-3 py-4 text-center">
-                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-700/50 text-slate-400 text-xs font-bold">
-                                      {idx + 1}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-4">
-                                    <div className="text-white font-mono text-sm font-bold tracking-wide">{mat.component_item_no}</div>
-                                    {mat.component_description && (
-                                      <div className="text-slate-400 text-xs mt-1 leading-relaxed" style={{ maxWidth: '300px' }}>
-                                        {mat.component_description}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-4 text-right">
-                                    <div className="text-white font-bold text-base">{mat.required_qty.toLocaleString()}</div>
-                                    <div className="text-slate-500 text-xs">{mat.unit}</div>
-                                  </td>
-                                  <td className="px-3 py-4 text-right">
-                                    <div className={`font-bold text-base ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
-                                      {mat.completed_qty.toLocaleString()}
-                                    </div>
-                                    <div className="text-slate-500 text-xs">({pctComplete}%)</div>
-                                  </td>
-                                  <td className="px-3 py-4 text-right">
-                                    <span className={`font-bold text-base ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                                      {remainingNeeded.toLocaleString()}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-4 text-right">
-                                    <span className={`font-bold text-base ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
-                                      {mat.stock_on_hand.toLocaleString()}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-4 text-right">
-                                    <span className={`font-bold ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                      {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-4 text-center">
-                                    {isDone ? (
-                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
-                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                                        READY
-                                      </span>
-                                    ) : isInProgress ? (
-                                      <span className="inline-flex items-center gap-1 bg-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-full text-xs font-bold">
-                                        <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
-                                        IN WIP
-                                      </span>
-                                    ) : isShort ? (
-                                      <span className="inline-flex items-center gap-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-full text-xs font-bold">
-                                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>
-                                        SHORT
-                                      </span>
-                                    ) : remainingNeeded === 0 ? (
-                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
-                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                                        READY
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full text-xs font-bold">
-                                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                                        READY
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-700/50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">#</th>
+                            <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">COMPONENT</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">NEED</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">ISSUED</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">LEFT</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">STOCK</th>
+                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">WIP</th>
+                            <th className="px-3 py-2 text-center text-xs text-slate-300 font-semibold">STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/50">
+                          {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
+                            // SMART LOGIC: Account for WIP (Work In Progress)
+                            // WIP = material already on the floor for THIS order
+                            const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
+                            const availableTotal = mat.stock_on_hand + (mat.wip || 0); // Stock + WIP
+                            // Only SHORT if: stock+WIP can't cover remaining AND nothing in WIP yet
+                            const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
+                            const isInProgress = (mat.wip || 0) > 0; // Has WIP = in progress, not short
+                            const isDone = mat.completed_qty >= mat.required_qty;
+                            const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
+                            
+                            return (
+                              <tr key={idx} className={`${isShort ? 'bg-red-500/10' : ''} hover:bg-slate-700/30`}>
+                                <td className="px-3 py-2 text-slate-500 text-xs">{idx + 1}</td>
+                                <td className="px-3 py-2">
+                                  <div className="text-white font-mono text-sm font-medium">{mat.component_item_no}</div>
+                                  {mat.component_description && (
+                                    <div className="text-slate-500 text-xs truncate max-w-[250px]">{mat.component_description}</div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className="text-white">{mat.required_qty.toLocaleString()}</span>
+                                  <span className="text-slate-500 text-xs ml-1">{mat.unit}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
+                                    {mat.completed_qty.toLocaleString()}
+                                  </span>
+                                  <span className="text-slate-500 text-xs ml-1">({pctComplete}%)</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-bold ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                                    {remainingNeeded.toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
+                                    {mat.stock_on_hand.toLocaleString()}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className={`font-medium ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                                    {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {isDone ? (
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ DONE</span>
+                                  ) : isInProgress ? (
+                                    <span className="bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded text-xs font-medium">🔄 IN WIP</span>
+                                  ) : isShort ? (
+                                    <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-medium">⚠ {(remainingNeeded - availableTotal).toLocaleString()}</span>
+                                  ) : remainingNeeded === 0 ? (
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ ALL ISSUED</span>
+                                  ) : (
+                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">✓ READY</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                       
-                      {/* Summary Footer */}
-                      <div className="bg-slate-700/30 px-5 py-4 flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400 text-sm">Progress:</span>
-                            <span className="text-white font-bold">
-                              {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length}
-                            </span>
-                            <span className="text-slate-500 text-sm">complete</span>
-                          </div>
-                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) && (
-                            <span className="inline-flex items-center gap-1.5 text-cyan-400 bg-cyan-500/15 px-3 py-1 rounded-full text-sm font-medium">
-                              <span className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
-                              {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP
-                            </span>
-                          )}
-                        </div>
-                        <span className={`inline-flex items-center gap-2 font-bold px-5 py-2 rounded-xl text-sm ${
+                      {/* Summary row - accounts for WIP */}
+                      <div className="bg-slate-700/30 px-3 py-2 flex justify-between items-center text-sm border-t border-slate-700">
+                        <span className="text-slate-400">
+                          {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length} complete
+                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) && 
+                            <span className="text-cyan-400 ml-2">• {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP</span>
+                          }
+                        </span>
+                        <span className={`font-bold ${
                           selectedOrder.materials.some(m => {
                             const remaining = Math.max(0, m.required_qty - m.completed_qty);
                             const available = m.stock_on_hand + (m.wip || 0);
                             return available < remaining && remaining > 0 && (m.wip || 0) === 0;
-                          }) ? 'text-red-400 bg-red-500/15 border border-red-500/30' : 'text-green-400 bg-green-500/15 border border-green-500/30'
+                          }) ? 'text-red-400' : 'text-green-400'
                         }`}>
                           {selectedOrder.materials.some(m => {
                             const remaining = Math.max(0, m.required_qty - m.completed_qty);
                             const available = m.stock_on_hand + (m.wip || 0);
                             return available < remaining && remaining > 0 && (m.wip || 0) === 0;
-                          }) ? (
-                            <>
-                              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-                              Material Shortage
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                              Materials OK
-                            </>
-                          )}
+                          }) ? '⚠ Material Shortage' : '✓ Materials OK'}
                         </span>
-                      </div>
-                      
-                      {/* Formula Summary - Cleaner Design */}
-                      <div className="bg-gradient-to-r from-indigo-500/10 via-blue-500/10 to-cyan-500/10 px-5 py-5">
-                        <h4 className="text-blue-400 font-bold text-sm mb-4 flex items-center gap-2">
-                          📊 Formula Summary - Total Components Needed
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-slate-800/70 rounded-xl p-5 border border-slate-700/30">
-                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Required</div>
-                            <div className="text-white font-black text-3xl tracking-tight">
-                              {selectedOrder.materials
-                                .filter(m => m.required_qty > 0)
-                                .reduce((sum, m) => sum + m.required_qty, 0)
-                                .toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </div>
-                            <div className="text-slate-500 text-xs mt-2">across all components</div>
-                          </div>
-                          <div className="bg-slate-800/70 rounded-xl p-5 border border-slate-700/30">
-                            <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Remaining</div>
-                            <div className="text-yellow-400 font-black text-3xl tracking-tight">
-                              {selectedOrder.materials
-                                .filter(m => m.required_qty > 0)
-                                .reduce((sum, m) => {
-                                  const remaining = Math.max(0, m.required_qty - m.completed_qty);
-                                  return sum + remaining;
-                                }, 0)
-                                .toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </div>
-                            <div className="text-slate-500 text-xs mt-2">still needed to complete</div>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   ) : (
