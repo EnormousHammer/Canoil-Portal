@@ -1243,7 +1243,7 @@ def calculate_inventory_days(last_po_date_str):
     Calculate days since last order date.
     
     Args:
-        last_po_date_str: Order date string (various formats possible)
+        last_po_date_str: Order date string (various formats possible, including MS JSON Date)
     
     Returns:
         Number of days since last order, or empty string if date not available/parseable
@@ -1253,24 +1253,36 @@ def calculate_inventory_days(last_po_date_str):
     
     try:
         today = datetime.now()
-        
-        # Try common date formats
-        date_formats = [
-            '%Y-%m-%d',           # 2025-01-15
-            '%m/%d/%Y',            # 01/15/2025
-            '%d/%m/%Y',            # 15/01/2025
-            '%Y-%m-%d %H:%M:%S',   # 2025-01-15 10:30:00
-            '%m/%d/%y',            # 01/15/25
-            '%d/%m/%y',            # 15/01/25
-        ]
-        
         last_order_date = None
-        for fmt in date_formats:
+        date_str = str(last_po_date_str).strip()
+        
+        # Check for Microsoft JSON Date format: /Date(1588651200000)/
+        if date_str.startswith('/Date(') and date_str.endswith(')/'):
             try:
-                last_order_date = datetime.strptime(str(last_po_date_str).strip(), fmt)
-                break
-            except ValueError:
-                continue
+                # Extract timestamp in milliseconds
+                timestamp_ms = int(date_str[6:-2])
+                # Convert to seconds and create datetime
+                last_order_date = datetime.fromtimestamp(timestamp_ms / 1000)
+            except (ValueError, OSError) as e:
+                print(f"[PR] Error parsing MS JSON date '{date_str}': {e}")
+        
+        # If not MS JSON format, try common date formats
+        if not last_order_date:
+            date_formats = [
+                '%Y-%m-%d',           # 2025-01-15
+                '%m/%d/%Y',            # 01/15/2025
+                '%d/%m/%Y',            # 15/01/2025
+                '%Y-%m-%d %H:%M:%S',   # 2025-01-15 10:30:00
+                '%m/%d/%y',            # 01/15/25
+                '%d/%m/%y',            # 15/01/25
+            ]
+            
+            for fmt in date_formats:
+                try:
+                    last_order_date = datetime.strptime(date_str, fmt)
+                    break
+                except ValueError:
+                    continue
         
         if last_order_date:
             days_diff = (today - last_order_date).days
