@@ -3,6 +3,32 @@
 // Uses unifiedDataAccess for consistent field access
 import { getRealItemStock, getRealItemData, getRealItemCost } from './unifiedDataAccess';
 
+// ============================================
+// LOCATION OWNERSHIP CONSTANTS
+// ============================================
+// Canoil's own stock locations
+export const CANOIL_LOCATIONS = ['62TODD', 'HOME'];
+
+// Check if a location belongs to Canoil
+export function isCanoilLocation(location: string): boolean {
+  if (!location) return true; // Default to Canoil if no location specified
+  const upperLocation = location.toUpperCase().trim();
+  return CANOIL_LOCATIONS.some(loc => upperLocation === loc || upperLocation.startsWith(loc));
+}
+
+// Check if a location is customer-owned stock
+export function isCustomerLocation(location: string): boolean {
+  return !isCanoilLocation(location);
+}
+
+// Get the owner name for a location
+export function getLocationOwner(location: string): string {
+  if (!location) return 'Canoil';
+  if (isCanoilLocation(location)) return 'Canoil';
+  // Return the location as the owner name (BRO, LANXESS, etc.)
+  return location.toUpperCase().trim();
+}
+
 export interface ItemWithLocation {
   // Core item data from CustomAlert5 - EXACT PRODUCTION FIELD NAMES
   "Item No.": string;
@@ -172,4 +198,75 @@ export function getItemStock(itemNo: string, milocData: any[]): {total: number} 
   // The BOM component should use getTotalItemStock for real stock
   console.warn(`⚠️ getItemStock: No MIILOC data for ${itemNo}, use getTotalItemStock instead`);
   return { total: 0 };
+}
+
+// ============================================
+// LOCATION-AWARE STOCK FUNCTIONS
+// ============================================
+
+/**
+ * Get stock breakdown by ownership (Canoil vs Customer)
+ * Returns separate totals for Canoil stock and customer stock
+ */
+export function getStockByOwnership(itemNo: string, data: any): {
+  canoilStock: number;
+  customerStock: number;
+  totalStock: number;
+  customerBreakdown: Array<{location: string, stock: number}>;
+} {
+  const milocData = data['MIILOC.json'] || [];
+  const customAlert5Items = data['CustomAlert5.json'] || [];
+  
+  let canoilStock = 0;
+  let customerStock = 0;
+  const customerBreakdown: Array<{location: string, stock: number}> = [];
+  
+  if (milocData.length > 0) {
+    // Get location-specific stock from MIILOC
+    const itemLocations = milocData.filter((loc: any) => loc.itemId === itemNo);
+    
+    for (const loc of itemLocations) {
+      const stock = parseFloat(loc.qStk || 0);
+      const location = loc.locId || '';
+      
+      if (stock > 0) {
+        if (isCanoilLocation(location)) {
+          canoilStock += stock;
+        } else {
+          customerStock += stock;
+          customerBreakdown.push({ location, stock });
+        }
+      }
+    }
+  }
+  
+  // If no MIILOC data, use CustomAlert5 total as Canoil stock
+  if (canoilStock === 0 && customerStock === 0) {
+    const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
+    if (mainItem) {
+      canoilStock = parseFloat(mainItem["Stock"] || 0);
+    }
+  }
+  
+  return {
+    canoilStock,
+    customerStock,
+    totalStock: canoilStock + customerStock,
+    customerBreakdown
+  };
+}
+
+/**
+ * Get ONLY Canoil's stock for an item (for PR generation)
+ * Excludes customer-owned stock at customer locations
+ */
+export function getCanoilStock(itemNo: string, data: any): number {
+  return getStockByOwnership(itemNo, data).canoilStock;
+}
+
+/**
+ * Check if item has any customer-owned stock
+ */
+export function hasCustomerStock(itemNo: string, data: any): boolean {
+  return getStockByOwnership(itemNo, data).customerStock > 0;
 }

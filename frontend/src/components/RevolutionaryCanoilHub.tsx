@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CompactLoading, DataLoading, ToastNotification } from './LoadingComponents';
+import { CompactLoading, DataLoading } from './LoadingComponents';
+import { ToastNotification, useToasts } from './ToastNotification';
 import { AICommandCenter } from './AICommandCenter';
 // Production Schedule - embedded from external app
 import { ReportMaker } from './ReportMaker';
@@ -10,6 +11,7 @@ import { getApiUrl } from '../utils/apiConfig';
 import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
+import { getStockByOwnership, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
@@ -198,6 +200,9 @@ interface RevolutionaryCanoilHubProps {
 }
 
 export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ data, onNavigate, currentUser, onRefreshData }) => {
+  // Toast notification system
+  const { toasts, dismissToast, success: toastSuccess, error: toastError, info: toastInfo, warning: toastWarning } = useToasts();
+  
   const [activeSection, setActiveSection] = useState('dashboard');
   const [poSortField, setPoSortField] = useState<string>('Order Date');
   const [poSortDirection, setPoSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -6320,16 +6325,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   document.body.removeChild(a);
                                   window.URL.revokeObjectURL(url);
                                   
-                                  // Show success message
+                                  // Show success message with toast
                                   if (filename.endsWith('.zip')) {
-                                    alert(`✅ Generated multiple PRs (grouped by supplier) - Downloaded as ${filename}`);
+                                    toastSuccess('PRs Generated!', `Multiple PRs (grouped by supplier) downloaded as ${filename}`, {
+                                      label: 'View History',
+                                      onClick: () => { setShowPRHistory(true); fetchPRHistory(); }
+                                    });
                                   } else {
-                                    alert(`✅ Generated Purchase Requisition - Downloaded as ${filename}`);
+                                    toastSuccess('PR Generated!', `Downloaded as ${filename}`, {
+                                      label: 'View History',
+                                      onClick: () => { setShowPRHistory(true); fetchPRHistory(); }
+                                    });
                                   }
+                                  // Auto-refresh history
+                                  fetchPRHistory();
                                   
                                 } catch (error) {
                                   console.error('PR generation error:', error);
-                                  alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                  toastError('PR Generation Failed', error instanceof Error ? error.message : 'Unknown error');
                                 } finally {
                                   setBomPRLoading(false);
                                 }
@@ -6367,10 +6380,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 const existingIndex = bomCart.findIndex(c => c.item_no === selectedBomItem["Item No."]);
                                 if (existingIndex >= 0) {
                                   // Update quantity
+                                  const newTotal = bomCart[existingIndex].qty + bomQuantity;
                                   setBomCart(prev => prev.map((c, i) => 
-                                    i === existingIndex ? { ...c, qty: c.qty + bomQuantity } : c
+                                    i === existingIndex ? { ...c, qty: newTotal } : c
                                   ));
-                                  alert(`Updated: ${selectedBomItem["Item No."]} - added ${bomQuantity} more (total: ${bomCart[existingIndex].qty + bomQuantity})`);
+                                  toastSuccess('Cart Updated', `${selectedBomItem["Item No."]} now has ${newTotal} units`, {
+                                    label: 'View Cart',
+                                    onClick: () => setShowBomCart(true)
+                                  });
                                 } else {
                                   // Add new item
                                   setBomCart(prev => [...prev, {
@@ -6378,7 +6395,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     description: selectedBomItem["Description"] || '',
                                     qty: bomQuantity
                                   }]);
-                                  alert(`Added to cart: ${selectedBomItem["Item No."]} × ${bomQuantity}`);
+                                  toastSuccess('Added to Cart', `${selectedBomItem["Item No."]} × ${bomQuantity}`, {
+                                    label: 'View Cart',
+                                    onClick: () => setShowBomCart(true)
+                                  });
                                 }
                                 
                                 // Show cart if not visible
@@ -6623,14 +6643,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   const reorderLevel = parseStockValue(item["Reorder Level"]) || parseStockValue(item["Minimum"]);
                   const cost = parseCostValue(item["Recent Cost"] || item["Standard Cost"] || item["Unit Cost"]);
                   
+                  // Get stock ownership breakdown (Canoil vs Customer stock)
+                  const stockOwnership = getStockByOwnership(item["Item No."], data);
+                  const hasCustomerStock = stockOwnership.customerStock > 0;
+                  const canoilStock = stockOwnership.canoilStock;
+                  
                   let statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
                   let statusText = 'In Stock';
                   let statusDot = 'bg-emerald-500';
-                  if (stock <= 0) {
+                  // Use Canoil stock for status (what WE can use)
+                  if (canoilStock <= 0) {
                     statusColor = 'bg-red-100 text-red-700 border-red-200';
-                    statusText = 'Out';
-                    statusDot = 'bg-red-500';
-                  } else if (stock <= reorderLevel && reorderLevel > 0) {
+                    statusText = hasCustomerStock ? 'Customer Only' : 'Out';
+                    statusDot = hasCustomerStock ? 'bg-purple-500' : 'bg-red-500';
+                  } else if (canoilStock <= reorderLevel && reorderLevel > 0) {
                     statusColor = 'bg-amber-100 text-amber-700 border-amber-200';
                     statusText = 'Low';
                     statusDot = 'bg-amber-500';
@@ -6693,17 +6719,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </span>
                       </div>
 
-                      {/* Stock & WIP - Modern Cards */}
+                      {/* Stock & WIP - Modern Cards with Ownership */}
                       <div className="flex gap-2 mx-3 mb-3">
-                        <div className={`flex-1 py-3 px-3 rounded-xl ${
-                          stock <= 0 
-                            ? 'bg-gradient-to-br from-red-100 to-red-50' 
-                            : stock <= reorderLevel && reorderLevel > 0
+                        <div className={`flex-1 py-3 px-3 rounded-xl relative ${
+                          canoilStock <= 0 
+                            ? hasCustomerStock ? 'bg-gradient-to-br from-purple-100 to-purple-50' : 'bg-gradient-to-br from-red-100 to-red-50'
+                            : canoilStock <= reorderLevel && reorderLevel > 0
                               ? 'bg-gradient-to-br from-amber-100 to-amber-50'
                               : 'bg-gradient-to-br from-emerald-100/80 to-emerald-50/50'
                         }`}>
-                          <div className={`text-2xl font-black tracking-tight ${stockTextColor}`}>{stock.toLocaleString()}</div>
-                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Stock</div>
+                          <div className={`text-2xl font-black tracking-tight ${
+                            canoilStock <= 0 
+                              ? hasCustomerStock ? 'text-purple-600' : 'text-red-600'
+                              : canoilStock <= reorderLevel && reorderLevel > 0 
+                                ? 'text-amber-600' 
+                                : 'text-emerald-600'
+                          }`}>{canoilStock.toLocaleString()}</div>
+                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
+                            {hasCustomerStock ? 'Our Stock' : 'Stock'}
+                          </div>
+                          {/* Customer stock indicator */}
+                          {hasCustomerStock && (
+                            <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-purple-500 text-white text-[8px] font-bold rounded-full">
+                              +{stockOwnership.customerStock.toLocaleString()} Cust
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 py-3 px-3 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50">
                           <div className="text-2xl font-black text-slate-700 tracking-tight">{wip.toLocaleString()}</div>
@@ -8463,7 +8503,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <button
                   onClick={() => {
                     if (quickAddQty < 1) {
-                      alert('Please enter a valid quantity');
+                      toastError('Invalid Quantity', 'Please enter a valid quantity');
                       return;
                     }
                     
@@ -8473,10 +8513,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     
                     if (existingIndex >= 0) {
                       // Update quantity
+                      const newTotal = bomCart[existingIndex].qty + quickAddQty;
                       setBomCart(prev => prev.map((c, i) => 
-                        i === existingIndex ? { ...c, qty: c.qty + quickAddQty } : c
+                        i === existingIndex ? { ...c, qty: newTotal } : c
                       ));
-                      alert(`✅ Updated: ${itemNo}\nAdded ${quickAddQty} more (total: ${bomCart[existingIndex].qty + quickAddQty})`);
+                      toastSuccess('Cart Updated', `${itemNo} now has ${newTotal} units`, {
+                        label: 'View Cart',
+                        onClick: () => setShowBomCart(true)
+                      });
                     } else {
                       // Add new item
                       setBomCart(prev => [...prev, {
@@ -8484,7 +8528,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         description: quickAddItem["Description"] || '',
                         qty: quickAddQty
                       }]);
-                      alert(`✅ Added to cart: ${itemNo} × ${quickAddQty}`);
+                      toastSuccess('Added to Cart', `${itemNo} × ${quickAddQty}`, {
+                        label: 'View Cart',
+                        onClick: () => setShowBomCart(true)
+                      });
                     }
                     
                     // Show cart and close popup
@@ -8631,17 +8678,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
                     
+                    const itemCount = bomCart.length;
                     if (filename.endsWith('.zip')) {
-                      alert(`✅ Generated batch PRs (grouped by supplier) for ${bomCart.length} items!\nDownloaded: ${filename}`);
+                      toastSuccess('Batch PRs Generated!', `${itemCount} items grouped by supplier - Downloaded as ${filename}`, {
+                        label: 'View History',
+                        onClick: () => { setShowPRHistory(true); fetchPRHistory(); }
+                      });
                     } else {
-                      alert(`✅ Generated PR for ${bomCart.length} items (single supplier)\nDownloaded: ${filename}`);
+                      toastSuccess('PR Generated!', `${itemCount} items (single supplier) - Downloaded as ${filename}`, {
+                        label: 'View History',
+                        onClick: () => { setShowPRHistory(true); fetchPRHistory(); }
+                      });
                     }
                     
+                    // Auto-refresh history
+                    fetchPRHistory();
                     setBomCart([]);
                     
                   } catch (error) {
                     console.error('Batch PR generation error:', error);
-                    alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    toastError('Batch PR Generation Failed', error instanceof Error ? error.message : 'Unknown error');
                   } finally {
                     setBomPRLoading(false);
                   }
@@ -8867,7 +8923,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     
                   } catch (error) {
                     console.error('Redo PR generation error:', error);
-                    alert(`Failed to generate PRs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    toastError('Redo PR Generation Failed', error instanceof Error ? error.message : 'Unknown error');
                   } finally {
                     setRedoPRGenerating(false);
                   }
@@ -8891,6 +8947,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           </div>
         </div>
       )}
+      
+      {/* Toast Notifications */}
+      <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </>
   );
 };
