@@ -11,7 +11,7 @@ import { getApiUrl } from '../utils/apiConfig';
 import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
-import { getStockByOwnership, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
+import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
@@ -964,26 +964,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     setSelectedComponent(componentItemNo);
   };
 
-  // Enterprise-level metrics calculation
+  // Enterprise-level metrics calculation - CANOIL STOCK ONLY (excludes customer stock)
   const inventoryMetrics = useMemo(() => {
     const items = data['CustomAlert5.json'] || [];
     const totalItems = items.length;
     
+    // Calculate total value using CANOIL stock only
     const totalValue = items.reduce((sum: number, item: any) => {
-      const stock = parseStockValue(item["Stock"]);
+      const canoilStock = getCanoilStock(item["Item No."], data);
       const cost = parseCostValue(item["Recent Cost"] || item["Unit Cost"] || item["Standard Cost"]);
-      return sum + (stock * cost);
+      return sum + (canoilStock * cost);
     }, 0);
     
+    // Low stock based on CANOIL stock only
     const lowStockItems = items.filter((item: any) => {
-      const stock = parseStockValue(item["Stock"]);
+      const canoilStock = getCanoilStock(item["Item No."], data);
       const reorderLevel = parseStockValue(item["Reorder Level"]) || parseStockValue(item["Minimum"]);
-      return stock <= reorderLevel && reorderLevel > 0;
+      return canoilStock <= reorderLevel && reorderLevel > 0 && canoilStock > 0;
     });
     
+    // Out of stock based on CANOIL stock only (Canoil has 0, regardless of customer stock)
     const outOfStockItems = items.filter((item: any) => {
-      const stock = parseStockValue(item["Stock"]);
-      return stock === 0;
+      const canoilStock = getCanoilStock(item["Item No."], data);
+      return canoilStock === 0;
     });
 
     return {
@@ -1043,21 +1046,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return set;
   }, [data]);
 
-  // Filtered inventory with sorting and filtering
+  // Filtered inventory with sorting and filtering - Uses CANOIL STOCK ONLY
   const filteredInventory = useMemo(() => {
     let items = data['CustomAlert5.json'] || [];
     
-    // Apply inventory filter (low-stock, out-of-stock, etc.)
+    // Apply inventory filter (low-stock, out-of-stock, etc.) - CANOIL STOCK ONLY
     if (inventoryFilter === 'low-stock') {
       items = items.filter((item: any) => {
-        const stock = parseStockValue(item["Stock"]);
+        const canoilStock = getCanoilStock(item["Item No."], data);
         const reorderLevel = parseStockValue(item["Reorder Level"]) || parseStockValue(item["Minimum"]);
-        return stock <= reorderLevel && reorderLevel > 0;
+        return canoilStock <= reorderLevel && reorderLevel > 0 && canoilStock > 0;
       });
     } else if (inventoryFilter === 'out-of-stock') {
       items = items.filter((item: any) => {
-        const stock = parseStockValue(item["Stock"]);
-        return stock <= 0;
+        const canoilStock = getCanoilStock(item["Item No."], data);
+        return canoilStock === 0;
       });
     }
     
