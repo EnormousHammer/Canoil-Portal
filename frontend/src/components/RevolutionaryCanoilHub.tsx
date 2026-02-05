@@ -6265,7 +6265,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         </div>
                                       </td>
                                     </tr>
-                                  )
+                                  )}
                                   
                                   {/* Expanded Component Breakdown - Total Components Needed for Batch */}
                                   {isExpanded && (
