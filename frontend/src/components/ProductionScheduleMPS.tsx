@@ -4,32 +4,44 @@ import { fetchMPSData, openSalesOrder, getSOUrl, clearMPSCache } from '../servic
 import { MPSOrder } from '../types/mps';
 import { format, addDays, startOfWeek, differenceInDays, parseISO, isValid } from 'date-fns';
 
-// Customer color palette - each customer gets a unique consistent color
+// Customer color palette - VIBRANT & DISTINCT colors for each customer
 const CUSTOMER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  'lanxess': { bg: 'bg-blue-500', border: 'border-blue-400', text: 'text-blue-100' },
-  'lubecore': { bg: 'bg-green-500', border: 'border-green-400', text: 'text-green-100' },
-  'petro-canada': { bg: 'bg-red-500', border: 'border-red-400', text: 'text-red-100' },
-  'robco': { bg: 'bg-purple-500', border: 'border-purple-400', text: 'text-purple-100' },
-  'shell': { bg: 'bg-yellow-500', border: 'border-yellow-400', text: 'text-yellow-900' },
-  'mobil': { bg: 'bg-orange-500', border: 'border-orange-400', text: 'text-orange-100' },
-  'chevron': { bg: 'bg-cyan-500', border: 'border-cyan-400', text: 'text-cyan-100' },
-  'castrol': { bg: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-emerald-100' },
-  'total': { bg: 'bg-rose-500', border: 'border-rose-400', text: 'text-rose-100' },
-  'bp': { bg: 'bg-lime-500', border: 'border-lime-400', text: 'text-lime-900' },
-  'esso': { bg: 'bg-indigo-500', border: 'border-indigo-400', text: 'text-indigo-100' },
-  'valvoline': { bg: 'bg-fuchsia-500', border: 'border-fuchsia-400', text: 'text-fuchsia-100' },
-  'pennzoil': { bg: 'bg-amber-500', border: 'border-amber-400', text: 'text-amber-900' },
-  'quaker': { bg: 'bg-teal-500', border: 'border-teal-400', text: 'text-teal-100' },
-  'fuchs': { bg: 'bg-sky-500', border: 'border-sky-400', text: 'text-sky-100' },
+  'lanxess': { bg: 'bg-blue-600', border: 'border-blue-500', text: 'text-white' },
+  'lubecore': { bg: 'bg-emerald-600', border: 'border-emerald-500', text: 'text-white' },
+  'petro-canada': { bg: 'bg-red-600', border: 'border-red-500', text: 'text-white' },
+  'robco': { bg: 'bg-violet-600', border: 'border-violet-500', text: 'text-white' },
+  'shell': { bg: 'bg-yellow-500', border: 'border-yellow-400', text: 'text-yellow-950' },
+  'mobil': { bg: 'bg-orange-600', border: 'border-orange-500', text: 'text-white' },
+  'chevron': { bg: 'bg-cyan-600', border: 'border-cyan-500', text: 'text-white' },
+  'castrol': { bg: 'bg-green-600', border: 'border-green-500', text: 'text-white' },
+  'total': { bg: 'bg-rose-600', border: 'border-rose-500', text: 'text-white' },
+  'bp': { bg: 'bg-lime-500', border: 'border-lime-400', text: 'text-lime-950' },
+  'esso': { bg: 'bg-indigo-600', border: 'border-indigo-500', text: 'text-white' },
+  'valvoline': { bg: 'bg-fuchsia-600', border: 'border-fuchsia-500', text: 'text-white' },
+  'pennzoil': { bg: 'bg-amber-500', border: 'border-amber-400', text: 'text-amber-950' },
+  'quaker': { bg: 'bg-teal-600', border: 'border-teal-500', text: 'text-white' },
+  'fuchs': { bg: 'bg-sky-600', border: 'border-sky-500', text: 'text-white' },
+  'mosier': { bg: 'bg-purple-600', border: 'border-purple-500', text: 'text-white' },
+  'bro': { bg: 'bg-pink-600', border: 'border-pink-500', text: 'text-white' },
+  'liters': { bg: 'bg-blue-500', border: 'border-blue-400', text: 'text-white' },
+  'drum': { bg: 'bg-amber-600', border: 'border-amber-500', text: 'text-white' },
+  'case': { bg: 'bg-green-500', border: 'border-green-400', text: 'text-white' },
+  'tote': { bg: 'bg-cyan-500', border: 'border-cyan-400', text: 'text-white' },
+  'pail': { bg: 'bg-orange-500', border: 'border-orange-400', text: 'text-white' },
 };
 
-// Fallback colors for unknown customers - cycle through these
+// Fallback colors - DIVERSE palette so orders look different
 const FALLBACK_COLORS = [
-  { bg: 'bg-violet-500', border: 'border-violet-400', text: 'text-violet-100' },
-  { bg: 'bg-pink-500', border: 'border-pink-400', text: 'text-pink-100' },
-  { bg: 'bg-slate-500', border: 'border-slate-400', text: 'text-slate-100' },
-  { bg: 'bg-stone-500', border: 'border-stone-400', text: 'text-stone-100' },
-  { bg: 'bg-zinc-500', border: 'border-zinc-400', text: 'text-zinc-100' },
+  { bg: 'bg-blue-600', border: 'border-blue-500', text: 'text-white' },
+  { bg: 'bg-emerald-600', border: 'border-emerald-500', text: 'text-white' },
+  { bg: 'bg-orange-600', border: 'border-orange-500', text: 'text-white' },
+  { bg: 'bg-violet-600', border: 'border-violet-500', text: 'text-white' },
+  { bg: 'bg-rose-600', border: 'border-rose-500', text: 'text-white' },
+  { bg: 'bg-teal-600', border: 'border-teal-500', text: 'text-white' },
+  { bg: 'bg-indigo-600', border: 'border-indigo-500', text: 'text-white' },
+  { bg: 'bg-pink-600', border: 'border-pink-500', text: 'text-white' },
+  { bg: 'bg-cyan-600', border: 'border-cyan-500', text: 'text-white' },
+  { bg: 'bg-amber-500', border: 'border-amber-400', text: 'text-amber-950' },
 ];
 
 function getCustomerColor(product: string): { bg: string; border: string; text: string } {
@@ -429,7 +441,10 @@ export function ProductionScheduleMPS() {
       {selectedOrder && (() => {
         const actualPct = parseFloat(selectedOrder.actual_pct) || 0;
         const remaining = Math.max(0, selectedOrder.required - (selectedOrder.ready || 0));
-        const customerName = selectedOrder.so_data?.customer || selectedOrder.product.split(' - ')[0] || 'Unknown';
+        const customerName = selectedOrder.so_data?.customer || 
+          (selectedOrder.product.includes(' - ') ? selectedOrder.product.split(' - ')[0] : null) ||
+          selectedOrder.customer_code || 
+          selectedOrder.product || 'Order';
         const colors = getCustomerColor(selectedOrder.product);
         
         return (
@@ -538,9 +553,9 @@ export function ProductionScheduleMPS() {
                     {/* Quantities */}
                     <div className="col-span-2 grid grid-cols-3 gap-3">
                       <div className="bg-slate-800 rounded-xl p-4 text-center border border-slate-700">
-                        <div className="text-slate-500 text-xs mb-1">REQUIRED</div>
+                        <div className="text-slate-300 text-xs mb-1 font-semibold uppercase tracking-wide">REQUIRED</div>
                         <div className="text-3xl font-bold text-white">{selectedOrder.required}</div>
-                        <div className="text-slate-500 text-xs">{selectedOrder.packaging || 'units'}</div>
+                        <div className="text-slate-400 text-xs">{selectedOrder.packaging || 'units'}</div>
                       </div>
                       <div className="bg-green-500/10 rounded-xl p-4 text-center border border-green-500/30">
                         <div className="text-green-400 text-xs mb-1">READY</div>
@@ -565,7 +580,7 @@ export function ProductionScheduleMPS() {
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                     <div className="flex items-center justify-between">
                       <div className="text-center flex-1">
-                        <div className="text-slate-500 text-xs">START</div>
+                        <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">START</div>
                         <div className="text-white font-semibold">{selectedOrder.start_date || '—'}</div>
                       </div>
                       <div className="flex-1 px-4">
@@ -577,18 +592,18 @@ export function ProductionScheduleMPS() {
                         </div>
                       </div>
                       <div className="text-center flex-1">
-                        <div className="text-slate-500 text-xs">END</div>
+                        <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">END</div>
                         <div className="text-white font-semibold">{selectedOrder.end_date || '—'}</div>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-700">
                       <div className="text-center">
-                        <div className="text-slate-500 text-xs">PROMISED TO CUSTOMER</div>
+                        <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">PROMISED TO CUSTOMER</div>
                         <div className="text-yellow-400 font-bold text-lg">{selectedOrder.promised_date || '—'}</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-500 text-xs">DAYS TO COMPLETE</div>
+                        <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">DAYS TO COMPLETE</div>
                         <div className={`font-bold text-lg ${
                           selectedOrder.dtc <= 1 ? 'text-red-400' : 
                           selectedOrder.dtc <= 3 ? 'text-yellow-400' : 'text-green-400'
@@ -597,7 +612,7 @@ export function ProductionScheduleMPS() {
                         </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-500 text-xs">PLANNED</div>
+                        <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">PLANNED</div>
                         <div className="text-blue-400 font-bold text-lg">{selectedOrder.planned_pct}</div>
                       </div>
                     </div>
@@ -613,26 +628,26 @@ export function ProductionScheduleMPS() {
                     <div className="bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
                       <div className="grid grid-cols-4 gap-4 mb-4">
                         <div>
-                          <div className="text-slate-500 text-xs">MO Number</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">MO Number</div>
                           <div className="text-purple-300 font-mono font-bold text-lg">{selectedOrder.mo_data.mo_no}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Build Item</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Build Item</div>
                           <div className="text-white font-mono">{selectedOrder.mo_data.item_no}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Status</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Status</div>
                           <div className="text-white font-semibold">{selectedOrder.mo_data.status || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Priority</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Priority</div>
                           <div className="text-white">{selectedOrder.mo_data.priority || '—'}</div>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-3 mb-4">
                         <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                          <div className="text-slate-500 text-xs">ORDERED</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">ORDERED</div>
                           <div className="text-2xl font-bold text-white">{selectedOrder.mo_data.qty_ordered}</div>
                         </div>
                         <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
@@ -647,19 +662,19 @@ export function ProductionScheduleMPS() {
 
                       <div className="grid grid-cols-4 gap-3 text-sm">
                         <div>
-                          <div className="text-slate-500 text-xs">Order Date</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Order Date</div>
                           <div className="text-white">{selectedOrder.mo_data.order_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Start Date</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Start Date</div>
                           <div className="text-white">{selectedOrder.mo_data.start_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Release Date</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Release Date</div>
                           <div className="text-white">{selectedOrder.mo_data.release_date || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-slate-500 text-xs">Due Date</div>
+                          <div className="text-slate-300 text-xs font-semibold uppercase tracking-wide">Due Date</div>
                           <div className="text-yellow-400 font-semibold">{selectedOrder.mo_data.due_date || '—'}</div>
                         </div>
                       </div>
@@ -718,15 +733,15 @@ export function ProductionScheduleMPS() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm" style={{ minWidth: '800px' }}>
                           <thead>
-                            <tr className="bg-slate-700/50 border-b border-slate-600/50">
-                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">#</th>
-                              <th className="px-4 py-4 text-left text-xs text-slate-400 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Need</th>
-                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Issued</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Left</th>
-                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">Stock</th>
-                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-400 font-bold uppercase tracking-wider">WIP</th>
-                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Status</th>
+                            <tr className="bg-slate-700/70 border-b border-slate-600">
+                              <th className="w-12 px-3 py-4 text-center text-xs text-slate-200 font-bold uppercase tracking-wider">#</th>
+                              <th className="px-4 py-4 text-left text-xs text-slate-200 font-bold uppercase tracking-wider" style={{ minWidth: '200px' }}>Component</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Need</th>
+                              <th className="w-24 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Issued</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Left</th>
+                              <th className="w-20 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">Stock</th>
+                              <th className="w-16 px-3 py-4 text-right text-xs text-slate-200 font-bold uppercase tracking-wider">WIP</th>
+                              <th className="w-28 px-3 py-4 text-center text-xs text-slate-200 font-bold uppercase tracking-wider">Status</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -749,27 +764,32 @@ export function ProductionScheduleMPS() {
                                   }`}
                                 >
                                   <td className="px-3 py-4 text-center">
-                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-700/50 text-slate-400 text-xs font-bold">
+                                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
+                                      isDone ? 'bg-green-500/30 text-green-300' :
+                                      isInProgress ? 'bg-cyan-500/30 text-cyan-300' :
+                                      isShort ? 'bg-red-500/30 text-red-300' :
+                                      'bg-slate-600/50 text-slate-300'
+                                    }`}>
                                       {idx + 1}
                                     </span>
                                   </td>
                                   <td className="px-4 py-4">
                                     <div className="text-white font-mono text-sm font-bold tracking-wide">{mat.component_item_no}</div>
                                     {mat.component_description && (
-                                      <div className="text-slate-400 text-xs mt-1 leading-relaxed" style={{ maxWidth: '300px' }}>
+                                      <div className="text-slate-300 text-xs mt-1 leading-relaxed" style={{ maxWidth: '300px' }}>
                                         {mat.component_description}
                                       </div>
                                     )}
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <div className="text-white font-bold text-base">{mat.required_qty.toLocaleString()}</div>
-                                    <div className="text-slate-500 text-xs">{mat.unit}</div>
+                                    <div className="text-slate-400 text-xs font-medium">{mat.unit}</div>
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <div className={`font-bold text-base ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
                                       {mat.completed_qty.toLocaleString()}
                                     </div>
-                                    <div className="text-slate-500 text-xs">({pctComplete}%)</div>
+                                    <div className="text-slate-400 text-xs font-medium">({pctComplete}%)</div>
                                   </td>
                                   <td className="px-3 py-4 text-right">
                                     <span className={`font-bold text-base ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
