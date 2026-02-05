@@ -2535,28 +2535,62 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               )}
 
-              {/* Production Schedule Section - v2 */}
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-2xl font-bold text-slate-900 flex items-center">
-                    📅 Production Schedule
-                    <span className="ml-3 text-sm font-normal text-slate-600 bg-green-200 px-3 py-1 rounded-full">
-                      Released MO Orders Timeline
-                    </span>
-                  </h3>
-                </div>
+              {/* Production Schedule Section - Enterprise Premium v3 */}
+              <div className="relative overflow-hidden rounded-3xl shadow-2xl border border-slate-200/50">
+                {/* Animated Background Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-500/20 via-transparent to-transparent"></div>
                 
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-green-200">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-800 mb-2">
-                      🚀 Production Schedule Overview
+                {/* Grid Pattern Overlay */}
+                <div className="absolute inset-0 opacity-[0.03]" style={{
+                  backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
+                  backgroundSize: '32px 32px'
+                }}></div>
+                
+                <div className="relative p-8">
+                  {/* Premium Header */}
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-white tracking-tight">Production Schedule</h3>
+                        <p className="text-slate-400 text-sm font-medium">Real-time manufacturing timeline & workflow</p>
+                      </div>
                     </div>
-                    <p className="text-gray-600 mb-4">
-                      Timeline view of released Manufacturing Orders from MPS data and recent MO orders
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="bg-white p-3 rounded-lg border border-green-300">
-                        <div className="text-xl font-bold text-green-700">
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                        LIVE
+                      </span>
+                      <span className="px-3 py-1.5 bg-white/10 text-slate-300 text-xs font-medium rounded-full backdrop-blur-sm">
+                        MPS + MO Data
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Premium Stat Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+                    {/* Released Orders */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-5 hover:border-emerald-400/40 transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-500/20 transition-all"></div>
+                      <div className="relative">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <span className="text-emerald-400/60 text-xs font-medium">↑ Released</span>
+                        </div>
+                        <div className="text-4xl font-black text-white tracking-tight mb-1">
                           {(() => {
                             const releasedMOs = (data?.['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => 
                               mo['Released By'] && mo['Released By'] !== ''
@@ -2564,10 +2598,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return releasedMOs.length;
                           })()}
                         </div>
-                        <div className="text-sm text-green-600">Released Orders</div>
+                        <div className="text-sm font-medium text-emerald-300/80">Released Orders</div>
+                        <div className="mt-3 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full" style={{ width: '75%' }}></div>
+                        </div>
                       </div>
-                      <div className="bg-white p-3 rounded-lg border border-blue-300">
-                        <div className="text-xl font-bold text-blue-700">
+                    </div>
+
+                    {/* In Production */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-600/5 border border-cyan-500/20 p-5 hover:border-cyan-400/40 transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-cyan-500/20 transition-all"></div>
+                      <div className="relative">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                          <span className="text-cyan-400/60 text-xs font-medium flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping"></span>
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-4xl font-black text-white tracking-tight mb-1">
                           {(() => {
                             const activeMOs = (data?.['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => 
                               mo['Released By'] && !mo['Completed']
@@ -2575,10 +2628,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return activeMOs.length;
                           })()}
                         </div>
-                        <div className="text-sm text-blue-600">In Production</div>
+                        <div className="text-sm font-medium text-cyan-300/80">In Production</div>
+                        <div className="mt-3 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                        </div>
                       </div>
-                      <div className="bg-white p-3 rounded-lg border border-purple-300">
-                        <div className="text-xl font-bold text-purple-700">
+                    </div>
+
+                    {/* Active Customers */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500/10 to-purple-600/5 border border-violet-500/20 p-5 hover:border-violet-400/40 transition-all duration-300">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-violet-500/20 transition-all"></div>
+                      <div className="relative">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </div>
+                          <span className="text-violet-400/60 text-xs font-medium">Customers</span>
+                        </div>
+                        <div className="text-4xl font-black text-white tracking-tight mb-1">
                           {(() => {
                             const uniqueCustomers = new Set(
                               (data?.['ManufacturingOrderHeaders.json'] || [])
@@ -2588,15 +2657,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return uniqueCustomers.size;
                           })()}
                         </div>
-                        <div className="text-sm text-purple-600">Active Customers</div>
+                        <div className="text-sm font-medium text-violet-300/80">Active Customers</div>
+                        <div className="mt-3 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-violet-400 to-purple-500 rounded-full" style={{ width: '45%' }}></div>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setActiveSection('production-schedule')}
-                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all font-medium"
-                    >
-                      📈 View Full Production Schedule Timeline
-                    </button>
+                  </div>
+
+                  {/* CTA Section */}
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-violet-500/10 border border-white/10 p-6">
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-violet-500/5"></div>
+                    <div className="relative flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="text-center md:text-left">
+                        <h4 className="text-lg font-bold text-white mb-1">View Full Production Timeline</h4>
+                        <p className="text-slate-400 text-sm">Interactive Gantt chart with drag-and-drop scheduling</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveSection('production-schedule')}
+                        className="group relative px-8 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 flex items-center gap-3"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Open Production Schedule
+                        <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
