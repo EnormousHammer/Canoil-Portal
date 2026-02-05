@@ -10,14 +10,16 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
+    "date-fns": "^3.0.6",
     "lucide-react": "^0.541.0",
     "openai": "^4.20.1",
-    "date-fns": "^3.0.6",
+    "papaparse": "^5.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1.4.0",
+    "@types/papaparse": "^5.3.14",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
