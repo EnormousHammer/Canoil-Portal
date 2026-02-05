@@ -2692,20 +2692,18 @@ def load_mps_data():
 
 @app.route('/api/mps', methods=['GET'])
 def get_mps_data():
-    """Get MPS schedule from Google Sheets - returns JSON format"""
+    """Get MPS schedule from Google Sheets - returns RAW CSV for frontend to parse.
+    This matches the reference implementation exactly."""
+    import requests as req
     try:
-        mps_data = load_mps_data()
-        
-        # Check if load_mps_data returned an error
-        if isinstance(mps_data, dict) and 'error' in mps_data:
-            return jsonify(mps_data), 500
-        
-        # Check if we have valid data
-        if not isinstance(mps_data, dict) or 'mps_orders' not in mps_data:
-            return jsonify({'error': 'Invalid data format returned from load_mps_data'}), 500
-        
-        # Success - return the data
-        return jsonify(mps_data), 200
+        # Fetch CSV directly from Google Sheets and return as-is
+        # This lets the frontend parse it with PapaParse (same as reference app)
+        response = req.get(MPS_CSV_URL, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        if response.ok:
+            return response.text, 200, {'Content-Type': 'text/csv'}
+        return jsonify({'error': 'Failed to fetch MPS data from Google Sheets'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
