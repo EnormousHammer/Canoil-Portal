@@ -6663,7 +6663,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 
                                 try {
                                   // Call the new backend endpoint for BOM-based PR generation
-                                  const response = await fetch('/api/pr/create-from-bom', {
+                                  const response = await fetch(getApiUrl('/api/pr/create-from-bom'), {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -9093,7 +9093,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   setBomPRLoading(true);
                   
                   try {
-                    const response = await fetch('/api/pr/create-from-bom', {
+                    const response = await fetch(getApiUrl('/api/pr/create-from-bom'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
