@@ -7586,32 +7586,103 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
 
             {/* Stats Row - Clean Grid */}
-            <div className="grid grid-cols-5 border-b border-gray-100">
-              <div className={`p-4 text-center ${
-                stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
-              }`}>
-                <div className={`text-2xl font-bold ${
-                  stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
-                }`}>{currentStock.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-500 font-medium uppercase">Stock</div>
-              </div>
-              <div className="p-4 text-center bg-blue-50">
-                <div className="text-2xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-500 font-medium uppercase">WIP</div>
-              </div>
-              <div className="p-4 text-center">
-                <div className="text-2xl font-bold text-gray-700">{onOrder.toLocaleString()}</div>
-                <div className="text-[10px] text-gray-500 font-medium uppercase">On Order</div>
-              </div>
-              <div className="p-4 text-center bg-gray-50">
-                <div className="text-2xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
-                <div className="text-[10px] text-gray-500 font-medium uppercase">Available</div>
-              </div>
-              <div className="p-4 text-center">
-                <div className="text-xl font-bold text-gray-700">{formatCAD(unitCost)}</div>
-                <div className="text-[10px] text-gray-500 font-medium uppercase">Unit Cost</div>
-              </div>
-            </div>
+            {(() => {
+              // Get stock ownership breakdown
+              const stockOwnership = getStockByOwnership(itemNo, data);
+              const hasCustomerStock = stockOwnership.customerStock > 0;
+              const customerBreakdown = stockOwnership.customerBreakdown || [];
+              
+              return (
+                <>
+                  <div className="grid grid-cols-5 border-b border-gray-100">
+                    <div className={`p-4 text-center ${
+                      stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
+                    }`}>
+                      <div className={`text-2xl font-bold ${
+                        stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
+                      }`}>{currentStock.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase">Total Stock</div>
+                    </div>
+                    <div className="p-4 text-center bg-blue-50">
+                      <div className="text-2xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase">WIP</div>
+                    </div>
+                    <div className="p-4 text-center">
+                      <div className="text-2xl font-bold text-gray-700">{onOrder.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase">On Order</div>
+                    </div>
+                    <div className="p-4 text-center bg-gray-50">
+                      <div className="text-2xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase">Available</div>
+                    </div>
+                    <div className="p-4 text-center">
+                      <div className="text-xl font-bold text-gray-700">{formatCAD(unitCost)}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase">Unit Cost</div>
+                    </div>
+                  </div>
+                  
+                  {/* Stock Ownership Breakdown */}
+                  <div className="border-b border-gray-100 bg-gradient-to-r from-slate-50 to-gray-50">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {/* Canoil Stock */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                          <span className="text-xs font-semibold text-gray-600">Canoil:</span>
+                          <span className={`text-sm font-bold ${stockOwnership.canoilStock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {stockOwnership.canoilStock.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-gray-400">(62TODD/HOME)</span>
+                        </div>
+                        
+                        {/* Customer Stock */}
+                        {hasCustomerStock && (
+                          <>
+                            <div className="w-px h-4 bg-gray-300"></div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                              <span className="text-xs font-semibold text-gray-600">Customer:</span>
+                              <span className="text-sm font-bold text-purple-600">
+                                {stockOwnership.customerStock.toLocaleString()}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {customerBreakdown.map((cb: {location: string, qty: number}, idx: number) => (
+                                  <span 
+                                    key={idx}
+                                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium"
+                                  >
+                                    {cb.location}: {cb.qty}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      
+                      {/* Stock Ownership Summary Badge */}
+                      <div className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                        stockOwnership.canoilStock > 0 && !hasCustomerStock 
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : stockOwnership.canoilStock > 0 && hasCustomerStock
+                            ? 'bg-blue-100 text-blue-700'
+                            : stockOwnership.canoilStock === 0 && hasCustomerStock
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-red-100 text-red-700'
+                      }`}>
+                        {stockOwnership.canoilStock > 0 && !hasCustomerStock 
+                          ? 'CANOIL ONLY'
+                          : stockOwnership.canoilStock > 0 && hasCustomerStock
+                            ? 'MIXED OWNERSHIP'
+                            : stockOwnership.canoilStock === 0 && hasCustomerStock
+                              ? 'CUSTOMER ONLY'
+                              : 'NO STOCK'}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Tab Bar - Sleek */}
             <div className="flex px-6 pt-4 gap-1">
