@@ -66,7 +66,8 @@ _pr_history_cache = None
 
 def _get_gcs_client():
     """Get GCS client if available"""
-    if GCS_AVAILABLE and IS_CLOUD_RUN:
+    # Works for both Cloud Run AND Render (any cloud environment)
+    if GCS_AVAILABLE and IS_CLOUD_ENVIRONMENT:
         try:
             return storage.Client()
         except Exception as e:
