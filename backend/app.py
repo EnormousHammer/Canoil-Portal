@@ -2358,8 +2358,27 @@ def get_all_data():
         return Response(_response_cache, mimetype='application/json')
         
     except Exception as e:
+        import traceback
         print(f"ERROR: Error in get_all_data: {e}")
-        return jsonify({"error": str(e)}), 500
+        traceback.print_exc()
+        # Return 200 with empty structure so the app can load (e.g. on Render when G: Drive/API unavailable)
+        empty_data = get_empty_app_data_structure()
+        empty_data['ScanMethod'] = 'Error'
+        return jsonify({
+            "data": empty_data,
+            "folderInfo": {
+                "folderName": "Data load failed",
+                "syncDate": datetime.now().isoformat(),
+                "lastModified": datetime.now().isoformat(),
+                "folder": "Not Connected",
+                "created": datetime.now().isoformat(),
+                "size": "0",
+                "fileCount": 0,
+            },
+            "LoadTimestamp": datetime.now().isoformat(),
+            "source": "error",
+            "message": str(e),
+        })
 
 @app.route('/api/data-source', methods=['GET'])
 def get_data_source_status():

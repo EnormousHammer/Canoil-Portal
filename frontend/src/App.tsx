@@ -779,6 +779,7 @@ function App() {
         syncInfo={syncInfo}
         currentUser={currentUser}
         onRefreshData={handleRefreshData}
+        onOpenProductionSchedule={() => navigateToApp('production-schedule')}
         />
       ) : (
         <ProductionScheduleMPS />

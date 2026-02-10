@@ -77,30 +77,12 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
       console.log('📦 Fetching all MISys data...');
     }
     
-    // Use POST with filters, or GET for all data
-    // Add cache-busting to prevent stale data
-    // Force refresh every time to get latest MISys data
-    const apiUrl = hasFilters ? `${CANOIL_API}?force_refresh=true&t=${Date.now()}` : `${CANOIL_API}?t=${Date.now()}`;
-    const response = hasFilters 
-      ? await fetch(apiUrl, {
-          method: 'POST',
-          // Removed Cache-Control and Pragma headers to avoid preflight issues
-          // The cache: 'no-store' option handles browser caching
-          headers: { 
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            mo_numbers: filters.moNumbers || [],
-            so_numbers: filters.soNumbers || [],
-            force_refresh: true // Force backend to bypass cache
-          }),
-          cache: 'no-store' // Prevent browser caching
-        })
-      : await fetch(apiUrl, {
-          // Don't send custom headers - let cache: 'no-store' handle caching
-          // This avoids preflight requests and CORS header issues
-          cache: 'no-store' // Prevent browser caching
-        });
+    // Backend /api/data only supports GET. Use query params for cache-busting; filter client-side if needed.
+    const apiUrl = `${CANOIL_API}?force_refresh=true&t=${Date.now()}`;
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      cache: 'no-store',
+    });
     
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
@@ -111,14 +93,30 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     // API might return data directly or nested under 'data' key
     const data = responseData.data || responseData;
     
-    const result: MISysData = {
+    let result: MISysData = {
       // CustomAlert5.json has the REAL stock data (Stock, WIP, Reserve, On Order)
       items: data['CustomAlert5.json'] || data['Items.json'] || [],
       moHeaders: data['ManufacturingOrderHeaders.json'] || [],
       moDetails: data['ManufacturingOrderDetails.json'] || [],
       salesOrders: data['SalesOrders.json'] || []
     };
-    
+    if (hasFilters && filters) {
+      const moSet = new Set((filters.moNumbers || []).map((n) => String(n).trim().toUpperCase()));
+      const soSet = new Set((filters.soNumbers || []).map((n) => String(n).trim().toUpperCase()));
+      if (moSet.size) {
+        result = {
+          ...result,
+          moHeaders: result.moHeaders.filter((mo: any) => moSet.has(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())),
+          moDetails: result.moDetails.filter((d: any) => moSet.has(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())),
+        };
+      }
+      if (soSet.size) {
+        result = {
+          ...result,
+          salesOrders: result.salesOrders.filter((so: any) => soSet.has(String(so['Sales Order No.'] ?? so['SO No.'] ?? so['Order No.'] ?? '').trim().toUpperCase())),
+        };
+      }
+    }
     console.log(`✅ Loaded MISys data:`, {
       items: result.items.length,
       moHeaders: result.moHeaders.length,

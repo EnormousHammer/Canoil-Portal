@@ -199,9 +199,11 @@ interface RevolutionaryCanoilHubProps {
   onNavigate?: (section: string) => void;
   currentUser?: { name: string; email: string; isAdmin: boolean } | null;
   onRefreshData?: () => Promise<void>;
+  /** When set, "Open Production Schedule" opens the full Production Schedule app instead of a dead section */
+  onOpenProductionSchedule?: () => void;
 }
 
-export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ data, onNavigate, currentUser, onRefreshData }) => {
+export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ data, onNavigate, currentUser, onRefreshData, onOpenProductionSchedule }) => {
   // Toast notification system
   const { toasts, dismissToast, addToast, success: toastSuccess, error: toastError, info: toastInfo, warning: toastWarning } = useToasts();
   
@@ -1996,6 +1998,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
+          {/* Production Schedule: redirect to full app (no embedded section) */}
+          {activeSection === 'production-schedule' && (
+            <div className="p-6 max-w-2xl mx-auto">
+              <div className="rounded-2xl bg-slate-800/50 border border-white/10 p-8 text-center">
+                <h3 className="text-lg font-bold text-white mb-2">Production Schedule</h3>
+                <p className="text-slate-400 text-sm mb-6">Open the full Production Schedule for the Gantt chart and scheduling.</p>
+                <button
+                  onClick={() => onOpenProductionSchedule?.()}
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white rounded-xl font-bold text-sm"
+                >
+                  Open full Production Schedule
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* AI Command Center */}
           {activeSection === 'ai-command' && (
@@ -2865,7 +2882,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <p className="text-slate-400 text-sm">Interactive Gantt chart with drag-and-drop scheduling</p>
                       </div>
                       <button
-                        onClick={() => setActiveSection('production-schedule')}
+                        onClick={() => onOpenProductionSchedule ? onOpenProductionSchedule() : setActiveSection('production-schedule')}
                         className="group relative px-8 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-300 flex items-center gap-3"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
