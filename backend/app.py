@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 from flask_compress import Compress
 import os
@@ -17,6 +17,9 @@ from enterprise_analytics import EnterpriseAnalytics
 import sys
 import io
 import requests
+import zipfile
+import csv
+import xml.etree.ElementTree as ET
 
 # Ensure console logging works on Windows with Unicode characters (emojis, symbols)
 # Only wrap if not already wrapped to avoid closing file handles
@@ -1945,15 +1948,64 @@ _data_cache = None  # Stores raw data dict (for internal use)
 _response_cache = None  # Stores pre-serialized JSON bytes
 _cache_timestamp = None
 _cache_duration = 3600  # 1 hour cache (was 5 minutes - too short)
+# MOs created in the portal (in-memory; on Render/cloud no local drive - survives until restart)
+_created_mos = []
+
+def _merge_created_mos(data):
+    """Merge portal-created MOs into ManufacturingOrderHeaders so they appear in the app. Cloud-safe (no local path)."""
+    if not data:
+        return data
+    existing = data.get('ManufacturingOrderHeaders.json') or []
+    if not isinstance(existing, list):
+        existing = []
+    data['ManufacturingOrderHeaders.json'] = existing + list(_created_mos)
+    return data
+
+def get_empty_app_data_structure():
+    """Return the exact app data shape the frontend expects (all keys, empty values). Framework for Full Company Data - app is ready to receive once conversion is implemented."""
+    return {
+        'CustomAlert5.json': [], 'Items.json': [], 'MIITEM.json': [], 'MIILOC.json': [],
+        'BillsOfMaterial.json': [], 'BillOfMaterialDetails.json': [], 'MIBOMH.json': [], 'MIBOMD.json': [],
+        'ManufacturingOrderHeaders.json': [], 'ManufacturingOrderDetails.json': [], 'ManufacturingOrderRoutings.json': [],
+        'MIMOH.json': [], 'MIMOMD.json': [], 'MIMORD.json': [], 'Jobs.json': [], 'JobDetails.json': [],
+        'MIJOBH.json': [], 'MIJOBD.json': [], 'MIPOH.json': [], 'MIPOD.json': [], 'MIPOHX.json': [],
+        'MIPOC.json': [], 'MIPOCV.json': [], 'MIPODC.json': [], 'MIWOH.json': [], 'MIWOD.json': [], 'MIBORD.json': [],
+        'PurchaseOrderDetails.json': [], 'PurchaseOrderExtensions.json': [], 'PurchaseOrders.json': [],
+        'WorkOrderHeaders.json': [], 'WorkOrderDetails.json': [], 'WorkOrders.json': [], 'ParsedSalesOrders.json': [],
+        'SalesOrderHeaders.json': [], 'SalesOrderDetails.json': [],
+        'PurchaseOrderAdditionalCosts.json': [], 'PurchaseOrderAdditionalCostsTaxes.json': [], 'PurchaseOrderDetailAdditionalCosts.json': [],
+        'SalesOrders.json': [], 'SalesOrdersByStatus': {}, 'TotalOrders': 0, 'StatusFolders': [], 'ScanMethod': '',
+        'MPS.json': {'mps_orders': [], 'summary': {'total_orders': 0}},
+    }
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
-    """Get all data from latest G: Drive folder - with caching"""
+    """Get all data from latest G: Drive folder - with caching. Optional ?source=full_company_data (framework ready; conversion not implemented yet)."""
     global _data_cache, _response_cache, _cache_timestamp
     import time  # Import at function level for use throughout function
-    
+    from flask import request
+
     try:
         print("/api/data endpoint called")
+
+        # Framework: when source=full_company_data, return same app data shape (empty until conversion is built)
+        if request.args.get('source') == 'full_company_data':
+            empty_data = get_empty_app_data_structure()
+            return jsonify({
+                "data": empty_data,
+                "folderInfo": {
+                    "folderName": "Full Company Data (framework)",
+                    "syncDate": datetime.now().isoformat(),
+                    "lastModified": datetime.now().isoformat(),
+                    "folder": FULL_COMPANY_DATA_DRIVE_PATH,
+                    "created": datetime.now().isoformat(),
+                    "size": "0",
+                    "fileCount": 0,
+                },
+                "LoadTimestamp": datetime.now().isoformat(),
+                "source": "full_company_data (framework ready; conversion not implemented)",
+                "fullCompanyDataReady": False,
+            })
         
         # Check if we have valid cached response (pre-serialized)
         if _response_cache and _cache_timestamp:
@@ -1979,6 +2031,7 @@ def get_all_data():
                     gdrive_data, gdrive_folder_info = gdrive_service.get_all_data()
                     if gdrive_data and gdrive_folder_info:
                         print(f"✅ Successfully loaded data from Google Drive API")
+                        gdrive_data = _merge_created_mos(gdrive_data)
                         # Cache the data AND pre-serialize the response
                         import json as json_module
                         _data_cache = gdrive_data
@@ -2006,53 +2059,8 @@ def get_all_data():
             
             # If Google Drive API also failed or not available, return empty data structure
             print("⚠️ Both G: Drive and Google Drive API unavailable - returning empty data")
-            # Return empty data structure using REAL G: Drive file names that frontend expects
-            empty_data = {
-                # PRIMARY DATA FILES - EXACT FILE NAMES FROM G: DRIVE
-                'CustomAlert5.json': [],           # PRIMARY: Complete item data
-                'Items.json': [],
-                'MIITEM.json': [],
-                'MIILOC.json': [],                # Inventory location data
-                'BillsOfMaterial.json': [],
-                'BillOfMaterialDetails.json': [],
-                'MIBOMH.json': [],
-                'MIBOMD.json': [],
-                'ManufacturingOrderHeaders.json': [],
-                'ManufacturingOrderDetails.json': [],
-                'ManufacturingOrderRoutings.json': [],
-                'MIMOH.json': [],
-                'MIMOMD.json': [],
-                'MIMORD.json': [],
-                'Jobs.json': [],
-                'JobDetails.json': [],
-                'MIJOBH.json': [],
-                'MIJOBD.json': [],
-                'MIPOH.json': [],
-                'MIPOD.json': [],
-                'MIPOHX.json': [],
-                'MIPOC.json': [],
-                'MIPOCV.json': [],
-                'MIPODC.json': [],
-                'MIWOH.json': [],
-                'MIWOD.json': [],
-                'MIBORD.json': [],
-                'PurchaseOrderDetails.json': [],
-                'PurchaseOrderExtensions.json': [],
-                'PurchaseOrders.json': [],
-                'WorkOrderHeaders.json': [],
-                'WorkOrderDetails.json': [],
-                'SalesOrderHeaders.json': [],
-                'SalesOrderDetails.json': [],
-                'PurchaseOrderAdditionalCosts.json': [],
-                'PurchaseOrderAdditionalCostsTaxes.json': [],
-                'PurchaseOrderDetailAdditionalCosts.json': [],
-                # SALES ORDERS DATA FROM PDF SCANNING
-                'SalesOrders.json': [],
-                'SalesOrdersByStatus': {},
-                'TotalOrders': 0,
-                'StatusFolders': [],
-                'ScanMethod': 'No G: Drive Access'
-            }
+            empty_data = get_empty_app_data_structure()
+            empty_data['ScanMethod'] = 'No G: Drive Access'
             return jsonify({
                 "data": empty_data,
                 "folderInfo": {
@@ -2213,6 +2221,7 @@ def get_all_data():
             raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
         
         print(f"SUCCESS: Successfully loaded data from {latest_folder}")
+        raw_data = _merge_created_mos(raw_data)
         
         # SAFE DATA SUMMARY - Only process list data types
         safe_summary = []
@@ -2251,6 +2260,284 @@ def get_all_data():
         
     except Exception as e:
         print(f"ERROR: Error in get_all_data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/data-source', methods=['GET'])
+def get_data_source_status():
+    """Framework: report which data source is in use and whether Full Company Data is available/ready."""
+    try:
+        # Check if Full Company Data folder is reachable (list count)
+        full_company_available = False
+        try:
+            if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+                full_company_available = len([f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]) > 0
+            else:
+                service = get_google_drive_service()
+                if service and getattr(service, 'authenticated', False):
+                    drive_id = service.find_shared_drive("IT_Automation")
+                    folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH) if drive_id else None
+                    if folder_id:
+                        files = service.list_all_files_in_folder(folder_id, drive_id)
+                        full_company_available = len(files) > 0
+        except Exception:
+            full_company_available = False
+        return jsonify({
+            "currentSource": "default",
+            "defaultLabel": "API Extractions (existing)",
+            "fullCompanyDataPath": FULL_COMPANY_DATA_DRIVE_PATH,
+            "fullCompanyDataAvailable": full_company_available,
+            "fullCompanyDataReady": False,
+            "message": "Framework ready; use ?source=full_company_data on /api/data when conversion is implemented.",
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "currentSource": "default", "fullCompanyDataReady": False}), 500
+
+
+def _get_company_data_for_export():
+    """Return raw company data dict for export. Uses _data_cache if set; else tries Google Drive API. Returns (data_dict, None) or (None, error_message)."""
+    global _data_cache
+    if _data_cache is not None and isinstance(_data_cache, dict):
+        return _data_cache, None
+    try:
+        gdrive_service = get_google_drive_service()
+        if gdrive_service and getattr(gdrive_service, 'authenticated', False):
+            gdrive_data, _ = gdrive_service.get_all_data()
+            if gdrive_data:
+                return _merge_created_mos(gdrive_data), None
+    except Exception as e:
+        print(f"Export: Google Drive API fallback failed: {e}")
+    return None, "No data available. Open the app or call GET /api/data first to load data, then try export again."
+
+
+def _export_company_data_xlsx(data):
+    """Build one Excel workbook, one sheet per list entity. Returns bytes."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.remove(wb.active)
+    for key in sorted(data.keys()):
+        val = data[key]
+        if not isinstance(val, list) or not val:
+            continue
+        sheet_name = key.replace(".json", "")[:31]
+        sheet_name = re.sub(r'[\:\*\?\/\\\[\]]', '_', sheet_name)
+        ws = wb.create_sheet(title=sheet_name)
+        if val and isinstance(val[0], dict):
+            headers = list(val[0].keys())
+            for col, h in enumerate(headers, 1):
+                ws.cell(row=1, column=col, value=str(h))
+            for row_idx, row in enumerate(val, 2):
+                for col_idx, h in enumerate(headers, 1):
+                    v = row.get(h)
+                    if v is not None:
+                        ws.cell(row=row_idx, column=col_idx, value=v)
+        else:
+            for row_idx, row in enumerate(val, 1):
+                ws.cell(row=row_idx, column=1, value=str(row))
+    if len(wb.worksheets) == 0:
+        ws = wb.create_sheet(title="Info")
+        ws.cell(row=1, column=1, value="No list data to export.")
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _export_company_data_csv_single(data):
+    """Export first substantial list (e.g. CustomAlert5) as single CSV. Returns bytes."""
+    for key in ["CustomAlert5.json", "ManufacturingOrderHeaders.json", "MIILOC.json", "Items.json"]:
+        val = data.get(key)
+        if isinstance(val, list) and val and isinstance(val[0], dict):
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            headers = list(val[0].keys())
+            writer.writerow(headers)
+            for row in val:
+                writer.writerow([row.get(h) for h in headers])
+            return buf.getvalue().encode("utf-8-sig")
+    return b""
+
+
+def _export_company_data_csv_multiple(data):
+    """One CSV per list entity. Returns dict of filename -> bytes."""
+    out = {}
+    for key in sorted(data.keys()):
+        val = data[key]
+        if not isinstance(val, list) or not val:
+            continue
+        name = key.replace(".json", "") + ".csv"
+        if isinstance(val[0], dict):
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(list(val[0].keys()))
+            for row in val:
+                writer.writerow([row.get(h) for h in val[0].keys()])
+            out[name] = buf.getvalue().encode("utf-8-sig")
+        else:
+            out[name] = "\n".join(str(r) for r in val).encode("utf-8-sig")
+    return out
+
+
+def _export_company_data_xml_single(data):
+    """One XML with root and one element per entity (list as child elements). Returns bytes."""
+    root = ET.Element("CompanyData")
+    for key in sorted(data.keys()):
+        val = data[key]
+        if not isinstance(val, list):
+            continue
+        entity = ET.SubElement(root, "entity", name=key.replace(".json", ""))
+        for row in val:
+            if isinstance(row, dict):
+                row_el = ET.SubElement(entity, "row")
+                for k, v in row.items():
+                    if v is not None:
+                        child = ET.SubElement(row_el, "cell", key=str(k))
+                        child.text = str(v)
+            else:
+                ET.SubElement(entity, "row").text = str(row)
+    return ET.tostring(root, encoding="unicode", default_namespace="").encode("utf-8")
+
+
+def _export_company_data_xml_multiple(data):
+    """One XML file per list entity. Returns dict of filename -> bytes."""
+    out = {}
+    for key in sorted(data.keys()):
+        val = data[key]
+        if not isinstance(val, list) or not val:
+            continue
+        name = key.replace(".json", "") + ".xml"
+        root = ET.Element("data", name=key.replace(".json", ""))
+        for row in val:
+            if isinstance(row, dict):
+                row_el = ET.SubElement(root, "row")
+                for k, v in row.items():
+                    if v is not None:
+                        child = ET.SubElement(row_el, "cell", key=str(k))
+                        child.text = str(v)
+            else:
+                ET.SubElement(root, "row").text = str(row)
+        out[name] = ET.tostring(root, encoding="unicode", default_namespace="").encode("utf-8")
+    return out
+
+
+@app.route('/api/export/company-data', methods=['GET'])
+def export_company_data():
+    """Export all company data as xlsx, csv, or xml. User-friendly and automation: GET with format and optional multiple.
+    Query: format=xlsx|csv|xml, multiple=true|false (for csv/xml), filename=... (optional, for Content-Disposition).
+    """
+    try:
+        data, err = _get_company_data_for_export()
+        if err:
+            return jsonify({"error": err}), 503
+        fmt = (request.args.get("format") or "xlsx").strip().lower()
+        multiple = request.args.get("multiple", "false").strip().lower() in ("true", "1", "yes")
+        filename_param = (request.args.get("filename") or "").strip()
+        base_name = filename_param or f"company_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        if fmt == "xlsx":
+            raw = _export_company_data_xlsx(data)
+            fname = f"{base_name}.xlsx"
+            return send_file(
+                io.BytesIO(raw),
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                as_attachment=True,
+                download_name=fname,
+            )
+        if fmt == "csv":
+            if multiple:
+                files = _export_company_data_csv_multiple(data)
+                if not files:
+                    return jsonify({"error": "No list data to export"}), 400
+                buf = io.BytesIO()
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for name, content in files.items():
+                        zf.writestr(name, content)
+                buf.seek(0)
+                fname = f"{base_name}.zip"
+                return send_file(buf, mimetype="application/zip", as_attachment=True, download_name=fname)
+            raw = _export_company_data_csv_single(data)
+            if not raw:
+                return jsonify({"error": "No list data to export"}), 400
+            fname = f"{base_name}.csv"
+            return send_file(io.BytesIO(raw), mimetype="text/csv; charset=utf-8", as_attachment=True, download_name=fname)
+        if fmt == "xml":
+            if multiple:
+                files = _export_company_data_xml_multiple(data)
+                if not files:
+                    return jsonify({"error": "No list data to export"}), 400
+                buf = io.BytesIO()
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for name, content in files.items():
+                        zf.writestr(name, content)
+                buf.seek(0)
+                fname = f"{base_name}.zip"
+                return send_file(buf, mimetype="application/zip", as_attachment=True, download_name=fname)
+            raw = _export_company_data_xml_single(data)
+            fname = f"{base_name}.xml"
+            return send_file(io.BytesIO(raw), mimetype="application/xml; charset=utf-8", as_attachment=True, download_name=fname)
+        return jsonify({"error": "format must be xlsx, csv, or xml"}), 400
+    except Exception as e:
+        print(f"ERROR export_company_data: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/manufacturing-orders', methods=['POST'])
+def create_manufacturing_order():
+    """Create a new manufacturing order. Cloud-safe (Render); batch number and optional Sales Order # for future Sage link."""
+    global _created_mos, _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        build_item_no = (body.get('build_item_no') or body.get('Build Item No.') or '').strip()
+        quantity = body.get('quantity') or body.get('Ordered') or body.get('ordered')
+        due_date = (body.get('due_date') or body.get('Due Date') or body.get('Sales Order Ship Date') or '').strip()
+        batch_number = (body.get('batch_number') or body.get('Batch No.') or body.get('Batch Number') or '').strip()
+        sales_order_no = (body.get('sales_order_no') or body.get('SO No.') or body.get('Sales Order No.') or '').strip()
+        description = (body.get('description') or '').strip()
+
+        if not build_item_no:
+            return jsonify({"error": "build_item_no is required"}), 400
+        try:
+            qty = float(quantity) if quantity is not None else 0
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            return jsonify({"error": "quantity must be greater than 0"}), 400
+
+        # Generate MO number (portal-created: prefix so we can tell from MISys)
+        import uuid
+        mo_no = f"MO-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        now_iso = datetime.now().isoformat()
+        order_date = datetime.now().strftime('%Y-%m-%d') if due_date else ''
+        due_date_val = due_date if due_date else order_date
+
+        mo_record = {
+            'Mfg. Order No.': mo_no,
+            'Build Item No.': build_item_no,
+            'Ordered': qty,
+            'Completed': 0,
+            'Status': 0,  # Pending
+            'Order Date': order_date,
+            'Release Date': '',
+            'Completion Date': '',
+            'Sales Order Ship Date': due_date_val or '',
+            'Customer': description or 'Portal',
+            'Description': description or build_item_no,
+            'Location No.': '',
+            'Projected Material Cost': 0,
+            'Cumulative Cost': 0,
+            'Batch No.': batch_number,
+            'Sales Order No.': sales_order_no or '',
+            '_created_at': now_iso,
+            '_source': 'portal',
+        }
+        _created_mos.append(mo_record)
+        _cache_timestamp = None
+        _response_cache = None
+        print(f"Created MO: {mo_no} Item={build_item_no} Qty={qty} Batch={batch_number or '(none)'} SO={sales_order_no or '(none)'}")
+        return jsonify(mo_record), 201
+    except Exception as e:
+        print(f"ERROR create_manufacturing_order: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])
@@ -2853,6 +3140,107 @@ def force_so_background_refresh():
         })
     except Exception as e:
         return jsonify({"error": str(e), "status": "failed"}), 500
+
+@app.route('/api/full-company-data/list', methods=['GET'])
+def full_company_data_list():
+    """List files in the Full Company Data folder (core MISys export). Uses existing data path; no conflict with current app data."""
+    try:
+        # Local path: list from G: drive folder
+        if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+            names = [f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]
+            files = [{"id": "", "name": n, "mimeType": "local"} for n in sorted(names)]
+            return jsonify({
+                "path": GDRIVE_FULL_COMPANY_DATA,
+                "source": "local",
+                "files": files,
+                "count": len(files)
+            })
+        # Cloud or API: use Google Drive API
+        service = get_google_drive_service()
+        if not service or not getattr(service, 'authenticated', False):
+            return jsonify({"error": "Google Drive not available", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 503
+        drive_id = service.find_shared_drive("IT_Automation")
+        if not drive_id:
+            return jsonify({"error": "Shared drive IT_Automation not found", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 404
+        folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+        if not folder_id:
+            return jsonify({"error": "Full Company Data folder not found", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 404
+        files = service.list_all_files_in_folder(folder_id, drive_id)
+        return jsonify({
+            "path": FULL_COMPANY_DATA_DRIVE_PATH,
+            "source": "google_drive_api",
+            "files": files,
+            "count": len(files)
+        })
+    except Exception as e:
+        print(f"ERROR full_company_data_list: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/full-company-data/preview', methods=['GET'])
+def full_company_data_preview():
+    """Preview first rows of a file in Full Company Data (for mapping). Query param: file=Item.csv"""
+    import pandas as pd
+    from flask import request
+    file_name = request.args.get("file", "").strip()
+    if not file_name:
+        return jsonify({"error": "Missing query param: file=YourFile.csv"}), 400
+    max_rows = min(int(request.args.get("rows", 20)), 100)
+    try:
+        # Local path
+        if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+            file_path = os.path.join(GDRIVE_FULL_COMPANY_DATA, file_name)
+            if not os.path.isfile(file_path):
+                return jsonify({"error": f"File not found: {file_name}"}), 404
+            if file_name.lower().endswith('.csv'):
+                df = pd.read_csv(file_path, encoding='utf-8', on_bad_lines='skip', nrows=max_rows)
+            elif file_name.lower().endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file_path, nrows=max_rows)
+            else:
+                return jsonify({"error": "Only .csv and .xlsx supported for preview"}), 400
+            columns = list(df.columns)
+            rows = df.fillna("").to_dict(orient="records")
+            return jsonify({"file": file_name, "columns": columns, "rows": rows, "rowCount": len(rows)})
+        # Google Drive API
+        service = get_google_drive_service()
+        if not service or not getattr(service, 'authenticated', False):
+            return jsonify({"error": "Google Drive not available"}), 503
+        drive_id = service.find_shared_drive("IT_Automation")
+        folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+        if not folder_id:
+            return jsonify({"error": "Full Company Data folder not found"}), 404
+        query = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
+        list_params = {"q": query, "supportsAllDrives": True, "includeItemsFromAllDrives": True, "fields": "files(id, name)", "pageSize": 1}
+        if drive_id:
+            list_params["corpora"] = "drive"
+            list_params["driveId"] = drive_id
+        results = service.service.files().list(**list_params).execute()
+        files = results.get("files", [])
+        if not files:
+            return jsonify({"error": f"File not found: {file_name}"}), 404
+        content = service.download_file(files[0]["id"], file_name)
+        if content is None:
+            return jsonify({"error": "Failed to download file"}), 500
+        if isinstance(content, (list, dict)):
+            return jsonify({"error": "File is JSON, use list endpoint; preview is for CSV/Excel"}), 400
+        raw = content.decode("utf-8", errors="replace")
+        if file_name.lower().endswith(".csv"):
+            from io import StringIO
+            df = pd.read_csv(StringIO(raw), on_bad_lines="skip", nrows=max_rows)
+        elif file_name.lower().endswith((".xlsx", ".xls")):
+            from io import BytesIO
+            df = pd.read_excel(BytesIO(content), nrows=max_rows)
+        else:
+            return jsonify({"error": "Only .csv and .xlsx supported for preview"}), 400
+        columns = list(df.columns)
+        rows = df.fillna("").to_dict(orient="records")
+        return jsonify({"file": file_name, "columns": columns, "rows": rows, "rowCount": len(rows)})
+    except Exception as e:
+        print(f"ERROR full_company_data_preview: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/enterprise/so-service/refresh', methods=['POST'])
 def refresh_so_cache():
