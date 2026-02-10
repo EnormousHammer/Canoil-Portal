@@ -1506,6 +1506,15 @@ SALES_ORDERS_BASE = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
 MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions"
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
+# Full Company Data (MISys "Export All Company Data") - for import / direct fetch
+# Local path (when backend runs where G: is mounted):
+GDRIVE_FULL_COMPANY_DATA = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data as of 02_10_2026"
+# Drive-relative path for Google Drive API (Render/cloud); override via env if needed
+FULL_COMPANY_DATA_DRIVE_PATH = os.getenv(
+    "FULL_COMPANY_DATA_DRIVE_PATH",
+    "MiSys/Misys Extracted Data/Full Company Data as of 02_10_2026"
+)
+
 def get_latest_folder():
     """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
     try:

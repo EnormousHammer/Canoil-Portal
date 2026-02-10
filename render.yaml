@@ -18,6 +18,9 @@ services:
         value: MiSys/Misys Extracted Data/API Extractions
       - key: GOOGLE_DRIVE_SALES_ORDERS_PATH
         value: Sales_CSR/Customer Orders/Sales Orders
+      # Full Company Data (MISys export) - for import when using ERP copy
+      - key: FULL_COMPANY_DATA_DRIVE_PATH
+        value: MiSys/Misys Extracted Data/Full Company Data as of 02_10_2026
       - key: FLASK_ENV
         value: production
       # IMPORTANT: Add these secrets manually in Render dashboard:
