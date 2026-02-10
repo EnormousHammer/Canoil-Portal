@@ -1,7 +1,10 @@
 """
 Full Company Data converter: CSV/Excel from MISys "Export All Company Data" -> app JSON shape.
 Maps MIITEM, MIILOC, MIBOMH, MIBOMD, MIMOH, MIMOMD, MIPOH, MIPOD etc. to keys expected by the portal.
-See MISYS-ERP-DATA-STRUCTURE.md for field names.
+
+ROADMAP (where data goes): See FULL_COMPANY_DATA_ROADMAP.md in this folder.
+- File names: Item.csv or MIITEM.csv, MIBOMD.csv, MIPOH.csv, MIPOD.csv, etc.
+- Column names: matched case-insensitively to the map; export column -> app field.
 """
 import os
 import pandas as pd
@@ -166,22 +169,35 @@ def _read_table(content, file_name, is_bytes=False):
         return None
 
 
+def _normalize_col(s):
+    """Normalize column name for matching: strip, lower, collapse spaces."""
+    if s is None or not isinstance(s, str):
+        return ""
+    return " ".join(s.strip().lower().split())
+
+
 def _apply_column_map(rows, column_map):
-    """Rename keys in each row per column_map (export -> app). Keep unmapped keys as-is."""
+    """Rename keys in each row per column_map (export -> app). Case-insensitive match so export columns find the roadmap."""
     if not rows or not column_map:
         return rows
+    # Build lookup: normalized export key -> app key (first wins if multiple export keys map to same app key)
+    export_to_app = {}
+    for export_key, app_key in column_map.items():
+        norm = _normalize_col(export_key)
+        if norm and norm not in export_to_app:
+            export_to_app[norm] = app_key
     out = []
     for row in rows:
         if not isinstance(row, dict):
             continue
         new_row = {}
         for k, v in row.items():
-            # Try exact key, then first column_map key that matches (case-insensitive)
             app_key = column_map.get(k) or column_map.get(k.strip())
+            if not app_key and k:
+                app_key = export_to_app.get(_normalize_col(k))
             if app_key:
                 new_row[app_key] = v
             else:
-                # Keep original key
                 new_row[k] = v
         out.append(new_row)
     return out
@@ -197,9 +213,12 @@ def load_from_folder(folder_path):
     try:
         skeleton = _get_skeleton()
         files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        expected_stems = set(FULL_COMPANY_MAPPINGS.keys())
         for fname in files:
             stem = os.path.splitext(fname)[0]
             if stem not in FULL_COMPANY_MAPPINGS:
+                if fname.lower().endswith((".csv", ".xlsx", ".xls")):
+                    print(f"[full_company_data_converter] skip (no mapping): {fname} – expected one of: {sorted(expected_stems)}")
                 continue
             path = os.path.join(folder_path, fname)
             try:
@@ -223,6 +242,7 @@ def load_from_folder(folder_path):
             for key in keys:
                 if key in skeleton and isinstance(skeleton[key], list):
                     skeleton[key] = list(rows)
+            print(f"[full_company_data_converter] loaded {fname} -> {len(rows)} rows -> {keys}")
         return skeleton, None
     except Exception as e:
         import traceback

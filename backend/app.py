@@ -1980,16 +1980,17 @@ def get_empty_app_data_structure():
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
-    """Get all data from latest G: Drive folder - with caching. Optional ?source=full_company_data (framework ready; conversion not implemented yet)."""
+    """Get all data. Prefer Full Company Data (MISys export) when available; else latest API Extractions folder. Use ?source=default to force API Extractions only."""
     global _data_cache, _response_cache, _cache_timestamp
     import time  # Import at function level for use throughout function
     from flask import request
 
     try:
         print("/api/data endpoint called")
+        data_source_param = request.args.get('source')
 
-        # Full Company Data: load from local folder or Drive API and convert to app shape
-        if request.args.get('source') == 'full_company_data':
+        # Explicit Full Company Data requested
+        if data_source_param == 'full_company_data':
             full_data = None
             err_msg = None
             try:
@@ -2041,6 +2042,66 @@ def get_all_data():
                 "fullCompanyDataReady": False,
                 "message": err_msg or "Full Company Data folder not found or converter error",
             })
+        
+        # Default load (no ?source or any other value): prefer Full Company Data when available so MISys export "just works"
+        if data_source_param != 'default':
+            full_data = None
+            err_msg = None
+            print(f"📂 Full Company Data: trying to load. Path={GDRIVE_FULL_COMPANY_DATA!r}, exists={os.path.exists(GDRIVE_FULL_COMPANY_DATA)}, IS_CLOUD={IS_CLOUD_ENVIRONMENT}")
+            try:
+                from full_company_data_converter import load_from_folder, load_from_drive_api
+            except ImportError:
+                try:
+                    from .full_company_data_converter import load_from_folder, load_from_drive_api
+                except ImportError:
+                    load_from_folder = load_from_drive_api = None
+            if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+                full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+                print(f"📂 Full Company Data load_from_folder: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
+                if full_data:
+                    cnt = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                    print(f"📂 Full Company Data: {cnt} non-empty lists")
+            else:
+                if not load_from_folder:
+                    print("📂 Full Company Data: skipped (converter import failed)")
+                elif IS_CLOUD_ENVIRONMENT:
+                    print("📂 Full Company Data: skipped (running in cloud – G: path not available; will try Drive API)")
+                elif not os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+                    print(f"📂 Full Company Data: skipped (folder not found at {GDRIVE_FULL_COMPANY_DATA})")
+            if full_data is None and load_from_drive_api:
+                gdrive_service = get_google_drive_service()
+                drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None
+                if drive_id and gdrive_service and getattr(gdrive_service, "authenticated", False):
+                    full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+                    print(f"📂 Full Company Data load_from_drive_api: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
+                else:
+                    print("📂 Full Company Data: Drive API not available or not authenticated")
+            if full_data is not None:
+                has_any = any(isinstance(v, list) and len(v) > 0 for v in full_data.values())
+                if has_any:
+                    full_data = _merge_portal_store(full_data)
+                    file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                    print(f"✅ Using Full Company Data (MISys export) – {file_count} files with data")
+                    return jsonify({
+                        "data": full_data,
+                        "folderInfo": {
+                            "folderName": "Full Company Data as of 02_10_2026",
+                            "syncDate": datetime.now().isoformat(),
+                            "lastModified": datetime.now().isoformat(),
+                            "folder": FULL_COMPANY_DATA_DRIVE_PATH,
+                            "created": datetime.now().isoformat(),
+                            "size": "N/A",
+                            "fileCount": file_count,
+                        },
+                        "LoadTimestamp": datetime.now().isoformat(),
+                        "cached": False,
+                        "source": "full_company_data",
+                        "fullCompanyDataReady": True,
+                    })
+                else:
+                    print("📂 Full Company Data: converter returned data but all lists empty (check file names: need MIITEM.csv, Item.csv, MIBOMD.csv, MIPOH.csv, etc.)")
+            else:
+                print("📂 Full Company Data: not loaded. Falling back to API Extractions.")
         
         # Check if we have valid cached response (pre-serialized)
         if _response_cache and _cache_timestamp:
@@ -2147,8 +2208,8 @@ def get_all_data():
             if file_data:
                 print(f"✅ {file_name}: {len(file_data) if isinstance(file_data, list) else 1} records")
         
-        # Initialize other expected files as empty arrays for now
-        other_files = [
+        # Optional files: load from folder when present (so item modal, BOM Where Used, Work Orders, PO costs get real data for testing)
+        optional_files = [
             'Items.json', 'MIITEM.json', 'MIBOMH.json', 'MIBOMD.json',
             'ManufacturingOrderRoutings.json', 'MIMOH.json', 'MIMOMD.json', 'MIMORD.json',
             'Jobs.json', 'JobDetails.json', 'MIJOBH.json', 'MIJOBD.json',
@@ -2158,9 +2219,12 @@ def get_all_data():
             'PurchaseOrderAdditionalCosts.json', 'PurchaseOrderAdditionalCostsTaxes.json',
             'PurchaseOrderDetailAdditionalCosts.json'
         ]
-        
-        for file_name in other_files:
-            raw_data[file_name] = []
+        for file_name in optional_files:
+            file_path = os.path.join(folder_path, file_name)
+            file_data = load_json_file(file_path)
+            raw_data[file_name] = file_data if isinstance(file_data, list) else ([] if file_data is None else [])
+            if file_data and isinstance(file_data, list) and len(file_data) > 0:
+                print(f"✅ {file_name}: {len(file_data)} records")
         
         loaded_count = len([k for k, v in raw_data.items() if isinstance(v, list) and len(v) > 0])
         print(f"⚡ Loaded {loaded_count} files with data")
@@ -2318,11 +2382,11 @@ def get_data_source_status():
             full_company_available = False
         return jsonify({
             "currentSource": "default",
-            "defaultLabel": "API Extractions (existing)",
+            "defaultLabel": "Full Company Data when available, else API Extractions",
             "fullCompanyDataPath": FULL_COMPANY_DATA_DRIVE_PATH,
             "fullCompanyDataAvailable": full_company_available,
-            "fullCompanyDataReady": False,
-            "message": "Framework ready; use ?source=full_company_data on /api/data when conversion is implemented.",
+            "fullCompanyDataReady": full_company_available,
+            "message": "Data loads from your MISys Full Company Data export when the folder is available. Use ?source=default on /api/data to force API Extractions only.",
         })
     except Exception as e:
         return jsonify({"error": str(e), "currentSource": "default", "fullCompanyDataReady": False}), 500
