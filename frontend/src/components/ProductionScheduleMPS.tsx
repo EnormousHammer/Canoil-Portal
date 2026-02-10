@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Factory, ChevronLeft, ChevronRight, Calendar, AlertTriangle, X, Info, HelpCircle, Download, ChevronDown } from 'lucide-react';
+import { RefreshCw, Factory, ChevronLeft, ChevronRight, Calendar, AlertTriangle, X, Info, HelpCircle, Download, ChevronDown, Filter, Search } from 'lucide-react';
 import { fetchMPSData, openSalesOrder, getSOUrl } from '../services/mpsDataService';
 import { MPSOrder } from '../types/mps';
 import { format, addDays, startOfWeek, differenceInDays, parseISO, isValid } from 'date-fns';
@@ -92,6 +92,11 @@ export function ProductionScheduleMPS() {
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [filterShortageOnly, setFilterShortageOnly] = useState(false);
+  const [filterAtRiskOnly, setFilterAtRiskOnly] = useState(false);
+  const [filterCustomer, setFilterCustomer] = useState<string>('');
+  const [filterWorkCenter, setFilterWorkCenter] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -113,6 +118,17 @@ export function ProductionScheduleMPS() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (selectedOrder) setSelectedOrder(null);
+      else if (showPdfViewer) setShowPdfViewer(false);
+      else if (showLegend) setShowLegend(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedOrder, showPdfViewer, showLegend]);
+
   // Generate days for the timeline
   const days = useMemo(() => {
     return Array.from({ length: viewDays }, (_, i) => addDays(weekStart, i));
@@ -126,17 +142,77 @@ export function ProductionScheduleMPS() {
     return 56;                           // 4 weeks: 56px (w-14)
   }, [viewDays]);
 
-  // Get unique work centers
-  const workCenters = useMemo(() => {
-    const wcs = new Set(orders.map(o => o.work_center).filter(Boolean));
-    return Array.from(wcs).sort();
+  // At-risk: shortage, or DTC ≤ 2, or promised date already passed
+  const isOrderAtRisk = (order: MPSOrder): boolean => {
+    if (order.status.toLowerCase().includes('shortage')) return true;
+    if (order.dtc != null && order.dtc <= 2) return true;
+    const promised = parseDate(order.promised_date || order.promised || '');
+    if (promised) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const p = new Date(promised);
+      p.setHours(0, 0, 0, 0);
+      if (p < today) return true;
+    }
+    return false;
+  };
+
+  // Apply search and filters (all data from backend, no mock)
+  const filteredOrders = useMemo(() => {
+    let list = orders;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(o =>
+        (o.so_number && o.so_number.toLowerCase().includes(q)) ||
+        (o.mo_number && o.mo_number.toLowerCase().includes(q)) ||
+        (o.product && o.product.toLowerCase().includes(q)) ||
+        (o.customer_code && o.customer_code.toLowerCase().includes(q)) ||
+        (o.so_data?.customer && String(o.so_data.customer).toLowerCase().includes(q)) ||
+        (o.product.includes(' - ') && o.product.split(' - ')[0].toLowerCase().includes(q))
+      );
+    }
+    if (filterShortageOnly) list = list.filter(o => o.status.toLowerCase().includes('shortage'));
+    if (filterAtRiskOnly) list = list.filter(o => isOrderAtRisk(o));
+    if (filterCustomer) list = list.filter(o => {
+      const cust = o.so_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0] : '') || o.customer_code || '';
+      return cust.toLowerCase().includes(filterCustomer.toLowerCase());
+    });
+    if (filterWorkCenter) list = list.filter(o => o.work_center === filterWorkCenter);
+    return list;
+  }, [orders, searchQuery, filterShortageOnly, filterAtRiskOnly, filterCustomer, filterWorkCenter]);
+
+  // KPI counts from full order set (for summary)
+  const kpi = useMemo(() => {
+    const shortageCount = orders.filter(o => o.status.toLowerCase().includes('shortage')).length;
+    const atRiskCount = orders.filter(o => isOrderAtRisk(o)).length;
+    return { total: orders.length, shortageCount, atRiskCount };
   }, [orders]);
 
-  // Build customer legend - use actual customer names from SO data or product
+  // Get unique work centers from filtered orders
+  const workCenters = useMemo(() => {
+    const wcs = new Set(filteredOrders.map(o => o.work_center).filter(Boolean));
+    return Array.from(wcs).sort();
+  }, [filteredOrders]);
+
+  // Filter dropdown options from full order set
+  const filterOptions = useMemo(() => {
+    const wcs = new Set(orders.map(o => o.work_center).filter(Boolean));
+    const customers = new Map<string, number>();
+    orders.forEach(o => {
+      const name = o.so_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '') || o.customer_code || 'Other';
+      if (name) customers.set(name, (customers.get(name) || 0) + 1);
+    });
+    return {
+      workCenters: Array.from(wcs).sort(),
+      customers: Array.from(customers.entries()).sort((a, b) => b[1] - a[1]).map(([name]) => name)
+    };
+  }, [orders]);
+
+  // Build customer legend from filtered orders
   const customerLegend = useMemo(() => {
     const customers = new Map<string, { bg: string; count: number }>();
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       // Try to get customer name from SO data first, then from product
       let customerName = order.so_data?.customer || '';
       
@@ -165,11 +241,11 @@ export function ProductionScheduleMPS() {
     });
     
     return Array.from(customers.entries()).sort((a, b) => b[1].count - a[1].count);
-  }, [orders]);
+  }, [filteredOrders]);
 
-  // Get orders for a specific work center and calculate their positions
+  // Get orders for a specific work center and calculate their positions (uses filtered orders)
   const getOrdersForWorkCenter = (wc: string) => {
-    return orders
+    return filteredOrders
       .filter(o => o.work_center === wc)
       .map(order => {
         const startDate = parseDate(order.start_date);
@@ -189,7 +265,8 @@ export function ProductionScheduleMPS() {
           duration,
           effectiveStart,
           effectiveEnd,
-          isShortage: order.status.toLowerCase().includes('shortage')
+          isShortage: order.status.toLowerCase().includes('shortage'),
+          isAtRisk: isOrderAtRisk(order)
         };
       })
       .filter(o => o.startOffset + o.duration > 0 && o.startOffset < viewDays); // Only visible orders
@@ -226,7 +303,10 @@ export function ProductionScheduleMPS() {
             <div>
               <h1 className="text-2xl font-bold text-white">Production Schedule</h1>
               <p className="text-slate-400 text-sm">
-                {orders.length} orders • Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
+                {filteredOrders.length === orders.length
+                  ? `${orders.length} orders`
+                  : `${filteredOrders.length} of ${orders.length} orders`}
+                {' • '}Updated {lastUpdated ? format(lastUpdated, 'h:mm a') : '...'}
               </p>
             </div>
           </div>
@@ -342,6 +422,96 @@ export function ProductionScheduleMPS() {
         </div>
       </div>
 
+      {/* KPI + Filters strip */}
+      <div className="bg-slate-800/70 border-b border-slate-700 px-6 py-3 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* KPI summary */}
+          <div className="flex items-center gap-4">
+            <span className="text-slate-400 text-sm">
+              <span className="text-white font-semibold">{kpi.total}</span> total
+            </span>
+            {kpi.shortageCount > 0 && (
+              <span className="text-red-400 text-sm font-medium flex items-center gap-1">
+                <AlertTriangle className="w-4 h-4" />
+                {kpi.shortageCount} shortage{kpi.shortageCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {kpi.atRiskCount > 0 && (
+              <span className="text-amber-400 text-sm font-medium">
+                {kpi.atRiskCount} at risk
+              </span>
+            )}
+          </div>
+          <div className="h-4 w-px bg-slate-600" />
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search SO, MO, product, customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded-lg pl-8 pr-3 py-1.5 text-white text-sm w-64 placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          {/* Filter toggles */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <button
+              onClick={() => setFilterShortageOnly(!filterShortageOnly)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                filterShortageOnly ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              Shortages
+            </button>
+            <button
+              onClick={() => setFilterAtRiskOnly(!filterAtRiskOnly)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                filterAtRiskOnly ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              At risk
+            </button>
+            <select
+              value={filterWorkCenter}
+              onChange={(e) => setFilterWorkCenter(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm"
+            >
+              <option value="">All work centers</option>
+              {filterOptions.workCenters.map(wc => (
+                <option key={wc} value={wc}>{wc}</option>
+              ))}
+            </select>
+            <select
+              value={filterCustomer}
+              onChange={(e) => setFilterCustomer(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm max-w-[180px]"
+            >
+              <option value="">All customers</option>
+              {filterOptions.customers.map(c => (
+                <option key={c} value={c}>{c.length > 22 ? c.slice(0, 22) + '…' : c}</option>
+              ))}
+            </select>
+            {(filterShortageOnly || filterAtRiskOnly || filterWorkCenter || filterCustomer || searchQuery.trim()) && (
+              <button
+                onClick={() => {
+                  setFilterShortageOnly(false);
+                  setFilterAtRiskOnly(false);
+                  setFilterWorkCenter('');
+                  setFilterCustomer('');
+                  setSearchQuery('');
+                }}
+                className="px-2 py-1 text-slate-400 hover:text-white text-sm"
+                title="Clear filters"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Customer Legend */}
       <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-2 flex-shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
@@ -365,6 +535,19 @@ export function ProductionScheduleMPS() {
 
       {/* Gantt Chart */}
       <div className="flex-1 overflow-auto p-6">
+        {filteredOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+            <Filter className="w-12 h-12 mb-3 opacity-50" />
+            <p className="text-lg font-medium text-white">No orders match the current filters</p>
+            <p className="text-sm mt-1">Try clearing filters or search to see all orders.</p>
+            <button
+              onClick={() => { setFilterShortageOnly(false); setFilterAtRiskOnly(false); setFilterWorkCenter(''); setFilterCustomer(''); setSearchQuery(''); }}
+              className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden min-w-max">
           {/* Timeline Header */}
           <div className="flex border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
@@ -424,7 +607,14 @@ export function ProductionScheduleMPS() {
                       />
                     );
                   })}
-                  
+                  {/* Today vertical line */}
+                  {todayOffset >= 0 && todayOffset < viewDays && (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-blue-400 z-10 pointer-events-none"
+                      style={{ left: `${todayOffset * columnWidth}px` }}
+                      title="Today"
+                    />
+                  )}
                   {/* Order bars */}
                   {wcOrders.map((order, idx) => {
                     const colors = getCustomerColor(order.product);
@@ -445,7 +635,7 @@ export function ProductionScheduleMPS() {
                         key={`${order.so_number}-${idx}`}
                         className={`absolute top-1 h-14 rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] hover:z-20 overflow-hidden ${colors.bg} ${colors.border} ${
                           order.isShortage ? 'opacity-60 border-dashed' : ''
-                        }`}
+                        } ${order.isAtRisk && !order.isShortage ? 'ring-2 ring-amber-400' : ''}`}
                         style={{ left: `${left}px`, width: `${width}px` }}
                         onClick={() => setSelectedOrder(order)}
                         title={`${customerName}\n${order.product}\nSO: ${order.so_number} | MO: ${order.mo_number}`}
@@ -478,6 +668,7 @@ export function ProductionScheduleMPS() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Order Detail Modal */}

@@ -37,6 +37,7 @@ export interface MPSOrder {
   
   // Flags
   isShortage?: boolean;
+  isAtRisk?: boolean;
   action_items: string;
   
   // Related data from MISys

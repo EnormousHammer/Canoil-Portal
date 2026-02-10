@@ -8320,7 +8320,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         const currentWIP = parseStockValue(selectedItem['WIP'] || 0);
         const onOrder = parseStockValue(selectedItem['On Order'] || selectedItem['Qty On Order'] || 0);
         const reorderLevel = parseStockValue(selectedItem['Reorder Level'] || selectedItem['Minimum'] || 0);
+        const reorderQty = parseStockValue(selectedItem['Reorder Quantity'] || selectedItem['Reorder Qty'] || 0);
         const unitCost = parseCostValue(selectedItem['Unit Cost'] || selectedItem['Recent Cost'] || selectedItem['Standard Cost'] || 0);
+        const standardCost = parseCostValue(selectedItem['Standard Cost'] || 0);
+        const recentCost = parseCostValue(selectedItem['Recent Cost'] || 0);
         const totalValue = currentStock * unitCost;
         
         const stockStatus = currentStock <= 0 ? 'out' : currentStock <= reorderLevel ? 'low' : 'ok';
@@ -8369,6 +8372,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             });
           });
           return matches.length;
+        })();
+        
+        const bomWhereUsedCount = (() => {
+          const bomDetails = data['BillOfMaterialDetails.json'] || [];
+          return bomDetails.filter((bom: any) =>
+            (bom['Component Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+          ).length;
         })();
         
         return (
@@ -8457,6 +8467,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                   
+                  {/* Reorder & Costs row */}
+                  <div className="grid grid-cols-2 border-b border-gray-100 bg-slate-50/50">
+                    <div className="px-4 py-3 border-r border-gray-100">
+                      <div className="text-[10px] text-gray-500 font-medium uppercase mb-0.5">Reorder Level</div>
+                      <div className="text-lg font-bold text-gray-800">{reorderLevel.toLocaleString()}</div>
+                      <div className="text-[10px] text-gray-500 font-medium uppercase mt-2 mb-0.5">Reorder Qty</div>
+                      <div className="text-lg font-bold text-gray-800">{reorderQty.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <div className="text-[10px] text-gray-500 font-medium uppercase mb-1">Costs</div>
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <span><span className="text-gray-500">Unit:</span> <span className="font-semibold text-gray-800">{formatCAD(unitCost)}</span></span>
+                        {(standardCost > 0 || selectedItem['Standard Cost']) && <span><span className="text-gray-500">Standard:</span> <span className="font-semibold text-gray-800">{formatCAD(standardCost)}</span></span>}
+                        {(recentCost > 0 || selectedItem['Recent Cost']) && <span><span className="text-gray-500">Recent:</span> <span className="font-semibold text-gray-800">{formatCAD(recentCost)}</span></span>}
+                      </div>
+                    </div>
+                  </div>
+                  
                   {/* Stock Ownership Breakdown */}
                   <div className="border-b border-gray-100 bg-gradient-to-r from-slate-50 to-gray-50">
                     <div className="px-4 py-3 flex items-center justify-between">
@@ -8520,54 +8548,83 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               );
             })()}
 
-            {/* Tab Bar - Sleek */}
-            <div className="flex px-6 pt-4 gap-1">
-              <button 
-                onClick={() => setItemModalActiveView('po')}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
-                  itemModalActiveView === 'po' 
-                    ? 'border-blue-500 text-blue-600 bg-blue-50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Purchase Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{poCount}</span>
-              </button>
-              <button 
-                onClick={() => setItemModalActiveView('mo')}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
-                  itemModalActiveView === 'mo' 
-                    ? 'border-green-500 text-green-600 bg-green-50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Mfg Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{moCount}</span>
-              </button>
-              <button 
-                onClick={() => setItemModalActiveView('so')}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
-                  itemModalActiveView === 'so' 
-                    ? 'border-purple-500 text-purple-600 bg-purple-50' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Sales Orders <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{soCount}</span>
-              </button>
-              {isAssembled && (
-                <button 
-                  onClick={() => setItemModalActiveView('bom')}
-                  className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
-                    itemModalActiveView === 'bom' 
-                      ? 'border-orange-500 text-orange-600 bg-orange-50' 
+            {/* Tab Bar - Full Misys parity (scrollable) */}
+            <div className="flex px-6 pt-4 gap-1 overflow-x-auto min-h-10">
+              {[
+                { id: 'master', label: 'Master' },
+                { id: 'stock', label: 'Stock' },
+                { id: 'costs', label: 'Costs' },
+                { id: 'po', label: 'Purchase Orders', badge: poCount },
+                { id: 'mo', label: 'Mfg Orders', badge: moCount },
+                { id: 'so', label: 'Sales Orders', badge: soCount },
+                { id: 'bom-where-used', label: 'BOM Where Used', badge: bomWhereUsedCount },
+                ...(isAssembled ? [{ id: 'bom', label: 'BOM' }] : []),
+                { id: 'work-orders', label: 'Work Orders', badge: (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length },
+                { id: 'stock-movement', label: 'Stock Movement' },
+                { id: 'suppliers', label: 'Suppliers' },
+                { id: 'manufacturers', label: 'Manufacturers' },
+                { id: 'alternates', label: 'Alternates' },
+                { id: 'activity', label: 'Activity' },
+                { id: 'notes', label: 'Notes' },
+                { id: 'history', label: 'History' },
+                { id: 'sl-numbers', label: 'SL Numbers' },
+              ].map(({ id, label, badge }) => (
+                <button
+                  key={id}
+                  onClick={() => setItemModalActiveView(id)}
+                  className={`flex-shrink-0 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+                    itemModalActiveView === id
+                      ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  BOM
+                  {label}
+                  {badge !== undefined && badge > 0 && <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded-full">{badge}</span>}
                 </button>
-              )}
+              ))}
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/50">
+
+              {/* ===== MASTER TAB ===== */}
+              {itemModalActiveView === 'master' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500">Item No.</span><div className="font-mono font-bold text-gray-900">{itemNo}</div></div>
+                    <div><span className="text-gray-500">Description</span><div className="font-medium text-gray-900">{description}</div></div>
+                    <div><span className="text-gray-500">Status</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${stockStatus === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{stockStatus === 'out' ? 'Out of stock' : 'Active'}</span></div></div>
+                    <div><span className="text-gray-500">Type</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${isAssembled ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{isAssembled ? 'ASSEMBLED' : 'RAW'}</span></div></div>
+                    <div><span className="text-gray-500">Reorder Level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
+                    <div><span className="text-gray-500">Reorder Qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== STOCK TAB ===== */}
+              {itemModalActiveView === 'stock' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div className="p-3 bg-emerald-50 rounded-lg"><div className="text-gray-500 text-xs">Total Stock</div><div className="text-xl font-bold text-emerald-600">{currentStock.toLocaleString()}</div></div>
+                    <div className="p-3 bg-blue-50 rounded-lg"><div className="text-gray-500 text-xs">WIP</div><div className="text-xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">On Order</div><div className="text-xl font-bold text-gray-800">{onOrder.toLocaleString()}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Available</div><div className="text-xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
+                  </div>
+                  <div className="text-sm"><span className="text-gray-500">Reorder Level:</span> <span className="font-medium">{reorderLevel.toLocaleString()}</span></div>
+                </div>
+              )}
+
+              {/* ===== COSTS TAB ===== */}
+              {itemModalActiveView === 'costs' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Unit Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(unitCost)}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Standard Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(standardCost)}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Recent Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(recentCost)}</div></div>
+                  </div>
+                  <div className="text-sm"><span className="text-gray-500">Total value (stock × unit cost):</span> <span className="font-semibold">{formatCAD(totalValue)}</span></div>
+                </div>
+              )}
 
               {/* ===== PURCHASE ORDERS TAB ===== */}
               {itemModalActiveView === 'po' && (() => {
@@ -8607,11 +8664,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   const header = (data['PurchaseOrders.json'] || []).find((h: any) => h['PO No.'] === poNo);
                   allPOData.push({
                     poNumber: poNo || '—',
-                    vendor: header?.['Vendor'] || header?.['Supplier'] || '—',
+                    vendor: header?.['Vendor'] || header?.['Supplier No.'] || header?.['Supplier'] || '—',
                     orderDate: header?.['Order Date'] || detail['Order Date'],
-                    orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Quantity'] || 0),
-                    receivedQty: parseStockValue(detail['Received Qty'] || 0),
-                    unitPrice: parseCostValue(detail['Unit Price'] || 0),
+                    orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Ordered'] || detail['Quantity'] || 0),
+                    receivedQty: parseStockValue(detail['Received Qty'] || detail['Received'] || 0),
+                    unitPrice: parseCostValue(detail['Unit Price'] || detail['Price'] || 0),
                     status: header?.['Status'] || detail['Status']
                   });
                 });
@@ -9006,6 +9063,57 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
+              {/* ===== BOM WHERE USED TAB (item as component in parent BOMs) ===== */}
+              {itemModalActiveView === 'bom-where-used' && (() => {
+                const bomWhereUsedRows = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) =>
+                  (bom['Component Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                );
+                const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const getParentDescription = (parentItemNo: string) => {
+                  const item = itemsData.find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (parentItemNo || '').toString().trim().toUpperCase());
+                  return item?.['Description'] || '—';
+                };
+                if (bomWhereUsedRows.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">Not used as component</div>
+                      <div className="text-sm">This item is not used in any Bill of Materials</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
+                      <div className="text-xl font-bold text-teal-600">{bomWhereUsedRows.length}</div>
+                      <div className="text-xs text-gray-500">Parent BOMs</div>
+                    </div>
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Parent Item No.</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Parent Description</th>
+                            <th className="text-right px-4 py-3 font-medium text-gray-600">Required Qty</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Unit</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {bomWhereUsedRows.map((bom: any, index: number) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-teal-600 font-medium">{bom['Parent Item No.'] || '—'}</td>
+                              <td className="px-4 py-3 text-gray-700">{getParentDescription(bom['Parent Item No.'])}</td>
+                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(bom['Required Quantity'] || bom['Quantity Per'] || bom['Qty Per'] || 1)}</td>
+                              <td className="px-4 py-3 text-gray-500">{bom['Unit'] || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* ===== BOM TAB (for assembled items) ===== */}
               {itemModalActiveView === 'bom' && isAssembled && (() => {
                 const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
@@ -9052,6 +9160,138 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 );
               })()}
+
+              {/* ===== WORK ORDERS TAB ===== */}
+              {itemModalActiveView === 'work-orders' && (() => {
+                const woDetails = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                if (woDetails.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Factory className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">No Work Orders</div>
+                      <div className="text-sm">No work order history found for this item. Data from WorkOrderDetails when available.</div>
+                    </div>
+                  );
+                }
+                const woHeaders = data['WorkOrders.json'] || [];
+                return (
+                  <div>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4"><div className="text-xl font-bold text-cyan-600">{woDetails.length}</div><div className="text-xs text-gray-500">Work Orders</div></div>
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="text-left px-4 py-3 font-medium text-gray-600">WO #</th><th className="text-right px-4 py-3 font-medium text-gray-600">Qty</th><th className="text-left px-4 py-3 font-medium text-gray-600">Status</th></tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {woDetails.slice(0, 20).map((wo: any, idx: number) => {
+                            const header = woHeaders.find((h: any) => (h['WO No.'] || h['Work Order No.']) === (wo['WO No.'] || wo['Work Order No.']));
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-mono text-cyan-600 font-medium">{wo['WO No.'] || wo['Work Order No.'] || '—'}</td>
+                                <td className="px-4 py-3 text-right">{parseStockValue(wo['Ordered'] || wo['Quantity'] || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-gray-600">{header?.['Status'] ?? wo['Status'] ?? '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {woDetails.length > 20 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 20 of {woDetails.length}</div>}
+                  </div>
+                );
+              })()}
+
+              {/* ===== STOCK MOVEMENT TAB (empty until data source) ===== */}
+              {itemModalActiveView === 'stock-movement' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Stock Movement</div>
+                  <div className="text-sm">Movement history will appear here when a data source is available.</div>
+                </div>
+              )}
+
+              {/* ===== SUPPLIERS TAB (from PO history or empty) ===== */}
+              {itemModalActiveView === 'suppliers' && (() => {
+                const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((d: any) => [d['Item No.'], d['Component Item No.']].some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper));
+                const vendorSet = new Set<string>();
+                const poHeaders = data['PurchaseOrders.json'] || [];
+                rawPODetails.forEach((d: any) => {
+                  const poNo = d['PO No.'];
+                  const h = poHeaders.find((x: any) => x['PO No.'] === poNo);
+                  const v = h?.['Vendor'] || h?.['Supplier No.'] || h?.['Supplier'] || '';
+                  if (v) vendorSet.add(v);
+                });
+                const vendors = Array.from(vendorSet);
+                if (vendors.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">Suppliers</div>
+                      <div className="text-sm">Vendor list from PO history will appear here when this item has purchase orders.</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="text-left px-4 py-3 font-medium text-gray-600">Vendor / Supplier</th></tr></thead>
+                      <tbody className="divide-y divide-gray-100">{vendors.map((v, i) => <tr key={i} className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-800">{v}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {/* ===== MANUFACTURERS TAB (empty until data source) ===== */}
+              {itemModalActiveView === 'manufacturers' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Factory className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Manufacturers</div>
+                  <div className="text-sm">Manufacturer data will appear here when available.</div>
+                </div>
+              )}
+
+              {/* ===== ALTERNATES TAB (empty until data source) ===== */}
+              {itemModalActiveView === 'alternates' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Alternates</div>
+                  <div className="text-sm">Alternate or substitute items will appear here when data is available.</div>
+                </div>
+              )}
+
+              {/* ===== ACTIVITY TAB (empty until data source) ===== */}
+              {itemModalActiveView === 'activity' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Activity</div>
+                  <div className="text-sm">Operational activity log will appear here when available.</div>
+                </div>
+              )}
+
+              {/* ===== NOTES TAB (empty until backend/store) ===== */}
+              {itemModalActiveView === 'notes' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Notes</div>
+                  <div className="text-sm">Item notes will appear here when a notes store or API is available.</div>
+                </div>
+              )}
+
+              {/* ===== HISTORY TAB (empty until audit log) ===== */}
+              {itemModalActiveView === 'history' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">History</div>
+                  <div className="text-sm">Audit trail of changes will appear here when available.</div>
+                </div>
+              )}
+
+              {/* ===== SL NUMBERS TAB (lot/serial - empty or wire to /api/lot-history) ===== */}
+              {itemModalActiveView === 'sl-numbers' && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Package2 className="w-12 h-12 mb-3" />
+                  <div className="text-lg font-medium">Serial / Lot Numbers</div>
+                  <div className="text-sm">Lot and serial number data will appear here when available (e.g. from /api/inventory/by-lot or /api/lot-history).</div>
+                </div>
+              )}
 
               {/* ===== LOCATIONS TAB ===== */}
               {itemModalActiveView === 'locations' && (() => {
