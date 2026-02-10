@@ -2066,7 +2066,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
                 {(!data?.['WorkOrders.json'] || data['WorkOrders.json'].length === 0) ? (
                   <div className="p-8 text-center text-slate-500">
-                    <p>No work orders in data. Load data from API Extractions or Full Company Data.</p>
+                    <p>No work orders in data. Ensure your MISys Full Company Data export includes MIWOH/MIWOD and the data folder is loaded.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -8327,20 +8327,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
       {/* ITEM DETAILS MODAL - Clean Redesign */}
       {showItemModal && selectedItem && (() => {
-        // Calculate key metrics
+        // Resolve full item from data so we always show correct info (table row may be partial)
         const itemNo = selectedItem['Item No.'] || 'Unknown';
         const itemNoUpper = itemNo.toString().trim().toUpperCase();
-        const description = selectedItem['Description'] || 'No description';
+        const itemsSource = data['CustomAlert5.json'] || data['Items.json'] || [];
+        const fullItem = (Array.isArray(itemsSource) && itemsSource.find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper)) || selectedItem;
+        const item = fullItem;
+
+        const description = item['Description'] || 'No description';
         const isAssembled = assembledItemsSet.has(itemNo);
-        
-        const currentStock = parseStockValue(selectedItem['On Hand'] || selectedItem['Stock'] || 0);
-        const currentWIP = parseStockValue(selectedItem['WIP'] || 0);
-        const onOrder = parseStockValue(selectedItem['On Order'] || selectedItem['Qty On Order'] || 0);
-        const reorderLevel = parseStockValue(selectedItem['Reorder Level'] || selectedItem['Minimum'] || 0);
-        const reorderQty = parseStockValue(selectedItem['Reorder Quantity'] || selectedItem['Reorder Qty'] || 0);
-        const unitCost = parseCostValue(selectedItem['Unit Cost'] || selectedItem['Recent Cost'] || selectedItem['Standard Cost'] || 0);
-        const standardCost = parseCostValue(selectedItem['Standard Cost'] || 0);
-        const recentCost = parseCostValue(selectedItem['Recent Cost'] || 0);
+
+        const currentStock = parseStockValue(item['On Hand'] || item['Stock'] || item['totQStk'] || 0);
+        const currentWIP = parseStockValue(item['WIP'] || item['totQWip'] || 0);
+        const reserve = parseStockValue(item['Reserve'] || item['totQRes'] || 0);
+        const onOrder = parseStockValue(item['On Order'] || item['Qty On Order'] || item['totQOrd'] || 0);
+        const reorderLevel = parseStockValue(item['Reorder Level'] || item['Minimum'] || item['reordPoint'] || 0);
+        const reorderQty = parseStockValue(item['Reorder Quantity'] || item['Reorder Qty'] || item['reordQty'] || 0);
+        const lotSize = parseStockValue(item['Lot Size'] || item['lotSize'] || 0);
+        const unitCost = parseCostValue(item['Unit Cost'] || item['Recent Cost'] || item['Standard Cost'] || item['unitCost'] || 0);
+        const standardCost = parseCostValue(item['Standard Cost'] || item['stdCost'] || 0);
+        const recentCost = parseCostValue(item['Recent Cost'] || item['lastCost'] || 0);
+        const averageCost = parseCostValue(item['Average Cost'] || item['avgCost'] || 0);
         const totalValue = currentStock * unitCost;
         
         const stockStatus = currentStock <= 0 ? 'out' : currentStock <= reorderLevel ? 'low' : 'ok';
@@ -8416,9 +8423,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold text-gray-900">{itemNo}</h2>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isAssembled ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                      isAssembled ? 'bg-orange-100 text-orange-700' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'
                     }`}>
-                      {isAssembled ? 'ASSEMBLED' : 'RAW'}
+                      {isAssembled ? 'ASSEMBLED' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'RESOURCE' : 'PURCHASED'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 line-clamp-1">{description}</p>
@@ -8431,7 +8438,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 {/* Add to PR Cart Button */}
                 <button 
                   onClick={() => {
-                    setQuickAddItem(selectedItem);
+                    setQuickAddItem(item);
                     setQuickAddQty(1);
                     setShowQuickAddPopup(true);
                   }}
@@ -8496,8 +8503,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="text-[10px] text-gray-500 font-medium uppercase mb-1">Costs</div>
                       <div className="flex flex-wrap gap-4 text-sm">
                         <span><span className="text-gray-500">Unit:</span> <span className="font-semibold text-gray-800">{formatCAD(unitCost)}</span></span>
-                        {(standardCost > 0 || selectedItem['Standard Cost']) && <span><span className="text-gray-500">Standard:</span> <span className="font-semibold text-gray-800">{formatCAD(standardCost)}</span></span>}
-                        {(recentCost > 0 || selectedItem['Recent Cost']) && <span><span className="text-gray-500">Recent:</span> <span className="font-semibold text-gray-800">{formatCAD(recentCost)}</span></span>}
+                        {(standardCost > 0 || item['Standard Cost'] || item['stdCost']) && <span><span className="text-gray-500">Standard:</span> <span className="font-semibold text-gray-800">{formatCAD(standardCost)}</span></span>}
+                        {(recentCost > 0 || item['Recent Cost'] || item['avgCost']) && <span><span className="text-gray-500">Recent:</span> <span className="font-semibold text-gray-800">{formatCAD(recentCost)}</span></span>}
                       </div>
                     </div>
                   </div>
@@ -8565,9 +8572,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               );
             })()}
 
-            {/* Tab Bar - Full Misys parity (scrollable) */}
-            <div className="flex px-6 pt-4 gap-1 overflow-x-auto min-h-10">
-              {[
+            {/* Tab Bar - Wrapping (no scroll); primary row then secondary */}
+            {(() => {
+              const workOrderCount = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length;
+              const primaryTabs = [
                 { id: 'master', label: 'Master' },
                 { id: 'stock', label: 'Stock' },
                 { id: 'costs', label: 'Costs' },
@@ -8576,7 +8584,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 { id: 'so', label: 'Sales Orders', badge: soCount },
                 { id: 'bom-where-used', label: 'BOM Where Used', badge: bomWhereUsedCount },
                 ...(isAssembled ? [{ id: 'bom', label: 'BOM' }] : []),
-                { id: 'work-orders', label: 'Work Orders', badge: (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length },
+                { id: 'work-orders', label: 'Work Orders', badge: workOrderCount },
+              ];
+              const secondaryTabs = [
                 { id: 'stock-movement', label: 'Stock Movement' },
                 { id: 'suppliers', label: 'Suppliers' },
                 { id: 'manufacturers', label: 'Manufacturers' },
@@ -8585,61 +8595,105 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 { id: 'notes', label: 'Notes' },
                 { id: 'history', label: 'History' },
                 { id: 'sl-numbers', label: 'SL Numbers' },
-              ].map(({ id, label, badge }) => (
-                <button
-                  key={id}
-                  onClick={() => setItemModalActiveView(id)}
-                  className={`flex-shrink-0 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
-                    itemModalActiveView === id
-                      ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {label}
-                  {badge !== undefined && badge > 0 && <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded-full">{badge}</span>}
-                </button>
-              ))}
-            </div>
+              ];
+              const tabClass = (id: string) =>
+                itemModalActiveView === id
+                  ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50';
+              return (
+                <div className="px-6 pt-4 border-b border-gray-100 bg-white">
+                  <div className="flex flex-wrap gap-1">
+                    {primaryTabs.map(({ id, label, badge }) => (
+                      <button
+                        key={id}
+                        onClick={() => setItemModalActiveView(id)}
+                        className={`px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-all whitespace-nowrap ${tabClass(id)}`}
+                      >
+                        {label}
+                        {badge !== undefined && badge > 0 && <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded-full">{badge}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1 pb-1">
+                    {secondaryTabs.map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => setItemModalActiveView(id)}
+                        className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-all whitespace-nowrap ${tabClass(id)}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/50">
 
               {/* ===== MASTER TAB ===== */}
-              {itemModalActiveView === 'master' && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500">Item No.</span><div className="font-mono font-bold text-gray-900">{itemNo}</div></div>
-                    <div><span className="text-gray-500">Description</span><div className="font-medium text-gray-900">{description}</div></div>
-                    <div><span className="text-gray-500">Status</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${stockStatus === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{stockStatus === 'out' ? 'Out of stock' : 'Active'}</span></div></div>
-                    <div><span className="text-gray-500">Type</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${isAssembled ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{isAssembled ? 'ASSEMBLED' : 'RAW'}</span></div></div>
-                    <div><span className="text-gray-500">Reorder Level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
-                    <div><span className="text-gray-500">Reorder Qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
+              {itemModalActiveView === 'master' && (() => {
+                const itemTypeRaw = item['Item Type'] ?? item['type'];
+                const typeLabel = itemTypeRaw === 1 || itemTypeRaw === '1' ? 'Assembled' : itemTypeRaw === 2 || itemTypeRaw === '2' ? 'Resource' : 'Purchased';
+                const stockingUnit = item['Stocking Units'] || item['uOfM'] || item['Base Unit of Measure'] || item['Unit of Measure'] || 'EA';
+                const purchasingUnit = item['Purchasing Units'] || item['poUOfM'] || stockingUnit;
+                const minimum = parseStockValue(item['Minimum'] ?? item['minQty'] ?? 0);
+                const maximum = parseStockValue(item['Maximum'] ?? item['maxQty'] ?? 0);
+                const statusVal = item['Status'] ?? item['status'];
+                const statusLabel = statusVal === 0 || statusVal === '0' || (typeof statusVal === 'string' && statusVal.toLowerCase() === 'inactive') ? 'Inactive' : 'Active';
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Item No.</span><div className="font-mono font-bold text-gray-900">{itemNo}</div></div>
+                      <div className="col-span-2 sm:col-span-1"><span className="text-gray-500 block text-xs font-medium uppercase">Type</span><div><span className={`px-2 py-1 rounded text-xs font-medium ${typeLabel === 'Assembled' ? 'bg-orange-100 text-orange-700' : typeLabel === 'Resource' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{typeLabel}</span></div></div>
+                      <div className="col-span-2"><span className="text-gray-500 block text-xs font-medium uppercase">Description</span><div className="font-medium text-gray-900">{description}</div></div>
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Stocking unit</span><div className="font-semibold text-gray-900">{stockingUnit}</div></div>
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Purchasing unit</span><div className="font-semibold text-gray-900">{purchasingUnit}</div></div>
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Status</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusLabel === 'Inactive' ? 'bg-gray-100 text-gray-600' : stockStatus === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel}</span></div></div>
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Reorder level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
+                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Reorder qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
+                      {(minimum > 0 || maximum > 0) && <div><span className="text-gray-500 block text-xs font-medium uppercase">Minimum</span><div className="font-medium">{minimum.toLocaleString()}</div></div>}
+                      {(minimum > 0 || maximum > 0) && <div><span className="text-gray-500 block text-xs font-medium uppercase">Maximum</span><div className="font-medium">{maximum.toLocaleString()}</div></div>}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* ===== STOCK TAB ===== */}
               {itemModalActiveView === 'stock' && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                    <div className="p-3 bg-emerald-50 rounded-lg"><div className="text-gray-500 text-xs">Total Stock</div><div className="text-xl font-bold text-emerald-600">{currentStock.toLocaleString()}</div></div>
+                  <div className="text-xs font-medium uppercase text-gray-500 mb-2">Aggregated stock</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+                    <div className="p-3 bg-emerald-50 rounded-lg"><div className="text-gray-500 text-xs">On Hand</div><div className="text-xl font-bold text-emerald-600">{currentStock.toLocaleString()}</div></div>
                     <div className="p-3 bg-blue-50 rounded-lg"><div className="text-gray-500 text-xs">WIP</div><div className="text-xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div></div>
+                    <div className="p-3 bg-amber-50 rounded-lg"><div className="text-gray-500 text-xs">Reserve</div><div className="text-xl font-bold text-amber-700">{reserve.toLocaleString()}</div></div>
                     <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">On Order</div><div className="text-xl font-bold text-gray-800">{onOrder.toLocaleString()}</div></div>
                     <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Available</div><div className="text-xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
                   </div>
-                  <div className="text-sm"><span className="text-gray-500">Reorder Level:</span> <span className="font-medium">{reorderLevel.toLocaleString()}</span></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pt-2 border-t border-gray-100">
+                    <div><span className="text-gray-500 text-xs">Min</span><div className="font-medium">{parseStockValue(item['Minimum'] ?? item['minQty'] ?? 0).toLocaleString()}</div></div>
+                    <div><span className="text-gray-500 text-xs">Max</span><div className="font-medium">{parseStockValue(item['Maximum'] ?? item['maxQty'] ?? 0).toLocaleString()}</div></div>
+                    <div><span className="text-gray-500 text-xs">Reorder level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
+                    <div><span className="text-gray-500 text-xs">Reorder qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
+                    {lotSize > 0 && <div><span className="text-gray-500 text-xs">Lot size</span><div className="font-medium">{lotSize.toLocaleString()}</div></div>}
+                  </div>
                 </div>
               )}
 
-              {/* ===== COSTS TAB ===== */}
+              {/* ===== COSTS TAB (MISys: Standard/Avg/Last, Current Value) ===== */}
               {itemModalActiveView === 'costs' && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Unit Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(unitCost)}</div></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Standard Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(standardCost)}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Recent Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(recentCost)}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Average Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(averageCost)}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Last Cost / Recent</div><div className="text-xl font-bold text-gray-900">{formatCAD(recentCost)}</div></div>
+                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Unit Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(unitCost)}</div></div>
                   </div>
-                  <div className="text-sm"><span className="text-gray-500">Total value (stock × unit cost):</span> <span className="font-semibold">{formatCAD(totalValue)}</span></div>
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="text-gray-500 text-xs">Current value (on hand × unit cost)</div>
+                    <div className="text-lg font-bold text-gray-900">{formatCAD(totalValue)}</div>
+                  </div>
                 </div>
               )}
 
@@ -9216,14 +9270,51 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== STOCK MOVEMENT TAB (empty until data source) ===== */}
-              {itemModalActiveView === 'stock-movement' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Stock Movement</div>
-                  <div className="text-sm">Movement history will appear here when a data source is available.</div>
-                </div>
-              )}
+              {/* ===== STOCK MOVEMENT TAB (Full Company Data: LotSerialHistory.json / MISLTH) ===== */}
+              {itemModalActiveView === 'stock-movement' && (() => {
+                const movements = (data['LotSerialHistory.json'] || []).filter((r: any) =>
+                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                );
+                if (movements.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">Stock Movement</div>
+                      <div className="text-sm">No movement history for this item. Data comes from Full Company Data (MISLTH / LotSerialHistory).</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">SO No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {movements.map((m: any, i: number) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Sales Order No.'] ?? m['xvarSOId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* ===== SUPPLIERS TAB (from PO history or empty) ===== */}
               {itemModalActiveView === 'suppliers' && (() => {
@@ -9301,14 +9392,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               )}
 
-              {/* ===== SL NUMBERS TAB (lot/serial - empty or wire to /api/lot-history) ===== */}
-              {itemModalActiveView === 'sl-numbers' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Serial / Lot Numbers</div>
-                  <div className="text-sm">Lot and serial number data will appear here when available (e.g. from /api/inventory/by-lot or /api/lot-history).</div>
-                </div>
-              )}
+              {/* ===== SL NUMBERS TAB (Full Company Data: LotSerialDetail.json / MISLTD) ===== */}
+              {itemModalActiveView === 'sl-numbers' && (() => {
+                const lotSerials = (data['LotSerialDetail.json'] || []).filter((r: any) =>
+                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                );
+                if (lotSerials.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">Serial / Lot Numbers</div>
+                      <div className="text-sm">No lot/serial records for this item. Data comes from Full Company Data (MISLTD / LotSerialDetail).</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Lot No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Serial No.</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {lotSerials.map((r: any, i: number) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-mono text-gray-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td>
+                            <td className="px-4 py-3 font-mono text-gray-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* ===== LOCATIONS TAB ===== */}
               {itemModalActiveView === 'locations' && (() => {

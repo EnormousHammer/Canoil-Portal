@@ -12,34 +12,79 @@ from io import StringIO, BytesIO
 
 # File stem -> (app keys to fill, column rename map export_name -> app_name)
 FULL_COMPANY_MAPPINGS = {
+    # MIITEM: exact columns from MISys Full Company Data export (MIITEM.CSV)
     "MIITEM": (
         ["CustomAlert5.json", "Items.json"],
         {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision",
          "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
+         "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "lotSz": "Lot Size",
          "minQty": "Minimum", "maxQty": "Maximum", "reordPoint": "Reorder Level", "reordQty": "Reorder Quantity",
-         "stdCost": "Standard Cost", "avgCost": "Average Cost", "unitCost": "Unit Cost", "landedCost": "Landed Cost"},
+         "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost", "itemCost": "Unit Cost",
+         "stdCost": "Standard Cost", "avgCost": "Average Cost", "unitCost": "Unit Cost", "landedCost": "Landed Cost",
+         "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No.", "status": "Status"},
     ),
     "Item": (
         ["CustomAlert5.json", "Items.json"],
         {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order"},
     ),
+    # Alternate file names so export works whether you have Item.csv, Items.csv, MIITEM.csv, or CustomAlert5.csv
+    "Items": (
+        ["CustomAlert5.json", "Items.json"],
+        {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
+         "descr": "Description", "Description": "Description", "Desc": "Description",
+         "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
+         "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "Stocking Unit": "Stocking Units", "UOM": "Stocking Units",
+         "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units", "Purchasing Unit": "Purchasing Units",
+         "totQStk": "Stock", "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock",
+         "totQWip": "WIP", "WIP": "WIP", "totQRes": "Reserve", "Reserve": "Reserve",
+         "totQOrd": "On Order", "On Order": "On Order", "Qty On Order": "On Order",
+         "minLvl": "Minimum", "minQty": "Minimum", "Minimum": "Minimum", "maxLvl": "Maximum", "maxQty": "Maximum", "Maximum": "Maximum",
+         "ordLvl": "Reorder Level", "reordPoint": "Reorder Level", "Reorder Level": "Reorder Level",
+         "ordQty": "Reorder Quantity", "reordQty": "Reorder Quantity", "Reorder Quantity": "Reorder Quantity", "Reorder Qty": "Reorder Quantity", "lotSz": "Lot Size",
+         "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost",
+         "stdCost": "Standard Cost", "Standard Cost": "Standard Cost", "avgCost": "Average Cost", "Average Cost": "Average Cost",
+         "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Recent Cost": "Recent Cost", "Last Cost": "Recent Cost",
+         "landedCost": "Landed Cost", "Landed Cost": "Landed Cost", "status": "Status", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No."},
+    ),
+    "CustomAlert5": (
+        ["CustomAlert5.json", "Items.json"],
+        {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
+         "descr": "Description", "Description": "Description", "Desc": "Description",
+         "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
+         "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "Stocking Unit": "Stocking Units", "UOM": "Stocking Units",
+         "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units", "Purchasing Unit": "Purchasing Units",
+         "totQStk": "Stock", "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock",
+         "totQWip": "WIP", "WIP": "WIP", "totQRes": "Reserve", "Reserve": "Reserve",
+         "totQOrd": "On Order", "On Order": "On Order", "Qty On Order": "On Order",
+         "minLvl": "Minimum", "minQty": "Minimum", "Minimum": "Minimum", "maxLvl": "Maximum", "maxQty": "Maximum", "Maximum": "Maximum",
+         "ordLvl": "Reorder Level", "reordPoint": "Reorder Level", "Reorder Level": "Reorder Level",
+         "ordQty": "Reorder Quantity", "reordQty": "Reorder Quantity", "Reorder Quantity": "Reorder Quantity", "Reorder Qty": "Reorder Quantity", "lotSz": "Lot Size",
+         "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost",
+         "stdCost": "Standard Cost", "Standard Cost": "Standard Cost", "avgCost": "Average Cost", "Average Cost": "Average Cost",
+         "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Recent Cost": "Recent Cost", "Last Cost": "Recent Cost",
+         "landedCost": "Landed Cost", "Landed Cost": "Landed Cost", "status": "Status", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No."},
+    ),
+    # MIILOC: exact columns from export (itemId, locId, pick, minLvl, maxLvl, ordLvl, ordQty, qStk, qWIP, qRes, qOrd)
     "MIILOC": (
         ["MIILOC.json"],
-        {"itemId": "Item No.", "locId": "Location No.", "qStk": "qStk", "qWIP": "qWIP", "qRes": "qRes", "qOrd": "qOrd"},
+        {"itemId": "Item No.", "locId": "Location No.", "pick": "Pick", "minLvl": "Minimum", "maxLvl": "Maximum",
+         "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "qStk": "qStk", "qWIP": "qWIP", "qRes": "qRes", "qOrd": "qOrd"},
     ),
     "MIBOMH": (
         ["MIBOMH.json", "BillsOfMaterial.json"],
         {"bomItem": "Parent Item No.", "bomRev": "Revision No.", "mult": "Build Quantity", "descr": "Description",
          "BOM Item": "Parent Item No.", "BOM Rev": "Revision No."},
     ),
+    # MIBOMD: exact columns from export (bomItem, bomRev, partId, qty, lead, cmnt, opCode, srcLoc)
     "MIBOMD": (
         ["MIBOMD.json", "BillOfMaterialDetails.json"],
         {"bomItem": "Parent Item No.", "bomRev": "Revision No.", "partId": "Component Item No.", "qty": "Required Quantity",
          "BOM Item": "Parent Item No.", "BOM Rev": "Revision No.", "Part Id": "Component Item No.", "Qty": "Required Quantity",
-         "leadTime": "Lead (Days)", "Lead (Days)": "Lead (Days)", "Comment": "Comment", "operNo": "Operation No.", "Operation No.": "Operation No.",
-         "srcLoc": "Source Location", "Source Location": "Source Location", "altItems": "Alternative Items", "Line": "Line", "Detail Type": "Detail Type", "Uniquifier": "Uniquifier"},
+         "lead": "Lead (Days)", "leadTime": "Lead (Days)", "Lead (Days)": "Lead (Days)", "cmnt": "Comment", "Comment": "Comment",
+         "opCode": "Operation No.", "operNo": "Operation No.", "Operation No.": "Operation No.",
+         "srcLoc": "Source Location", "Source Location": "Source Location", "altItems": "Alternative Items", "lineNbr": "Line", "Line": "Line", "Detail Type": "Detail Type", "dType": "Detail Type", "Uniquifier": "Uniquifier"},
     ),
     "MIMOH": (
         ["ManufacturingOrderHeaders.json", "MIMOH.json"],
@@ -48,43 +93,53 @@ FULL_COMPANY_MAPPINGS = {
          "startDt": "Start Date", "endDt": "Completion Date", "releaseDt": "Release Date", "closeDt": "Completion Date",
          "soShipDt": "Sales Order Ship Date", "customer": "Customer", "custId": "Customer"},
     ),
+    # MIMOMD: exact columns from export (mohId, partId, qty, reqQty, relQty, wipQty, resQty, endQty)
     "MIMOMD": (
         ["ManufacturingOrderDetails.json", "MIMOMD.json"],
-        {"mohId": "Mfg. Order No.", "partId": "Component Item No.", "reqQty": "Required Quantity", "compQty": "Completed"},
+        {"mohId": "Mfg. Order No.", "partId": "Component Item No.", "reqQty": "Required Quantity", "qty": "Quantity",
+         "endQty": "Completed", "compQty": "Completed", "relQty": "Released", "wipQty": "WIP", "resQty": "Reserve"},
     ),
+    # MIPOH: exact columns from export (pohId, poStatus, suplId, name, ordDt, closeDt, totOrdered, totReceived)
     "MIPOH": (
         ["PurchaseOrders.json", "MIPOH.json"],
-        # Export / MISys column -> app field (portal and PO details modal use these)
-        {"pohId": "PO No.", "poNo": "PO No.", "supId": "Supplier No.", "supplierNo": "Supplier No.",
-         "ordDt": "Order Date", "orderDate": "Order Date", "poStat": "Status", "status": "Status", "PO Status": "Status",
-         "totalAmt": "Total Amount", "totalAmount": "Total Amount", "Name": "Name", "Contact": "Contact",
-         "Buyer": "Buyer", "Terms": "Terms", "Ship Via": "Ship Via", "FOB": "FOB", "Freight": "Freight",
-         "Close Date": "Close Date", "Source Currency": "Source Currency", "Home Currency": "Home Currency",
-         "Total Ordered": "Total Ordered", "Total Received": "Total Received", "Total Additional Cost": "Total Additional Cost",
-         "Total Tax Amount": "Total Tax Amount", "Total Additional Tax": "Total Additional Tax", "Location No.": "Location No.", "Expedited Date": "Expedited Date",
-         "Invoiced": "Invoiced", "Invoice No.": "Invoice No.", "Rate": "Rate", "Rate Date": "Rate Date", "Tax Group": "Tax Group",
-         "Bill to Location": "Bill to Location", "Invoice Distribution Code": "Invoice Distribution Code"},
+        {"pohId": "PO No.", "poNo": "PO No.", "suplId": "Supplier No.", "supId": "Supplier No.", "supplierNo": "Supplier No.",
+         "name": "Name", "Name": "Name", "ordDt": "Order Date", "orderDate": "Order Date",
+         "poStatus": "Status", "poStat": "Status", "status": "Status", "PO Status": "Status",
+         "totOrdered": "Total Ordered", "totReceived": "Total Received", "totInvoiced": "Total Invoiced",
+         "Total Ordered": "Total Ordered", "Total Received": "Total Received",
+         "totalAmt": "Total Amount", "totalAmount": "Total Amount", "totTaxAmt": "Total Tax Amount", "totAddCost": "Total Additional Cost", "totAddTax": "Total Additional Tax",
+         "Contact": "Contact", "Buyer": "Buyer", "Terms": "Terms", "shpVia": "Ship Via", "Ship Via": "Ship Via", "fob": "FOB", "FOB": "FOB", "Freight": "Freight",
+         "closeDt": "Close Date", "Close Date": "Close Date", "expDt": "Expedited Date", "rateDt": "Rate Date",
+         "homeCur": "Home Currency", "srcCur": "Source Currency", "rate": "Rate", "invoiced": "Invoiced", "Invoiced": "Invoiced",
+         "locId": "Location No.", "jobId": "Job No.", "taxGrp": "Tax Group", "bLocId": "Bill to Location"},
     ),
+    # MIPOD: exact columns from export (pohId, itemId, ordered, received, price, cost, descr, initDueDt, realDueDt, mohId)
     "MIPOD": (
         ["PurchaseOrderDetails.json", "MIPOD.json"],
         {"pohId": "PO No.", "poNo": "PO No.", "partId": "Item No.", "itemId": "Item No.",
-         "ordQty": "Ordered", "ordered": "Ordered", "recvQty": "Received", "received": "Received",
-         "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Cost": "Unit Cost", "Price": "Unit Price",
-         "lineNo": "Line No.", "Line No.": "Line No.", "PO Detail No.": "Line No.",
-         "Description": "Description", "Real Due Date": "Required Date", "Initial Due Date": "Required Date",
-         "Promised Date": "Required Date", "Extended Price": "Extended Price", "Location No.": "Location No.",
-         "Comment": "Comment", "Additional Cost": "Additional Cost", "Job No.": "Job No.", "Last Received Date": "Last Received Date",
-         "PO Revision": "PO Revision", "PO Unit of Measure": "PO Unit of Measure", "Detail Status": "Detail Status", "Invoiced": "Invoiced", "Manufacturing Order No.": "Manufacturing Order No."},
+         "ordered": "Ordered", "received": "Received", "ordQty": "Ordered", "recvQty": "Received",
+         "price": "Unit Cost", "cost": "Unit Cost", "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Cost": "Unit Cost", "Price": "Unit Price",
+         "descr": "Description", "Description": "Description",
+         "initDueDt": "Required Date", "realDueDt": "Required Date", "promisedDt": "Required Date", "lastRecvDt": "Last Received Date",
+         "Real Due Date": "Required Date", "Initial Due Date": "Required Date", "Promised Date": "Required Date",
+         "lineNbr": "Line No.", "lineNo": "Line No.", "Line No.": "Line No.", "podId": "Line No.", "PO Detail No.": "Line No.",
+         "Extended Price": "Extended Price", "Location No.": "Location No.", "locId": "Location No.", "jobId": "Job No.",
+         "Comment": "Comment", "cmt": "Comment", "Additional Cost": "Additional Cost", "adCost": "Additional Cost",
+         "Last Received Date": "Last Received Date", "mohId": "Manufacturing Order No.", "Manufacturing Order No.": "Manufacturing Order No.",
+         "dStatus": "Detail Status", "Detail Status": "Detail Status", "Invoiced": "Invoiced", "invoiced": "Invoiced"},
     ),
+    # MIWOH: exact columns from export (wohId, status, releaseDt, descr, locId, jobId, ...)
     "MIWOH": (
         ["WorkOrders.json", "MIWOH.json", "WorkOrderHeaders.json"],
-        {"wohId": "Work Order No.", "jobId": "Job No.", "woStat": "Status", "releaseDt": "Release Date",
-         "descr": "Description", "locId": "Location No.", "soId": "Sales Order No."},
+        {"wohId": "Work Order No.", "jobId": "Job No.", "status": "Status", "woStat": "Status", "releaseDt": "Release Date",
+         "descr": "Description", "locId": "Location No.", "soId": "Sales Order No.", "lstMaintDt": "Last Maint Date", "creator": "Creator", "releaser": "Releaser", "priority": "Priority"},
     ),
+    # MIWOD: exact columns from export (wohId, partId, reqQty, mohId)
     "MIWOD": (
         ["WorkOrderDetails.json", "MIWOD.json"],
         {"wohId": "Work Order No.", "jobId": "Job No.", "partId": "Item No.", "itemId": "Item No.",
-         "ordQty": "Ordered", "compQty": "Completed", "mohId": "Manufacturing Order No.", "soId": "Sales Order No."},
+         "reqQty": "Required Quantity", "ordQty": "Ordered", "endQty": "Completed", "compQty": "Completed",
+         "mohId": "Manufacturing Order No.", "soId": "Sales Order No."},
     ),
     # MO routings (work centers, operations)
     "MIMORD": (
@@ -130,17 +185,23 @@ FULL_COMPANY_MAPPINGS = {
          "Stock Quantity": "Stock Quantity", "WIP Qty": "WIP Qty", "Reserve Qty": "Reserve Qty", "On Order Qty": "On Order Qty", "Used Qty": "Used Qty", "Received Qty": "Received Qty"},
     ),
     # Lot/serial transaction history (Full Company Data export)
+    # MISLTH: exact columns from export (tranDate, userId, itemId, type, xvarMOId, xvarSOId, trnQty, locId, jobId)
     "MISLTH": (
         ["LotSerialHistory.json"],
-        {"tranDate": "Transaction Date", "userId": "User", "itemId": "Item No.", "prntItemId": "Parent Item No.",
+        {"tranDate": "Transaction Date", "tranDt": "Transaction Date", "userId": "User", "itemId": "Item No.", "prntItemId": "Parent Item No.",
          "locId": "Location No.", "jobId": "Job No.", "type": "Type", "xvarMOId": "Mfg. Order No.",
          "xvarSOId": "Sales Order No.", "trnQty": "Quantity", "rdyQty": "Ready Qty", "recQty": "Received Qty"},
     ),
+    # MISLTD: exact columns from export (tranDate, userId, entry, detail, prntLotId, itemId, trnQty, recQty)
     "MISLTD": (
         ["LotSerialDetail.json"],
-        {"lotId": "Lot No.", "serialNo": "Serial No.", "itemId": "Item No.", "qty": "Quantity"},
+        {"prntLotId": "Lot No.", "lotId": "Lot No.", "entry": "Serial No.", "detail": "Serial No.", "serialNo": "Serial No.",
+         "itemId": "Item No.", "prntItemId": "Parent Item No.", "trnQty": "Quantity", "recQty": "Quantity", "qty": "Quantity"},
     ),
 }
+
+# Case-insensitive file stem lookup: MIITEM.CSV, miitem.csv, MiItem.Csv all use MIITEM mapping
+_STEM_TO_KEY = {k.upper(): k for k in FULL_COMPANY_MAPPINGS}
 
 
 def _read_table(content, file_name, is_bytes=False):
@@ -213,12 +274,13 @@ def load_from_folder(folder_path):
     try:
         skeleton = _get_skeleton()
         files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
-        expected_stems = set(FULL_COMPANY_MAPPINGS.keys())
         for fname in files:
+            if not fname.lower().endswith((".csv", ".xlsx", ".xls")):
+                continue
             stem = os.path.splitext(fname)[0]
-            if stem not in FULL_COMPANY_MAPPINGS:
-                if fname.lower().endswith((".csv", ".xlsx", ".xls")):
-                    print(f"[full_company_data_converter] skip (no mapping): {fname} – expected one of: {sorted(expected_stems)}")
+            mapping_key = _STEM_TO_KEY.get(stem.upper(), stem)
+            if mapping_key not in FULL_COMPANY_MAPPINGS:
+                print(f"[full_company_data_converter] skip (no mapping): {fname}")
                 continue
             path = os.path.join(folder_path, fname)
             try:
@@ -237,7 +299,7 @@ def load_from_folder(folder_path):
                 continue
             if not rows:
                 continue
-            keys, column_map = FULL_COMPANY_MAPPINGS[stem]
+            keys, column_map = FULL_COMPANY_MAPPINGS[mapping_key]
             rows = _apply_column_map(rows, column_map)
             for key in keys:
                 if key in skeleton and isinstance(skeleton[key], list):
@@ -287,8 +349,11 @@ def load_from_drive_api(drive_service, drive_id, folder_path):
         for finfo in files:
             fname = finfo.get("name") or finfo.get("fileName") or ""
             fid = finfo.get("id") or finfo.get("fileId")
+            if not fname.lower().endswith((".csv", ".xlsx", ".xls")) or not fid:
+                continue
             stem = os.path.splitext(fname)[0]
-            if stem not in FULL_COMPANY_MAPPINGS or not fid:
+            mapping_key = _STEM_TO_KEY.get(stem.upper(), stem)
+            if mapping_key not in FULL_COMPANY_MAPPINGS:
                 continue
             content = drive_service.download_file(fid, fname)
             if content is None:
@@ -309,7 +374,7 @@ def load_from_drive_api(drive_service, drive_id, folder_path):
                 continue
             if not rows:
                 continue
-            keys, column_map = FULL_COMPANY_MAPPINGS[stem]
+            keys, column_map = FULL_COMPANY_MAPPINGS[mapping_key]
             rows = _apply_column_map(rows, column_map)
             for key in keys:
                 if key in skeleton and isinstance(skeleton[key], list):

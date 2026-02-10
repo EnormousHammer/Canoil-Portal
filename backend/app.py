@@ -1980,7 +1980,7 @@ def get_empty_app_data_structure():
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
-    """Get all data. Prefer Full Company Data (MISys export) when available; else latest API Extractions folder. Use ?source=default to force API Extractions only."""
+    """Single source: MISys Full Company Data export (your CSV/Excel export folder). When that folder is available, we use it only. Use ?source=default to force legacy API Extractions instead."""
     global _data_cache, _response_cache, _cache_timestamp
     import time  # Import at function level for use throughout function
     from flask import request
@@ -2401,11 +2401,11 @@ def get_data_source_status():
             full_company_available = False
         return jsonify({
             "currentSource": "default",
-            "defaultLabel": "Full Company Data when available, else API Extractions",
+            "defaultLabel": "MISys Full Company Data (export folder)",
             "fullCompanyDataPath": FULL_COMPANY_DATA_DRIVE_PATH,
             "fullCompanyDataAvailable": full_company_available,
             "fullCompanyDataReady": full_company_available,
-            "message": "Data loads from your MISys Full Company Data export when the folder is available. Use ?source=default on /api/data to force API Extractions only.",
+            "message": "Data comes from your MISys Full Company Data export. Place your export CSVs in the configured folder; no separate API extractions are required.",
         })
     except Exception as e:
         return jsonify({"error": str(e), "currentSource": "default", "fullCompanyDataReady": False}), 500

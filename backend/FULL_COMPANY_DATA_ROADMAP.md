@@ -1,8 +1,17 @@
 # Full Company Data – Roadmap (where your export goes)
 
+**Single source of truth:** Your MISys **Full Company Data** export. The app is built to use this. No separate “API extractions” are required for inventory, POs, MOs, BOM, work orders, or lot/serial—everything comes from the export folder.
+
 **Folder:** `G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data as of 02_10_2026`
 
-Put your MISys **Export All Company Data** CSV or Excel files in that folder. The portal loads them and maps columns into the app. This doc is the **roadmap**: which file → which app data, and which export column names → which app field names.
+Put your MISys **Export All Company Data** CSV or Excel files in that folder. File names are matched case-insensitively (e.g. `MIITEM.CSV` or `miitem.csv` both work).
+
+### How to see the data in the portal
+
+1. **Export** from MISys into the folder above (or the same path on your shared Drive). Use **Item.csv**, **Items.csv**, **MIITEM.csv**, or **CustomAlert5.csv** for inventory (any one works).
+2. **Run the backend** on a machine that can see that folder (or use Google Drive API with the same path). The app loads Full Company Data by default when the folder has files.
+3. **Open the portal** and refresh if needed. Go to **Operations Hub → Inventory** and click an item. The item modal should show Master (type, stocking unit, etc.), Stock (on hand, WIP, reserve, min/max/reorder), Costs, POs, Mfg Orders, and other tabs from your data.
+4. If a tab is empty, check that the corresponding export file is in the folder (e.g. **MISLTH.csv** for Stock Movement, **MISLTD.csv** for SL Numbers). Column headers are matched case-insensitively. The portal loads them and maps columns into the app. This doc is the **roadmap**: which file → which app data, and which export column names → which app field names.
 
 ---
 
@@ -10,7 +19,7 @@ Put your MISys **Export All Company Data** CSV or Excel files in that folder. Th
 
 | Your export file (name without extension) | Feeds these app data keys (portal uses these) |
 |------------------------------------------|-----------------------------------------------|
-| **Item** or **MIITEM** | `CustomAlert5.json`, `Items.json` (inventory items) |
+| **Item**, **Items**, **MIITEM**, or **CustomAlert5** | `CustomAlert5.json`, `Items.json` (inventory items). Any of these file names work. |
 | **MIILOC** | `MIILOC.json` (item locations) |
 | **MIBOMH** | `BillsOfMaterial.json`, `MIBOMH.json` |
 | **MIBOMD** | `BillOfMaterialDetails.json`, `MIBOMD.json` (BOM Where Used, BOM tab) |
@@ -35,11 +44,36 @@ If your MISys export uses different file names (e.g. `Items.csv` instead of `Ite
 
 ---
 
+## Item modal tabs ↔ Full Company Data
+
+| Tab in item popup | Source (export file → app data) |
+|-------------------|----------------------------------|
+| **Master** | Item / MIITEM → CustomAlert5, Items |
+| **Stock** | Item / MIITEM, MIILOC |
+| **Costs** | Item / MIITEM (Unit / Standard / Recent cost) |
+| **Purchase Orders** | MIPOH, MIPOD → PurchaseOrders, PurchaseOrderDetails |
+| **Mfg Orders** | MIMOH, MIMOMD → ManufacturingOrderHeaders, ManufacturingOrderDetails |
+| **Sales Orders** | Separate source (e.g. Sales_CSR or SO export if added) |
+| **BOM Where Used** | MIBOMD → BillOfMaterialDetails |
+| **Work Orders** | MIWOH, MIWOD → WorkOrders, WorkOrderDetails |
+| **Stock Movement** | **MISLTH** → LotSerialHistory.json |
+| **Suppliers** | Derived from POs (MIPOH, MIPOD) – vendors who have ordered this item |
+| **Manufacturers** | Not yet in converter (add export file mapping if you have it) |
+| **Alternates** | Not yet in converter (add export file mapping if you have it) |
+| **Activity** | Not yet in converter (add export file mapping if you have it) |
+| **Notes** | Not yet in converter (needs backend store or export) |
+| **History** | Not yet in converter (needs audit export or backend) |
+| **SL Numbers** | **MISLTD** → LotSerialDetail.json |
+
+---
+
 ## Column roadmap (export column → app field)
 
 For each file, the converter looks at the **first row as column headers**. Each header is mapped to an app field. Matching is **case-insensitive** and ignores extra spaces. Below: **Export column** (what may appear in your CSV/Excel) → **App field** (what the portal uses).
 
 ### Item / MIITEM → CustomAlert5.json, Items.json
+
+The converter accepts both **MISys export column names** (from your CSV) and display-style names. Export columns (what MISys writes) are listed first.
 
 | Export column (any of these) | → App field |
 |------------------------------|-------------|
@@ -52,16 +86,20 @@ For each file, the converter looks at the **first row as column headers**. Each 
 | totQWip | WIP |
 | totQRes | Reserve |
 | totQOrd | On Order |
-| minQty | Minimum |
-| maxQty | Maximum |
-| reordPoint | Reorder Level |
-| reordQty | Reorder Quantity |
-| stdCost | Standard Cost |
-| avgCost | Average Cost |
-| unitCost | Unit Cost |
-| landedCost | Landed Cost |
+| **minLvl** (export) / minQty | Minimum |
+| **maxLvl** (export) / maxQty | Maximum |
+| **ordLvl** (export) / reordPoint | Reorder Level |
+| **ordQty** (export) / reordQty | Reorder Quantity |
+| **lotSz** (export) | Lot Size |
+| **cLast** (export) | Recent Cost |
+| **cStd** (export) | Standard Cost |
+| **cAvg** (export) | Average Cost |
+| **cLand** (export) | Landed Cost |
+| unitCost / itemCost | Unit Cost |
+| stdCost, avgCost, landedCost | (same) |
 | uConvFact | Units Conversion Factor |
 | revId | Current BOM Revision |
+| locId, suplId, mfgId, status | Location No., Supplier No., Manufacturer No., Status |
 
 ### MIBOMD → BillOfMaterialDetails.json (BOM Where Used tab)
 

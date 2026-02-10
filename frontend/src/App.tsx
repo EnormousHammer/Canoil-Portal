@@ -231,7 +231,7 @@ function App() {
     }
   };
 
-  // Function to refresh/sync data (optional: load Full Company Data instead of default API Extractions)
+  // Function to refresh/sync data (primary source: MISys Full Company Data export)
   const handleRefreshData = async (options?: { source?: 'default' | 'full_company_data' }) => {
     const source = options?.source ?? 'default';
     console.log('🔄 Refreshing data...', source === 'full_company_data' ? '(Full Company Data)' : '');
