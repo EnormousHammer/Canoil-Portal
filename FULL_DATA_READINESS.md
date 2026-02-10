@@ -27,8 +27,14 @@ So: we don’t run MISys; we **consume its export** and turn it into the portal�
 | **MIWOD** | WorkOrderDetails.json, MIWOD.json | ✅ Converted |
 | **MISLTH** | LotSerialHistory.json | ✅ Converted |
 | **MISLTD** | LotSerialDetail.json | ✅ Converted |
+| **MIMORD** | ManufacturingOrderRoutings.json, MIMORD.json (work centers, operations) | ✅ Converted |
+| **MIPOC** / **MIPOHX** | PurchaseOrderExtensions.json (PO extension key/value) | ✅ Converted |
+| **MIPOCV** | PurchaseOrderAdditionalCosts.json (header-level additional costs) | ✅ Converted |
+| **MIPODC** | PurchaseOrderDetailAdditionalCosts.json (line-level additional costs) | ✅ Converted |
+| **MIJOBH** | Jobs.json, MIJOBH.json | ✅ Converted |
+| **MIJOBD** | JobDetails.json, MIJOBD.json | ✅ Converted |
 
-So for **items, inventory by location, BOM, MO, PO, WO, and lot/serial**, the app **can take full data** from these CSVs. The UI (Inventory with Raw/Assembled/Formula and Lot history, BOM, MO, PO with full supplier/cost/header, WO, shortage, create PO with full header + costs, receive, release/complete MO/WO) works with that data.
+So for **items, inventory by location, BOM, MO, PO (including extensions and additional costs), WO, Jobs, MO routings, and lot/serial**, the app **can take full data** from these CSVs. The UI (Inventory with Raw/Assembled/Formula and Lot history, BOM, MO, PO with full supplier/cost/header, WO, shortage, create PO with full header + costs, receive, release/complete MO/WO) works with that data.
 
 ---
 
@@ -36,22 +42,21 @@ So for **items, inventory by location, BOM, MO, PO, WO, and lot/serial**, the ap
 
 | Area | Full Company Data file(s) | Status |
 |------|---------------------------|--------|
-| **MO routings** (work centers, operations) | MIMORD | ❌ Not mapped in converter |
-| **PO extensions / extra costs** | MIPOHX, MIPOC, MIPOCV, MIPODC | ❌ Not mapped |
 | **Sales orders** | Not in standard “Export All Company Data” we use | ❌ SO from PDF/Drive only |
-| **Jobs** (job header/detail) | MIJOBH, MIJOBD | ❌ Not mapped |
 | **Suppliers/Vendors master** | If MISys exports a vendor table (e.g. MISUP) | ❌ Not mapped |
 
-Routings, PO extensions/costs, Jobs, and a vendors master can be added in `full_company_data_converter.py` (same pattern as MIPOH/MIPOD) when you have the CSVs and want them in the portal.
+Sales Orders come from PDF/Drive scanning. A vendors master can be added in `full_company_data_converter.py` when you have the CSV.
 
 ---
 
 ## Are we ready? – Checklist
 
 - **Converter**
-  - MIITEM, MIILOC, MIBOMH, MIBOMD, MIMOH, MIMOMD, MIPOH, MIPOD, MIWOH, MIWOD, MISLTH, MISLTD are mapped.
-  - MIPOH includes: PO No., Supplier No., Name, Order Date, Status, Total Amount, Buyer, Terms, Ship Via, FOB, Freight, Contact, Close Date, Source/Home Currency, etc.
-  - MIPOD includes: PO No., Item No., Ordered, Received, Unit Cost, Unit Price, Line No., Description, Required Date, Extended Price.
+  - All core and extended tables: MIITEM, MIILOC, MIBOMH, MIBOMD, MIMOH, MIMOMD, MIPOH, MIPOD, MIWOH, MIWOD, MISLTH, MISLTD, **MIMORD**, **MIPOC**, **MIPOHX**, **MIPOCV**, **MIPODC**, **MIJOBH**, **MIJOBD**.
+  - MIPOH: full header (PO No., Supplier, Order Date, Status, Total Amount, Buyer, Terms, Ship Via, FOB, Freight, Contact, Close Date, Currency, Tax/Invoice fields).
+  - MIPOD: full lines (Item No., Ordered, Received, Unit Cost, Unit Price, Line No., Description, Required Date, Extended Price, Comment, Job No., etc.).
+  - PO extensions (MIPOC/MIPOHX) → PurchaseOrderExtensions.json; header additional costs (MIPOCV) → PurchaseOrderAdditionalCosts.json; line additional costs (MIPODC) → PurchaseOrderDetailAdditionalCosts.json. PO details “Additional Costs” tab shows all three and line-level table + totals.
+  - MIMORD → ManufacturingOrderRoutings.json (MO routings). MIJOBH → Jobs.json, MIJOBD → JobDetails.json.
 - **App data shape**
   - `get_empty_app_data_structure()` in `app.py` includes all keys the UI and converter use (including LotSerialHistory.json, LotSerialDetail.json).
 - **Merge with portal actions**
@@ -62,7 +67,7 @@ Routings, PO extensions/costs, Jobs, and a vendors master can be added in `full_
   - MO: create, release, complete, backflush; WO: release, complete.
   - Data source: default = API Extractions (G: or Drive); “Load” next to “Full Company Data” = load from Full Company Data folder and convert.
 
-So: **we are ready** for Full Company Data for **items, BOM, MO, PO, WO, and lot/serial**. For a given MISys export, put the CSVs in the Full Company Data folder (local or Drive), click “Load” next to “Full Company Data”, and the app will use that data end-to-end. Column names in the CSVs must match what the converter expects (or be added to the mapping in `full_company_data_converter.py`).
+So: **we are ready** for Full Company Data for **items, BOM, MO (with routings), PO (with extensions and additional costs), WO, Jobs, and lot/serial**. No half measures: all mapped MISys export tables are converted and surfaced in the UI where applicable. For a given MISys export, put the CSVs in the Full Company Data folder (local or Drive), click “Load” next to “Full Company Data”, and the app will use that data end-to-end. Column names in the CSVs must match what the converter expects (or be added to the mapping in `full_company_data_converter.py`).
 
 ---
 

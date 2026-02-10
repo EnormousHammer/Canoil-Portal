@@ -343,15 +343,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [alphabetFilter, setAlphabetFilter] = useState('');
 
-  // Purchase Order processing
+  // Purchase Order processing (works with or without PurchaseOrderExtensions)
   const processPurchaseOrders = useMemo(() => {
-    if (!data?.['PurchaseOrders.json'] || !data?.['PurchaseOrderDetails.json'] || !data?.['PurchaseOrderExtensions.json']) {
+    if (!data?.['PurchaseOrders.json'] || !data?.['PurchaseOrderDetails.json']) {
       return { headers: [], lines: [] };
     }
+    const extensions = data['PurchaseOrderExtensions.json'] || [];
 
     const headers = data['PurchaseOrders.json'].map((po: any) => {
-      // Find matching extension data
-      const extension = data['PurchaseOrderExtensions.json'].find((ext: any) => ext['PO No.'] === po['PO No.']);
+      // Find matching extension data (optional)
+      const extension = extensions.find((ext: any) => ext['PO No.'] === po['PO No.']);
       
       // Get all line items for this PO to calculate advanced metrics
       const poLines = data['PurchaseOrderDetails.json'].filter((line: any) => line['PO No.'] === po['PO No.']);
@@ -4673,8 +4674,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           cost['PO No.'] === selectedPO['PO No.']
                         );
 
-                        console.log('💰 PO Additional Costs for', selectedPO['PO No.'], ':', { additionalCosts, additionalTaxes, detailCosts });
-
                         const hasAnyCosts = additionalCosts.length > 0 || additionalTaxes.length > 0 || detailCosts.length > 0;
 
                         if (!hasAnyCosts) {
@@ -4728,6 +4727,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </div>
                             )}
 
+                            {/* Detail-level additional costs (per PO line) */}
+                            {detailCosts.length > 0 && (
+                              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                <div className="bg-gray-50 px-4 py-2">
+                                  <h5 className="font-medium text-gray-900">Line-level additional costs</h5>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                    <thead className="bg-gray-50">
+                                      <tr>
+                                        <th className="text-left p-3 font-medium text-gray-700">PO Line</th>
+                                        <th className="text-left p-3 font-medium text-gray-700">Cost type</th>
+                                        <th className="text-left p-3 font-medium text-gray-700">Description</th>
+                                        <th className="text-right p-3 font-medium text-gray-700">Amount</th>
+                                        <th className="text-right p-3 font-medium text-gray-700">Unit price</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {detailCosts.map((cost: any, index: number) => (
+                                        <tr key={index} className="border-b border-gray-100 hover:bg-yellow-50">
+                                          <td className="p-3 font-mono text-gray-700">{cost['PO Line No.'] ?? cost['PO Line'] ?? '—'}</td>
+                                          <td className="p-3 font-medium text-gray-900">{cost['Additional Cost'] || cost['Cost Type'] || '—'}</td>
+                                          <td className="p-3 text-gray-700">{cost['Description'] || '—'}</td>
+                                          <td className="p-3 text-right font-mono font-bold text-green-600">
+                                            ${(parseFloat(cost['Amount'] || cost['Extended Price'] || 0)).toFixed(2)}
+                                          </td>
+                                          <td className="p-3 text-right font-mono">{cost['Unit Price'] != null ? `$${Number(cost['Unit Price']).toFixed(2)}` : '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Additional Taxes */}
                             {additionalTaxes.length > 0 && (
                               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -4773,23 +4807,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 {(() => {
                                   const totalAdditionalCosts = additionalCosts.reduce((sum: number, cost: any) => 
                                     sum + parseFloat(cost['Amount'] || cost['Cost'] || 0), 0);
+                                  const totalDetailCosts = detailCosts.reduce((sum: number, cost: any) => 
+                                    sum + parseFloat(cost['Amount'] || cost['Extended Price'] || 0), 0);
                                   const totalTaxes = additionalTaxes.reduce((sum: number, tax: any) => 
                                     sum + parseFloat(tax['Amount'] || tax['Tax Amount'] || 0), 0);
-                                  const grandTotal = totalAdditionalCosts + totalTaxes;
+                                  const grandTotal = totalAdditionalCosts + totalDetailCosts + totalTaxes;
 
                                   return (
                                     <>
                                       <div className="text-center">
                                         <div className="font-semibold text-gray-900">${totalAdditionalCosts.toFixed(2)}</div>
-                                        <div className="text-gray-600">Additional Costs</div>
+                                        <div className="text-gray-600">Header costs</div>
                                       </div>
+                                      {totalDetailCosts > 0 && (
+                                        <div className="text-center">
+                                          <div className="font-semibold text-gray-900">${totalDetailCosts.toFixed(2)}</div>
+                                          <div className="text-gray-600">Line costs</div>
+                                        </div>
+                                      )}
                                       <div className="text-center">
                                         <div className="font-semibold text-gray-900">${totalTaxes.toFixed(2)}</div>
-                                        <div className="text-gray-600">Total Taxes</div>
+                                        <div className="text-gray-600">Taxes</div>
                                       </div>
                                       <div className="text-center">
                                         <div className="font-semibold text-green-600">${grandTotal.toFixed(2)}</div>
-                                        <div className="text-gray-600">Total Extra Costs</div>
+                                        <div className="text-gray-600">Total extra</div>
                                       </div>
                                     </>
                                   );

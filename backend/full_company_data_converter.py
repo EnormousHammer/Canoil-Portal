@@ -34,7 +34,9 @@ FULL_COMPANY_MAPPINGS = {
     "MIBOMD": (
         ["MIBOMD.json", "BillOfMaterialDetails.json"],
         {"bomItem": "Parent Item No.", "bomRev": "Revision No.", "partId": "Component Item No.", "qty": "Required Quantity",
-         "BOM Item": "Parent Item No.", "BOM Rev": "Revision No.", "Part Id": "Component Item No.", "Qty": "Required Quantity"},
+         "BOM Item": "Parent Item No.", "BOM Rev": "Revision No.", "Part Id": "Component Item No.", "Qty": "Required Quantity",
+         "leadTime": "Lead (Days)", "Lead (Days)": "Lead (Days)", "Comment": "Comment", "operNo": "Operation No.", "Operation No.": "Operation No.",
+         "srcLoc": "Source Location", "Source Location": "Source Location", "altItems": "Alternative Items", "Line": "Line", "Detail Type": "Detail Type", "Uniquifier": "Uniquifier"},
     ),
     "MIMOH": (
         ["ManufacturingOrderHeaders.json", "MIMOH.json"],
@@ -56,7 +58,9 @@ FULL_COMPANY_MAPPINGS = {
          "Buyer": "Buyer", "Terms": "Terms", "Ship Via": "Ship Via", "FOB": "FOB", "Freight": "Freight",
          "Close Date": "Close Date", "Source Currency": "Source Currency", "Home Currency": "Home Currency",
          "Total Ordered": "Total Ordered", "Total Received": "Total Received", "Total Additional Cost": "Total Additional Cost",
-         "Total Tax Amount": "Total Tax Amount", "Location No.": "Location No.", "Expedited Date": "Expedited Date"},
+         "Total Tax Amount": "Total Tax Amount", "Total Additional Tax": "Total Additional Tax", "Location No.": "Location No.", "Expedited Date": "Expedited Date",
+         "Invoiced": "Invoiced", "Invoice No.": "Invoice No.", "Rate": "Rate", "Rate Date": "Rate Date", "Tax Group": "Tax Group",
+         "Bill to Location": "Bill to Location", "Invoice Distribution Code": "Invoice Distribution Code"},
     ),
     "MIPOD": (
         ["PurchaseOrderDetails.json", "MIPOD.json"],
@@ -65,7 +69,9 @@ FULL_COMPANY_MAPPINGS = {
          "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Cost": "Unit Cost", "Price": "Unit Price",
          "lineNo": "Line No.", "Line No.": "Line No.", "PO Detail No.": "Line No.",
          "Description": "Description", "Real Due Date": "Required Date", "Initial Due Date": "Required Date",
-         "Promised Date": "Required Date", "Extended Price": "Extended Price", "Location No.": "Location No."},
+         "Promised Date": "Required Date", "Extended Price": "Extended Price", "Location No.": "Location No.",
+         "Comment": "Comment", "Additional Cost": "Additional Cost", "Job No.": "Job No.", "Last Received Date": "Last Received Date",
+         "PO Revision": "PO Revision", "PO Unit of Measure": "PO Unit of Measure", "Detail Status": "Detail Status", "Invoiced": "Invoiced", "Manufacturing Order No.": "Manufacturing Order No."},
     ),
     "MIWOH": (
         ["WorkOrders.json", "MIWOH.json", "WorkOrderHeaders.json"],
@@ -76,6 +82,49 @@ FULL_COMPANY_MAPPINGS = {
         ["WorkOrderDetails.json", "MIWOD.json"],
         {"wohId": "Work Order No.", "jobId": "Job No.", "partId": "Item No.", "itemId": "Item No.",
          "ordQty": "Ordered", "compQty": "Completed", "mohId": "Manufacturing Order No.", "soId": "Sales Order No."},
+    ),
+    # MO routings (work centers, operations)
+    "MIMORD": (
+        ["ManufacturingOrderRoutings.json", "MIMORD.json"],
+        {"mohId": "Mfg. Order No.", "opNo": "Operation No.", "workCtr": "Work Center No.", "runTime": "Run Time",
+         "setupTime": "Setup Time", "operNo": "Operation No.", "seq": "Sequence", "Operation No.": "Operation No.", "Work Center No.": "Work Center No."},
+    ),
+    # PO extensions (key-value extensions per PO/line)
+    "MIPOC": (
+        ["PurchaseOrderExtensions.json", "MIPOC.json"],
+        {"pohId": "PO No.", "poNo": "PO No.", "lineNo": "Line No.", "extType": "Extension Type", "extValue": "Extension Value", "extDesc": "Extension Description",
+         "PO Revision": "PO Revision", "Extension Type": "Extension Type", "Extension Value": "Extension Value", "Extension Description": "Extension Description"},
+    ),
+    "MIPOHX": (
+        ["PurchaseOrderExtensions.json"],
+        {"pohId": "PO No.", "poNo": "PO No.", "lineNo": "Line No.", "extType": "Extension Type", "extValue": "Extension Value", "extDesc": "Extension Description"},
+    ),
+    # PO header-level additional costs (freight, etc.)
+    "MIPOCV": (
+        ["PurchaseOrderAdditionalCosts.json", "MIPOCV.json"],
+        {"purchaseOrderId": "PO No.", "pohId": "PO No.", "poNo": "PO No.", "Purchase Order Id": "PO No.", "addlCost": "Cost Type", "Additional Cost": "Cost Type",
+         "Amount": "Amount", "Description": "Description", "Line": "Line", "Purchase Order Revision": "PO Revision", "Supplier": "Supplier",
+         "A/P Invoice Account No.": "Account", "Account No.": "Account", "Comment": "Comment", "Date": "Date", "Invoice No.": "Invoice No.", "Invoiced": "Invoiced"},
+    ),
+    # PO line-level additional costs
+    "MIPODC": (
+        ["PurchaseOrderDetailAdditionalCosts.json", "MIPODC.json"],
+        {"pohId": "PO No.", "poNo": "PO No.", "PO No.": "PO No.", "poLineNo": "PO Line No.", "PO Line No.": "PO Line No.", "PO Cost Line No.": "PO Cost Line No.",
+         "Additional Cost": "Additional Cost", "Amount": "Amount", "Description": "Description", "Extended Price": "Extended Price", "Unit Price": "Unit Price",
+         "PO Revision": "PO Revision", "Supplier": "Supplier", "Source Currency": "Source Currency", "Date": "Date", "Tax Amount": "Tax Amount"},
+    ),
+    # Jobs (header and detail)
+    "MIJOBH": (
+        ["Jobs.json", "MIJOBH.json"],
+        {"jobId": "Job No.", "Job No.": "Job No.", "jobNo": "Job No.", "descr": "Description", "status": "Status", "Status": "Status",
+         "custId": "Customer", "customer": "Customer", "soId": "Sales Order No.", "locId": "Location No.", "Location No.": "Location No.", "createdDt": "Created Date", "closeDt": "Close Date"},
+    ),
+    "MIJOBD": (
+        ["JobDetails.json", "MIJOBD.json"],
+        {"jobId": "Job No.", "Job No.": "Job No.", "jobItem": "Item No.", "partId": "Item No.", "itemId": "Item No.", "Item No.": "Item No.",
+         "part": "Part No.", "Part No.": "Part No.", "locId": "Location No.", "Location No.": "Location No.", "type": "Type", "Type": "Type",
+         "qStk": "Stock Quantity", "qWip": "WIP Qty", "qRes": "Reserve Qty", "qOrd": "On Order Qty", "qUsed": "Used Qty", "qRecd": "Received Qty",
+         "Stock Quantity": "Stock Quantity", "WIP Qty": "WIP Qty", "Reserve Qty": "Reserve Qty", "On Order Qty": "On Order Qty", "Used Qty": "Used Qty", "Received Qty": "Received Qty"},
     ),
     # Lot/serial transaction history (Full Company Data export)
     "MISLTH": (

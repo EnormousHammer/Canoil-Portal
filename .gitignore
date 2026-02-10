@@ -48,6 +48,7 @@ ENV/
 backend/uploads/
 backend/*.db
 backend/instance/
+backend/data/
 
 # Google Cloud credentials (NEVER COMMIT THESE!)
 service-account-key.json
