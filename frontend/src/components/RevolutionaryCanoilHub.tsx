@@ -424,8 +424,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         currency: po['Home Currency'] || po['Source Currency'] || 'CAD',
         printStatus: po['Print Status'] || '',
         totalAmount: parseCostValue(po['Total Amount'] || 0),
-        receivedAmount: parseCostValue(po['Received Amount'] || 0),
-        invoicedAmount: parseCostValue(po['Invoiced Amount'] || 0),
+        receivedAmount: parseCostValue(po['Received Amount'] || po['Total Received'] || 0),
+        invoicedAmount: parseCostValue(po['Invoiced Amount'] || po['Total Invoiced'] || po['Billed Amount'] || 0),
         totalOrderedQty,
         totalReceivedQty,
         recentUnitCost,
@@ -454,18 +454,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     });
 
     const lines = data['PurchaseOrderDetails.json'].map((line: any) => {
+      const ordered = parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? 0);
+      const received = parseStockValue(line['Received Qty'] ?? line['Received'] ?? 0);
+      const unitPrice = parseCostValue(line['Unit Price'] ?? line['Unit Cost'] ?? line['Cost'] ?? 0);
       return {
         poId: line['PO No.'] || '',
-        lineNo: line['Line No.'] || 0,
+        lineNo: Number(line['Line No.']) || 0,
         itemId: (line['Item No.'] || line['Part No.'] || '').toString().trim().toUpperCase(),
         description: line['Description'] || '',
-        orderedQty: parseStockValue(line['Ordered Qty'] || 0),
-        unitPrice: parseCostValue(line['Unit Price'] || 0),
-        location: line['Location'] || '',
+        orderedQty: ordered,
+        unitPrice,
+        location: line['Location No.'] ?? line['Location'] ?? '',
         requiredDate: line['Required Date'] || '',
-        receivedQty: parseStockValue(line['Received Qty'] || 0),
-        billedQty: parseStockValue(line['Billed Qty'] || 0),
-        remainingQty: parseStockValue(line['Ordered Qty'] || 0) - parseStockValue(line['Received Qty'] || 0)
+        receivedQty: received,
+        billedQty: parseStockValue(line['Billed Qty'] ?? 0),
+        remainingQty: ordered - received
       } as PoLine;
     });
 
@@ -9280,7 +9283,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                       <Package2 className="w-12 h-12 mb-3" />
                       <div className="text-lg font-medium">Stock Movement</div>
-                      <div className="text-sm">No movement history for this item. Data comes from Full Company Data (MISLTH / LotSerialHistory).</div>
+                      <div className="text-sm text-center max-w-md">No movement history for this item. Include <strong>MISLTH.CSV</strong> in your Full Company Data export folder (and on Google Drive if using cloud) to see data here.</div>
                     </div>
                   );
                 }
@@ -9324,7 +9327,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 rawPODetails.forEach((d: any) => {
                   const poNo = d['PO No.'];
                   const h = poHeaders.find((x: any) => x['PO No.'] === poNo);
-                  const v = h?.['Vendor'] || h?.['Supplier No.'] || h?.['Supplier'] || '';
+                  const v = h?.['Vendor'] || h?.['Name'] || h?.['Supplier No.'] || h?.['Supplier'] || '';
                   if (v) vendorSet.add(v);
                 });
                 const vendors = Array.from(vendorSet);
@@ -9383,14 +9386,52 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               )}
 
-              {/* ===== HISTORY TAB (empty until audit log) ===== */}
-              {itemModalActiveView === 'history' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">History</div>
-                  <div className="text-sm">Audit trail of changes will appear here when available.</div>
-                </div>
-              )}
+              {/* ===== HISTORY TAB (lot/serial transaction history from MISLTH when available) ===== */}
+              {itemModalActiveView === 'history' && (() => {
+                const historyRows = (data['LotSerialHistory.json'] || []).filter((r: any) =>
+                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                );
+                if (historyRows.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                      <Package2 className="w-12 h-12 mb-3" />
+                      <div className="text-lg font-medium">History</div>
+                      <div className="text-sm">Transaction history (receives, production) comes from Full Company Data (MISLTH). Add MISLTH.CSV to your export folder to see data here.</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="text-xs font-medium text-gray-500 px-4 py-2 border-b border-gray-100">Transaction history (lot/serial movements)</div>
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">SO No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {historyRows.map((m: any, i: number) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Sales Order No.'] ?? m['xvarSOId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* ===== SL NUMBERS TAB (Full Company Data: LotSerialDetail.json / MISLTD) ===== */}
               {itemModalActiveView === 'sl-numbers' && (() => {
@@ -9402,7 +9443,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                       <Package2 className="w-12 h-12 mb-3" />
                       <div className="text-lg font-medium">Serial / Lot Numbers</div>
-                      <div className="text-sm">No lot/serial records for this item. Data comes from Full Company Data (MISLTD / LotSerialDetail).</div>
+                      <div className="text-sm text-center max-w-md">No lot/serial records for this item. Include <strong>MISLTD.CSV</strong> in your Full Company Data export folder (and on Google Drive if using cloud) to see data here.</div>
                     </div>
                   );
                 }

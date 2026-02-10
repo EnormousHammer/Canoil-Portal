@@ -1511,6 +1511,7 @@ MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
 # Full Company Data (MISys "Export All Company Data") - for import / direct fetch
 # Local path (when backend runs where G: is mounted):
+# Local path when Google Drive for Desktop is mounted as G: (dev/office only). On Render/cloud this is not used — we use Google Drive API and FULL_COMPANY_DATA_DRIVE_PATH instead.
 GDRIVE_FULL_COMPANY_DATA = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data as of 02_10_2026"
 # Drive-relative path for Google Drive API (Render/cloud); override via env if needed
 FULL_COMPANY_DATA_DRIVE_PATH = os.getenv(
@@ -1621,7 +1622,7 @@ CORS(app, resources={
     }
 })
 
-# Enable GZIP compression - reduces 70MB → ~10MB
+# Enable GZIP compression - reduces large payloads (e.g. 60–70MB Full Company Data) to ~10MB over the wire
 Compress(app)
 print("GZIP compression enabled")
 
@@ -1753,11 +1754,11 @@ google_drive_service = None
 
 if IS_CLOUD_ENVIRONMENT:
     if IS_RENDER:
-        print("Running on Render - Google Drive API will be used (G: Drive not accessible)")
+        print("Backend: Render/cloud — data from Google Drive API only (no local drive paths)")
     else:
-        print("Running on Cloud Run - Google Drive API will be used (G: Drive not accessible)")
+        print("Backend: Cloud Run — data from Google Drive API only (no local drive paths)")
 else:
-    print("Running locally - G: Drive will be used if accessible")
+    print("Backend: Local/dev — data from G: path when available, else Google Drive API")
 
 def get_google_drive_service():
     """Lazy initialization of Google Drive service - only when actually needed"""
@@ -2047,7 +2048,10 @@ def get_all_data():
         if data_source_param != 'default':
             full_data = None
             err_msg = None
-            print(f"📂 Full Company Data: trying to load. Path={GDRIVE_FULL_COMPANY_DATA!r}, exists={os.path.exists(GDRIVE_FULL_COMPANY_DATA)}, IS_CLOUD={IS_CLOUD_ENVIRONMENT}")
+            if IS_CLOUD_ENVIRONMENT:
+                print("📂 Full Company Data: loading via Google Drive API (cloud — no local path)")
+            else:
+                print(f"📂 Full Company Data: trying local path first (exists={os.path.exists(GDRIVE_FULL_COMPANY_DATA)})")
             try:
                 from full_company_data_converter import load_from_folder, load_from_drive_api
             except ImportError:
@@ -2065,9 +2069,9 @@ def get_all_data():
                 if not load_from_folder:
                     print("📂 Full Company Data: skipped (converter import failed)")
                 elif IS_CLOUD_ENVIRONMENT:
-                    print("📂 Full Company Data: skipped (running in cloud – G: path not available; will try Drive API)")
+                    print("📂 Full Company Data: using Drive API (cloud deployment)")
                 elif not os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                    print(f"📂 Full Company Data: skipped (folder not found at {GDRIVE_FULL_COMPANY_DATA})")
+                    print(f"📂 Full Company Data: local folder not found, will try Drive API")
             if full_data is None and load_from_drive_api:
                 gdrive_service = get_google_drive_service()
                 drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None

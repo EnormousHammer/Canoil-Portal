@@ -40,14 +40,14 @@ IS_LOCAL = not IS_CLOUD_ENVIRONMENT and (os.path.exists(r"G:\Shared drives") if 
 
 # Print environment detection on module load
 if IS_RENDER:
-    print("[PR] ✅ Running on Render - Will use Google Drive API (G: Drive not accessible)")
+    print("[PR] ✅ Running on Render - Will use Google Drive API for data")
 elif IS_CLOUD_RUN:
-    print("[PR] ✅ Running on Cloud Run - Will use Google Drive API (G: Drive not accessible)")
+    print("[PR] ✅ Running on Cloud Run - Will use Google Drive API for data")
 else:
     if IS_LOCAL:
-        print("[PR] ✅ Running locally - Will use G: Drive if accessible")
+        print("[PR] ✅ Running locally - Will use local drive path if available, else Drive API")
     else:
-        print("[PR] ⚠️ Not on Render/Cloud Run and G: Drive not accessible - Will use Google Drive API")
+        print("[PR] ⚠️ Local run but no local drive path - Will use Google Drive API")
 
 # Cache for Google Drive data to avoid repeated API calls
 _gdrive_data_cache = {}

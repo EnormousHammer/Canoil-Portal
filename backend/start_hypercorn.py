@@ -27,12 +27,15 @@ try:
     from app import app
     print("Flask app imported successfully")
     
-    # Check if running on Cloud Run
+    # Check if running in cloud (Render or Cloud Run) so we don't print "Running locally"
     is_cloud_run = os.getenv('K_SERVICE') is not None
+    is_render = os.getenv('RENDER') is not None or os.getenv('RENDER_SERVICE_ID') is not None
     if is_cloud_run:
         print("Running on Cloud Run - server will start even if data preload fails")
+    elif is_render:
+        print("Running on Render - data will be loaded via Google Drive API")
     else:
-        print("Running locally")
+        print("Running locally (G: path used if available; otherwise Drive API)")
     
     # PRELOAD DATA ON STARTUP - Warm up cache immediately (non-blocking)
     # CRITICAL: Never block server startup - always start server even if preload fails

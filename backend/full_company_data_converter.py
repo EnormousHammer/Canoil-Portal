@@ -2,6 +2,9 @@
 Full Company Data converter: CSV/Excel from MISys "Export All Company Data" -> app JSON shape.
 Maps MIITEM, MIILOC, MIBOMH, MIBOMD, MIMOH, MIMOMD, MIPOH, MIPOD etc. to keys expected by the portal.
 
+Supports full export batches (e.g. <60MB total). All CSVs in the folder are loaded; no size limit
+is applied here. GZIP on /api/data and HTTP/2 (no 32MB response cap) handle large responses.
+
 ROADMAP (where data goes): See FULL_COMPANY_DATA_ROADMAP.md in this folder.
 - File names: Item.csv or MIITEM.csv, MIBOMD.csv, MIPOH.csv, MIPOD.csv, etc.
 - Column names: matched case-insensitively to the map; export column -> app field.
@@ -12,17 +15,18 @@ from io import StringIO, BytesIO
 
 # File stem -> (app keys to fill, column rename map export_name -> app_name)
 FULL_COMPANY_MAPPINGS = {
-    # MIITEM: exact columns from MISys Full Company Data export (MIITEM.CSV)
+    # MIITEM: exact columns from MISys Full Company Data export (MIITEM.CSV) – all export columns that map to app fields
     "MIITEM": (
         ["CustomAlert5.json", "Items.json"],
-        {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
-         "poUOfM": "Purchasing Units", "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision",
+        {"itemId": "Item No.", "descr": "Description", "xdesc": "Extended Description", "ref": "Part No.", "type": "Item Type", "uOfM": "Stocking Units",
+         "poUOfM": "Purchasing Units", "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision", "lead": "Lead (Days)",
          "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
-         "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "lotSz": "Lot Size",
+         "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "lotSz": "Lot Size", "variance": "Variance",
          "minQty": "Minimum", "maxQty": "Maximum", "reordPoint": "Reorder Level", "reordQty": "Reorder Quantity",
          "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost", "itemCost": "Unit Cost",
          "stdCost": "Standard Cost", "avgCost": "Average Cost", "unitCost": "Unit Cost", "landedCost": "Landed Cost",
-         "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No.", "status": "Status"},
+         "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No.", "status": "Status", "unitWgt": "Unit Weight",
+         "pick": "Pick", "sales": "Sales", "track": "Track", "cycle": "Cycle", "lstUseDt": "Last Used Date", "lstPIDt": "Last PO Date"},
     ),
     "Item": (
         ["CustomAlert5.json", "Items.json"],
@@ -274,6 +278,7 @@ def load_from_folder(folder_path):
     try:
         skeleton = _get_skeleton()
         files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        loaded_stems = []
         for fname in files:
             if not fname.lower().endswith((".csv", ".xlsx", ".xls")):
                 continue
@@ -304,7 +309,10 @@ def load_from_folder(folder_path):
             for key in keys:
                 if key in skeleton and isinstance(skeleton[key], list):
                     skeleton[key] = list(rows)
+            loaded_stems.append(mapping_key)
             print(f"[full_company_data_converter] loaded {fname} -> {len(rows)} rows -> {keys}")
+        if loaded_stems:
+            print(f"[full_company_data_converter] Loaded export files: {', '.join(sorted(set(loaded_stems)))}")
         return skeleton, None
     except Exception as e:
         import traceback
@@ -344,8 +352,10 @@ def load_from_drive_api(drive_service, drive_id, folder_path):
             return None, "Full Company Data folder not found"
         files = drive_service.list_all_files_in_folder(folder_id, drive_id)
         if not files:
+            print("[full_company_data_converter] Drive folder has no files")
             return _get_skeleton(), None
         skeleton = _get_skeleton()
+        loaded_stems = []
         for finfo in files:
             fname = finfo.get("name") or finfo.get("fileName") or ""
             fid = finfo.get("id") or finfo.get("fileId")
@@ -357,6 +367,7 @@ def load_from_drive_api(drive_service, drive_id, folder_path):
                 continue
             content = drive_service.download_file(fid, fname)
             if content is None:
+                print(f"[full_company_data_converter] skip (download failed): {fname}")
                 continue
             is_bytes = isinstance(content, bytes)
             if not is_bytes and isinstance(content, str):
@@ -379,6 +390,9 @@ def load_from_drive_api(drive_service, drive_id, folder_path):
             for key in keys:
                 if key in skeleton and isinstance(skeleton[key], list):
                     skeleton[key] = list(rows)
+            loaded_stems.append(mapping_key)
+        if loaded_stems:
+            print(f"[full_company_data_converter] Loaded export files: {', '.join(sorted(set(loaded_stems)))}")
         return skeleton, None
     except Exception as e:
         import traceback

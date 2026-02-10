@@ -13,6 +13,13 @@ Put your MISys **Export All Company Data** CSV or Excel files in that folder. Fi
 3. **Open the portal** and refresh if needed. Go to **Operations Hub → Inventory** and click an item. The item modal should show Master (type, stocking unit, etc.), Stock (on hand, WIP, reserve, min/max/reorder), Costs, POs, Mfg Orders, and other tabs from your data.
 4. If a tab is empty, check that the corresponding export file is in the folder (e.g. **MISLTH.csv** for Stock Movement, **MISLTD.csv** for SL Numbers). Column headers are matched case-insensitively. The portal loads them and maps columns into the app. This doc is the **roadmap**: which file → which app data, and which export column names → which app field names.
 
+### Field acceptance (export → converter → frontend)
+
+- **Column matching:** All export column names are matched **case-insensitively** in `full_company_data_converter.py`. Your CSV headers (e.g. `itemId`, `minLvl`, `cLast`, `ordered`, `received`) are mapped to the display keys the portal expects (e.g. Item No., Minimum, Recent Cost, Ordered, Received, Unit Cost).
+- **PO details:** Export columns `ordered`, `received`, `price`/`cost` become **Ordered**, **Received**, **Unit Cost**. The frontend uses these and also accepts **Ordered Qty** / **Received Qty** / **Unit Price** when present.
+- **PO headers:** **Name**, **Supplier No.**, **Order Date**, **Status**, **Total Ordered**, **Total Received**, **Total Invoiced**, **Close Date**, **Buyer**, **Terms**, **Ship Via**, **FOB**, **Freight**, **Contact**, **Home Currency**, **Source Currency** are all mapped from MIPOH export columns (e.g. `name`, `suplId`, `ordDt`, `poStatus`, `totOrdered`, `totReceived`, `totInvoiced`, `closeDt`, `buyer`, `terms`, `shpVia`, `fob`, `freight`, `contact`, `homeCur`, `srcCur`).
+- **Items (MIITEM):** All core fields (itemId, descr, type, uOfM, poUOfM, totQStk, totQWip, totQRes, totQOrd, minLvl, maxLvl, ordLvl, ordQty, lotSz, cLast, cStd, cAvg, cLand, itemCost, locId, suplId, mfgId, status) plus ref, lead, variance, unitWgt, pick, sales, track, cycle, lstUseDt, lstPIDt are mapped so the item modal and lists show data correctly.
+
 ---
 
 ## File name → App data
