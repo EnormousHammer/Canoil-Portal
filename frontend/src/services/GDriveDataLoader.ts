@@ -122,12 +122,33 @@ export class GDriveDataLoader {
     return this.loadedData;
   }
 
-  public async loadAllData(): Promise<{ data: any; folderInfo: any }> {
+  /** Fetch data source status (Full Company Data available/ready). */
+  public async getDataSourceStatus(): Promise<{
+    currentSource: string;
+    fullCompanyDataPath?: string;
+    fullCompanyDataAvailable?: boolean;
+    fullCompanyDataReady?: boolean;
+    message?: string;
+  }> {
     try {
-      // Call Flask backend to get all data - NO FALLBACK
-      const apiUrl = getApiUrl('/api/data');
+      const url = getApiUrl('/api/data-source');
+      const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+      if (!res.ok) return { currentSource: 'default', fullCompanyDataReady: false };
+      return await res.json();
+    } catch {
+      return { currentSource: 'default', fullCompanyDataReady: false };
+    }
+  }
+
+  public async loadAllData(options?: { source?: 'default' | 'full_company_data' }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
+    const source = options?.source ?? 'default';
+    try {
+      const apiUrl = source === 'full_company_data'
+        ? getApiUrl('/api/data?source=full_company_data')
+        : getApiUrl('/api/data');
       console.log('📡 Loading data from backend:', {
         url: apiUrl,
+        source,
         hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
         isProduction: (import.meta as any).env?.PROD || false
       });
@@ -183,36 +204,53 @@ export class GDriveDataLoader {
       }
       
       const result = await response.json();
-      
+      const isFullCompanyDataRequest = source === 'full_company_data';
+      const fullCompanyDataReady = result.fullCompanyDataReady === true;
+
+      // When Full Company Data is requested and backend returns framework "not ready" empty shape, accept it (app shows "not ready" state)
+      if (isFullCompanyDataRequest && result.fullCompanyDataReady === false && result.data) {
+        const setVal = (fileName: string, val: any) => {
+          if (fileName === 'MPS.json') this.loadedData[fileName] = val ?? { mps_orders: [], summary: { total_orders: 0 } };
+          else if (fileName.endsWith('.json')) this.loadedData[fileName] = val || [];
+        };
+        Object.keys(result.data).forEach(fileName => setVal(fileName, result.data[fileName]));
+        this.loadedData.loaded = true;
+        return {
+          data: result.data,
+          folderInfo: result.folderInfo || {},
+          source: result.source,
+          fullCompanyDataReady: false
+        };
+      }
+
       // Check if data actually has content (not just empty structure)
       const hasActualData = result.data && Object.keys(result.data).some(fileName => {
         const fileData = result.data[fileName];
+        if (fileName === 'MPS.json') return fileData && typeof fileData === 'object' && (fileData.mps_orders?.length > 0);
         return Array.isArray(fileData) && fileData.length > 0;
       });
-      
+
       const fileCount = Object.keys(result.data || {}).length;
       const totalRecords = result.data ? Object.values(result.data).reduce((sum: number, fileData: any) => {
-        return sum + (Array.isArray(fileData) ? fileData.length : 0);
+        return sum + (Array.isArray(fileData) ? fileData.length : (fileData?.mps_orders?.length ?? 0));
       }, 0) : 0;
-      
+
       if (!hasActualData) {
         console.error('❌ Backend returned empty data structure:', {
           url: apiUrl,
           fileCount,
           totalRecords,
           hasData: !!result.data,
-          hint: 'G: Drive may not be accessible from Cloud Run, or data files are missing'
+          hint: 'Google Drive (or data source) may not be accessible'
         });
-        // Still set the structure but mark as empty
         if (result.data) {
           Object.keys(result.data).forEach(fileName => {
-            if (fileName.endsWith('.json')) {
-              this.loadedData[fileName] = result.data[fileName] || [];
-            }
+            if (fileName === 'MPS.json') this.loadedData[fileName] = result.data[fileName] ?? { mps_orders: [], summary: { total_orders: 0 } };
+            else if (fileName.endsWith('.json')) this.loadedData[fileName] = result.data[fileName] || [];
           });
         }
-        this.loadedData.loaded = false; // Mark as not actually loaded
-        throw new Error('Backend returned empty data. G: Drive may not be accessible from Cloud Run.');
+        this.loadedData.loaded = false;
+        throw new Error('Backend returned empty data. Google Drive may not be accessible.');
       }
       
       console.log('✅ Data loaded from backend:', {
@@ -224,25 +262,18 @@ export class GDriveDataLoader {
       
       // Update loaded data with ALL files from backend
       if (result.data) {
-        // Clear existing data
         Object.keys(this.loadedData).forEach(key => {
-          if (key !== 'loaded') {
-            this.loadedData[key] = [];
-          }
+          if (key !== 'loaded') this.loadedData[key] = key === 'MPS.json' ? { mps_orders: [], summary: { total_orders: 0 } } : [];
         });
-        
-        // Load ALL files from backend response
         Object.keys(result.data).forEach(fileName => {
-          if (fileName.endsWith('.json')) {
-            this.loadedData[fileName] = result.data[fileName] || [];
-          }
+          if (fileName === 'MPS.json') this.loadedData[fileName] = result.data[fileName] ?? { mps_orders: [], summary: { total_orders: 0 } };
+          else if (fileName.endsWith('.json')) this.loadedData[fileName] = result.data[fileName] || [];
         });
-        
         this.loadedData.loaded = true;
       }
       
-      // Load ACTIVE Sales Orders (In Production, New and Revised) - 8.6MB
-      // Historical orders (Cancelled, Completed) load on-demand via /api/sales-orders/historical
+      // Load ACTIVE Sales Orders only when using default source (Full Company Data would include SO when ready)
+      if (source !== 'full_company_data') {
       console.log('📦 Loading ACTIVE Sales Orders (In Production, New and Revised)...');
       try {
         const soUrl = getApiUrl('/api/sales-orders');  // Default loads only active folders
@@ -283,14 +314,16 @@ export class GDriveDataLoader {
         result.data['SalesOrdersByStatus'] = {};
         result.data['TotalOrders'] = 0;
       }
-      
-      // Flask returns the exact structure we need
+      }
+
       return {
         data: result.data,
-        folderInfo: result.folderInfo
+        folderInfo: result.folderInfo,
+        source: result.source,
+        fullCompanyDataReady: result.fullCompanyDataReady
       };
     } catch (error) {
-      console.error('❌ Error loading G: Drive data via Flask:', error);
+      console.error('❌ Error loading data via backend:', error);
       
       // If connection refused, return empty data structure instead of throwing
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
@@ -336,6 +369,6 @@ export class GDriveDataLoader {
   }
 
   public async loadFromLocalTestData(): Promise<{ data: LoadedData; folderInfo: any }> {
-    throw new Error('Local test data disabled - use G: Drive data only');
+    throw new Error('Local test data disabled - use backend data only');
   }
 }

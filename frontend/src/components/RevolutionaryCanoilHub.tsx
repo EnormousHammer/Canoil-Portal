@@ -14,6 +14,7 @@ import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedData
 import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import ExportAllCompanyDataModal from './ExportAllCompanyDataModal';
+import InventoryActionsModal from './InventoryActionsModal';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
   BarChart3, 
@@ -202,7 +203,7 @@ interface RevolutionaryCanoilHubProps {
 
 export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ data, onNavigate, currentUser, onRefreshData }) => {
   // Toast notification system
-  const { toasts, dismissToast, success: toastSuccess, error: toastError, info: toastInfo, warning: toastWarning } = useToasts();
+  const { toasts, dismissToast, addToast, success: toastSuccess, error: toastError, info: toastInfo, warning: toastWarning } = useToasts();
   
   const [activeSection, setActiveSection] = useState('dashboard');
   const [poSortField, setPoSortField] = useState<string>('Order Date');
@@ -233,6 +234,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showPRModal, setShowPRModal] = useState(false);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [selectedPOForPR, setSelectedPOForPR] = useState<any>(null);
+  // Create PO modal state (Phase 4) – full header + lines
+  const [showCreatePOModal, setShowCreatePOModal] = useState(false);
+  const [createPOForm, setCreatePOForm] = useState({
+    supplier_no: '', supplier_name: '',
+    order_date: new Date().toISOString().slice(0, 10), requested_date: '',
+    terms: '', ship_via: '', fob: '', contact: '', buyer: '', freight: '', currency: 'USD', description: '',
+    lines: [{ item_no: '', description: '', qty: '', unit_cost: '', required_date: '' }]
+  });
+  const [createPOSubmitting, setCreatePOSubmitting] = useState(false);
+  const [shortageList, setShortageList] = useState<any[]>([]);
+  const [shortageLoading, setShortageLoading] = useState(false);
+  const [autoCreatePOLoading, setAutoCreatePOLoading] = useState(false);
+  // Lot history (portal-recorded + optional Full Company Data)
+  const [showLotHistory, setShowLotHistory] = useState(false);
+  const [lotHistoryList, setLotHistoryList] = useState<any[]>([]);
+  const [inventoryByLotList, setInventoryByLotList] = useState<any[]>([]);
+  const [lotHistoryLoading, setLotHistoryLoading] = useState(false);
   
   // Sales Orders navigation state
   const [soCurrentPath, setSoCurrentPath] = useState<string[]>([]);
@@ -293,6 +311,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   
   // Export All Company Data modal
   const [showExportAllCompanyDataModal, setShowExportAllCompanyDataModal] = useState(false);
+  // Inventory actions (B4 B5 B6)
+  const [showInventoryActionsModal, setShowInventoryActionsModal] = useState(false);
 
   // Redo PR Modal State
   const [showRedoPRModal, setShowRedoPRModal] = useState(false);
@@ -523,7 +543,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       { key: 'Description', label: 'Description' },
       { key: 'Ordered Qty', label: 'Ordered Qty', fallback: 'Ordered' },
       { key: 'Received Qty', label: 'Received Qty', fallback: 'Received' },
-      { key: 'Unit Price', label: 'Unit Price', fallback: 'Price' },
+      { key: 'Unit Price', label: 'Unit Price', fallback: 'Price' }, // backend also stores Unit Cost
       { key: 'Required Date', label: 'Required Date', fallback: 'Due Date' },
       { key: 'Location', label: 'Location', fallback: 'Location No.' },
       { key: 'Billed Qty', label: 'Billed Qty' },
@@ -732,6 +752,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       return searchTerms.every(term => searchableFields.includes(term));
     });
   }, [data, moSearchQuery]);
+
+  // Unique suppliers from existing POs (for Create PO dropdown)
+  const poSuppliersList = useMemo(() => {
+    const pos = data?.['PurchaseOrders.json'] || [];
+    const seen = new Set<string>();
+    const out: { supplier_no: string; supplier_name: string }[] = [];
+    pos.forEach((po: any) => {
+      const no = (po['Supplier No.'] || po['Name'] || po['Vendor No.'] || '').toString().trim();
+      if (!no || seen.has(no)) return;
+      seen.add(no);
+      out.push({
+        supplier_no: no,
+        supplier_name: (po['Name'] || po['Supplier No.'] || no).toString().trim()
+      });
+    });
+    return out.sort((a, b) => a.supplier_no.localeCompare(b.supplier_no));
+  }, [data]);
 
   // Smart search function for Purchase Orders
   const searchPurchaseOrders = useMemo(() => {
@@ -957,15 +994,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       });
       
       if (response.ok) {
-        addToast({ type: 'success', message: `PR ${prId} deleted successfully` });
+        addToast({ type: 'success', title: 'Deleted', message: `PR ${prId} deleted successfully` });
         // Remove from local state immediately for snappy UI
         setPRHistory(prev => prev.filter(pr => pr.id !== prId));
       } else {
-        addToast({ type: 'error', message: 'Failed to delete PR' });
+        addToast({ type: 'error', title: 'Error', message: 'Failed to delete PR' });
       }
     } catch (error) {
       console.error('Error deleting PR:', error);
-      addToast({ type: 'error', message: 'Error deleting PR' });
+      addToast({ type: 'error', title: 'Error', message: 'Error deleting PR' });
     }
   };
 
@@ -979,33 +1016,33 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       });
       
       if (response.ok) {
-        addToast({ type: 'success', message: `PR updated: ${updates.status || 'saved'}` });
+        addToast({ type: 'success', title: 'Updated', message: `PR updated: ${updates.status || 'saved'}` });
         // Update local state immediately
         setPRHistory(prev => prev.map(pr => 
           pr.id === prId ? { ...pr, ...updates, updated_at: new Date().toISOString() } : pr
         ));
         setEditingPRId(null);
       } else {
-        addToast({ type: 'error', message: 'Failed to update PR' });
+        addToast({ type: 'error', title: 'Error', message: 'Failed to update PR' });
       }
     } catch (error) {
       console.error('Error updating PR:', error);
-      addToast({ type: 'error', message: 'Error updating PR' });
+      addToast({ type: 'error', title: 'Error', message: 'Error updating PR' });
     }
   };
 
   // Function to add PR items to BOM cart
   const addPRItemsToCart = (prItems: any[]) => {
-    const newCartItems = prItems.map((item: any) => ({
-      'Item No.': item.item_no || '',
-      'Description': item.description || '',
+    const newCartItems: Array<{ item_no: string; description: string; qty: number }> = prItems.map((item: any) => ({
+      item_no: item.item_no || '',
+      description: item.description || '',
       qty: item.order_qty || item.qty || item.qty_needed || 1
     }));
     
     setBomCart(prev => {
       const updated = [...prev];
       newCartItems.forEach(newItem => {
-        const existing = updated.find(i => i['Item No.'] === newItem['Item No.']);
+        const existing = updated.find(i => i.item_no === newItem.item_no);
         if (existing) {
           existing.qty += newItem.qty;
         } else {
@@ -1017,6 +1054,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     
     addToast({ 
       type: 'success', 
+      title: 'Cart',
       message: `Added ${newCartItems.length} items to cart`,
       action: { label: 'View Cart', onClick: () => setShowBomCart(true) }
     });
@@ -1170,7 +1208,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const filteredInventory = useMemo(() => {
     let items = data['CustomAlert5.json'] || [];
     
-    // Apply inventory filter (low-stock, out-of-stock, etc.) - CANOIL STOCK ONLY
+    // Apply inventory filter (low-stock, out-of-stock, raw/assembled/formula) - CANOIL STOCK ONLY
     if (inventoryFilter === 'low-stock') {
       items = items.filter((item: any) => {
         const canoilStock = getCanoilStock(item["Item No."], data);
@@ -1182,6 +1220,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         const canoilStock = getCanoilStock(item["Item No."], data);
         return canoilStock === 0;
       });
+    } else if (inventoryFilter === 'raw') {
+      items = items.filter((item: any) => String(item["Item Type"] ?? '') === '0' || item["Item Type"] === 0);
+    } else if (inventoryFilter === 'assembled') {
+      items = items.filter((item: any) => String(item["Item Type"] ?? '') === '1' || item["Item Type"] === 1);
+    } else if (inventoryFilter === 'formula') {
+      items = items.filter((item: any) => String(item["Item Type"] ?? '') === '2' || item["Item Type"] === 2);
     }
     
     // Apply smart search query - finds partial matches anywhere in the text
@@ -1991,23 +2035,100 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Work Orders */}
           {activeSection === 'work-orders' && (
             <div className="space-y-6">
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                <h2 className="text-3xl font-bold text-slate-900 flex items-center mb-6">
-                  <div className="flex items-center">
-                    <Settings className="w-8 h-8 mr-3 text-blue-600" />
-                    <div className="relative">
-                      <Crown className="w-4 h-4 absolute -top-2 -right-2 text-yellow-500" />
-                    </div>
-                  </div>
-                  Work Orders (Service/Maintenance)
-                  <span className="ml-3 text-sm font-normal text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
-                    Service & Maintenance Orders
-                  </span>
-                </h2>
-                <div className="text-center py-12">
-                  <p className="text-gray-600">Work Orders (Service/Maintenance) - Coming Soon</p>
-                  <p className="text-sm text-gray-500 mt-2">This is for service and maintenance work orders, NOT manufacturing production orders</p>
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border-b border-slate-200 px-6 py-4">
+                  <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                    <Settings className="w-8 h-8 text-blue-600" />
+                    Work Orders (Service/Maintenance)
+                    <span className="text-sm font-normal text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
+                      {(data?.['WorkOrders.json'] || []).length} orders
+                    </span>
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">Release and report completion for work orders. Data from backend.</p>
                 </div>
+                {(!data?.['WorkOrders.json'] || data['WorkOrders.json'].length === 0) ? (
+                  <div className="p-8 text-center text-slate-500">
+                    <p>No work orders in data. Load data from API Extractions or Full Company Data.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="text-left p-3 font-semibold text-slate-700">Work Order No.</th>
+                          <th className="text-left p-3 font-semibold text-slate-700">Job No.</th>
+                          <th className="text-left p-3 font-semibold text-slate-700">Description</th>
+                          <th className="text-center p-3 font-semibold text-slate-700">Status</th>
+                          <th className="text-left p-3 font-semibold text-slate-700">Release Date</th>
+                          <th className="text-right p-3 font-semibold text-slate-700">Completed</th>
+                          <th className="text-center p-3 font-semibold text-slate-700 min-w-[140px]">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data['WorkOrders.json'] || []).map((wo: any, idx: number) => {
+                          const woNo = (wo['Work Order No.'] || wo['Job No.'] || '').toString().trim();
+                          const status = wo['Status'] ?? wo['status'];
+                          const statusInfo = status === 0 || status === '0' ? { text: 'Planned', color: 'bg-yellow-100 text-yellow-700' } :
+                            status === 1 || status === '1' ? { text: 'Released', color: 'bg-green-100 text-green-700' } :
+                            status === 2 || status === '2' ? { text: 'Complete', color: 'bg-gray-100 text-gray-700' } :
+                            { text: 'Unknown', color: 'bg-slate-100 text-slate-600' };
+                          return (
+                            <tr key={woNo || idx} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="p-3 font-mono font-medium text-blue-600">{woNo || '—'}</td>
+                              <td className="p-3 text-slate-600">{wo['Job No.'] || '—'}</td>
+                              <td className="p-3 text-slate-700 max-w-[200px] truncate">{wo['Description'] || '—'}</td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>{statusInfo.text}</span>
+                              </td>
+                              <td className="p-3 text-slate-600 text-xs">{wo['Release Date'] ? new Date(wo['Release Date']).toLocaleDateString() : '—'}</td>
+                              <td className="p-3 text-right font-mono">{(wo['Completed'] ?? 0).toLocaleString()}</td>
+                              <td className="p-3 text-center">
+                                {(status === 0 || status === '0') && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(getApiUrl(`/api/work-orders/${encodeURIComponent(woNo)}/release`), { method: 'POST' });
+                                        if (res.ok) onRefreshData?.();
+                                      } catch (_) {}
+                                    }}
+                                    className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-200"
+                                  >
+                                    Release
+                                  </button>
+                                )}
+                                {(status === 1 || status === '1' || status === 0 || status === '0') && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const qtyStr = prompt('Completed quantity?', '1');
+                                      if (qtyStr == null) return;
+                                      const qty = parseFloat(qtyStr);
+                                      if (isNaN(qty) || qty <= 0) return;
+                                      const scrapStr = prompt('Scrap (optional)', '0');
+                                      const scrap = scrapStr != null && scrapStr !== '' ? parseFloat(scrapStr) : 0;
+                                      try {
+                                        const res = await fetch(getApiUrl(`/api/work-orders/${encodeURIComponent(woNo)}/complete`), {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ completed_qty: qty, scrap: isNaN(scrap) ? 0 : scrap }),
+                                        });
+                                        if (res.ok) onRefreshData?.();
+                                      } catch (_) {}
+                                    }}
+                                    className="ml-1 px-2 py-1 bg-violet-100 text-violet-700 rounded text-xs font-medium hover:bg-violet-200"
+                                  >
+                                    Complete
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2321,6 +2442,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 onClick={() => handleSort('Cumulative Cost', 'mo')}>
                               Total {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
                             </th>
+                            <th className="text-center p-3 font-semibold text-slate-700 min-w-[140px]">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2467,6 +2589,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                    (quantity > 0 && unitCost > 0) ? `$${(quantity * unitCost).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—'}
                                   {cumulativeCost > 0 && (
                                     <div className="text-purple-600 text-xs">Cumulative</div>
+                                  )}
+                                </td>
+                                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                  {mo['Status'] === 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(mo['Mfg. Order No.'])}/release`), { method: 'POST' });
+                                          if (res.ok) onRefreshData?.();
+                                        } catch (_) {}
+                                      }}
+                                      className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-200"
+                                    >
+                                      Release
+                                    </button>
+                                  )}
+                                  {(mo['Status'] === 1 || mo['Status'] === 0) && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const qty = prompt('Completed quantity?', String(mo['Ordered'] || ''));
+                                        if (qty == null) return;
+                                        const n = parseFloat(qty);
+                                        if (isNaN(n) || n <= 0) return;
+                                        const lot = prompt('Lot/Batch (optional)', mo['Batch No.'] || mo['Batch Number'] || '') || '';
+                                        try {
+                                          const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(mo['Mfg. Order No.'])}/complete`), {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ completed_qty: n, lot: lot || undefined }),
+                                          });
+                                          if (res.ok) onRefreshData?.();
+                                        } catch (_) {}
+                                      }}
+                                      className="ml-1 px-2 py-1 bg-violet-100 text-violet-700 rounded text-xs font-medium hover:bg-violet-200"
+                                    >
+                                      Complete
+                                    </button>
                                   )}
                                 </td>
                           </tr>
@@ -4308,13 +4469,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         {col.label}
                                       </th>
                                     ))}
+                                    <th className="p-3 font-medium text-gray-700 text-center min-w-[100px]">Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {poLineItems.map((line: any, index: number) => {
                                     const orderedQty = parseFloat(line['Ordered Qty'] || line['Ordered'] || 0);
                                     const receivedQty = parseFloat(line['Received Qty'] || line['Received'] || 0);
-                                    const unitPrice = parseFloat(line['Unit Price'] || line['Price'] || 0);
+                                    const unitPrice = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || 0);
                                     const remainingQty = orderedQty - receivedQty;
                                     const lineTotal = orderedQty * unitPrice;
                                     const extendedPrice = parseFloat(line['Extended Price'] || 0);
@@ -4406,6 +4568,38 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                                           return renderDetailCell();
                                         })}
+                                        <td className="p-3 text-center">
+                                          {remainingQty > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const qtyStr = prompt('Quantity to receive?', String(remainingQty));
+                                                if (qtyStr == null) return;
+                                                const qty = parseFloat(qtyStr);
+                                                if (isNaN(qty) || qty <= 0) return;
+                                                const location = prompt('Location (optional)', '') || '';
+                                                const lot = prompt('Lot/Batch (optional)', '') || '';
+                                                try {
+                                                  const res = await fetch(getApiUrl(`/api/purchase-orders/${encodeURIComponent(selectedPO['PO No.'])}/receive`), {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                      item_no: line['Item No.'] || line['Part No.'],
+                                                      qty,
+                                                      location: location || undefined,
+                                                      lot: lot || undefined,
+                                                    }),
+                                                  });
+                                                  if (res.ok) onRefreshData?.();
+                                                } catch (_) {}
+                                              }}
+                                              className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-200"
+                                            >
+                                              Receive
+                                            </button>
+                                          )}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -4424,7 +4618,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     sum + parseFloat(line['Received Qty'] || line['Received'] || 0), 0);
                                   const totalValue = poLineItems.reduce((sum: number, line: any) => {
                                     const qty = parseFloat(line['Ordered Qty'] || line['Ordered'] || 0);
-                                    const price = parseFloat(line['Unit Price'] || line['Price'] || 0);
+                                    const price = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || 0);
                                     return sum + (qty * price);
                                   }, 0);
 
@@ -4655,7 +4849,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25">
+                      <button
+                        onClick={() => setShowCreatePOModal(true)}
+                        className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
+                      >
                         <Plus className="w-4 h-4" />
                         New PO
                       </button>
@@ -4917,7 +5114,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           <td key={col.key} className={`p-2 text-right font-mono ${colorClass} font-medium`}>
                                             {amount > 0 ? 
                                               `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
-                                              (col.showAlways ? 'N/A' : '—')
+                                              ((col as { showAlways?: boolean }).showAlways ? 'N/A' : '—')
                                   }
                                 </td>
                                         );
@@ -5003,7 +5200,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       
                                       default:
                                         const displayValue = value && value.toString().trim() ? value : 
-                                                           (col.showAlways ? 'N/A' : '—');
+                                                           ((col as { showAlways?: boolean }).showAlways ? 'N/A' : '—');
                                         return (
                                           <td key={col.key} className="p-2 text-gray-600">
                                             {displayValue}
@@ -5768,7 +5965,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             window.URL.revokeObjectURL(url);
                             alert('✅ Documents generated successfully!');
                         } catch (error) {
-                          alert(`❌ Error: ${error.message}`);
+                          alert(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
                         }
                       }}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-colors"
@@ -5810,8 +6007,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Inventory */}
           {activeSection === 'inventory' && (
             <div className="space-y-4">
-              
-              {/* STREAMLINED INVENTORY HEADER - Light Theme */}
+              {/* STREAMLINED INVENTORY HEADER - Light Theme (BOM + Shortage in same section) */}
               <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
                 {/* Header Bar */}
                 <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-teal-50 border-b border-slate-200 px-6 py-4">
@@ -5860,11 +6056,38 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       >
                         Out: {inventoryMetrics.outOfStock.toLocaleString()}
                       </button>
+                      <button 
+                        onClick={() => setInventoryFilter('raw')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'raw' ? 'bg-slate-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                        }`}
+                        title="Raw / purchased (Item Type 0)"
+                      >
+                        Raw: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
+                      </button>
+                      <button 
+                        onClick={() => setInventoryFilter('assembled')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'assembled' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200'
+                        }`}
+                        title="Assembled (Item Type 1)"
+                      >
+                        Assembled: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
+                      </button>
+                      <button 
+                        onClick={() => setInventoryFilter('formula')}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                          inventoryFilter === 'formula' ? 'bg-teal-600 text-white shadow-md' : 'bg-white text-teal-600 hover:bg-teal-50 border border-teal-200'
+                        }`}
+                        title="Formula / blend (Item Type 2)"
+                      >
+                        Formula: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
+                      </button>
                     </div>
                   </div>
                 </div>
                 
-                {/* Tools Row - BOM, Cart, History */}
+                {/* Tools Row - BOM, Shortage, Lot history, Cart, History */}
                 <div className="px-6 py-3 flex items-center justify-end gap-2 bg-slate-50/50 border-t border-slate-100">
                   {/* BOM Tools */}
                     <button 
@@ -5880,7 +6103,79 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </svg>
                       BOM
                     </button>
-                    
+                  {/* Shortage (MRP) - same Inventory section */}
+                    <button
+                      type="button"
+                      disabled={shortageLoading}
+                      onClick={async () => {
+                        setShortageLoading(true);
+                        try {
+                          const res = await fetch(getApiUrl('/api/shortage'));
+                          const j = await res.json();
+                          setShortageList(j.shortage || []);
+                        } finally {
+                          setShortageLoading(false);
+                        }
+                      }}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        shortageList.length > 0 ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
+                      }`}
+                    >
+                      {shortageLoading ? '…' : 'Shortage'}
+                      {shortageList.length > 0 && <span className="bg-white/90 text-amber-700 px-1.5 py-0.5 rounded text-xs font-bold">{shortageList.length}</span>}
+                    </button>
+                    {shortageList.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={autoCreatePOLoading}
+                        onClick={async () => {
+                          setAutoCreatePOLoading(true);
+                          try {
+                            const res = await fetch(getApiUrl('/api/mrp/auto-create-po'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+                            const j = await res.json();
+                            if (j.po_no) {
+                              setShortageList([]);
+                              onRefreshData?.();
+                            }
+                          } finally {
+                            setAutoCreatePOLoading(false);
+                          }
+                        }}
+                        className="px-4 py-3 rounded-xl font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {autoCreatePOLoading ? 'Creating…' : 'Auto-create PO'}
+                      </button>
+                    )}
+                  {/* Lot history - portal + optional Full Company Data */}
+                    <button
+                      type="button"
+                      disabled={lotHistoryLoading}
+                      onClick={async () => {
+                        const next = !showLotHistory;
+                        setShowLotHistory(next);
+                        if (next) {
+                          setLotHistoryLoading(true);
+                          try {
+                            const [histRes, byLotRes] = await Promise.all([
+                              fetch(getApiUrl('/api/lot-history')).then(r => r.json()).catch(() => ({ history: [] })),
+                              fetch(getApiUrl('/api/inventory/by-lot')).then(r => r.json()).catch(() => ({ by_lot: [] }))
+                            ]);
+                            const apiHistory = histRes.history ?? histRes.lotHistory ?? [];
+                            const fromData = data['LotSerialHistory.json'] || [];
+                            setLotHistoryList(Array.isArray(fromData) ? [...apiHistory, ...fromData] : apiHistory);
+                            setInventoryByLotList(byLotRes.by_lot ?? byLotRes.inventoryByLot ?? []);
+                          } finally {
+                            setLotHistoryLoading(false);
+                          }
+                        }
+                      }}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showLotHistory ? 'bg-cyan-600 text-white shadow-md' : 'bg-white text-cyan-600 hover:bg-cyan-50 border border-cyan-200'
+                      }`}
+                      title="Lot/serial history and inventory by lot"
+                    >
+                      {lotHistoryLoading ? '…' : 'Lot history'}
+                    </button>
                     <button 
                       onClick={() => setShowBomCart(!showBomCart)}
                       className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
@@ -5921,6 +6216,79 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       History
                     </button>
                 </div>
+                {/* Shortage table (below reorder level) - inline in same Inventory card when loaded */}
+                {shortageList.length > 0 && (
+                  <div className="px-6 py-3 border-t border-amber-200 bg-amber-50/50">
+                    <div className="text-sm font-semibold text-amber-800 mb-2">Items below reorder level</div>
+                    <div className="overflow-x-auto max-h-28 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr><th className="text-left p-1 font-medium text-slate-600">Item</th><th className="text-right p-1 font-medium text-slate-600">Shortage</th><th className="text-right p-1 font-medium text-slate-600">On hand</th><th className="text-right p-1 font-medium text-slate-600">Open PO</th></tr></thead>
+                        <tbody>
+                          {shortageList.slice(0, 15).map((s: any, i: number) => (
+                            <tr key={i} className="border-t border-amber-100"><td className="p-1 font-mono text-red-600">{s.item_no}</td><td className="p-1 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-1 text-right text-slate-600">{Number(s.on_hand).toLocaleString()}</td><td className="p-1 text-right text-slate-600">{Number(s.open_po).toLocaleString()}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {shortageList.length > 15 && <p className="text-xs text-slate-500 mt-1">+ {shortageList.length - 15} more</p>}
+                    </div>
+                  </div>
+                )}
+                {/* Lot history panel - portal-recorded + Full Company Data when present */}
+                {showLotHistory && (
+                  <div className="px-6 py-3 border-t border-cyan-200 bg-cyan-50/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-cyan-800">Lot / serial history &amp; inventory by lot</span>
+                      <button type="button" onClick={() => setShowLotHistory(false)} className="text-cyan-600 hover:text-cyan-800 text-sm font-medium">Close</button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xs font-medium text-slate-600 mb-1">History (receives, production)</div>
+                        <div className="overflow-x-auto max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                          {(lotHistoryList.length === 0) ? (
+                            <p className="p-2 text-slate-500 text-sm">No lot history recorded yet.</p>
+                          ) : (
+                            <table className="w-full text-sm">
+                              <thead><tr><th className="text-left p-1 font-medium text-slate-600">Item</th><th className="text-left p-1 font-medium text-slate-600">Lot</th><th className="text-right p-1 font-medium text-slate-600">Qty</th><th className="text-left p-1 font-medium text-slate-600">Type</th></tr></thead>
+                              <tbody>
+                                {lotHistoryList.slice(0, 50).map((h: any, i: number) => (
+                                  <tr key={i} className="border-t border-slate-100">
+                                    <td className="p-1 font-mono">{h.item_no ?? h['Item No.'] ?? h.itemNo ?? '-'}</td>
+                                    <td className="p-1">{h.lot_no ?? h.lot ?? h['Lot No.'] ?? '-'}</td>
+                                    <td className="p-1 text-right">{Number(h.qty ?? h.quantity ?? 0).toLocaleString()}</td>
+                                    <td className="p-1">{h.type ?? h.transaction_type ?? 'receive'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                          {lotHistoryList.length > 50 && <p className="text-xs text-slate-500 p-1">+ {lotHistoryList.length - 50} more</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium text-slate-600 mb-1">Inventory by lot</div>
+                        <div className="overflow-x-auto max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                          {(inventoryByLotList.length === 0) ? (
+                            <p className="p-2 text-slate-500 text-sm">No lot-level inventory.</p>
+                          ) : (
+                            <table className="w-full text-sm">
+                              <thead><tr><th className="text-left p-1 font-medium text-slate-600">Item</th><th className="text-left p-1 font-medium text-slate-600">Lot</th><th className="text-right p-1 font-medium text-slate-600">Qty</th></tr></thead>
+                              <tbody>
+                                {inventoryByLotList.slice(0, 50).map((b: any, i: number) => (
+                                  <tr key={i} className="border-t border-slate-100">
+                                    <td className="p-1 font-mono">{b.item_no ?? b['Item No.'] ?? b.itemNo ?? '-'}</td>
+                                    <td className="p-1">{b.lot_no ?? b.lot ?? b['Lot No.'] ?? '-'}</td>
+                                    <td className="p-1 text-right">{Number(b.qty ?? b.quantity ?? b.on_hand ?? 0).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                          {inventoryByLotList.length > 50 && <p className="text-xs text-slate-500 p-1">+ {inventoryByLotList.length - 50} more</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* COLLAPSIBLE BOM Planning Section - Only shows when toggled */}
@@ -6420,7 +6788,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                   }).join('\n');
                                                   const text = `${headers}\n${rows}`;
                                                   navigator.clipboard.writeText(text);
-                                                  addToast({ type: 'success', message: 'Copied to clipboard! Paste into Excel.' });
+                                                  addToast({ type: 'success', title: 'Copied', message: 'Copied to clipboard! Paste into Excel.' });
                                                 }}
                                                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
                                               >
@@ -6513,7 +6881,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                     return `${c.item_no || ''}\t${c.qty ?? c.qty_needed ?? ''}`;
                                                   }).join('\n');
                                                   navigator.clipboard.writeText(`${headers}\n${rows}`);
-                                                  addToast({ type: 'success', message: 'Copied to clipboard!' });
+                                                  addToast({ type: 'success', title: 'Copied', message: 'Copied to clipboard!' });
                                                 }}
                                                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1"
                                               >
@@ -7988,6 +8356,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium text-sm transition-all">
+                  Inventory actions
+                </button>
                 {/* Add to PR Cart Button */}
                 <button 
                   onClick={() => {
@@ -8069,12 +8440,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 {stockOwnership.customerStock.toLocaleString()}
                               </span>
                               <div className="flex items-center gap-1">
-                                {customerBreakdown.map((cb: {location: string, qty: number}, idx: number) => (
+                                {customerBreakdown.map((cb: { location: string; stock: number }, idx: number) => (
                                   <span 
                                     key={idx}
                                     className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium"
                                   >
-                                    {cb.location}: {cb.qty}
+                                    {cb.location}: {cb.stock}
                                   </span>
                                 ))}
                               </div>
@@ -8953,6 +9324,199 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         onClose={() => setShowExportAllCompanyDataModal(false)}
       />
 
+      <InventoryActionsModal
+        isOpen={showInventoryActionsModal}
+        onClose={() => setShowInventoryActionsModal(false)}
+        itemNo={selectedItem?.['Item No.'] || ''}
+        onSuccess={onRefreshData}
+      />
+
+      {/* Create PO Modal (Phase 4) – full header + supplier picker + costs */}
+      {showCreatePOModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !createPOSubmitting && setShowCreatePOModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Create Purchase Order</h3>
+              <button onClick={() => !createPOSubmitting && setShowCreatePOModal(false)} className="text-white/80 hover:text-white p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Supplier */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Supplier *</label>
+                  <select
+                    value={createPOForm.supplier_no}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const chosen = poSuppliersList.find(s => s.supplier_no === val);
+                      setCreatePOForm(f => ({ ...f, supplier_no: val, supplier_name: chosen ? chosen.supplier_name : f.supplier_name }));
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="">Select or type below</option>
+                    {poSuppliersList.map(s => (
+                      <option key={s.supplier_no} value={s.supplier_no}>{s.supplier_no} – {s.supplier_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Supplier No. / Name (if new) *</label>
+                  <input type="text" value={createPOForm.supplier_no} onChange={(e) => setCreatePOForm(f => ({ ...f, supplier_no: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm" placeholder="e.g. SUP001" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Supplier display name</label>
+                  <input type="text" value={createPOForm.supplier_name} onChange={(e) => setCreatePOForm(f => ({ ...f, supplier_name: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Vendor name" />
+                </div>
+              </div>
+              {/* Dates, terms, shipping, contact */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Order Date</label>
+                  <input type="date" value={createPOForm.order_date} onChange={(e) => setCreatePOForm(f => ({ ...f, order_date: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Requested Date</label>
+                  <input type="date" value={createPOForm.requested_date} onChange={(e) => setCreatePOForm(f => ({ ...f, requested_date: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Terms</label>
+                  <input type="text" value={createPOForm.terms} onChange={(e) => setCreatePOForm(f => ({ ...f, terms: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="e.g. Net 30" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Ship Via</label>
+                  <input type="text" value={createPOForm.ship_via} onChange={(e) => setCreatePOForm(f => ({ ...f, ship_via: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="e.g. FedEx" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">FOB</label>
+                  <input type="text" value={createPOForm.fob} onChange={(e) => setCreatePOForm(f => ({ ...f, fob: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Contact</label>
+                  <input type="text" value={createPOForm.contact} onChange={(e) => setCreatePOForm(f => ({ ...f, contact: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Buyer</label>
+                  <input type="text" value={createPOForm.buyer} onChange={(e) => setCreatePOForm(f => ({ ...f, buyer: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Freight</label>
+                  <input type="number" min="0" step="0.01" value={createPOForm.freight} onChange={(e) => setCreatePOForm(f => ({ ...f, freight: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-right" placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Currency</label>
+                  <input type="text" value={createPOForm.currency} onChange={(e) => setCreatePOForm(f => ({ ...f, currency: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="USD" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+                  <input type="text" value={createPOForm.description} onChange={(e) => setCreatePOForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="PO description" />
+                </div>
+              </div>
+              {/* Lines */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-700">Line items</label>
+                  <button type="button" onClick={() => setCreatePOForm(f => ({ ...f, lines: [...f.lines, { item_no: '', description: '', qty: '', unit_cost: '', required_date: '' }] }))} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200">+ Add line</button>
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="p-2 text-left font-medium text-slate-700">Item No.</th>
+                        <th className="p-2 text-left font-medium text-slate-700">Description</th>
+                        <th className="p-2 text-right font-medium text-slate-700">Qty</th>
+                        <th className="p-2 text-right font-medium text-slate-700">Unit cost</th>
+                        <th className="p-2 text-left font-medium text-slate-700">Required date</th>
+                        <th className="w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {createPOForm.lines.map((line, idx) => (
+                        <tr key={idx} className="border-t border-slate-100">
+                          <td className="p-2"><input type="text" value={line.item_no} onChange={(e) => setCreatePOForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, item_no: e.target.value } : l) }))} className="w-full px-2 py-1 border border-slate-200 rounded text-sm" placeholder="Item" /></td>
+                          <td className="p-2"><input type="text" value={line.description} onChange={(e) => setCreatePOForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, description: e.target.value } : l) }))} className="w-full px-2 py-1 border border-slate-200 rounded text-sm" placeholder="Optional" /></td>
+                          <td className="p-2"><input type="number" min="0.000001" step="any" value={line.qty} onChange={(e) => setCreatePOForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, qty: e.target.value } : l) }))} className="w-full px-2 py-1 border border-slate-200 rounded text-sm text-right" placeholder="0" /></td>
+                          <td className="p-2"><input type="number" min="0" step="any" value={line.unit_cost} onChange={(e) => setCreatePOForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, unit_cost: e.target.value } : l) }))} className="w-full px-2 py-1 border border-slate-200 rounded text-sm text-right" placeholder="0" /></td>
+                          <td className="p-2"><input type="date" value={line.required_date} onChange={(e) => setCreatePOForm(f => ({ ...f, lines: f.lines.map((l, i) => i === idx ? { ...l, required_date: e.target.value } : l) }))} className="w-full px-2 py-1 border border-slate-200 rounded text-sm" /></td>
+                          <td className="p-2">{createPOForm.lines.length > 1 ? <button type="button" onClick={() => setCreatePOForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }))} className="text-red-600 hover:text-red-700 text-xs">✕</button> : null}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {(() => {
+                  const subtotal = createPOForm.lines.reduce((sum, l) => sum + (parseFloat(l.qty) || 0) * (parseFloat(l.unit_cost) || 0), 0);
+                  const freightNum = parseFloat(createPOForm.freight) || 0;
+                  const total = subtotal + freightNum;
+                  return (
+                    <div className="mt-3 flex justify-end gap-6 text-sm">
+                      <span className="text-slate-600">Subtotal: <strong>{(createPOForm.currency || 'USD')} {subtotal.toFixed(2)}</strong></span>
+                      <span className="text-slate-600">Freight: <strong>{(createPOForm.currency || 'USD')} {freightNum.toFixed(2)}</strong></span>
+                      <span className="text-slate-800 font-bold">Total: {(createPOForm.currency || 'USD')} {total.toFixed(2)}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+              <button type="button" onClick={() => !createPOSubmitting && setShowCreatePOModal(false)} className="px-4 py-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 text-sm font-semibold">Cancel</button>
+              <button
+                type="button"
+                disabled={createPOSubmitting || !createPOForm.supplier_no || !createPOForm.lines.some(l => (l.item_no || '').trim() && parseFloat(l.qty) > 0)}
+                onClick={async () => {
+                  setCreatePOSubmitting(true);
+                  try {
+                    const lines = createPOForm.lines
+                      .filter(l => (l.item_no || '').trim() && parseFloat(l.qty) > 0)
+                      .map(l => ({
+                        item_no: l.item_no.trim(),
+                        qty: parseFloat(l.qty),
+                        unit_cost: parseFloat(l.unit_cost) || 0,
+                        description: (l.description || '').trim() || undefined,
+                        required_date: (l.required_date || '').trim() || undefined,
+                      }));
+                    const body: Record<string, unknown> = {
+                      supplier_no: createPOForm.supplier_no.trim(),
+                      supplier_name: createPOForm.supplier_name.trim(),
+                      order_date: createPOForm.order_date || undefined,
+                      requested_date: (createPOForm.requested_date || '').trim() || undefined,
+                      terms: (createPOForm.terms || '').trim() || undefined,
+                      ship_via: (createPOForm.ship_via || '').trim() || undefined,
+                      fob: (createPOForm.fob || '').trim() || undefined,
+                      contact: (createPOForm.contact || '').trim() || undefined,
+                      buyer: (createPOForm.buyer || '').trim() || undefined,
+                      freight: parseFloat(createPOForm.freight) || 0,
+                      currency: (createPOForm.currency || 'USD').trim(),
+                      description: (createPOForm.description || '').trim() || undefined,
+                      lines,
+                    };
+                    const res = await fetch(getApiUrl('/api/purchase-orders'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body),
+                    });
+                    if (res.ok) {
+                      setShowCreatePOModal(false);
+                      setCreatePOForm({
+                        supplier_no: '', supplier_name: '',
+                        order_date: new Date().toISOString().slice(0, 10), requested_date: '',
+                        terms: '', ship_via: '', fob: '', contact: '', buyer: '', freight: '', currency: 'USD', description: '',
+                        lines: [{ item_no: '', description: '', qty: '', unit_cost: '', required_date: '' }]
+                      });
+                      onRefreshData?.();
+                    }
+                  } finally {
+                    setCreatePOSubmitting(false);
+                  }
+                }}
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 text-sm font-semibold"
+              >
+                {createPOSubmitting ? 'Creating…' : 'Create PO'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create MO Modal - batch number + optional Sales Order # (for future Sage link) */}
       {showCreateMOModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !createMOSubmitting && setShowCreateMOModal(false)}>
@@ -9514,6 +10078,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     
                     addToast({ 
                       type: 'success', 
+                      title: 'PRs regenerated',
                       message: `Regenerated PRs for ${redoPRData.items.length} items!`,
                       action: { label: 'View History', onClick: () => { setShowPRHistory(true); fetchPRHistory(); } }
                     });

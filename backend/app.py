@@ -1948,18 +1948,17 @@ _data_cache = None  # Stores raw data dict (for internal use)
 _response_cache = None  # Stores pre-serialized JSON bytes
 _cache_timestamp = None
 _cache_duration = 3600  # 1 hour cache (was 5 minutes - too short)
-# MOs created in the portal (in-memory; on Render/cloud no local drive - survives until restart)
-_created_mos = []
+# Portal store: persisted MOs, inventory adjustments, transfers, item overrides, BOM edits (see portal_store.py)
+try:
+    import portal_store
+except ImportError:
+    portal_store = None
 
-def _merge_created_mos(data):
-    """Merge portal-created MOs into ManufacturingOrderHeaders so they appear in the app. Cloud-safe (no local path)."""
-    if not data:
+def _merge_portal_store(data):
+    """Apply portal store (created MOs, adjustments, transfers, overrides, BOM edits) to data."""
+    if not data or portal_store is None:
         return data
-    existing = data.get('ManufacturingOrderHeaders.json') or []
-    if not isinstance(existing, list):
-        existing = []
-    data['ManufacturingOrderHeaders.json'] = existing + list(_created_mos)
-    return data
+    return portal_store.apply_to_data(data)
 
 def get_empty_app_data_structure():
     """Return the exact app data shape the frontend expects (all keys, empty values). Framework for Full Company Data - app is ready to receive once conversion is implemented."""
@@ -1976,6 +1975,7 @@ def get_empty_app_data_structure():
         'PurchaseOrderAdditionalCosts.json': [], 'PurchaseOrderAdditionalCostsTaxes.json': [], 'PurchaseOrderDetailAdditionalCosts.json': [],
         'SalesOrders.json': [], 'SalesOrdersByStatus': {}, 'TotalOrders': 0, 'StatusFolders': [], 'ScanMethod': '',
         'MPS.json': {'mps_orders': [], 'summary': {'total_orders': 0}},
+        'LotSerialHistory.json': [], 'LotSerialDetail.json': [],
     }
 
 @app.route('/api/data', methods=['GET'])
@@ -1988,8 +1988,42 @@ def get_all_data():
     try:
         print("/api/data endpoint called")
 
-        # Framework: when source=full_company_data, return same app data shape (empty until conversion is built)
+        # Full Company Data: load from local folder or Drive API and convert to app shape
         if request.args.get('source') == 'full_company_data':
+            full_data = None
+            err_msg = None
+            try:
+                from full_company_data_converter import load_from_folder, load_from_drive_api
+            except ImportError:
+                try:
+                    from .full_company_data_converter import load_from_folder, load_from_drive_api
+                except ImportError:
+                    load_from_folder = load_from_drive_api = None
+            if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+                full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+            if full_data is None and load_from_drive_api:
+                gdrive_service = get_google_drive_service()
+                drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None
+                if drive_id and gdrive_service and getattr(gdrive_service, "authenticated", False):
+                    full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+            if full_data is not None:
+                full_data = _merge_portal_store(full_data)
+                file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                return jsonify({
+                    "data": full_data,
+                    "folderInfo": {
+                        "folderName": "Full Company Data as of 02_10_2026",
+                        "syncDate": datetime.now().isoformat(),
+                        "lastModified": datetime.now().isoformat(),
+                        "folder": FULL_COMPANY_DATA_DRIVE_PATH,
+                        "created": datetime.now().isoformat(),
+                        "size": "N/A",
+                        "fileCount": file_count,
+                    },
+                    "LoadTimestamp": datetime.now().isoformat(),
+                    "source": "full_company_data",
+                    "fullCompanyDataReady": True,
+                })
             empty_data = get_empty_app_data_structure()
             return jsonify({
                 "data": empty_data,
@@ -2003,8 +2037,9 @@ def get_all_data():
                     "fileCount": 0,
                 },
                 "LoadTimestamp": datetime.now().isoformat(),
-                "source": "full_company_data (framework ready; conversion not implemented)",
+                "source": "full_company_data (conversion failed or folder not available)",
                 "fullCompanyDataReady": False,
+                "message": err_msg or "Full Company Data folder not found or converter error",
             })
         
         # Check if we have valid cached response (pre-serialized)
@@ -2031,7 +2066,7 @@ def get_all_data():
                     gdrive_data, gdrive_folder_info = gdrive_service.get_all_data()
                     if gdrive_data and gdrive_folder_info:
                         print(f"✅ Successfully loaded data from Google Drive API")
-                        gdrive_data = _merge_created_mos(gdrive_data)
+                        gdrive_data = _merge_portal_store(gdrive_data)
                         # Cache the data AND pre-serialize the response
                         import json as json_module
                         _data_cache = gdrive_data
@@ -2221,7 +2256,7 @@ def get_all_data():
             raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
         
         print(f"SUCCESS: Successfully loaded data from {latest_folder}")
-        raw_data = _merge_created_mos(raw_data)
+        raw_data = _merge_portal_store(raw_data)
         
         # SAFE DATA SUMMARY - Only process list data types
         safe_summary = []
@@ -2303,7 +2338,7 @@ def _get_company_data_for_export():
         if gdrive_service and getattr(gdrive_service, 'authenticated', False):
             gdrive_data, _ = gdrive_service.get_all_data()
             if gdrive_data:
-                return _merge_created_mos(gdrive_data), None
+                return _merge_portal_store(gdrive_data), None
     except Exception as e:
         print(f"Export: Google Drive API fallback failed: {e}")
     return None, "No data available. Open the app or call GET /api/data first to load data, then try export again."
@@ -2484,8 +2519,8 @@ def export_company_data():
 
 @app.route('/api/manufacturing-orders', methods=['POST'])
 def create_manufacturing_order():
-    """Create a new manufacturing order. Cloud-safe (Render); batch number and optional Sales Order # for future Sage link."""
-    global _created_mos, _cache_timestamp, _response_cache
+    """Create a new manufacturing order. Persisted via portal_store (survives restart)."""
+    global _cache_timestamp, _response_cache
     try:
         body = request.get_json() or {}
         build_item_no = (body.get('build_item_no') or body.get('Build Item No.') or '').strip()
@@ -2531,7 +2566,8 @@ def create_manufacturing_order():
             '_created_at': now_iso,
             '_source': 'portal',
         }
-        _created_mos.append(mo_record)
+        if portal_store:
+            portal_store.add_created_mo(mo_record)
         _cache_timestamp = None
         _response_cache = None
         print(f"Created MO: {mo_no} Item={build_item_no} Qty={qty} Batch={batch_number or '(none)'} SO={sales_order_no or '(none)'}")
@@ -2539,6 +2575,572 @@ def create_manufacturing_order():
     except Exception as e:
         print(f"ERROR create_manufacturing_order: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/manufacturing-orders/<mo_no>/release', methods=['POST'])
+def release_manufacturing_order(mo_no):
+    """D5: Release MO (status to released/in progress). Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        mo_no = (mo_no or '').strip()
+        if not mo_no:
+            return jsonify({"error": "mo_no required"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        now = datetime.now().strftime('%Y-%m-%d')
+        portal_store.add_mo_update(mo_no, status=1, release_date=now)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "mo_no": mo_no, "status": 1, "release_date": now}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _get_bom_components_for_item(data, parent_item_no):
+    """Return list of (component_item_no, required_qty) for the given parent (build) item."""
+    out = []
+    for key in ("BillOfMaterialDetails.json", "MIBOMD.json"):
+        details = data.get(key) or []
+        for row in details:
+            if not isinstance(row, dict):
+                continue
+            parent = (row.get("Parent Item No.") or row.get("bomItem") or "").strip()
+            if parent != parent_item_no:
+                continue
+            comp = (row.get("Component Item No.") or row.get("partId") or "").strip()
+            qty = float(row.get("Required Quantity") or row.get("qty") or 0)
+            if comp:
+                out.append((comp, qty))
+    return out
+
+
+@app.route('/api/manufacturing-orders/<mo_no>/complete', methods=['POST'])
+def complete_manufacturing_order(mo_no):
+    """D6/D7: Complete MO (report completed qty, set status, backflush components). Persisted in portal_store."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        mo_no = (mo_no or '').strip()
+        if not mo_no:
+            return jsonify({"error": "mo_no required"}), 400
+        body = request.get_json() or {}
+        completed_qty = body.get("completed_qty") or body.get("Completed") or body.get("completed")
+        try:
+            completed_qty = float(completed_qty) if completed_qty is not None else 0
+        except (TypeError, ValueError):
+            completed_qty = 0
+        if completed_qty <= 0:
+            return jsonify({"error": "completed_qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first (open the app or call GET /api/data), then complete MO"}), 503
+        all_mos = data.get("ManufacturingOrderHeaders.json") or []
+        build_item_no = None
+        for mo in all_mos:
+            if not isinstance(mo, dict):
+                continue
+            if (mo.get("Mfg. Order No.") or mo.get("mohId")) == mo_no:
+                build_item_no = (mo.get("Build Item No.") or mo.get("buildItem") or "").strip()
+                break
+        if not build_item_no:
+            return jsonify({"error": f"MO {mo_no} not found"}), 404
+        components = _get_bom_components_for_item(data, build_item_no)
+        for comp_item, req_qty in components:
+            portal_store.add_inventory_adjustment(
+                comp_item, "", - (req_qty * completed_qty),
+                reason=f"Backflush MO {mo_no}",
+            )
+        now = datetime.now().strftime('%Y-%m-%d')
+        portal_store.add_mo_update(mo_no, status=2, completed=completed_qty, completion_date=now)
+        lot = (body.get("lot") or body.get("Lot No.") or body.get("batch_number") or "").strip()
+        if lot and build_item_no:
+            portal_store.add_mo_completion_lot(mo_no, build_item_no, completed_qty, lot)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "mo_no": mo_no, "completed_qty": completed_qty, "backflushed": len(components), "lot": lot or None}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/work-orders/<wo_no>/release', methods=['POST'])
+def release_work_order(wo_no):
+    """E2: Release WO (status to released). Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        wo_no = (wo_no or '').strip()
+        if not wo_no:
+            return jsonify({"error": "wo_no required"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        now = datetime.now().strftime('%Y-%m-%d')
+        portal_store.add_wo_update(wo_no, status=1, release_date=now)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "wo_no": wo_no, "status": 1, "release_date": now}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/work-orders/<wo_no>/complete', methods=['POST'])
+def complete_work_order(wo_no):
+    """E3: Report WO completion (qty, scrap). Persisted in portal_store."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        wo_no = (wo_no or '').strip()
+        if not wo_no:
+            return jsonify({"error": "wo_no required"}), 400
+        body = request.get_json() or {}
+        completed_qty = body.get("completed_qty") or body.get("Completed") or body.get("completed")
+        try:
+            completed_qty = float(completed_qty) if completed_qty is not None else 0
+        except (TypeError, ValueError):
+            completed_qty = 0
+        if completed_qty <= 0:
+            return jsonify({"error": "completed_qty must be positive"}), 400
+        scrap = body.get("scrap") or body.get("Scrap")
+        try:
+            scrap = float(scrap) if scrap is not None else 0
+        except (TypeError, ValueError):
+            scrap = 0
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        current_completed = 0
+        if data and isinstance(data, dict):
+            for wo in (data.get("WorkOrders.json") or []):
+                if not isinstance(wo, dict):
+                    continue
+                if (wo.get("Work Order No.") or wo.get("Job No.") or "").strip() == wo_no:
+                    current_completed = float(wo.get("Completed") or 0)
+                    break
+        new_total = current_completed + completed_qty
+        now = datetime.now().strftime('%Y-%m-%d')
+        portal_store.add_wo_update(wo_no, status=2, completed=new_total, completion_date=now, scrap=scrap if scrap else None)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "wo_no": wo_no, "completed_qty": completed_qty, "total_completed": new_total, "scrap": scrap}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/adjustment', methods=['POST'])
+def inventory_adjustment():
+    """B5: Add or remove qty for an item (optionally by location). Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        delta = body.get('delta') or body.get('qty')
+        reason = (body.get('reason') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            delta = float(delta)
+        except (TypeError, ValueError):
+            return jsonify({"error": "delta must be a number"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_inventory_adjustment(item_no, location, delta, reason)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "delta": delta}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/transfer', methods=['POST'])
+def inventory_transfer():
+    """B6: Move qty of an item from one location to another. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        from_loc = (body.get('from_loc') or body.get('From Location') or '').strip()
+        to_loc = (body.get('to_loc') or body.get('To Location') or '').strip()
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        if not item_no or not from_loc or not to_loc:
+            return jsonify({"error": "item_no, from_loc, to_loc are required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_location_transfer(from_loc, to_loc, item_no, qty)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "from_loc": from_loc, "to_loc": to_loc, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/items/<item_no>/reorder', methods=['PATCH', 'PUT'])
+def item_reorder_update(item_no):
+    """B4: Update min/max/reorder level/reorder qty for an item. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        item_no = (item_no or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no required"}), 400
+        body = request.get_json() or {}
+        minimum = body.get('Minimum') if 'Minimum' in body else body.get('minimum')
+        maximum = body.get('Maximum') if 'Maximum' in body else body.get('maximum')
+        reorder_level = body.get('Reorder Level') if 'Reorder Level' in body else body.get('reorder_level')
+        reorder_quantity = body.get('Reorder Quantity') if 'Reorder Quantity' in body else body.get('reorder_quantity')
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.set_item_override(item_no, minimum=minimum, maximum=maximum, reorder_level=reorder_level, reorder_quantity=reorder_quantity)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bom', methods=['POST'])
+def bom_create():
+    """C5: Create BOM header and/or lines. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        parent = (body.get('parent_item_no') or body.get('Parent Item No.') or body.get('bomItem') or '').strip()
+        revision = (body.get('revision') or body.get('Revision No.') or body.get('bomRev') or '1').strip()
+        components = body.get('components') or body.get('lines') or []
+        if not parent:
+            return jsonify({"error": "parent_item_no (or Parent Item No.) is required"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        header = {
+            'Parent Item No.': parent,
+            'Revision No.': revision,
+            'BOM Item': parent,
+            'BOM Rev': revision,
+            'Build Quantity': float(body.get('Build Quantity') or body.get('mult') or 1),
+            '_source': 'portal',
+        }
+        portal_store.add_bom_header(header)
+        for line in components:
+            comp = (line.get('component_item_no') or line.get('Component Item No.') or line.get('partId') or '').strip()
+            qty = float(line.get('Required Quantity') or line.get('qty') or 0)
+            if not comp:
+                continue
+            detail = {
+                'Parent Item No.': parent,
+                'Revision No.': revision,
+                'Component Item No.': comp,
+                'Required Quantity': qty,
+                'BOM Item': parent,
+                'BOM Rev': revision,
+                'partId': comp,
+                'qty': qty,
+                '_source': 'portal',
+            }
+            portal_store.add_bom_detail(detail)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "parent_item_no": parent, "revision": revision, "lines": len(components)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/purchase-orders', methods=['POST'])
+def create_purchase_order():
+    """F2: Create PO – full header (supplier, terms, ship, cost, etc.) + lines. Persisted via portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        supplier_no = (body.get('supplier_no') or body.get('Supplier No.') or '').strip()
+        supplier_name = (body.get('supplier_name') or body.get('Name') or body.get('supplier_name') or '').strip()
+        lines = body.get('lines') or body.get('Lines') or []
+        if not supplier_no:
+            return jsonify({"error": "supplier_no (or Supplier No.) is required"}), 400
+        if not lines or not isinstance(lines, list):
+            return jsonify({"error": "lines array is required (e.g. [{item_no, qty, unit_cost?}]"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        import uuid
+        po_no = f"PO-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        now_date = datetime.now().strftime('%Y-%m-%d')
+        order_date = (body.get('order_date') or body.get('Order Date') or now_date)
+        if isinstance(order_date, str):
+            order_date = order_date.strip() or now_date
+        else:
+            order_date = now_date
+        requested_date = (body.get('requested_date') or body.get('Requested Date') or '').strip() or None
+        terms = (body.get('terms') or body.get('Terms') or '').strip() or None
+        ship_via = (body.get('ship_via') or body.get('Ship Via') or '').strip() or None
+        fob = (body.get('fob') or body.get('FOB') or '').strip() or None
+        contact = (body.get('contact') or body.get('Contact') or '').strip() or None
+        buyer = (body.get('buyer') or body.get('Buyer') or '').strip() or None
+        try:
+            freight = float(body.get('freight') or body.get('Freight') or 0)
+        except (TypeError, ValueError):
+            freight = 0
+        currency = (body.get('currency') or body.get('Source Currency') or body.get('Home Currency') or 'USD').strip()
+        description = (body.get('description') or body.get('Description') or '').strip() or None
+        lines_subtotal = 0.0
+        valid_details = []
+        for idx, line in enumerate(lines):
+            item_no = (line.get('item_no') or line.get('Item No.') or '').strip()
+            qty = float(line.get('qty') or line.get('Ordered') or line.get('Quantity') or 0)
+            unit_cost = float(line.get('unit_cost') or line.get('Unit Cost') or line.get('unit_price') or line.get('Unit Price') or 0)
+            if not item_no or qty <= 0:
+                continue
+            line_desc = (line.get('description') or line.get('Description') or '').strip() or None
+            required_date = (line.get('required_date') or line.get('Required Date') or line.get('Due Date') or '').strip() or None
+            ext = qty * unit_cost
+            lines_subtotal += ext
+            detail = {
+                'PO No.': po_no,
+                'Item No.': item_no,
+                'Ordered': qty,
+                'Received': 0,
+                'Unit Cost': unit_cost,
+                'Unit Price': unit_cost,
+                'Extended Price': round(ext, 2),
+                'Line No.': len(valid_details) + 1,
+                '_source': 'portal',
+            }
+            if line_desc:
+                detail['Description'] = line_desc
+            if required_date:
+                detail['Required Date'] = required_date
+            valid_details.append(detail)
+            portal_store.add_created_po_detail(detail)
+        total_amount = round(lines_subtotal + freight, 2)
+        header = {
+            'PO No.': po_no,
+            'Supplier No.': supplier_no,
+            'Name': supplier_name or supplier_no,
+            'Order Date': order_date,
+            'Status': 0,
+            'Total Amount': total_amount,
+            '_source': 'portal',
+        }
+        if requested_date:
+            header['Requested Date'] = requested_date
+        if terms:
+            header['Terms'] = terms
+        if ship_via:
+            header['Ship Via'] = ship_via
+        if fob:
+            header['FOB'] = fob
+        if contact:
+            header['Contact'] = contact
+        if buyer:
+            header['Buyer'] = buyer
+        if freight and freight != 0:
+            header['Freight'] = round(freight, 2)
+        if currency:
+            header['Source Currency'] = currency
+            header['Home Currency'] = currency
+        if description:
+            header['Description'] = description
+        portal_store.add_created_po(header)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "po_no": po_no, "lines": len(valid_details), "total_amount": total_amount}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/purchase-orders/<po_no>/receive', methods=['POST'])
+def receive_against_po(po_no):
+    """F4: Receive against PO – qty, location, optional lot. Updates PO line Received and inventory."""
+    global _cache_timestamp, _response_cache
+    try:
+        po_no = (po_no or '').strip()
+        if not po_no:
+            return jsonify({"error": "po_no required"}), 400
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        lot = (body.get('lot') or body.get('Lot No.') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no (or Item No.) is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_po_receive(po_no, item_no, qty, location, lot)
+        portal_store.add_inventory_adjustment(item_no, location, qty, f"PO receive {po_no}")
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "po_no": po_no, "item_no": item_no, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/by-lot', methods=['GET'])
+def inventory_by_lot():
+    """H4: Inventory by lot – aggregates portal PO receives and MO completion lots."""
+    try:
+        if portal_store is None:
+            return jsonify({"by_lot": []}), 200
+        from collections import defaultdict
+        balances = defaultdict(float)
+        for rec in portal_store.get_po_receives() or []:
+            key = (rec.get("item_no") or "", rec.get("lot") or "")
+            balances[key] += float(rec.get("qty", 0))
+        for rec in portal_store.get_mo_completion_lots() or []:
+            key = (rec.get("item_no") or "", rec.get("lot") or "")
+            balances[key] += float(rec.get("qty", 0))
+        by_lot = [{"item_no": k[0], "lot": k[1], "qty": v} for k, v in balances.items() if v != 0]
+        return jsonify({"by_lot": by_lot}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/lot-history', methods=['GET'])
+def lot_history():
+    """H5: Lot/serial history – PO receives and MO completions with lot."""
+    try:
+        if portal_store is None:
+            return jsonify({"history": []}), 200
+        history = []
+        for rec in portal_store.get_po_receives() or []:
+            history.append({
+                "type": "receive",
+                "po_no": rec.get("po_no"),
+                "item_no": rec.get("item_no"),
+                "qty": float(rec.get("qty", 0)),
+                "location": rec.get("location"),
+                "lot": rec.get("lot") or "",
+                "at": rec.get("at"),
+            })
+        for rec in portal_store.get_mo_completion_lots() or []:
+            history.append({
+                "type": "production",
+                "mo_no": rec.get("mo_no"),
+                "item_no": rec.get("item_no"),
+                "qty": float(rec.get("qty", 0)),
+                "lot": rec.get("lot") or "",
+                "at": rec.get("at"),
+            })
+        history.sort(key=lambda x: x.get("at") or "", reverse=True)
+        return jsonify({"history": history}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _compute_shortage(data):
+    """J1/J2: Time-phased shortage – reorder_level - (stock + open_po). Returns list of { item_no, shortage_qty, on_hand, open_po, reorder_level }."""
+    if not data or not isinstance(data, dict):
+        return []
+    items = data.get("CustomAlert5.json") or data.get("Items.json") or []
+    details = data.get("PurchaseOrderDetails.json") or []
+    open_po_by_item = {}
+    for line in details:
+        if not isinstance(line, dict):
+            continue
+        item_no = line.get("Item No.") or line.get("Item No") or ""
+        ordered = float(line.get("Ordered") or line.get("Ordered Qty") or 0)
+        received = float(line.get("Received") or line.get("Received Qty") or 0)
+        if item_no and ordered > received:
+            open_po_by_item[item_no] = open_po_by_item.get(item_no, 0) + (ordered - received)
+    shortage_list = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_no = item.get("Item No.") or item.get("item_no") or ""
+        if not item_no:
+            continue
+        reorder_level = float(item.get("Reorder Level") or item.get("reorder_level") or 0)
+        if reorder_level <= 0:
+            continue
+        on_hand = float(item.get("Stock") or item.get("stock") or 0)
+        open_po = open_po_by_item.get(item_no, 0)
+        shortage = max(0, reorder_level - (on_hand + open_po))
+        if shortage > 0:
+            shortage_list.append({
+                "item_no": item_no,
+                "shortage_qty": round(shortage, 4),
+                "on_hand": on_hand,
+                "open_po": open_po,
+                "reorder_level": reorder_level,
+                "reorder_quantity": float(item.get("Reorder Quantity") or item.get("reorder_quantity") or 0),
+            })
+    return shortage_list
+
+
+@app.route('/api/shortage', methods=['GET'])
+def get_shortage():
+    """J2: Shortage report – items below reorder level (stock + open PO). Uses cached app data."""
+    global _data_cache
+    try:
+        data = _data_cache
+        if not data:
+            return jsonify({"shortage": [], "message": "Load app data first (GET /api/data)"}), 200
+        shortage = _compute_shortage(data)
+        return jsonify({"shortage": shortage}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/mrp/auto-create-po', methods=['POST'])
+def mrp_auto_create_po():
+    """J3/N2: Auto-create PO from shortage. Body: optional item_nos[] and supplier_no (or use first shortage item's last supplier)."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        data = _data_cache
+        if not data:
+            return jsonify({"error": "Load app data first (GET /api/data)"}), 503
+        body = request.get_json() or {}
+        item_nos = body.get("item_nos") or body.get("items") or []
+        supplier_no = (body.get("supplier_no") or body.get("Supplier No.") or "").strip()
+        shortage = _compute_shortage(data)
+        if not item_nos and shortage:
+            item_nos = [s["item_no"] for s in shortage[:50]]
+        if not item_nos:
+            return jsonify({"ok": True, "message": "No shortage items to order", "po_no": None}), 200
+        if not supplier_no:
+            for line in (data.get("PurchaseOrderDetails.json") or []):
+                if not isinstance(line, dict):
+                    continue
+                if (line.get("Item No.") or line.get("Item No")) in item_nos:
+                    po_no = line.get("PO No.")
+                    for po in (data.get("PurchaseOrders.json") or []):
+                        if isinstance(po, dict) and (po.get("PO No.") or po.get("Purchase Order No")) == po_no:
+                            supplier_no = (po.get("Supplier No.") or po.get("Name") or "").strip()
+                            break
+                    if supplier_no:
+                        break
+        if not supplier_no:
+            supplier_no = "SUPPLIER"
+        shortage_map = {s["item_no"]: s for s in shortage}
+        lines = []
+        for ino in item_nos:
+            qty = 1
+            if ino in shortage_map:
+                qty = max(shortage_map[ino]["shortage_qty"], shortage_map[ino].get("reorder_quantity") or 1)
+            lines.append({"item_no": ino, "qty": qty, "unit_cost": 0})
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        import uuid
+        po_no = f"PO-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        now_date = datetime.now().strftime('%Y-%m-%d')
+        header = {"PO No.": po_no, "Supplier No.": supplier_no, "Name": supplier_no, "Order Date": now_date, "Status": 0, "Total Amount": 0, "_source": "portal"}
+        portal_store.add_created_po(header)
+        for idx, line in enumerate(lines):
+            detail = {"PO No.": po_no, "Item No.": line["item_no"], "Ordered": line["qty"], "Received": 0, "Unit Cost": line.get("unit_cost", 0), "Line No.": idx + 1, "_source": "portal"}
+            portal_store.add_created_po_detail(detail)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "po_no": po_no, "lines": len(lines), "supplier_no": supplier_no}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

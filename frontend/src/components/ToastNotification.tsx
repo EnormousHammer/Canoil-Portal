@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 export interface Toast {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
-  title: string;
+  title?: string;
   message?: string;
   duration?: number; // ms, 0 = no auto-dismiss
   action?: {
@@ -89,7 +89,7 @@ const ToastItem = ({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     >
       <ToastIcon type={toast.type} />
       <div className="flex-1 min-w-0">
-        <h4 className="font-semibold text-gray-900 text-sm">{toast.title}</h4>
+        {toast.title && <h4 className="font-semibold text-gray-900 text-sm">{toast.title}</h4>}
         {toast.message && (
           <p className="text-gray-600 text-sm mt-0.5 line-clamp-2">{toast.message}</p>
         )}

@@ -453,6 +453,31 @@ class GoogleDriveService:
                     return None
         return None
     
+    def list_all_files_in_folder(self, folder_id, drive_id=None):
+        """List all files (any type) in a folder. Used for Full Company Data (CSV/Excel).
+        
+        Returns:
+            list of {"id": str, "name": str, "mimeType": str}
+        """
+        try:
+            query = f"'{folder_id}' in parents and trashed=false"
+            list_params = {
+                'q': query,
+                'supportsAllDrives': True,
+                'includeItemsFromAllDrives': True,
+                'fields': "files(id, name, mimeType)",
+                'pageSize': 500
+            }
+            if drive_id:
+                list_params['corpora'] = 'drive'
+                list_params['driveId'] = drive_id
+            results = self.service.files().list(**list_params).execute()
+            files = results.get('files', [])
+            return [{"id": f["id"], "name": f["name"], "mimeType": f.get("mimeType", "")} for f in files]
+        except Exception as e:
+            print(f"[ERROR] list_all_files_in_folder: {e}")
+            return []
+
     def load_specific_files(self, folder_id, drive_id, file_names):
         """Load only specific JSON files from a folder (Cloud Run 32MB limit optimization)
         

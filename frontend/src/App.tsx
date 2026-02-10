@@ -65,6 +65,13 @@ function App() {
   });
   
   const [dataSource, setDataSource] = useState('checking');
+  const [dataSourceStatus, setDataSourceStatus] = useState<{
+    currentSource?: string;
+    fullCompanyDataPath?: string;
+    fullCompanyDataAvailable?: boolean;
+    fullCompanyDataReady?: boolean;
+    message?: string;
+  } | null>(null);
   const [syncInfo, setSyncInfo] = useState<any>(null);
   const [error, setError] = useState<any>(null);
   
@@ -224,14 +231,24 @@ function App() {
     }
   };
 
-  // Function to refresh/sync data
-  const handleRefreshData = async () => {
-    console.log('🔄 Refreshing data...');
+  // Function to refresh/sync data (optional: load Full Company Data instead of default API Extractions)
+  const handleRefreshData = async (options?: { source?: 'default' | 'full_company_data' }) => {
+    const source = options?.source ?? 'default';
+    console.log('🔄 Refreshing data...', source === 'full_company_data' ? '(Full Company Data)' : '');
     setShowSyncNotification(false);
     const gdriveLoader = GDriveDataLoader.getInstance();
     
     try {
-      const result = await gdriveLoader.loadAllData();
+      const result = await gdriveLoader.loadAllData({ source: source === 'full_company_data' ? 'full_company_data' : undefined });
+      if (source === 'full_company_data' && result.fullCompanyDataReady === false && result.data) {
+        const mpsUrl = getApiUrl('/api/mps');
+        const mpsData = await fetch(mpsUrl).then(r => r.ok ? r.json() : { mps_orders: [], summary: { total_orders: 0 } }).catch(() => ({ mps_orders: [], summary: { total_orders: 0 } }));
+        setData({ ...result.data, 'MPS.json': mpsData, loaded: true });
+        setSyncInfo(result.folderInfo || null);
+        setDataSource(result.source || 'Full Company Data (not ready)');
+        gdriveLoader.getDataSourceStatus().then(st => setDataSourceStatus(st));
+        return;
+      }
       const mpsUrl = getApiUrl('/api/mps');
       
       // Add 300 second timeout to match Cloud Run configuration
@@ -285,16 +302,17 @@ function App() {
       setNewSOsAvailable(0);
       
       setSyncInfo({
-        folderName: result.folderInfo.folderName,
-        syncDate: result.folderInfo.syncDate,
-        lastModified: result.folderInfo.lastModified,
-        folder: result.folderInfo.folder,
-        created: result.folderInfo.created,
-        size: result.folderInfo.size,
-        fileCount: result.folderInfo.fileCount
+        folderName: result.folderInfo?.folderName ?? result.folderInfo?.folder ?? 'Data',
+        syncDate: result.folderInfo?.syncDate ?? new Date().toISOString(),
+        lastModified: result.folderInfo?.lastModified ?? '',
+        folder: result.folderInfo?.folder ?? '',
+        created: result.folderInfo?.created ?? '',
+        size: result.folderInfo?.size ?? '',
+        fileCount: result.folderInfo?.fileCount ?? 0
       });
+      if (result.source) setDataSource(result.source);
       
-      console.log('✅ Data refreshed successfully');
+      console.log('✅ Data refreshed successfully', result.fullCompanyDataReady ? '(Full Company Data)' : '');
     } catch (error) {
       console.error('❌ Error refreshing data:', error);
     }
@@ -365,18 +383,30 @@ function App() {
       try {
         result = await gdriveLoader.loadAllData();
         
+        // Full Company Data framework: empty shape with fullCompanyDataReady false is valid (app shows "not ready" state)
+        if (result.fullCompanyDataReady === false && result.data) {
+          setData({ ...result.data, 'MPS.json': (await mpsPromise), loaded: true });
+          setSyncInfo(result.folderInfo || null);
+          setDataSource(result.source || 'Full Company Data (not ready)');
+          setDataLoaded(true);
+          setShowLoadingScreen(false);
+          setLoadingStatus('✅ Loaded');
+          gdriveLoader.getDataSourceStatus().then(st => setDataSourceStatus(st));
+          return;
+        }
+
         // Verify data actually has content
-        const hasActualData = result.data && Object.keys(result.data).some(fileName => {
+        const hasActualData = result.data && Object.keys(result.data).some((fileName: string) => {
           const fileData = result.data[fileName];
+          if (fileName === 'MPS.json') return fileData && typeof fileData === 'object';
           return Array.isArray(fileData) && fileData.length > 0;
         });
         
         if (!hasActualData) {
-          throw new Error('Backend returned empty data structure. G: Drive may not be accessible from Cloud Run.');
+          throw new Error('Backend returned empty data structure. Google Drive may not be accessible.');
         }
         
-        // Show correct data source from backend
-        const dataSource = result.source || (result.cached ? 'Cache' : 'G: Drive');
+        const dataSource = result.source || (result.cached ? 'Cache' : 'Google Drive');
         console.log(`✅ Data loaded successfully from ${dataSource}`);
         setLoadingStatus('Data loaded! Finalizing...');
       } catch (error) {
@@ -389,8 +419,8 @@ function App() {
           console.error('❌ Backend returned empty data - G: Drive not accessible from Cloud Run');
           setError({
             title: 'No Data Available',
-            message: 'Backend returned empty data. G: Drive is not accessible from Cloud Run.',
-            details: 'Cloud Run cannot access the G: Drive path. Data must be loaded from a location accessible to Cloud Run.'
+            message: 'Backend returned empty data. Google Drive is not accessible.',
+            details: 'Data must be loaded from Google Drive (or another configured source). Check backend and Render environment.'
           });
           result = { 
             data: {
@@ -479,12 +509,14 @@ function App() {
       
       // Mark data as loaded
       setDataLoaded(true);
-      
+      // Fetch Full Company Data status for header (available / not ready)
+      gdriveLoader.getDataSourceStatus().then(st => setDataSourceStatus(st));
+
     } catch (error) {
       console.error('❌ Error loading data:', error);
       setError({
         title: 'Data Loading Error',
-        message: 'Failed to load data from G: Drive',
+        message: 'Failed to load data from backend',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
       setDataSource('error');
@@ -592,7 +624,7 @@ function App() {
                 className="h-24 w-auto mx-auto drop-shadow-2xl"
               />
             </div>
-            <h1 className="text-4xl font-bold text-white mb-4">G: Drive Access Required</h1>
+            <h1 className="text-4xl font-bold text-white mb-4">Google Drive Access Required</h1>
             <p className="text-xl text-red-200 mb-6">{error.message}</p>
             <div className="bg-red-800/50 rounded-lg p-4 text-left">
               <p className="text-red-100 text-sm">{error.details}</p>
@@ -625,10 +657,13 @@ function App() {
         onNavigateToItem={() => {}}
         onHome={() => navigateToApp('operations')}
         dataSource={dataSource}
+        dataSourceStatus={dataSourceStatus}
         currentUser={currentUser}
         activeApp={activeApp}
         onSelectApp={navigateToApp}
         syncInfo={syncInfo}
+        onRefreshData={handleRefreshData}
+        onLoadFullCompanyData={() => handleRefreshData({ source: 'full_company_data' })}
       />
 
       {/* System Health Warning Banner */}
@@ -651,7 +686,7 @@ function App() {
               </ul>
               {!systemHealth.gdrive_accessible && (
                 <p className="text-xs text-red-200 mt-2">
-                  💡 Tip: Check if G: Drive is mounted
+                  💡 Tip: Check Google Drive API / backend config
                 </p>
               )}
               {!systemHealth.openai_available && (

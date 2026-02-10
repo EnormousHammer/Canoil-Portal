@@ -30,6 +30,12 @@ interface NavigationHeaderProps {
   onHome: () => void;
   onShowHelp?: () => void;
   dataSource?: string;
+  dataSourceStatus?: {
+    currentSource?: string;
+    fullCompanyDataAvailable?: boolean;
+    fullCompanyDataReady?: boolean;
+    message?: string;
+  } | null;
   currentUser?: { name: string; email: string; isAdmin: boolean } | null;
   activeApp?: 'operations' | 'production-schedule' | 'shipping';
   onSelectApp?: (app: 'operations' | 'production-schedule' | 'shipping') => void;
@@ -39,6 +45,8 @@ interface NavigationHeaderProps {
     lastModified: string;
     folder: string;
   } | null;
+  onRefreshData?: () => Promise<void>;
+  onLoadFullCompanyData?: () => Promise<void>;
 }
 
 export function NavigationHeader({
@@ -51,10 +59,13 @@ export function NavigationHeader({
   onHome,
   onShowHelp,
   dataSource,
+  dataSourceStatus,
   currentUser,
   activeApp = 'operations',
   onSelectApp,
-  syncInfo
+  syncInfo,
+  onRefreshData,
+  onLoadFullCompanyData
 }: NavigationHeaderProps) {
 
   // Format sync date for display
@@ -214,16 +225,34 @@ export function NavigationHeader({
 
               {/* G: Drive Status - compact single line */}
               {dataSource && (
-                <div className="flex items-center space-x-1.5 bg-emerald-600 text-white rounded-lg px-2 py-1 border border-emerald-500/60">
-                  <img 
-                    src="/Google_Drive_icon_(2020).svg.png" 
-                    alt="Google Drive" 
-                    className="w-3.5 h-3.5"
-                  />
-                  <span className="text-[10px] font-semibold whitespace-nowrap">G: Drive</span>
-                  <span className="text-[10px] text-emerald-100 whitespace-nowrap">
-                    {syncInfo ? formatSyncDate(syncInfo.syncDate) : 'Connected'}
-                  </span>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center space-x-1.5 bg-emerald-600 text-white rounded-lg px-2 py-1 border border-emerald-500/60">
+                    <img 
+                      src="/Google_Drive_icon_(2020).svg.png" 
+                      alt="Google Drive" 
+                      className="w-3.5 h-3.5"
+                    />
+                    <span className="text-[10px] font-semibold whitespace-nowrap">Google Drive</span>
+                    <span className="text-[10px] text-emerald-100 whitespace-nowrap">
+                      {syncInfo ? formatSyncDate(syncInfo.syncDate) : 'Connected'}
+                    </span>
+                  </div>
+                  {dataSourceStatus && (dataSourceStatus.fullCompanyDataAvailable || dataSourceStatus.fullCompanyDataReady !== undefined) && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                        Full Company Data: {dataSourceStatus.fullCompanyDataReady ? 'Ready' : 'Not ready'}
+                      </span>
+                      {onLoadFullCompanyData && (
+                        <button
+                          type="button"
+                          onClick={() => onLoadFullCompanyData()}
+                          className="text-[10px] font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                        >
+                          Load
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
