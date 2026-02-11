@@ -8691,10 +8691,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const allPOData: any[] = [];
                 const seenPOs = new Set();
                 
+                const rawPOHeaders = data['PurchaseOrders.json'] || [];
                 processedPOLines.forEach((line: any) => {
                   if (seenPOs.has(line.poId)) return;
                   seenPOs.add(line.poId);
                   const header = processPurchaseOrders.headers.find((h: any) => h.poId === line.poId);
+                  const poNoStr = (line.poId ?? '').toString();
+                  const rawHeader = rawPOHeaders.find((h: any) => (h['PO No.'] ?? '').toString() === poNoStr);
+                  const poHeader = rawHeader || {
+                    'PO No.': line.poId,
+                    'Supplier No.': header?.vendor,
+                    'Vendor': header?.vendor,
+                    'Order Date': header?.orderDate,
+                    'Status': header?.status
+                  };
                   allPOData.push({
                     poNumber: line.poId,
                     vendor: header?.vendor || '—',
@@ -8702,7 +8712,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     orderedQty: line.orderedQty,
                     receivedQty: line.receivedQty,
                     unitPrice: line.unitPrice,
-                    status: header?.status
+                    status: header?.status,
+                    poHeader
                   });
                 });
                 
@@ -8710,7 +8721,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   const poNo = detail['PO No.'];
                   if (seenPOs.has(poNo)) return;
                   seenPOs.add(poNo);
-                  const header = (data['PurchaseOrders.json'] || []).find((h: any) => h['PO No.'] === poNo);
+                  const header = rawPOHeaders.find((h: any) => h['PO No.'] === poNo);
                   allPOData.push({
                     poNumber: poNo || '—',
                     vendor: header?.['Vendor'] || header?.['Supplier No.'] || header?.['Supplier'] || '—',
@@ -8718,7 +8729,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Ordered'] || detail['Quantity'] || 0),
                     receivedQty: parseStockValue(detail['Received Qty'] || detail['Received'] || 0),
                     unitPrice: parseCostValue(detail['Unit Price'] || detail['Price'] || 0),
-                    status: header?.['Status'] || detail['Status']
+                    status: header?.['Status'] || detail['Status'],
+                    poHeader: header || { 'PO No.': poNo, 'Supplier No.': detail['Vendor'] || detail['Supplier'], 'Order Date': detail['Order Date'], 'Status': detail['Status'] }
                   });
                 });
                 
@@ -8779,15 +8791,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {allPOData.slice(0, 20).map((po, index) => {
-                            const statusColor = po.status === '2' || po.status === '3' ? 'bg-green-100 text-green-700' 
-                              : po.status === '1' ? 'bg-amber-100 text-amber-700' 
+                            const statusNum = Number(po.status);
+                            const statusColor = statusNum === 2 || statusNum === 3 ? 'bg-green-100 text-green-700' 
+                              : statusNum === 1 ? 'bg-amber-100 text-amber-700' 
                               : 'bg-blue-100 text-blue-700';
-                            const statusText = po.status === '2' ? 'Received' : po.status === '3' ? 'Closed' 
-                              : po.status === '1' ? 'Released' : 'Open';
+                            const statusText = statusNum === 2 ? 'Received' : statusNum === 3 ? 'Closed' 
+                              : statusNum === 1 ? 'Released' : 'Open';
                             
                             return (
-                              <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-mono text-blue-600 font-medium">{po.poNumber}</td>
+                              <tr
+                                key={index}
+                                className="hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  if (po.poHeader) {
+                                    setSelectedPO(po.poHeader);
+                                    setShowPODetails(true);
+                                    setPoActiveTab('overview');
+                                  }
+                                }}
+                              >
+                                <td className="px-4 py-3 font-mono text-blue-600 font-medium underline decoration-blue-600/50">{po.poNumber}</td>
                                 <td className="px-4 py-3 text-gray-700">{po.vendor}</td>
                                 <td className="px-4 py-3 text-gray-500">{formatDisplayDate(po.orderDate) || '—'}</td>
                                 <td className="px-4 py-3 text-right font-medium">{(po.orderedQty || 0).toLocaleString()}</td>
@@ -8828,11 +8851,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const allMOData: any[] = [];
                 const seenMOs = new Set();
                 
+                const moHeadersList = data['ManufacturingOrderHeaders.json'] || [];
                 moDetails.forEach((detail: any) => {
                   const moNo = detail['Mfg. Order No.'];
                   if (seenMOs.has(moNo)) return;
                   seenMOs.add(moNo);
-                  const header = (data['ManufacturingOrderHeaders.json'] || []).find((h: any) => h['Mfg. Order No.'] === moNo);
+                  const header = moHeadersList.find((h: any) => h['Mfg. Order No.'] === moNo);
                   allMOData.push({
                     moNumber: moNo,
                     buildItem: header?.['Build Item No.'] || '—',
@@ -8840,7 +8864,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     requiredQty: parseStockValue(detail['Required Qty.'] || 0),
                     completedQty: parseStockValue(detail['Completed'] || 0),
                     status: header?.['Status'],
-                    type: 'Component'
+                    type: 'Component',
+                    moHeader: header || { 'Mfg. Order No.': moNo, 'Build Item No.': header?.['Build Item No.'] || '—', 'Order Date': detail['Order Date'] }
                   });
                 });
                 
@@ -8855,7 +8880,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     requiredQty: parseStockValue(header['Ordered'] || 0),
                     completedQty: parseStockValue(header['Completed'] || 0),
                     status: header['Status'],
-                    type: 'Build'
+                    type: 'Build',
+                    moHeader: header
                   });
                 });
                 
@@ -8910,16 +8936,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {allMOData.slice(0, 20).map((mo, index) => {
-                            const statusColor = mo.status === '3' || mo.status === '4' ? 'bg-green-100 text-green-700' 
-                              : mo.status === '2' ? 'bg-orange-100 text-orange-700' 
-                              : mo.status === '1' ? 'bg-amber-100 text-amber-700' 
-                              : 'bg-blue-100 text-blue-700';
-                            const statusText = mo.status === '3' ? 'Completed' : mo.status === '4' ? 'Closed' 
-                              : mo.status === '2' ? 'In Progress' : mo.status === '1' ? 'Released' : 'Open';
+                            const statusNum = Number(mo.status);
+                            const getMOStatusInfo = (s: number) => {
+                              switch (s) {
+                                case 0: return { text: 'Planned', color: 'bg-yellow-100 text-yellow-700' };
+                                case 1: return { text: 'Released', color: 'bg-amber-100 text-amber-700' };
+                                case 2: return { text: 'Started', color: 'bg-blue-100 text-blue-700' };
+                                case 3: return { text: 'Finished', color: 'bg-green-100 text-green-700' };
+                                case 4: return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
+                                default: return { text: 'Unknown', color: 'bg-slate-100 text-slate-700' };
+                              }
+                            };
+                            const statusInfo = getMOStatusInfo(statusNum);
                             
                             return (
-                              <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-mono text-green-600 font-medium">{mo.moNumber}</td>
+                              <tr
+                                key={index}
+                                className="hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  if (mo.moHeader) {
+                                    setSelectedMO(mo.moHeader);
+                                    setShowMODetails(true);
+                                  }
+                                }}
+                              >
+                                <td className="px-4 py-3 font-mono text-green-600 font-medium underline decoration-green-600/50">{mo.moNumber}</td>
                                 <td className="px-4 py-3 text-gray-700">{mo.buildItem}</td>
                                 <td className="px-4 py-3 text-gray-500">{formatDisplayDate(mo.orderDate) || '—'}</td>
                                 <td className="px-4 py-3 text-right font-medium">{(mo.requiredQty || 0).toLocaleString()}</td>
@@ -8928,7 +8969,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <span className={`px-2 py-1 rounded text-xs font-medium ${mo.type === 'Build' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{mo.type}</span>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor}`}>{statusText}</span>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusInfo.color}`}>{statusInfo.text}</span>
                                 </td>
                               </tr>
                             );
