@@ -238,12 +238,34 @@ FULL_COMPANY_MAPPINGS = {
          "userId": "User", "entry": "Entry", "detail": "Detail", "qty": "Quantity", "locId": "Location No.",
          "tranDt": "Transaction Date", "assignedDt": "Assigned Date"},
     ),
+    # MISLNH: lot header definition
+    "MISLNH": (
+        ["MISLNH.json"],
+        {"prntItemId": "Parent Item No.", "lotId": "Lot No.", "itemId": "Item No."},
+    ),
+    # MISLND: lot detail
+    "MISLND": (
+        ["MISLND.json"],
+        {"prntItemId": "Parent Item No.", "lotId": "Lot No.", "itemId": "Item No."},
+    ),
     # MILOGH: main inventory log (Stock Movement timeline)
     "MILOGH": (
         ["MILOGH.json"],
         {"itemId": "Item No.", "tranDate": "Transaction Date", "userId": "User", "entry": "Entry", "type": "Type",
          "comment": "Comment", "qty": "Quantity", "locId": "Location No.", "binId": "Bin No.", "jobId": "Job No.",
          "xvarPOId": "PO No.", "xvarMOId": "Mfg. Order No.", "xvarWOId": "Work Order No.", "tranDt": "Transaction Date"},
+    ),
+    # MILOGD: inventory log detail (lines per transaction)
+    "MILOGD": (
+        ["MILOGD.json"],
+        {"itemId": "Item No.", "tranDate": "Transaction Date", "tranDt": "Transaction Date", "entry": "Entry", "detail": "Detail",
+         "qty": "Quantity", "locId": "Location No.", "uom": "UOM"},
+    ),
+    # MILOGB: inventory log bin breakdown
+    "MILOGB": (
+        ["MILOGB.json"],
+        {"itemId": "Item No.", "tranDate": "Transaction Date", "tranDt": "Transaction Date", "entry": "Entry", "detail": "Detail",
+         "locId": "Location No.", "binId": "Bin No.", "lotId": "Lot No.", "qty": "Quantity"},
     ),
     # MIBINH: bin movement history
     "MIBINH": (
@@ -281,6 +303,16 @@ FULL_COMPANY_MAPPINGS = {
         {"suplId": "Supplier No.", "shortName": "Short Name", "name": "Name", "adr1": "Address 1", "adr2": "Address 2",
          "city": "City", "state": "State", "zip": "Zip", "country": "Country", "phone": "Phone", "contact": "Contact",
          "cur": "Currency", "terms": "Terms", "email1": "Email", "website": "Website", "notes": "Notes"},
+    ),
+    # MIQSUP: supplier–item links (preferred supplier per item)
+    "MIQSUP": (
+        ["MIQSUP.json"],
+        {"suplId": "Supplier No.", "itemId": "Item No.", "status": "Status", "leadTime": "Lead Time", "minQty": "Minimum Qty"},
+    ),
+    # MIUSER: users (audit, who did what)
+    "MIUSER": (
+        ["MIUSER.json"],
+        {"userId": "User", "userName": "Name", "displayName": "Display Name", "email": "Email", "isActive": "Active"},
     ),
 }
 
@@ -421,9 +453,9 @@ def _get_skeleton():
         "PurchaseOrderAdditionalCosts.json": [], "PurchaseOrderAdditionalCostsTaxes.json": [], "PurchaseOrderDetailAdditionalCosts.json": [],
         "SalesOrders.json": [], "SalesOrdersByStatus": {}, "TotalOrders": 0, "StatusFolders": [], "ScanMethod": "",
         "LotSerialHistory.json": [], "LotSerialDetail.json": [],
-        "MIILOCQT.json": [], "MIBINQ.json": [], "MISLBINQ.json": [], "MISLHIST.json": [],
-        "MILOGH.json": [], "MIBINH.json": [], "MIICST.json": [], "MIITEMX.json": [], "MIITEMA.json": [],
-        "MIQMFG.json": [], "MISUPL.json": [],
+        "MIILOCQT.json": [], "MIBINQ.json": [], "MISLBINQ.json": [], "MISLHIST.json": [], "MISLNH.json": [], "MISLND.json": [],
+        "MILOGH.json": [], "MILOGD.json": [], "MILOGB.json": [], "MIBINH.json": [], "MIICST.json": [], "MIITEMX.json": [], "MIITEMA.json": [],
+        "MIQMFG.json": [], "MISUPL.json": [], "MIQSUP.json": [], "MIUSER.json": [],
         "MPS.json": {"mps_orders": [], "summary": {"total_orders": 0}},
     }
 
