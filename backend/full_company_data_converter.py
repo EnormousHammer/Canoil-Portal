@@ -189,23 +189,109 @@ FULL_COMPANY_MAPPINGS = {
          "Stock Quantity": "Stock Quantity", "WIP Qty": "WIP Qty", "Reserve Qty": "Reserve Qty", "On Order Qty": "On Order Qty", "Used Qty": "Used Qty", "Received Qty": "Received Qty"},
     ),
     # Lot/serial transaction history (Full Company Data export)
-    # MISLTH: exact columns from export (tranDate, userId, itemId, type, xvarMOId, xvarSOId, trnQty, locId, jobId)
+    # MISLTH: export columns (tranDate, userId, itemId) or UI-style (Transaction Date, User ID, Item No.)
     "MISLTH": (
         ["LotSerialHistory.json"],
-        {"tranDate": "Transaction Date", "tranDt": "Transaction Date", "userId": "User", "itemId": "Item No.", "prntItemId": "Parent Item No.",
-         "locId": "Location No.", "jobId": "Job No.", "type": "Type", "xvarMOId": "Mfg. Order No.",
-         "xvarSOId": "Sales Order No.", "trnQty": "Quantity", "rdyQty": "Ready Qty", "recQty": "Received Qty"},
+        {"tranDate": "Transaction Date", "tranDt": "Transaction Date", "Transaction Date": "Transaction Date",
+         "userId": "User", "User ID": "User", "User": "User",
+         "itemId": "Item No.", "Item No.": "Item No.", "Item No": "Item No.",
+         "prntItemId": "Parent Item No.", "locId": "Location No.", "jobId": "Job No.",
+         "type": "Type", "Type": "Type", "Primary Transaction Type": "Type", "Detail Transaction Type": "Type",
+         "xvarMOId": "Mfg. Order No.", "Mfg. Order No.": "Mfg. Order No.", "Transaction No.": "Transaction No.",
+         "xvarSOId": "Sales Order No.", "Detail No.": "Detail No.",
+         "trnQty": "Quantity", "Quantity": "Quantity", "recQty": "Received Qty", "rdyQty": "Ready Qty"},
     ),
-    # MISLTD: exact columns from export (tranDate, userId, entry, detail, prntLotId, itemId, trnQty, recQty)
+    # MISLTD: lot/serial detail – SL No., Description, Status, Expiration Date, Quantity in Stock/Used/Received/Scrap
     "MISLTD": (
         ["LotSerialDetail.json"],
-        {"prntLotId": "Lot No.", "lotId": "Lot No.", "entry": "Serial No.", "detail": "Serial No.", "serialNo": "Serial No.",
-         "itemId": "Item No.", "prntItemId": "Parent Item No.", "trnQty": "Quantity", "recQty": "Quantity", "qty": "Quantity"},
+        {"prntLotId": "Lot No.", "lotId": "Lot No.", "SL No.": "Lot No.", "SL No": "Lot No.",
+         "entry": "Serial No.", "detail": "Serial No.", "serialNo": "Serial No.", "Serial No.": "Serial No.",
+         "itemId": "Item No.", "Item No.": "Item No.", "Item No": "Item No.", "prntItemId": "Parent Item No.",
+         "trnQty": "Quantity", "recQty": "Quantity", "qty": "Quantity",
+         "Description": "Description", "Status": "Status", "Expiration Date": "Expiration Date",
+         "Quantity in Stock": "Quantity in Stock", "Quantity Used": "Quantity Used",
+         "Quantity Received": "Quantity Received", "Scrap Quantity": "Scrap Quantity"},
+    ),
+    # --- Item popup: extra tables so modal has full data ---
+    # MIILOCQT: on-hand by item+location (and date)
+    "MIILOCQT": (
+        ["MIILOCQT.json"],
+        {"itemId": "Item No.", "locId": "Location No.", "dateISO": "Date ISO", "date": "Date",
+         "qStk": "On Hand", "qWip": "WIP", "qRes": "Reserve", "qOrd": "On Order",
+         "cStd": "Standard Cost", "cLast": "Recent Cost", "cAvg": "Average Cost"},
+    ),
+    # MIBINQ: on-hand by item+location+bin
+    "MIBINQ": (
+        ["MIBINQ.json"],
+        {"itemId": "Item No.", "locId": "Location No.", "binId": "Bin No.", "qStk": "On Hand",
+         "descr": "Description", "status": "Status", "createDt": "Create Date", "lstUseDt": "Last Used Date"},
+    ),
+    # MISLBINQ: lot/serial qty by bin
+    "MISLBINQ": (
+        ["MISLBINQ.json"],
+        {"itemId": "Item No.", "locId": "Location No.", "binId": "Bin No.", "lotId": "Lot No.", "qStk": "On Hand"},
+    ),
+    # MISLHIST: lot master/history (for SL Numbers / History)
+    "MISLHIST": (
+        ["MISLHIST.json"],
+        {"itemId": "Item No.", "prntItemId": "Parent Item No.", "lotId": "Lot No.", "tranDate": "Transaction Date",
+         "userId": "User", "entry": "Entry", "detail": "Detail", "qty": "Quantity", "locId": "Location No.",
+         "tranDt": "Transaction Date", "assignedDt": "Assigned Date"},
+    ),
+    # MILOGH: main inventory log (Stock Movement timeline)
+    "MILOGH": (
+        ["MILOGH.json"],
+        {"itemId": "Item No.", "tranDate": "Transaction Date", "userId": "User", "entry": "Entry", "type": "Type",
+         "comment": "Comment", "qty": "Quantity", "locId": "Location No.", "binId": "Bin No.", "jobId": "Job No.",
+         "xvarPOId": "PO No.", "xvarMOId": "Mfg. Order No.", "xvarWOId": "Work Order No.", "tranDt": "Transaction Date"},
+    ),
+    # MIBINH: bin movement history
+    "MIBINH": (
+        ["MIBINH.json"],
+        {"itemId": "Item No.", "tranDate": "Transaction Date", "userId": "User", "entry": "Entry", "detail": "Detail",
+         "locId": "Location No.", "type": "Type", "trnQty": "Quantity", "recQty": "Received Qty",
+         "xvarPOId": "PO No.", "xvarMOId": "Mfg. Order No.", "tranDt": "Transaction Date"},
+    ),
+    # MIICST: cost history (Costs tab timeline)
+    "MIICST": (
+        ["MIICST.json"],
+        {"itemId": "Item No.", "transDate": "Transaction Date", "seqNo": "Seq No.", "locId": "Location No.",
+         "type": "Type", "tranType": "Tran Type", "suplId": "Supplier No.", "poId": "PO No.", "poRev": "PO Rev", "poDtl": "PO Line",
+         "reference": "Reference", "qRecd": "Qty Received", "cost": "Cost", "cLand": "Landed Cost",
+         "qUsed": "Qty Used", "qWip": "WIP", "transDt": "Transaction Date", "extCost": "Extended Cost"},
+    ),
+    # MIITEMX: item notes, docPath, picPath (Notes tab)
+    "MIITEMX": (
+        ["MIITEMX.json"],
+        {"itemId": "Item No.", "notes": "Notes", "docPath": "Document Path", "picPath": "Picture Path"},
+    ),
+    # MIITEMA: alternates (Alternates tab)
+    "MIITEMA": (
+        ["MIITEMA.json"],
+        {"itemId": "Item No.", "altItemId": "Alternate Item No.", "uniquifier": "Uniquifier", "lineNbr": "Line No."},
+    ),
+    # MIQMFG: manufacturer links (Manufacturers tab)
+    "MIQMFG": (
+        ["MIQMFG.json"],
+        {"itemId": "Item No.", "mfgId": "Manufacturer No.", "mfgName": "Manufacturer Name", "mfgProdCode": "Product Code"},
+    ),
+    # MISUPL: supplier master (Suppliers tab: join to PO suplId for names)
+    "MISUPL": (
+        ["MISUPL.json"],
+        {"suplId": "Supplier No.", "shortName": "Short Name", "name": "Name", "adr1": "Address 1", "adr2": "Address 2",
+         "city": "City", "state": "State", "zip": "Zip", "country": "Country", "phone": "Phone", "contact": "Contact",
+         "cur": "Currency", "terms": "Terms", "email1": "Email", "website": "Website", "notes": "Notes"},
     ),
 }
 
 # Case-insensitive file stem lookup: MIITEM.CSV, miitem.csv, MiItem.Csv all use MIITEM mapping
 _STEM_TO_KEY = {k.upper(): k for k in FULL_COMPANY_MAPPINGS}
+# Alternate file stems so MISys exports named e.g. LotSerialHistory.csv or SLTH.csv still load
+for _alt, _main in [
+    ("SLTH", "MISLTH"), ("LOTSERIALHISTORY", "MISLTH"), ("SERIALLOTTRACKINGHISTORY", "MISLTH"),
+    ("SLTD", "MISLTD"), ("LOTSERIALDETAIL", "MISLTD"), ("SERIALLOTTRACKINGDETAIL", "MISLTD"),
+]:
+    _STEM_TO_KEY[_alt] = _main
 
 
 def _read_table(content, file_name, is_bytes=False):
@@ -335,6 +421,9 @@ def _get_skeleton():
         "PurchaseOrderAdditionalCosts.json": [], "PurchaseOrderAdditionalCostsTaxes.json": [], "PurchaseOrderDetailAdditionalCosts.json": [],
         "SalesOrders.json": [], "SalesOrdersByStatus": {}, "TotalOrders": 0, "StatusFolders": [], "ScanMethod": "",
         "LotSerialHistory.json": [], "LotSerialDetail.json": [],
+        "MIILOCQT.json": [], "MIBINQ.json": [], "MISLBINQ.json": [], "MISLHIST.json": [],
+        "MILOGH.json": [], "MIBINH.json": [], "MIICST.json": [], "MIITEMX.json": [], "MIITEMA.json": [],
+        "MIQMFG.json": [], "MISUPL.json": [],
         "MPS.json": {"mps_orders": [], "summary": {"total_orders": 0}},
     }
 

@@ -1977,6 +1977,9 @@ def get_empty_app_data_structure():
         'SalesOrders.json': [], 'SalesOrdersByStatus': {}, 'TotalOrders': 0, 'StatusFolders': [], 'ScanMethod': '',
         'MPS.json': {'mps_orders': [], 'summary': {'total_orders': 0}},
         'LotSerialHistory.json': [], 'LotSerialDetail.json': [],
+        'MIILOCQT.json': [], 'MIBINQ.json': [], 'MISLBINQ.json': [], 'MISLHIST.json': [],
+        'MILOGH.json': [], 'MIBINH.json': [], 'MIICST.json': [], 'MIITEMX.json': [], 'MIITEMA.json': [],
+        'MIQMFG.json': [], 'MISUPL.json': [],
     }
 
 @app.route('/api/data', methods=['GET'])

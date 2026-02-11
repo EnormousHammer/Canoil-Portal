@@ -8409,14 +8409,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         })();
         
         return (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
+          <div className="bg-white w-full max-w-5xl max-h-[85vh] flex flex-col rounded-xl border border-slate-200 shadow-2xl shadow-slate-900/10 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             
-            {/* Header - Minimal */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  stockStatus === 'out' ? 'bg-red-100' : stockStatus === 'low' ? 'bg-amber-100' : 'bg-emerald-100'
+                <div className={`w-11 h-11 rounded-lg flex items-center justify-center border ${
+                  stockStatus === 'out' ? 'bg-red-50 border-red-200' : stockStatus === 'low' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
                 }`}>
                   <Package2 className={`w-5 h-5 ${
                     stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
@@ -8424,158 +8424,137 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-gray-900">{itemNo}</h2>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isAssembled ? 'bg-orange-100 text-orange-700' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'
+                    <h2 className="text-lg font-bold text-slate-900">{itemNo}</h2>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
+                      isAssembled ? 'bg-orange-50 text-orange-700 border-orange-200' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-sky-50 text-sky-700 border-sky-200'
                     }`}>
                       {isAssembled ? 'ASSEMBLED' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'RESOURCE' : 'PURCHASED'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 line-clamp-1">{description}</p>
+                  <p className="text-sm text-slate-500 line-clamp-1 mt-0.5">{description}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium text-sm transition-all">
+                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium text-sm transition-colors">
                   Inventory actions
                 </button>
-                {/* Add to PR Cart Button */}
                 <button 
                   onClick={() => {
                     setQuickAddItem(item);
                     setQuickAddQty(1);
                     setShowQuickAddPopup(true);
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg font-medium text-sm transition-all shadow-md hover:shadow-lg"
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium text-sm transition-colors border border-orange-600 shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   Add to PR Cart
                 </button>
-                <button onClick={closeItemModal} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <X className="w-5 h-5 text-gray-400" />
+                <button onClick={closeItemModal} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors">
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Stats Row - Clean Grid */}
+            {/* Stats: single card with clear inner dividers */}
             {(() => {
-              // Get stock ownership breakdown
               const stockOwnership = getStockByOwnership(itemNo, data);
               const hasCustomerStock = stockOwnership.customerStock > 0;
               const customerBreakdown = stockOwnership.customerBreakdown || [];
               
               return (
                 <>
-                  <div className="grid grid-cols-5 border-b border-gray-100">
-                    <div className={`p-4 text-center ${
-                      stockStatus === 'out' ? 'bg-red-50' : stockStatus === 'low' ? 'bg-amber-50' : 'bg-emerald-50'
-                    }`}>
-                      <div className={`text-2xl font-bold ${
-                        stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
-                      }`}>{currentStock.toLocaleString()}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase">Total Stock</div>
-                    </div>
-                    <div className="p-4 text-center bg-blue-50">
-                      <div className="text-2xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase">WIP</div>
-                    </div>
-                    <div className="p-4 text-center">
-                      <div className="text-2xl font-bold text-gray-700">{onOrder.toLocaleString()}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase">On Order</div>
-                    </div>
-                    <div className="p-4 text-center bg-gray-50">
-                      <div className="text-2xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase">Available</div>
-                    </div>
-                    <div className="p-4 text-center">
-                      <div className="text-xl font-bold text-gray-700">{formatCAD(unitCost)}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase">Unit Cost</div>
-                    </div>
-                  </div>
-                  
-                  {/* Reorder & Costs row */}
-                  <div className="grid grid-cols-2 border-b border-gray-100 bg-slate-50/50">
-                    <div className="px-4 py-3 border-r border-gray-100">
-                      <div className="text-[10px] text-gray-500 font-medium uppercase mb-0.5">Reorder Level</div>
-                      <div className="text-lg font-bold text-gray-800">{reorderLevel.toLocaleString()}</div>
-                      <div className="text-[10px] text-gray-500 font-medium uppercase mt-2 mb-0.5">Reorder Qty</div>
-                      <div className="text-lg font-bold text-gray-800">{reorderQty.toLocaleString()}</div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <div className="text-[10px] text-gray-500 font-medium uppercase mb-1">Costs</div>
-                      <div className="flex flex-wrap gap-4 text-sm">
-                        <span><span className="text-gray-500">Unit:</span> <span className="font-semibold text-gray-800">{formatCAD(unitCost)}</span></span>
-                        {(standardCost > 0 || item['Standard Cost'] || item['stdCost']) && <span><span className="text-gray-500">Standard:</span> <span className="font-semibold text-gray-800">{formatCAD(standardCost)}</span></span>}
-                        {(recentCost > 0 || item['Recent Cost'] || item['avgCost']) && <span><span className="text-gray-500">Recent:</span> <span className="font-semibold text-gray-800">{formatCAD(recentCost)}</span></span>}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Stock Ownership Breakdown */}
-                  <div className="border-b border-gray-100 bg-gradient-to-r from-slate-50 to-gray-50">
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        {/* Canoil Stock */}
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                          <span className="text-xs font-semibold text-gray-600">Canoil:</span>
-                          <span className={`text-sm font-bold ${stockOwnership.canoilStock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {stockOwnership.canoilStock.toLocaleString()}
-                          </span>
-                          <span className="text-[10px] text-gray-400">(62TODD/HOME)</span>
-                        </div>
-                        
-                        {/* Customer Stock */}
-                        {hasCustomerStock && (
-                          <>
-                            <div className="w-px h-4 bg-gray-300"></div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                              <span className="text-xs font-semibold text-gray-600">Customer:</span>
-                              <span className="text-sm font-bold text-purple-600">
-                                {stockOwnership.customerStock.toLocaleString()}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                {customerBreakdown.map((cb: { location: string; stock: number }, idx: number) => (
-                                  <span 
-                                    key={idx}
-                                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium"
-                                  >
-                                    {cb.location}: {cb.stock}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      
-                      {/* Stock Ownership Summary Badge */}
-                      <div className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                        stockOwnership.canoilStock > 0 && !hasCustomerStock 
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : stockOwnership.canoilStock > 0 && hasCustomerStock
-                            ? 'bg-blue-100 text-blue-700'
-                            : stockOwnership.canoilStock === 0 && hasCustomerStock
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-red-100 text-red-700'
+                  <div className="mx-4 mt-4 rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    <div className="grid grid-cols-5 divide-x divide-slate-200">
+                      <div className={`p-4 text-center ${
+                        stockStatus === 'out' ? 'bg-red-50/80' : stockStatus === 'low' ? 'bg-amber-50/80' : 'bg-emerald-50/80'
                       }`}>
-                        {stockOwnership.canoilStock > 0 && !hasCustomerStock 
-                          ? 'CANOIL ONLY'
-                          : stockOwnership.canoilStock > 0 && hasCustomerStock
-                            ? 'MIXED OWNERSHIP'
-                            : stockOwnership.canoilStock === 0 && hasCustomerStock
-                              ? 'CUSTOMER ONLY'
-                              : 'NO STOCK'}
+                        <div className={`text-2xl font-bold ${
+                          stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
+                        }`}>{currentStock.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Total Stock</div>
+                      </div>
+                      <div className="p-4 text-center bg-sky-50/50">
+                        <div className="text-2xl font-bold text-sky-600">{currentWIP.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">WIP</div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-2xl font-bold text-slate-700">{onOrder.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">On Order</div>
+                      </div>
+                      <div className="p-4 text-center bg-slate-50/50">
+                        <div className="text-2xl font-bold text-slate-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Available</div>
+                      </div>
+                      <div className="p-4 text-center">
+                        <div className="text-xl font-bold text-slate-700">{formatCAD(unitCost)}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Unit Cost</div>
                       </div>
                     </div>
+                  </div>
+                  
+                  {/* Reorder & Costs: one card, two columns */}
+                  <div className="mx-4 mt-3 rounded-lg border border-slate-200 bg-white overflow-hidden">
+                    <div className="grid grid-cols-2 divide-x divide-slate-200">
+                      <div className="px-4 py-3">
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Reorder Level</div>
+                        <div className="text-lg font-bold text-slate-800">{reorderLevel.toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-2">Reorder Qty</div>
+                        <div className="text-lg font-bold text-slate-800">{reorderQty.toLocaleString()}</div>
+                      </div>
+                      <div className="px-4 py-3 bg-slate-50/30">
+                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mb-1">Costs</div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
+                          <span><span className="text-slate-500">Unit:</span> <span className="font-semibold text-slate-800">{formatCAD(unitCost)}</span></span>
+                          {(standardCost > 0 || item['Standard Cost'] || item['stdCost']) && <span><span className="text-slate-500">Standard:</span> <span className="font-semibold text-slate-800">{formatCAD(standardCost)}</span></span>}
+                          {(recentCost > 0 || item['Recent Cost'] || item['avgCost']) && <span><span className="text-slate-500">Recent:</span> <span className="font-semibold text-slate-800">{formatCAD(recentCost)}</span></span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Stock ownership: one bar with border */}
+                  <div className="mx-4 mt-3 rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-600/30" />
+                        <span className="text-xs font-semibold text-slate-600">Canoil:</span>
+                        <span className={`text-sm font-bold ${stockOwnership.canoilStock > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {stockOwnership.canoilStock.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-slate-400">(62TODD/HOME)</span>
+                      </div>
+                      {hasCustomerStock && (
+                        <>
+                          <div className="w-px h-4 bg-slate-300" />
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-violet-500 border border-violet-600/30" />
+                            <span className="text-xs font-semibold text-slate-600">Customer:</span>
+                            <span className="text-sm font-bold text-violet-600">{stockOwnership.customerStock.toLocaleString()}</span>
+                            {customerBreakdown.map((cb: { location: string; stock: number }, idx: number) => (
+                              <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium border border-violet-200/50">
+                                {cb.location}: {cb.stock}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md border ${
+                      stockOwnership.canoilStock > 0 && !hasCustomerStock ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : stockOwnership.canoilStock > 0 && hasCustomerStock ? 'bg-sky-50 text-sky-700 border-sky-200'
+                        : stockOwnership.canoilStock === 0 && hasCustomerStock ? 'bg-violet-50 text-violet-700 border-violet-200'
+                        : 'bg-red-50 text-red-700 border-red-200'
+                    }`}>
+                      {stockOwnership.canoilStock > 0 && !hasCustomerStock ? 'CANOIL ONLY' : stockOwnership.canoilStock > 0 && hasCustomerStock ? 'MIXED' : stockOwnership.canoilStock === 0 && hasCustomerStock ? 'CUSTOMER ONLY' : 'NO STOCK'}
+                    </span>
                   </div>
                 </>
               );
             })()}
 
-            {/* Tab Bar - Wrapping (no scroll); primary row then secondary */}
+            {/* Tab bar: one contained strip */}
             {(() => {
               const workOrderCount = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length;
               const primaryTabs = [
@@ -8599,30 +8578,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 { id: 'history', label: 'History' },
                 { id: 'sl-numbers', label: 'SL Numbers' },
               ];
-              const tabClass = (id: string) =>
-                itemModalActiveView === id
-                  ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50';
+              const tabActive = (id: string) => itemModalActiveView === id;
               return (
-                <div className="px-6 pt-4 border-b border-gray-100 bg-white">
-                  <div className="flex flex-wrap gap-1">
+                <div className="mx-4 mt-4 rounded-lg border border-slate-200 bg-white overflow-hidden">
+                  <div className="px-3 pt-2 pb-0 flex flex-wrap gap-x-0.5 gap-y-1 border-b border-slate-200">
                     {primaryTabs.map(({ id, label, badge }) => (
                       <button
                         key={id}
                         onClick={() => setItemModalActiveView(id)}
-                        className={`px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-all whitespace-nowrap ${tabClass(id)}`}
+                        className={`px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                          tabActive(id) ? 'border-slate-700 text-slate-800 bg-slate-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50/50'
+                        }`}
                       >
                         {label}
-                        {badge !== undefined && badge > 0 && <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 px-1 py-0.5 rounded-full">{badge}</span>}
+                        {badge !== undefined && badge > 0 && <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md">{badge}</span>}
                       </button>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-1 mt-1 pb-1">
+                  <div className="px-3 py-1.5 flex flex-wrap gap-1 bg-slate-50/50 border-t border-slate-100">
                     {secondaryTabs.map(({ id, label }) => (
                       <button
                         key={id}
                         onClick={() => setItemModalActiveView(id)}
-                        className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-all whitespace-nowrap ${tabClass(id)}`}
+                        className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors whitespace-nowrap ${
+                          tabActive(id) ? 'bg-white text-slate-800 border-slate-300 shadow-sm' : 'bg-white/80 text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                        }`}
                       >
                         {label}
                       </button>
@@ -8632,8 +8612,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               );
             })()}
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/50">
+            {/* Content area: single card with border */}
+            <div className="flex-1 overflow-y-auto mx-4 mb-4 mt-3 min-h-0 rounded-lg border border-slate-200 bg-slate-50/30">
+              <div className="p-4">
 
               {/* ===== MASTER TAB ===== */}
               {itemModalActiveView === 'master' && (() => {
@@ -8646,9 +8627,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const statusVal = item['Status'] ?? item['status'];
                 const statusLabel = statusVal === 0 || statusVal === '0' || (typeof statusVal === 'string' && statusVal.toLowerCase() === 'inactive') ? 'Inactive' : 'Active';
                 return (
-                  <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Item No.</span><div className="font-mono font-bold text-gray-900">{itemNo}</div></div>
+                      <div><span className="text-slate-500 block text-xs font-medium uppercase tracking-wide">Item No.</span><div className="font-mono font-bold text-slate-900">{itemNo}</div></div>
                       <div className="col-span-2 sm:col-span-1"><span className="text-gray-500 block text-xs font-medium uppercase">Type</span><div><span className={`px-2 py-1 rounded text-xs font-medium ${typeLabel === 'Assembled' ? 'bg-orange-100 text-orange-700' : typeLabel === 'Resource' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{typeLabel}</span></div></div>
                       <div className="col-span-2"><span className="text-gray-500 block text-xs font-medium uppercase">Description</span><div className="font-medium text-gray-900">{description}</div></div>
                       <div><span className="text-gray-500 block text-xs font-medium uppercase">Stocking unit</span><div className="font-semibold text-gray-900">{stockingUnit}</div></div>
@@ -8663,10 +8644,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== STOCK TAB ===== */}
-              {itemModalActiveView === 'stock' && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-                  <div className="text-xs font-medium uppercase text-gray-500 mb-2">Aggregated stock</div>
+              {/* ===== STOCK TAB (MIILOCQT location breakdown + MIBINQ bins when available) ===== */}
+              {itemModalActiveView === 'stock' && (() => {
+                const locQt = (data['MIILOCQT.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                const byLoc = locQt.length > 0 ? (() => {
+                  const latest: Record<string, { onHand: number; wip: number; reserve: number; onOrder: number }> = {};
+                  locQt.forEach((r: any) => {
+                    const loc = (r['Location No.'] || r['locId'] || '').toString();
+                    const dateKey = (r['Date ISO'] || r['dateISO'] || r['Date'] || '').toString();
+                    if (!loc) return;
+                    const onHand = parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0);
+                    const wip = parseStockValue(r['WIP'] ?? r['qWip'] ?? 0);
+                    const res = parseStockValue(r['Reserve'] ?? r['qRes'] ?? 0);
+                    const ord = parseStockValue(r['On Order'] ?? r['qOrd'] ?? 0);
+                    if (!latest[loc] || dateKey > (latest[loc] as any)._date) {
+                      (latest[loc] as any) = { onHand, wip, reserve: res, onOrder: ord, _date: dateKey };
+                    }
+                  });
+                  return Object.entries(latest).map(([loc, v]) => ({ location: loc, ...v }));
+                })() : [];
+                const bins = (data['MIBINQ.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                return (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+                  <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">Aggregated stock</div>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
                     <div className="p-3 bg-emerald-50 rounded-lg"><div className="text-gray-500 text-xs">On Hand</div><div className="text-xl font-bold text-emerald-600">{currentStock.toLocaleString()}</div></div>
                     <div className="p-3 bg-blue-50 rounded-lg"><div className="text-gray-500 text-xs">WIP</div><div className="text-xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div></div>
@@ -8674,6 +8674,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">On Order</div><div className="text-xl font-bold text-gray-800">{onOrder.toLocaleString()}</div></div>
                     <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Available</div><div className="text-xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
                   </div>
+                  {byLoc.length > 0 && (
+                    <div className="pt-3 border-t border-gray-100">
+                      <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">By location (MIILOCQT)</div>
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-gray-200"><th className="text-left py-2 font-medium text-gray-600">Location</th><th className="text-right py-2 font-medium text-gray-600">On Hand</th><th className="text-right py-2 font-medium text-gray-600">WIP</th><th className="text-right py-2 font-medium text-gray-600">Reserve</th><th className="text-right py-2 font-medium text-gray-600">On Order</th></tr></thead>
+                        <tbody className="divide-y divide-gray-100">{byLoc.map((row: any, i: number) => (
+                          <tr key={i}><td className="py-2 font-mono text-gray-800">{row.location}</td><td className="text-right py-2">{row.onHand?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.wip?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.reserve?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  {bins.length > 0 && (
+                    <div className="pt-3 border-t border-gray-100">
+                      <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">By bin (MIBINQ)</div>
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-gray-200"><th className="text-left py-2 font-medium text-gray-600">Location</th><th className="text-left py-2 font-medium text-gray-600">Bin</th><th className="text-right py-2 font-medium text-gray-600">On Hand</th></tr></thead>
+                        <tbody className="divide-y divide-gray-100">{bins.slice(0, 50).map((row: any, i: number) => (
+                          <tr key={i}><td className="py-2 font-mono text-gray-700">{row['Location No.'] ?? row['locId'] ?? '—'}</td><td className="py-2 font-mono text-gray-700">{row['Bin No.'] ?? row['binId'] ?? '—'}</td><td className="text-right py-2">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
+                        ))}</tbody>
+                      </table>
+                      {bins.length > 50 && <div className="text-xs text-gray-500 mt-1">Showing 50 of {bins.length} bins</div>}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pt-2 border-t border-gray-100">
                     <div><span className="text-gray-500 text-xs">Min</span><div className="font-medium">{parseStockValue(item['Minimum'] ?? item['minQty'] ?? 0).toLocaleString()}</div></div>
                     <div><span className="text-gray-500 text-xs">Max</span><div className="font-medium">{parseStockValue(item['Maximum'] ?? item['maxQty'] ?? 0).toLocaleString()}</div></div>
@@ -8682,23 +8705,40 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     {lotSize > 0 && <div><span className="text-gray-500 text-xs">Lot size</span><div className="font-medium">{lotSize.toLocaleString()}</div></div>}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
-              {/* ===== COSTS TAB (MISys: Standard/Avg/Last, Current Value) ===== */}
-              {itemModalActiveView === 'costs' && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+              {/* ===== COSTS TAB (snapshot + MIICST cost history when available) ===== */}
+              {itemModalActiveView === 'costs' && (() => {
+                const costHistory = (data['MIICST.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                const sortedCosts = [...costHistory].sort((a: any, b: any) => (b['Transaction Date'] ?? b['transDate'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['transDate'] ?? '').toString()));
+                return (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Standard Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(standardCost)}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Average Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(averageCost)}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Last Cost / Recent</div><div className="text-xl font-bold text-gray-900">{formatCAD(recentCost)}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Unit Cost</div><div className="text-xl font-bold text-gray-900">{formatCAD(unitCost)}</div></div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Standard Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(standardCost)}</div></div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Average Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(averageCost)}</div></div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Last Cost / Recent</div><div className="text-xl font-bold text-slate-900">{formatCAD(recentCost)}</div></div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Unit Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(unitCost)}</div></div>
                   </div>
-                  <div className="pt-2 border-t border-gray-100">
-                    <div className="text-gray-500 text-xs">Current value (on hand × unit cost)</div>
-                    <div className="text-lg font-bold text-gray-900">{formatCAD(totalValue)}</div>
+                  <div className="pt-2 border-t border-slate-200">
+                    <div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Current value (on hand × unit cost)</div>
+                    <div className="text-lg font-bold text-slate-900">{formatCAD(totalValue)}</div>
                   </div>
+                  {sortedCosts.length > 0 && (
+                    <div className="pt-4 border-t border-slate-200">
+                      <div className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-2">Cost history (MIICST)</div>
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-slate-200"><th className="text-left py-2 font-medium text-slate-600">Date</th><th className="text-left py-2 font-medium text-slate-600">Location</th><th className="text-right py-2 font-medium text-slate-600">Cost</th><th className="text-left py-2 font-medium text-slate-600">PO No.</th><th className="text-right py-2 font-medium text-slate-600">Qty</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">{sortedCosts.slice(0, 100).map((r: any, i: number) => (
+                          <tr key={i}><td className="py-2 text-slate-800">{r['Transaction Date'] ?? r['transDt'] ?? r['transDate'] ?? '—'}</td><td className="py-2 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="py-2 text-right font-medium">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="py-2 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="py-2 text-right">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
+                        ))}</tbody>
+                      </table>
+                      {sortedCosts.length > 100 && <div className="text-xs text-slate-500 mt-1">Showing 100 of {sortedCosts.length}</div>}
+                    </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* ===== PURCHASE ORDERS TAB ===== */}
               {itemModalActiveView === 'po' && (() => {
@@ -8751,10 +8791,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 if (allPOData.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No Purchase Orders</div>
-                      <div className="text-sm">No PO history found for this item</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">No Purchase Orders</div>
+                      <p className="text-sm text-slate-500 mt-1">No PO history found for this item</p>
                     </div>
                   );
                 }
@@ -8886,10 +8928,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 if (allMOData.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Factory className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No Manufacturing Orders</div>
-                      <div className="text-sm">No MO history found for this item</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Factory className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">No Manufacturing Orders</div>
+                      <p className="text-sm text-slate-500 mt-1">No MO history found for this item</p>
                     </div>
                   );
                 }
@@ -9069,13 +9113,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 if (allSOData.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <ShoppingBag className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No Sales Orders Found</div>
-                      <div className="text-sm mt-1">No SO history found for this item</div>
-                      <div className="text-xs mt-3 text-gray-300">
-                        Searched: {parsedSOs.length} parsed SOs, {soDetails.length} SO details, {soHeaders.length} SO headers
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <ShoppingBag className="w-7 h-7 text-slate-400" />
                       </div>
+                      <div className="text-base font-semibold text-slate-700">No Sales Orders Found</div>
+                      <p className="text-sm text-slate-500 mt-1">No SO history found for this item</p>
+                      <p className="text-xs text-slate-400 mt-3">Searched: {parsedSOs.length} parsed SOs, {soDetails.length} SO details, {soHeaders.length} SO headers</p>
                     </div>
                   );
                 }
@@ -9149,10 +9193,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 };
                 if (bomWhereUsedRows.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">Not used as component</div>
-                      <div className="text-sm">This item is not used in any Bill of Materials</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Not used as component</div>
+                      <p className="text-sm text-slate-500 mt-1">This item is not used in any Bill of Materials</p>
                     </div>
                   );
                 }
@@ -9196,10 +9242,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 if (bomDetails.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No BOM Data</div>
-                      <div className="text-sm">No bill of materials found for this item</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">No BOM Data</div>
+                      <p className="text-sm text-slate-500 mt-1">No bill of materials found for this item</p>
                     </div>
                   );
                 }
@@ -9240,10 +9288,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const woDetails = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper);
                 if (woDetails.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Factory className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No Work Orders</div>
-                      <div className="text-sm">No work order history found for this item. Data from WorkOrderDetails when available.</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Factory className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">No Work Orders</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">No work order history found for this item. Data from WorkOrderDetails when available.</p>
                     </div>
                   );
                 }
@@ -9273,22 +9323,36 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== STOCK MOVEMENT TAB (Full Company Data: LotSerialHistory.json / MISLTH) ===== */}
+              {/* ===== STOCK MOVEMENT TAB (MILOGH inventory log first, then LotSerialHistory / MISLTH) ===== */}
               {itemModalActiveView === 'stock-movement' && (() => {
-                const movements = (data['LotSerialHistory.json'] || []).filter((r: any) =>
-                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+                const logMovements = (data['MILOGH.json'] || []).filter((r: any) => {
+                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
+                  return id === itemNoUpper || id === 'P-' + itemNoUpper;
+                });
+                const lotMovements = (data['LotSerialHistory.json'] || []).filter((r: any) =>
+                  (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper
                 );
+                const movements = logMovements.length > 0 ? logMovements : lotMovements;
+                const sourceLabel = logMovements.length > 0 ? 'MILOGH' : 'MISLTH';
                 if (movements.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">Stock Movement</div>
-                      <div className="text-sm text-center max-w-md">No movement history for this item. Include <strong>MISLTH.CSV</strong> in your Full Company Data export folder (and on Google Drive if using cloud) to see data here.</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Stock Movement</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">No movement history. Include <strong className="text-slate-600">MILOGH.CSV</strong> or <strong className="text-slate-600">MISLTH.CSV</strong> in your Full Company Data export to see data here.</p>
                     </div>
                   );
                 }
+                const sorted = [...movements].sort((a: any, b: any) => {
+                  const da = (a['Transaction Date'] ?? a['tranDate'] ?? a['tranDt'] ?? '').toString();
+                  const db = (b['Transaction Date'] ?? b['tranDate'] ?? b['tranDt'] ?? '').toString();
+                  return db.localeCompare(da);
+                });
                 return (
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-500">Source: {sourceLabel} · {sorted.length} records</div>
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
@@ -9296,177 +9360,313 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
                           <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">PO No.</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">SO No.</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {movements.map((m: any, i: number) => (
+                        {sorted.slice(0, 200).map((m: any, i: number) => (
                           <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-gray-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Sales Order No.'] ?? m['xvarSOId'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {sorted.length > 200 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 200 of {sorted.length}</div>}
                   </div>
                 );
               })()}
 
-              {/* ===== SUPPLIERS TAB (from PO history or empty) ===== */}
+              {/* ===== SUPPLIERS TAB (from PO history + MISUPL for names) ===== */}
               {itemModalActiveView === 'suppliers' && (() => {
                 const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((d: any) => [d['Item No.'], d['Component Item No.']].some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper));
-                const vendorSet = new Set<string>();
                 const poHeaders = data['PurchaseOrders.json'] || [];
+                const suplMaster = (data['MISUPL.json'] || []) as any[];
+                const supplierMap: Record<string, { name: string; orderCount: number; lastOrder?: string }> = {};
                 rawPODetails.forEach((d: any) => {
                   const poNo = d['PO No.'];
-                  const h = poHeaders.find((x: any) => x['PO No.'] === poNo);
-                  const v = h?.['Vendor'] || h?.['Name'] || h?.['Supplier No.'] || h?.['Supplier'] || '';
-                  if (v) vendorSet.add(v);
+                  const h = poHeaders.find((x: any) => x['PO No.'] === poNo) as any;
+                  const suplId = (h?.['Supplier No.'] ?? h?.['suplId'] ?? '').toString().trim();
+                  const nameFromPO = h?.['Name'] || h?.['Vendor'] || h?.['Supplier'] || '';
+                  const sup = suplMaster.find((s: any) => (s['Supplier No.'] ?? s['suplId'] ?? '').toString().trim() === suplId);
+                  const name = (sup?.['Name'] ?? sup?.['name'] ?? (nameFromPO || suplId || '—')).toString();
+                  if (!supplierMap[suplId]) supplierMap[suplId] = { name, orderCount: 0 };
+                  supplierMap[suplId].orderCount += 1;
+                  if (h?.['Order Date'] ?? h?.['ordDt']) supplierMap[suplId].lastOrder = (h['Order Date'] ?? h['ordDt']).toString();
                 });
-                const vendors = Array.from(vendorSet);
-                if (vendors.length === 0) {
+                const suppliers = Object.entries(supplierMap).sort((a, b) => (b[1].orderCount - a[1].orderCount) || ((b[1].lastOrder || '').localeCompare(a[1].lastOrder || '')));
+                if (suppliers.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">Suppliers</div>
-                      <div className="text-sm">Vendor list from PO history will appear here when this item has purchase orders.</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Suppliers</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">Vendor list from PO history (and MISUPL) will appear here when this item has purchase orders.</p>
                     </div>
                   );
                 }
                 return (
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="text-left px-4 py-3 font-medium text-gray-600">Vendor / Supplier</th></tr></thead>
-                      <tbody className="divide-y divide-gray-100">{vendors.map((v, i) => <tr key={i} className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-800">{v}</td></tr>)}</tbody>
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr><th className="text-left px-4 py-3 font-medium text-gray-600">Supplier No.</th><th className="text-left px-4 py-3 font-medium text-gray-600">Name</th><th className="text-right px-4 py-3 font-medium text-gray-600">PO count</th><th className="text-left px-4 py-3 font-medium text-gray-600">Last order</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">{suppliers.map(([suplId, v], i) => <tr key={i} className="hover:bg-gray-50"><td className="px-4 py-3 font-mono text-gray-700">{suplId || '—'}</td><td className="px-4 py-3 text-gray-800">{v.name}</td><td className="px-4 py-3 text-right">{v.orderCount}</td><td className="px-4 py-3 text-gray-600">{v.lastOrder ?? '—'}</td></tr>)}</tbody>
                     </table>
                   </div>
                 );
               })()}
 
-              {/* ===== MANUFACTURERS TAB (empty until data source) ===== */}
-              {itemModalActiveView === 'manufacturers' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Factory className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Manufacturers</div>
-                  <div className="text-sm">Manufacturer data will appear here when available.</div>
-                </div>
-              )}
+              {/* ===== MANUFACTURERS TAB (MIQMFG) ===== */}
+              {itemModalActiveView === 'manufacturers' && (() => {
+                const mfgRows = (data['MIQMFG.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                if (mfgRows.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Factory className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Manufacturers</div>
+                      <p className="text-sm text-slate-500 mt-1">No manufacturer links. Data from <strong className="text-slate-600">MIQMFG.CSV</strong> when available.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Manufacturer No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Name</th><th className="text-left px-4 py-3 font-medium text-slate-600">Product code</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">{mfgRows.map((r: any, i: number) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-mono text-slate-800">{r['Manufacturer No.'] ?? r['mfgId'] ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-800">{r['Manufacturer Name'] ?? r['mfgName'] ?? '—'}</td>
+                          <td className="px-4 py-3 font-mono text-slate-700">{r['Product Code'] ?? r['mfgProdCode'] ?? '—'}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
-              {/* ===== ALTERNATES TAB (empty until data source) ===== */}
-              {itemModalActiveView === 'alternates' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Alternates</div>
-                  <div className="text-sm">Alternate or substitute items will appear here when data is available.</div>
-                </div>
-              )}
+              {/* ===== ALTERNATES TAB (MIITEMA: itemId / altItemId) ===== */}
+              {itemModalActiveView === 'alternates' && (() => {
+                const alternates = (data['MIITEMA.json'] || []).filter((r: any) => {
+                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
+                  const alt = (r['Alternate Item No.'] || r['altItemId'] || '').toString().trim().toUpperCase();
+                  return id === itemNoUpper || alt === itemNoUpper;
+                });
+                if (alternates.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Alternates</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">No alternate items. Data from <strong className="text-slate-600">MIITEMA.CSV</strong> when available.</p>
+                    </div>
+                  );
+                }
+                const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Item No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Alternate Item No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Description</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">{alternates.map((r: any, i: number) => {
+                        const altId = (r['Alternate Item No.'] ?? r['altItemId'] ?? '').toString().trim();
+                        const itId = (r['Item No.'] ?? r['itemId'] ?? '').toString().trim();
+                        const showId = itId.toUpperCase() === itemNoUpper ? altId : itId;
+                        const desc = itemsData.find((x: any) => (x['Item No.'] || '').toString().trim().toUpperCase() === showId.toUpperCase())?.['Description'] ?? '—';
+                        return <tr key={i} className="hover:bg-slate-50"><td className="px-4 py-3 font-mono text-slate-800">{itId || '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{altId || '—'}</td><td className="px-4 py-3 text-slate-700">{desc}</td></tr>;
+                      })}</tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* ===== ACTIVITY TAB (empty until data source) ===== */}
               {itemModalActiveView === 'activity' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Activity</div>
-                  <div className="text-sm">Operational activity log will appear here when available.</div>
+                <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                  <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                    <Package2 className="w-7 h-7 text-slate-400" />
+                  </div>
+                  <div className="text-base font-semibold text-slate-700">Activity</div>
+                  <p className="text-sm text-slate-500 text-center max-w-md mt-1">Operational activity log will appear here when available.</p>
                 </div>
               )}
 
-              {/* ===== NOTES TAB (empty until backend/store) ===== */}
-              {itemModalActiveView === 'notes' && (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <Package2 className="w-12 h-12 mb-3" />
-                  <div className="text-lg font-medium">Notes</div>
-                  <div className="text-sm">Item notes will appear here when a notes store or API is available.</div>
-                </div>
-              )}
-
-              {/* ===== HISTORY TAB (lot/serial transaction history from MISLTH when available) ===== */}
-              {itemModalActiveView === 'history' && (() => {
-                const historyRows = (data['LotSerialHistory.json'] || []).filter((r: any) =>
-                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
+              {/* ===== NOTES TAB (MIITEMX: notes, docPath, picPath) ===== */}
+              {itemModalActiveView === 'notes' && (() => {
+                const noteRow = (data['MIITEMX.json'] || []).find((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                if (!noteRow || (!noteRow['Notes'] && !noteRow['Document Path'] && !noteRow['Picture Path'])) {
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Notes</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">No notes for this item. Data from <strong className="text-slate-600">MIITEMX.CSV</strong> when available.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+                    {noteRow['Notes'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Notes</div><div className="text-slate-800 whitespace-pre-wrap">{noteRow['Notes']}</div></div>}
+                    {noteRow['Document Path'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Document path</div><div className="text-slate-700 font-mono text-sm">{noteRow['Document Path']}</div></div>}
+                    {noteRow['Picture Path'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Picture path</div><div className="text-slate-700 font-mono text-sm">{noteRow['Picture Path']}</div></div>}
+                  </div>
                 );
+              })()}
+
+              {/* ===== HISTORY TAB (merged MILOGH + LotSerialHistory, sorted by date) ===== */}
+              {itemModalActiveView === 'history' && (() => {
+                const logRows = (data['MILOGH.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                const lotRows = (data['LotSerialHistory.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                const merged = [...logRows.map((r: any) => ({ ...r, _src: 'MILOGH' })), ...lotRows.map((r: any) => ({ ...r, _src: 'MISLTH' }))];
+                const historyRows = merged.sort((a: any, b: any) => (b['Transaction Date'] ?? b['tranDate'] ?? b['tranDt'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['tranDate'] ?? a['tranDt'] ?? '').toString()));
                 if (historyRows.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">History</div>
-                      <div className="text-sm">Transaction history (receives, production) comes from Full Company Data (MISLTH). Add MISLTH.CSV to your export folder to see data here.</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">History</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">Transaction history from <strong className="text-slate-600">MILOGH.CSV</strong> or <strong className="text-slate-600">MISLTH.CSV</strong> in your Full Company Data export.</p>
                     </div>
                   );
                 }
                 return (
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="text-xs font-medium text-gray-500 px-4 py-2 border-b border-gray-100">Transaction history (lot/serial movements)</div>
+                    <div className="text-xs font-medium text-gray-500 px-4 py-2 border-b border-gray-100">Merged transaction history ({historyRows.length} records)</div>
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
                           <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">SO No.</th>
                           <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {historyRows.map((m: any, i: number) => (
+                        {historyRows.slice(0, 200).map((m: any, i: number) => (
                           <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{m._src ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Sales Order No.'] ?? m['xvarSOId'] ?? '—'}</td>
                             <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {historyRows.length > 200 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 200 of {historyRows.length}</div>}
                   </div>
                 );
               })()}
 
-              {/* ===== SL NUMBERS TAB (Full Company Data: LotSerialDetail.json / MISLTD) ===== */}
+              {/* ===== SL NUMBERS TAB (MISLTD + MISLHIST when available) ===== */}
               {itemModalActiveView === 'sl-numbers' && (() => {
-                const lotSerials = (data['LotSerialDetail.json'] || []).filter((r: any) =>
-                  (r['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-                );
-                if (lotSerials.length === 0) {
+                const lotSerials = (data['LotSerialDetail.json'] || []).filter((r: any) => {
+                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
+                  const prnt = (r['Parent Item No.'] || r['prntItemId'] || '').toString().trim().toUpperCase();
+                  return id === itemNoUpper || prnt === itemNoUpper;
+                });
+                const lotHistory = (data['MISLHIST.json'] || []).filter((r: any) => {
+                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
+                  const prnt = (r['Parent Item No.'] || r['prntItemId'] || '').toString().trim().toUpperCase();
+                  return id === itemNoUpper || prnt === itemNoUpper;
+                });
+                if (lotSerials.length === 0 && lotHistory.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <Package2 className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">Serial / Lot Numbers</div>
-                      <div className="text-sm text-center max-w-md">No lot/serial records for this item. Include <strong>MISLTD.CSV</strong> in your Full Company Data export folder (and on Google Drive if using cloud) to see data here.</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Serial / Lot Numbers</div>
+                      <p className="text-sm text-slate-500 text-center max-w-md mt-1">No lot/serial records. Include <strong className="text-slate-600">MISLTD.CSV</strong> or <strong className="text-slate-600">MISLHIST.CSV</strong> in your Full Company Data export.</p>
                     </div>
                   );
                 }
+                const hasExtraCols = lotSerials.length > 0 && lotSerials.some((r: any) =>
+                  r['Status'] != null || r['Expiration Date'] != null || r['Quantity in Stock'] != null ||
+                  r['Quantity Used'] != null || r['Quantity Received'] != null || r['Scrap Quantity'] != null || r['Description'] != null
+                );
                 return (
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="space-y-4">
+                  {lotSerials.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">Lot/Serial detail (MISLTD)</div>
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
+                      <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Lot No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Serial No.</th>
-                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
+                          <th className="text-left px-4 py-3 font-medium text-slate-600">Lot No.</th>
+                          <th className="text-left px-4 py-3 font-medium text-slate-600">Serial No.</th>
+                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Description</th>}
+                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>}
+                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Expiration</th>}
+                          <th className="text-right px-4 py-3 font-medium text-slate-600">Quantity</th>
+                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">In Stock</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Used</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Received</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Scrap</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-slate-100">
                         {lotSerials.map((r: any, i: number) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-mono text-gray-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td>
-                            <td className="px-4 py-3 font-mono text-gray-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
+                            {hasExtraCols && <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={r['Description']}>{r['Description'] ?? '—'}</td>}
+                            {hasExtraCols && <td className="px-4 py-3"><span className={r['Status'] === 'Active' ? 'text-emerald-600' : 'text-slate-500'}>{r['Status'] ?? '—'}</span></td>}
+                            {hasExtraCols && <td className="px-4 py-3 text-slate-700">{r['Expiration Date'] ?? '—'}</td>}
                             <td className="px-4 py-3 text-right font-medium">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
+                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity in Stock'] ?? 0).toLocaleString()}</td>}
+                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity Used'] ?? 0).toLocaleString()}</td>}
+                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity Received'] ?? 0).toLocaleString()}</td>}
+                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Scrap Quantity'] ?? 0).toLocaleString()}</td>}
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                  )}
+                  {lotHistory.length > 0 && (
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">Lot history (MISLHIST)</div>
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Lot No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Date</th><th className="text-left px-4 py-3 font-medium text-slate-600">User</th><th className="text-right px-4 py-3 font-medium text-slate-600">Quantity</th><th className="text-left px-4 py-3 font-medium text-slate-600">Location</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {lotHistory.slice(0, 100).map((r: any, i: number) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                              <td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt'] ?? '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td>
+                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {lotHistory.length > 100 && <div className="px-4 py-2 bg-slate-50 text-center text-xs text-slate-500">Showing 100 of {lotHistory.length}</div>}
+                    </div>
+                  )}
                   </div>
                 );
               })()}
@@ -9479,10 +9679,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 if (itemLocations.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                      <MapPin className="w-12 h-12 mb-3" />
-                      <div className="text-lg font-medium">No Locations</div>
-                      <div className="text-sm">No location records found for this item</div>
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <MapPin className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">No Locations</div>
+                      <p className="text-sm text-slate-500 mt-1">No location records found for this item</p>
                     </div>
                   );
                 }
@@ -9528,6 +9730,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 );
               })()}
+              </div>
             </div>
           </div>
         </div>

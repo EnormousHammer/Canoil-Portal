@@ -69,7 +69,7 @@ If your MISys export uses different file names (e.g. `Items.csv` instead of `Ite
 | **Alternates** | Not yet in converter (add export file mapping if you have it) |
 | **Activity** | Not yet in converter (add export file mapping if you have it) |
 | **Notes** | Not yet in converter (needs backend store or export) |
-| **History** | Not yet in converter (needs audit export or backend) |
+| **History** | **MISLTH** → LotSerialHistory.json (same as Stock Movement) |
 | **SL Numbers** | **MISLTD** → LotSerialDetail.json |
 
 ---
@@ -219,7 +219,35 @@ The converter accepts both **MISys export column names** (from your CSV) and dis
 | mult | Build Quantity |
 | descr | Description |
 
-### Jobs (MIJOBH, MIJOBD), PO costs (MIPOCV, MIPODC), extensions (MIPOC, MIPOHX), routings (MIMORD), lot/serial (MISLTH, MISLTD)
+### MISLTH → LotSerialHistory.json (History & Stock Movement tabs)
+
+| Export column | → App field |
+|---------------|-------------|
+| tranDate, Transaction Date | Transaction Date |
+| userId, User ID | User |
+| itemId, Item No. | Item No. |
+| type, Primary Transaction Type, Detail Transaction Type | Type |
+| trnQty, Quantity | Quantity |
+| xvarMOId | Mfg. Order No. |
+| xvarSOId | Sales Order No. |
+| locId | Location No. |
+
+**File names accepted:** `MISLTH.csv`, `SLTH.csv`, `LotSerialHistory.csv`, `SerialLotTrackingHistory.csv` (stems matched case-insensitively).
+
+### MISLTD → LotSerialDetail.json (SL Numbers tab)
+
+| Export column | → App field |
+|---------------|-------------|
+| prntLotId, lotId, SL No. | Lot No. |
+| itemId, Item No. | Item No. |
+| entry, detail, Serial No. | Serial No. |
+| trnQty, recQty, qty | Quantity |
+| Description, Status, Expiration Date | (same) |
+| Quantity in Stock, Quantity Used, Quantity Received, Scrap Quantity | (same) |
+
+**File names accepted:** `MISLTD.csv`, `SLTD.csv`, `LotSerialDetail.csv`, `SerialLotTrackingDetail.csv`.
+
+### Jobs (MIJOBH, MIJOBD), PO costs (MIPOCV, MIPODC), extensions (MIPOC, MIPOHX), routings (MIMORD)
 
 See `full_company_data_converter.py` → `FULL_COMPANY_MAPPINGS` for the full column map. The logic is: **every key in the mapping = an export column name we accept; the value = the app field name we write.**
 
