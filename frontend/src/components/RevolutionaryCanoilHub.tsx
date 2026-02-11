@@ -601,6 +601,40 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showPODetails, setShowPODetails] = useState(false);
   const [poActiveTab, setPoActiveTab] = useState('overview');
   
+  // Drilldown "See more" modals (Lot, Supplier, Location, Bin, WO)
+  const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+  const [showLotDetail, setShowLotDetail] = useState(false);
+  const [selectedSuplId, setSelectedSuplId] = useState<string | null>(null);
+  const [showSupplierDetail, setShowSupplierDetail] = useState(false);
+  const [selectedLocId, setSelectedLocId] = useState<string | null>(null);
+  const [showLocationDetail, setShowLocationDetail] = useState(false);
+  const [selectedBinLocId, setSelectedBinLocId] = useState<string | null>(null);
+  const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
+  const [showBinDetail, setShowBinDetail] = useState(false);
+  const [selectedWOHId, setSelectedWOHId] = useState<string | null>(null);
+  const [showWODetail, setShowWODetail] = useState(false);
+  
+  // Helpers: open PO/MO/Item by id (for clickable keys in tables)
+  const openPOById = (poId: string) => {
+    if (!poId || !data) return;
+    const raw = (data['PurchaseOrders.json'] || []).find((h: any) => (h['PO No.'] ?? '').toString().trim() === (poId || '').toString().trim());
+    const fromProcessed = processPurchaseOrders.headers.find((h: any) => (h.poId ?? '').toString().trim() === (poId || '').toString().trim());
+    const header = raw || (fromProcessed ? { 'PO No.': fromProcessed.poId, 'Supplier No.': fromProcessed.vendor, 'Name': fromProcessed.vendor, 'Order Date': fromProcessed.orderDate, 'Status': fromProcessed.status } : null);
+    if (header) { setSelectedPO(header); setShowPODetails(true); }
+  };
+  const openMOById = (mohId: string) => {
+    if (!mohId || !data) return;
+    const raw = (data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []).find((h: any) => (h['Mfg. Order No.'] ?? h['mohId'] ?? '').toString().trim() === (mohId || '').toString().trim());
+    if (raw) { setSelectedMO(raw); setShowMODetails(true); }
+  };
+  const openItemById = (itemId: string) => {
+    if (!itemId || !data) return;
+    const items = data['CustomAlert5.json'] || data['Items.json'] || data['MIITEM.json'] || [];
+    const upper = (itemId || '').toString().trim().toUpperCase();
+    const item = (items as any[]).find((i: any) => (i['Item No.'] || i['itemId'] || '').toString().trim().toUpperCase() === upper);
+    if (item) { setSelectedItem(item); setShowItemModal(true); }
+  };
+  
   // Logistics section state
   const [logisticsStep, setLogisticsStep] = useState(1);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('');
@@ -4873,6 +4907,233 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
+          {/* Lot detail drilldown (MISLHIST, MISLTH, MISLTD, MISLBINQ) */}
+          {showLotDetail && selectedLotId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Lot: {selectedLotId}</h3>
+                  <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  {(() => {
+                    const lotHist = (data['MISLHIST.json'] || data['LotSerialHistory.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
+                    const lotMovements = (data['LotSerialHistory.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
+                    const movements = lotHist.length > 0 ? lotHist : lotMovements;
+                    const binQty = (data['MISLBINQ.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
+                    const prntItem = movements.length > 0 ? (movements[0]['Parent Item No.'] ?? movements[0]['prntItemId'] ?? movements[0]['Item No.'] ?? movements[0]['itemId']) : null;
+                    const firstDate = movements.length > 0 ? (movements[movements.length - 1]['Transaction Date'] ?? movements[movements.length - 1]['tranDate'] ?? movements[movements.length - 1]['tranDt']) : null;
+                    const firstUser = movements.length > 0 ? (movements[movements.length - 1]['User'] ?? movements[movements.length - 1]['userId']) : null;
+                    const sorted = [...movements].sort((a: any, b: any) => (b['Transaction Date'] ?? b['tranDate'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['tranDate'] ?? '').toString()));
+                    return (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Parent Item</div><div className="font-mono font-medium text-slate-900">{prntItem ?? '—'}</div></div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">First movement</div><div className="text-slate-800">{formatDisplayDate(firstDate) || '—'}</div></div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Created by</div><div className="font-mono text-slate-800">{firstUser ?? '—'}</div></div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Current qty (bins)</div><div className="font-medium tabular-nums">{binQty.reduce((s: number, r: any) => s + parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0), 0).toLocaleString()}</div></div>
+                        </div>
+                        {sorted.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-700 mb-2">Movement history</h4>
+                            <div className="rounded-xl border border-slate-200 overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th></tr></thead>
+                                <tbody className="divide-y divide-slate-200">{sorted.slice(0, 100).map((r: any, i: number) => (
+                                  <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                                    <td className="px-4 py-2 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td>
+                                    <td className="px-4 py-2 font-mono">{r['User'] ?? r['userId'] ?? '—'}</td>
+                                    <td className="px-4 py-2 text-right tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
+                                    <td className="px-4 py-2 font-mono">{r['Location No.'] ?? r['locId'] ?? '—'}</td>
+                                  </tr>
+                                ))}</tbody>
+                              </table>
+                              {sorted.length > 100 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 100 of {sorted.length}</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Supplier detail drilldown (MISUPL + POs by suplId) */}
+          {showSupplierDetail && selectedSuplId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Supplier: {selectedSuplId}</h3>
+                  <button onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  {(() => {
+                    const supl = (data['MISUPL.json'] || []).find((s: any) => (s['Supplier No.'] ?? s['suplId'] ?? '').toString().trim() === (selectedSuplId || '').toString().trim());
+                    const pos = (data['MIPOH.json'] || data['PurchaseOrders.json'] || []).filter((p: any) => (p['Supplier No.'] ?? p['suplId'] ?? '').toString().trim() === (selectedSuplId || '').toString().trim());
+                    return (
+                      <div className="space-y-6">
+                        {supl && (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Supplier info (MISUPL)</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm"><div className="font-medium text-slate-700">Name</div><div>{supl['Name'] ?? supl['name'] ?? '—'}</div><div className="font-medium text-slate-700">Contact</div><div>{supl['Contact'] ?? supl['contact'] ?? '—'}</div><div className="font-medium text-slate-700">Phone</div><div>{supl['Phone'] ?? supl['phone'] ?? '—'}</div></div>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="text-sm font-semibold text-slate-700 mb-2">Purchase orders ({pos.length})</h4>
+                          <div className="rounded-xl border border-slate-200 overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">PO No.</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Order Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Status</th></tr></thead>
+                              <tbody className="divide-y divide-slate-200">{pos.slice(0, 50).map((p: any, i: number) => (
+                                <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { setSelectedPO(p); setShowPODetails(true); setShowSupplierDetail(false); setSelectedSuplId(null); }}>
+                                  <td className="px-4 py-2 font-mono text-blue-600 underline">{p['PO No.'] ?? p['pohId'] ?? '—'}</td>
+                                  <td className="px-4 py-2">{formatDisplayDate(p['Order Date'] ?? p['ordDt']) || '—'}</td>
+                                  <td className="px-4 py-2">{p['Status'] ?? p['poStatus'] ?? '—'}</td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                            {pos.length > 50 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 50 of {pos.length}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Location detail drilldown (MIILOCQT by locId) */}
+          {showLocationDetail && selectedLocId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Location: {selectedLocId}</h3>
+                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  {(() => {
+                    const locRows = (data['MIILOCQT.json'] || []).filter((r: any) => (r['Location No.'] ?? r['locId'] ?? '').toString().trim() === (selectedLocId || '').toString().trim());
+                    const byItem: Record<string, { onHand: number; wip: number }> = {};
+                    locRows.forEach((r: any) => {
+                      const item = (r['Item No.'] ?? r['itemId'] ?? '').toString();
+                      if (!item) return;
+                      const onHand = parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0);
+                      const wip = parseStockValue(r['WIP'] ?? r['qWip'] ?? 0);
+                      if (!byItem[item]) byItem[item] = { onHand: 0, wip: 0 };
+                      byItem[item].onHand += onHand;
+                      byItem[item].wip += wip;
+                    });
+                    const rows = Object.entries(byItem).map(([item, v]) => ({ item, ...v })).sort((a, b) => (b.onHand + b.wip) - (a.onHand + a.wip));
+                    return (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Items at this location ({rows.length})</h4>
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">On Hand</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">WIP</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200">{rows.slice(0, 100).map((r: any, i: number) => (
+                              <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { openItemById(r.item); setShowLocationDetail(false); setSelectedLocId(null); }}>
+                                <td className="px-4 py-2 font-mono text-blue-600 underline">{r.item}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{r.onHand.toLocaleString()}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{r.wip.toLocaleString()}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                          {rows.length > 100 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 100 of {rows.length}</div>}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bin detail drilldown (MIBINQ by locId + binId) */}
+          {showBinDetail && selectedBinLocId && selectedBinId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Bin: {selectedBinLocId} / {selectedBinId}</h3>
+                  <button onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  {(() => {
+                    const binRows = (data['MIBINQ.json'] || []).filter((r: any) =>
+                      (r['Location No.'] ?? r['locId'] ?? '').toString().trim() === (selectedBinLocId || '').toString().trim() &&
+                      (r['Bin No.'] ?? r['binId'] ?? '').toString().trim() === (selectedBinId || '').toString().trim()
+                    );
+                    return (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Items in this bin ({binRows.length})</h4>
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">On Hand</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200">{binRows.map((r: any, i: number) => (
+                              <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { openItemById((r['Item No.'] ?? r['itemId'] ?? '').toString()); setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
+                                <td className="px-4 py-2 font-mono text-blue-600 underline">{r['Item No.'] ?? r['itemId'] ?? '—'}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0).toLocaleString()}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Work Order detail drilldown (MIWOH, MIWOD) */}
+          {showWODetail && selectedWOHId && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Work Order: {selectedWOHId}</h3>
+                  <button onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  {(() => {
+                    const woHeader = (data['MIWOH.json'] || data['WorkOrders.json'] || []).find((h: any) => (h['WO No.'] ?? h['Work Order No.'] ?? h['wohId'] ?? '').toString().trim() === (selectedWOHId || '').toString().trim());
+                    const woDetails = (data['MIWOD.json'] || data['WorkOrderDetails.json'] || []).filter((d: any) => (d['WO No.'] ?? d['Work Order No.'] ?? '').toString().trim() === (selectedWOHId || '').toString().trim());
+                    return (
+                      <div className="space-y-4">
+                        {woHeader && (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div className="font-medium text-slate-700">Build Item</div><div className="font-mono">{(woHeader as any)['Build Item No.'] ?? (woHeader as any)['Item No.'] ?? '—'}</div>
+                              <div className="font-medium text-slate-700">Status</div><div>{(woHeader as any)['Status'] ?? '—'}</div>
+                              <div className="font-medium text-slate-700">Ordered</div><div>{(woHeader as any)['Ordered'] ?? (woHeader as any)['Quantity'] ?? '—'}</div>
+                              <div className="font-medium text-slate-700">Completed</div><div>{(woHeader as any)['Completed'] ?? '—'}</div>
+                            </div>
+                          </div>
+                        )}
+                        {woDetails.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-700 mb-2">Details</h4>
+                            <div className="rounded-xl border border-slate-200 overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Component</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th></tr></thead>
+                                <tbody className="divide-y divide-slate-200">{woDetails.map((d: any, i: number) => (
+                                  <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => openItemById((d['Component Item No.'] ?? d['Item No.'] ?? d['partId'] ?? '').toString())}>
+                                    <td className="px-4 py-2 font-mono text-blue-600 underline">{d['Component Item No.'] ?? d['Item No.'] ?? '—'}</td>
+                                    <td className="px-4 py-2 text-right tabular-nums">{parseStockValue(d['Required Quantity'] ?? d['Quantity'] ?? 0).toLocaleString()}</td>
+                                  </tr>
+                                ))}</tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
             <div className="space-y-6">
@@ -8554,6 +8815,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* Tab content card - border color by stock status */}
                   <div className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden ${stockStatus === 'out' ? 'border-red-200' : stockStatus === 'low' ? 'border-amber-200' : 'border-emerald-200'}`}>
                     <div className="p-6">
+                    <p className="text-xs text-slate-500 mb-4 pb-2 border-b border-slate-100">Click any <strong>PO #</strong>, <strong>MO #</strong>, <strong>Lot</strong>, <strong>Location</strong>, <strong>Bin</strong>, <strong>Supplier</strong>, or <strong>Item</strong> to see more details.</p>
 
               {/* ===== MASTER TAB ===== */}
               {itemModalActiveView === 'master' && (() => {
@@ -8630,7 +8892,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">WIP</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Reserve</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Order</th></tr></thead>
                           <tbody className="divide-y divide-slate-200 bg-white">{byLoc.map((row: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono font-medium text-slate-800">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
+                            <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { setSelectedLocId(row.location || null); setShowLocationDetail(true); }}><td className="px-4 py-3 font-mono font-medium text-blue-600 underline decoration-blue-600/50">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
                           ))}</tbody>
                         </table>
                       </div>
@@ -8642,9 +8904,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Bin</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{bins.slice(0, 50).map((row: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{row['Location No.'] ?? row['locId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{row['Bin No.'] ?? row['binId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
-                          ))}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bins.slice(0, 50).map((row: any, i: number) => {
+                            const loc = (row['Location No.'] ?? row['locId'] ?? '').toString();
+                            const bin = (row['Bin No.'] ?? row['binId'] ?? '').toString();
+                            return (
+                            <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (loc && bin) { setSelectedBinLocId(loc); setSelectedBinId(bin); setShowBinDetail(true); } }}><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{loc || '—'}</td><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{bin || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
+                            );
+                          })}</tbody>
                         </table>
                         {bins.length > 50 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 50 of {bins.length} bins</div>}
                       </div>
@@ -8689,9 +8955,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Cost</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['transDt'] ?? r['transDate']) || '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
-                          ))}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r: any, i: number) => {
+                            const locVal = (r['Location No.'] ?? r['locId'] ?? '').toString().trim();
+                            const poVal = (r['PO No.'] ?? r['poId'] ?? '').toString().trim();
+                            return (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['transDt'] ?? r['transDate']) || '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{poVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); openPOById(poVal); }}>{poVal}</span> : '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
+                            );
+                          })}</tbody>
                         </table>
                         {sortedCosts.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sortedCosts.length}</div>}
                       </div>
@@ -8965,7 +9235,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   }}
                                 >
                                   <td className="px-4 py-3 font-mono text-emerald-600 font-medium underline decoration-emerald-600/50">{mo.moNumber}</td>
-                                  <td className="px-4 py-3 font-mono text-slate-800">{mo.buildItem}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-800">{mo.buildItem ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); openItemById(mo.buildItem); }}>{mo.buildItem}</span> : '—'}</td>
                                   <td className="px-4 py-3 text-slate-600">{formatDisplayDate(mo.orderDate) || '—'}</td>
                                   <td className="px-4 py-3 text-right font-medium tabular-nums">{(mo.requiredQty || 0).toLocaleString()}</td>
                                   <td className="px-4 py-3 text-right font-medium text-emerald-600 tabular-nums">{(mo.completedQty || 0).toLocaleString()}</td>
@@ -9171,9 +9441,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Parent Item No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Parent Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Required Qty</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Unit</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{bomWhereUsedRows.map((bom: any, index: number) => (
-                            <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-teal-600 font-medium">{bom['Parent Item No.'] || '—'}</td><td className="px-4 py-3 text-slate-700">{getParentDescription(bom['Parent Item No.'])}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Required Quantity'] || bom['Quantity Per'] || bom['Qty Per'] || 1)}</td><td className="px-4 py-3 text-slate-600">{bom['Unit'] || '—'}</td></tr>
-                          ))}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bomWhereUsedRows.map((bom: any, index: number) => {
+                            const parentNo = (bom['Parent Item No.'] ?? bom['bomItem'] ?? '').toString().trim();
+                            return (
+                            <tr key={index} className={`${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => parentNo && openItemById(parentNo)}><td className="px-4 py-3 font-mono text-teal-600 font-medium">{parentNo ? <span className="text-blue-600 underline decoration-blue-600/50">{parentNo}</span> : '—'}</td><td className="px-4 py-3 text-slate-700">{getParentDescription(parentNo)}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Required Quantity'] || bom['Quantity Per'] || bom['Qty Per'] || 1)}</td><td className="px-4 py-3 text-slate-600">{bom['Unit'] || '—'}</td></tr>
+                            );
+                          })}</tbody>
                         </table>
                       </div>
                     </div>
@@ -9227,10 +9500,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Component</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty Per</th></tr></thead>
                           <tbody className="divide-y divide-slate-200 bg-white">{bomDetails.map((bom: any, index: number) => {
-                            const compNo = bom['Component Item No.'] || '';
+                            const compNo = (bom['Component Item No.'] ?? bom['partId'] ?? '').toString().trim();
                             const desc = bom['Description'] || getComponentDescription(compNo);
                             return (
-                              <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{compNo || '—'}</td><td className="px-4 py-3 text-slate-700">{desc || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
+                              <tr key={index} className={`${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => compNo && openItemById(compNo)}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{compNo ? <span className="text-blue-600 underline decoration-blue-600/50">{compNo}</span> : '—'}</td><td className="px-4 py-3 text-slate-700">{desc || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
                             );
                           })}</tbody>
                         </table>
@@ -9267,9 +9540,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">WO #</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th></tr></thead>
                           <tbody className="divide-y divide-slate-200 bg-white">{woDetails.slice(0, 20).map((wo: any, idx: number) => {
-                            const header = woHeaders.find((h: any) => (h['WO No.'] || h['Work Order No.']) === (wo['WO No.'] || wo['Work Order No.']));
+                            const woNo = (wo['WO No.'] ?? wo['Work Order No.'] ?? '').toString().trim();
+                            const header = woHeaders.find((h: any) => (h['WO No.'] || h['Work Order No.']) === woNo);
                             return (
-                              <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-cyan-600 font-medium">{wo['WO No.'] || wo['Work Order No.'] || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(wo['Ordered'] || wo['Quantity'] || 0).toLocaleString()}</td><td className="px-4 py-3 text-slate-600">{header?.['Status'] ?? wo['Status'] ?? '—'}</td></tr>
+                              <tr key={idx} className={`${idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (woNo) { setSelectedWOHId(woNo); setShowWODetail(true); } }}><td className="px-4 py-3 font-mono text-cyan-600 font-medium underline decoration-cyan-600/50">{woNo || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(wo['Ordered'] || wo['Quantity'] || 0).toLocaleString()}</td><td className="px-4 py-3 text-slate-600">{header?.['Status'] ?? wo['Status'] ?? '—'}</td></tr>
                             );
                           })}</tbody>
                         </table>
@@ -9315,9 +9589,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <thead className="bg-slate-100 border-b border-slate-200">
                           <tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">{sorted.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
-                        ))}</tbody>
+                        <tbody className="divide-y divide-slate-200 bg-white">{sorted.slice(0, 200).map((m: any, i: number) => {
+                          const poVal = (m['PO No.'] ?? m['xvarPOId'] ?? '').toString().trim();
+                          const moVal = (m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '').toString().trim();
+                          const locVal = (m['Location No.'] ?? m['locId'] ?? '').toString().trim();
+                          return (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{poVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openPOById(poVal); }}>{poVal}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{moVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(moVal); }}>{moVal}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                          </tr>
+                          );
+                        })}</tbody>
                       </table>
                       {sorted.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {sorted.length}</div>}
                     </div>
@@ -9360,7 +9647,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Supplier No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Name</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO count</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Last order</th></tr></thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">{suppliers.map(([suplId, v], i) => <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{suplId || '—'}</td><td className="px-4 py-3 text-slate-800">{v.name}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{v.orderCount}</td><td className="px-4 py-3 text-slate-600">{v.lastOrder ?? '—'}</td></tr>)}</tbody>
+                        <tbody className="divide-y divide-slate-200 bg-white">{suppliers.map(([suplId, v], i) => (
+                        <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (suplId) { setSelectedSuplId(suplId); setShowSupplierDetail(true); } }}>
+                          <td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{suplId || '—'}</td>
+                          <td className="px-4 py-3 text-slate-800">{v.name}</td>
+                          <td className="px-4 py-3 text-right font-medium tabular-nums">{v.orderCount}</td>
+                          <td className="px-4 py-3 text-slate-600">{v.lastOrder ?? '—'}</td>
+                        </tr>
+                      ))}</tbody>
                       </table>
                     </div>
                   </div>
@@ -9426,7 +9720,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           const itId = (r['Item No.'] ?? r['itemId'] ?? '').toString().trim();
                           const showId = itId.toUpperCase() === itemNoUpper ? altId : itId;
                           const desc = itemsData.find((x: any) => (x['Item No.'] || '').toString().trim().toUpperCase() === showId.toUpperCase())?.['Description'] ?? '—';
-                          return <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{itId || '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{altId || '—'}</td><td className="px-4 py-3 text-slate-700">{desc}</td></tr>;
+                          return (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                            <td className="px-4 py-3 font-mono text-slate-800">{itId ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); openItemById(itId); }}>{itId}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-800">{altId ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); openItemById(altId); }}>{altId}</span> : '—'}</td>
+                            <td className="px-4 py-3 text-slate-700">{desc}</td>
+                          </tr>
+                          );
                         })}</tbody>
                       </table>
                     </div>
@@ -9491,9 +9791,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Source</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
-                        ))}</tbody>
+                        <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m: any, i: number) => {
+                          const moVal = (m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '').toString().trim();
+                          const locVal = (m['Location No.'] ?? m['locId'] ?? '').toString().trim();
+                          return (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td>
+                            <td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{moVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(moVal); }}>{moVal}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                          </tr>
+                          );
+                        })}</tbody>
                       </table>
                       {historyRows.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {historyRows.length}</div>}
                     </div>
@@ -9551,8 +9863,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </thead>
                       <tbody className="divide-y divide-slate-200 bg-white">
                         {lotSerials.map((r: any, i: number) => (
-                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                            <td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '—'}</td>
+                          <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { const lot = (r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '').toString().trim(); if (lot) { setSelectedLotId(lot); setShowLotDetail(true); } }}>
+                            <td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '—'}</td>
                             <td className="px-4 py-3 font-mono text-slate-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
                             {hasExtraCols && <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={r['Description']}>{r['Description'] ?? '—'}</td>}
                             {hasExtraCols && <td className="px-4 py-3"><span className={r['Status'] === 'Active' ? 'text-emerald-600' : 'text-slate-500'}>{r['Status'] ?? '—'}</span></td>}
@@ -9575,9 +9887,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{lotHistory.slice(0, 100).map((r: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td></tr>
-                          ))}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{lotHistory.slice(0, 100).map((r: any, i: number) => {
+                            const lot = (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim();
+                            const locVal = (r['Location No.'] ?? r['locId'] ?? '').toString().trim();
+                            return (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                              <td className="px-4 py-3 font-mono text-slate-800">{lot ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLotId(lot); setShowLotDetail(true); }}>{lot}</span> : '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td>
+                              <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                            </tr>
+                            );
+                          })}</tbody>
                         </table>
                         {lotHistory.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {lotHistory.length}</div>}
                       </div>
