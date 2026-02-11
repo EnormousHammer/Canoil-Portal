@@ -136,6 +136,7 @@ import {
   Cog,
   Link2,
   Package,
+  Hash,
   BarChart3 as BarChartIcon,
   Briefcase
 } from 'lucide-react';
@@ -8408,213 +8409,147 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           ).length;
         })();
         
+        const stockOwnership = getStockByOwnership(itemNo, data);
+        const hasCustomerStock = stockOwnership.customerStock > 0;
+        const customerBreakdown = stockOwnership.customerBreakdown || [];
+        const workOrderCount = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length;
+        const tabActive = (id: string) => itemModalActiveView === id;
+
+        const navSections: { title: string; items: { id: string; label: string; badge?: number; icon: React.ReactNode }[] }[] = [
+          { title: 'Overview', items: [
+            { id: 'master', label: 'Master', icon: <ClipboardList className="w-4 h-4" /> },
+            { id: 'stock', label: 'Stock', icon: <Package className="w-4 h-4" /> },
+            { id: 'costs', label: 'Costs', icon: <DollarSign className="w-4 h-4" /> },
+          ]},
+          { title: 'Orders', items: [
+            { id: 'po', label: 'Purchase Orders', badge: poCount, icon: <FileText className="w-4 h-4" /> },
+            { id: 'mo', label: 'Manufacturing', badge: moCount, icon: <Factory className="w-4 h-4" /> },
+            { id: 'so', label: 'Sales Orders', badge: soCount, icon: <ShoppingCart className="w-4 h-4" /> },
+            { id: 'work-orders', label: 'Work Orders', badge: workOrderCount, icon: <Wrench className="w-4 h-4" /> },
+          ]},
+          { title: 'Supply chain', items: [
+            { id: 'bom-where-used', label: 'BOM Where Used', badge: bomWhereUsedCount, icon: <Layers className="w-4 h-4" /> },
+            ...(isAssembled ? [{ id: 'bom', label: 'BOM', icon: <Layers className="w-4 h-4" /> }] : []),
+            { id: 'suppliers', label: 'Suppliers', icon: <Building2 className="w-4 h-4" /> },
+            { id: 'manufacturers', label: 'Manufacturers', icon: <Factory className="w-4 h-4" /> },
+            { id: 'alternates', label: 'Alternates', icon: <Link2 className="w-4 h-4" /> },
+          ]},
+          { title: 'Inventory & history', items: [
+            { id: 'stock-movement', label: 'Stock movement', icon: <Activity className="w-4 h-4" /> },
+            { id: 'history', label: 'History', icon: <Clock className="w-4 h-4" /> },
+            { id: 'sl-numbers', label: 'Serial / lot numbers', icon: <Hash className="w-4 h-4" /> },
+            { id: 'locations', label: 'Locations', icon: <MapPin className="w-4 h-4" /> },
+          ]},
+          { title: 'Other', items: [
+            { id: 'notes', label: 'Notes', icon: <FileText className="w-4 h-4" /> },
+            { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
+          ]},
+        ];
+
         return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeItemModal}>
-          <div className="bg-white w-full max-w-5xl max-h-[85vh] flex flex-col rounded-xl border border-slate-200 shadow-2xl shadow-slate-900/10 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-lg flex items-center justify-center border ${
-                  stockStatus === 'out' ? 'bg-red-50 border-red-200' : stockStatus === 'low' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" 
+          onClick={closeItemModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="item-modal-title"
+        >
+          <div 
+            className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-1 ring-slate-200/50 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Enterprise header bar */}
+            <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-slate-800 text-white rounded-t-2xl">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${
+                  stockStatus === 'out' ? 'bg-red-500/20 text-red-300' : stockStatus === 'low' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                 }`}>
-                  <Package2 className={`w-5 h-5 ${
-                    stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
-                  }`} />
+                  <Package2 className="w-6 h-6" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-slate-900">{itemNo}</h2>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
-                      isAssembled ? 'bg-orange-50 text-orange-700 border-orange-200' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-sky-50 text-sky-700 border-sky-200'
+                <div className="min-w-0">
+                  <h1 id="item-modal-title" className="text-xl font-bold tracking-tight text-white truncate">{itemNo}</h1>
+                  <p className="text-slate-300 text-sm truncate mt-0.5">{description}</p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+                      isAssembled ? 'bg-orange-500/30 text-orange-200' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'bg-violet-500/30 text-violet-200' : 'bg-sky-500/30 text-sky-200'
                     }`}>
-                      {isAssembled ? 'ASSEMBLED' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'RESOURCE' : 'PURCHASED'}
+                      {isAssembled ? 'Assembled' : (item['Item Type'] ?? item['type']) === 2 || (item['Item Type'] ?? item['type']) === '2' ? 'Resource' : 'Purchased'}
                     </span>
+                    <span className="text-slate-400 text-xs">Stock {currentStock.toLocaleString()}</span>
+                    <span className="text-slate-500">·</span>
+                    <span className="text-slate-400 text-xs">WIP {currentWIP.toLocaleString()}</span>
+                    <span className="text-slate-500">·</span>
+                    <span className="text-slate-400 text-xs">{formatCAD(unitCost)}</span>
                   </div>
-                  <p className="text-sm text-slate-500 line-clamp-1 mt-0.5">{description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg font-medium text-sm transition-colors">
-                  Inventory actions
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors">
+                  <Settings className="w-4 h-4" /> Inventory actions
                 </button>
-                <button 
-                  onClick={() => {
-                    setQuickAddItem(item);
-                    setQuickAddQty(1);
-                    setShowQuickAddPopup(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium text-sm transition-colors border border-orange-600 shadow-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  Add to PR Cart
+                <button onClick={() => { setQuickAddItem(item); setQuickAddQty(1); setShowQuickAddPopup(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors">
+                  <Plus className="w-4 h-4" /> Add to PR
                 </button>
-                <button onClick={closeItemModal} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
+                <button onClick={closeItemModal} className="p-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /></button>
               </div>
             </div>
 
-            {/* Stats: single card with clear inner dividers */}
-            {(() => {
-              const stockOwnership = getStockByOwnership(itemNo, data);
-              const hasCustomerStock = stockOwnership.customerStock > 0;
-              const customerBreakdown = stockOwnership.customerBreakdown || [];
-              
-              return (
-                <>
-                  <div className="mx-4 mt-4 rounded-lg border border-slate-200 bg-white overflow-hidden">
-                    <div className="grid grid-cols-5 divide-x divide-slate-200">
-                      <div className={`p-4 text-center ${
-                        stockStatus === 'out' ? 'bg-red-50/80' : stockStatus === 'low' ? 'bg-amber-50/80' : 'bg-emerald-50/80'
-                      }`}>
-                        <div className={`text-2xl font-bold ${
-                          stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'
-                        }`}>{currentStock.toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Total Stock</div>
-                      </div>
-                      <div className="p-4 text-center bg-sky-50/50">
-                        <div className="text-2xl font-bold text-sky-600">{currentWIP.toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">WIP</div>
-                      </div>
-                      <div className="p-4 text-center">
-                        <div className="text-2xl font-bold text-slate-700">{onOrder.toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">On Order</div>
-                      </div>
-                      <div className="p-4 text-center bg-slate-50/50">
-                        <div className="text-2xl font-bold text-slate-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Available</div>
-                      </div>
-                      <div className="p-4 text-center">
-                        <div className="text-xl font-bold text-slate-700">{formatCAD(unitCost)}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">Unit Cost</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Reorder & Costs: one card, two columns */}
-                  <div className="mx-4 mt-3 rounded-lg border border-slate-200 bg-white overflow-hidden">
-                    <div className="grid grid-cols-2 divide-x divide-slate-200">
-                      <div className="px-4 py-3">
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Reorder Level</div>
-                        <div className="text-lg font-bold text-slate-800">{reorderLevel.toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-2">Reorder Qty</div>
-                        <div className="text-lg font-bold text-slate-800">{reorderQty.toLocaleString()}</div>
-                      </div>
-                      <div className="px-4 py-3 bg-slate-50/30">
-                        <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mb-1">Costs</div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-                          <span><span className="text-slate-500">Unit:</span> <span className="font-semibold text-slate-800">{formatCAD(unitCost)}</span></span>
-                          {(standardCost > 0 || item['Standard Cost'] || item['stdCost']) && <span><span className="text-slate-500">Standard:</span> <span className="font-semibold text-slate-800">{formatCAD(standardCost)}</span></span>}
-                          {(recentCost > 0 || item['Recent Cost'] || item['avgCost']) && <span><span className="text-slate-500">Recent:</span> <span className="font-semibold text-slate-800">{formatCAD(recentCost)}</span></span>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Stock ownership: one bar with border */}
-                  <div className="mx-4 mt-3 rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-600/30" />
-                        <span className="text-xs font-semibold text-slate-600">Canoil:</span>
-                        <span className={`text-sm font-bold ${stockOwnership.canoilStock > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {stockOwnership.canoilStock.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-slate-400">(62TODD/HOME)</span>
-                      </div>
-                      {hasCustomerStock && (
-                        <>
-                          <div className="w-px h-4 bg-slate-300" />
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full bg-violet-500 border border-violet-600/30" />
-                            <span className="text-xs font-semibold text-slate-600">Customer:</span>
-                            <span className="text-sm font-bold text-violet-600">{stockOwnership.customerStock.toLocaleString()}</span>
-                            {customerBreakdown.map((cb: { location: string; stock: number }, idx: number) => (
-                              <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium border border-violet-200/50">
-                                {cb.location}: {cb.stock}
-                              </span>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md border ${
-                      stockOwnership.canoilStock > 0 && !hasCustomerStock ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : stockOwnership.canoilStock > 0 && hasCustomerStock ? 'bg-sky-50 text-sky-700 border-sky-200'
-                        : stockOwnership.canoilStock === 0 && hasCustomerStock ? 'bg-violet-50 text-violet-700 border-violet-200'
-                        : 'bg-red-50 text-red-700 border-red-200'
-                    }`}>
-                      {stockOwnership.canoilStock > 0 && !hasCustomerStock ? 'CANOIL ONLY' : stockOwnership.canoilStock > 0 && hasCustomerStock ? 'MIXED' : stockOwnership.canoilStock === 0 && hasCustomerStock ? 'CUSTOMER ONLY' : 'NO STOCK'}
-                    </span>
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Tab bar: one contained strip */}
-            {(() => {
-              const workOrderCount = (data['WorkOrderDetails.json'] || []).filter((d: any) => (d['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper).length;
-              const primaryTabs = [
-                { id: 'master', label: 'Master' },
-                { id: 'stock', label: 'Stock' },
-                { id: 'costs', label: 'Costs' },
-                { id: 'po', label: 'Purchase Orders', badge: poCount },
-                { id: 'mo', label: 'Mfg Orders', badge: moCount },
-                { id: 'so', label: 'Sales Orders', badge: soCount },
-                { id: 'bom-where-used', label: 'BOM Where Used', badge: bomWhereUsedCount },
-                ...(isAssembled ? [{ id: 'bom', label: 'BOM' }] : []),
-                { id: 'work-orders', label: 'Work Orders', badge: workOrderCount },
-              ];
-              const secondaryTabs = [
-                { id: 'stock-movement', label: 'Stock Movement' },
-                { id: 'suppliers', label: 'Suppliers' },
-                { id: 'manufacturers', label: 'Manufacturers' },
-                { id: 'alternates', label: 'Alternates' },
-                { id: 'activity', label: 'Activity' },
-                { id: 'notes', label: 'Notes' },
-                { id: 'history', label: 'History' },
-                { id: 'sl-numbers', label: 'SL Numbers' },
-              ];
-              const tabActive = (id: string) => itemModalActiveView === id;
-              return (
-                <div className="mx-4 mt-4 rounded-lg border border-slate-200 bg-white overflow-hidden">
-                  <div className="px-3 pt-2 pb-0 flex flex-wrap gap-x-0.5 gap-y-1 border-b border-slate-200">
-                    {primaryTabs.map(({ id, label, badge }) => (
+            {/* Body: sidebar + content */}
+            <div className="flex-1 flex min-h-0">
+              {/* Left sidebar nav - always visible, no scroll away */}
+              <aside className="flex-shrink-0 w-56 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+                {navSections.map((section) => (
+                  <div key={section.title} className="py-2">
+                    <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
+                    {section.items.map(({ id, label, badge, icon }) => (
                       <button
                         key={id}
                         onClick={() => setItemModalActiveView(id)}
-                        className={`px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                          tabActive(id) ? 'border-slate-700 text-slate-800 bg-slate-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50/50'
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors border-l-2 ${
+                          tabActive(id)
+                            ? 'bg-slate-100 border-slate-800 text-slate-900'
+                            : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                         }`}
                       >
-                        {label}
-                        {badge !== undefined && badge > 0 && <span className="ml-1.5 text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md">{badge}</span>}
+                        <span className="text-slate-400 flex-shrink-0">{icon}</span>
+                        <span className="truncate flex-1">{label}</span>
+                        {badge !== undefined && badge > 0 && <span className="flex-shrink-0 text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">{badge}</span>}
                       </button>
                     ))}
                   </div>
-                  <div className="px-3 py-1.5 flex flex-wrap gap-1 bg-slate-50/50 border-t border-slate-100">
-                    {secondaryTabs.map(({ id, label }) => (
-                      <button
-                        key={id}
-                        onClick={() => setItemModalActiveView(id)}
-                        className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors whitespace-nowrap ${
-                          tabActive(id) ? 'bg-white text-slate-800 border-slate-300 shadow-sm' : 'bg-white/80 text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+                ))}
+              </aside>
 
-            {/* Content area: single card with border */}
-            <div className="flex-1 overflow-y-auto mx-4 mb-4 mt-3 min-h-0 rounded-lg border border-slate-200 bg-slate-50/30">
-              <div className="p-4">
+              {/* Main content area - scrollable */}
+              <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* KPI strip */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+                    <div className={`rounded-xl border p-4 ${stockStatus === 'out' ? 'bg-red-50 border-red-100' : stockStatus === 'low' ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">On hand</div>
+                      <div className={`text-2xl font-bold mt-0.5 ${stockStatus === 'out' ? 'text-red-600' : stockStatus === 'low' ? 'text-amber-600' : 'text-emerald-600'}`}>{currentStock.toLocaleString()}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">WIP</div>
+                      <div className="text-2xl font-bold text-slate-800 mt-0.5">{currentWIP.toLocaleString()}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">On order</div>
+                      <div className="text-2xl font-bold text-slate-800 mt-0.5">{onOrder.toLocaleString()}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Unit cost</div>
+                      <div className="text-xl font-bold text-slate-800 mt-0.5">{formatCAD(unitCost)}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ownership</div>
+                      <div className="text-sm font-semibold text-slate-700 mt-0.5">{stockOwnership.canoilStock.toLocaleString()} Canoil{hasCustomerStock ? ` · ${stockOwnership.customerStock.toLocaleString()} Cust.` : ''}</div>
+                    </div>
+                  </div>
+
+                  {/* Tab content card */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-6">
 
               {/* ===== MASTER TAB ===== */}
               {itemModalActiveView === 'master' && (() => {
@@ -9730,7 +9665,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 );
               })()}
-              </div>
+                    </div>
+                  </div>
+                </div>
+              </main>
             </div>
           </div>
         </div>
