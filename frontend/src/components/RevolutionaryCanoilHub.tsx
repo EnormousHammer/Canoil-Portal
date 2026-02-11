@@ -2907,7 +2907,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Enhanced Manufacturing Order Details Modal */}
           {showMODetails && selectedMO && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
                 {/* Decorative gradient overlay */}
                 <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600"></div>
@@ -2932,10 +2932,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     <button
                       onClick={() => setShowMODetails(false)}
-                      className="text-white/90 hover:text-white hover:bg-white/20 rounded-xl p-3 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110"
+                      className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 rounded-xl px-4 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
                       aria-label="Close"
                     >
-                      <X className="w-7 h-7" />
+                      <X className="w-5 h-5" />
+                      <span className="text-sm font-medium">Close</span>
                     </button>
                   </div>
                 </div>
@@ -4202,7 +4203,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Enhanced Purchase Order Details Modal */}
           {showPODetails && selectedPO && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
                 {/* Decorative gradient overlay */}
                 <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600"></div>
@@ -4227,10 +4228,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     <button
                       onClick={() => setShowPODetails(false)}
-                      className="text-white/90 hover:text-white hover:bg-white/20 rounded-xl p-3 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110"
+                      className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 rounded-xl px-4 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
                       aria-label="Close"
                     >
-                      <X className="w-7 h-7" />
+                      <X className="w-5 h-5" />
+                      <span className="text-sm font-medium">Close</span>
                     </button>
                   </div>
                 </div>
@@ -8457,7 +8459,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           aria-labelledby="item-modal-title"
         >
           <div 
-            className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-1 ring-slate-200/50 overflow-hidden"
+            className={`w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-2 overflow-hidden ${stockStatus === 'out' ? 'ring-red-400' : stockStatus === 'low' ? 'ring-amber-400' : 'ring-emerald-400'}`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Enterprise header bar */}
@@ -8492,7 +8494,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <button onClick={() => { setQuickAddItem(item); setQuickAddQty(1); setShowQuickAddPopup(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors">
                   <Plus className="w-4 h-4" /> Add to PR
                 </button>
-                <button onClick={closeItemModal} className="p-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /></button>
+                <button onClick={closeItemModal} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
               </div>
             </div>
 
@@ -8549,8 +8551,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
 
-                  {/* Tab content card */}
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* Tab content card - border color by stock status */}
+                  <div className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden ${stockStatus === 'out' ? 'border-red-200' : stockStatus === 'low' ? 'border-amber-200' : 'border-emerald-200'}`}>
                     <div className="p-6">
 
               {/* ===== MASTER TAB ===== */}
@@ -8688,7 +8690,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Cost</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th></tr></thead>
                           <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['transDt'] ?? r['transDate'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['transDt'] ?? r['transDate']) || '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
                           ))}</tbody>
                         </table>
                         {sortedCosts.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sortedCosts.length}</div>}
@@ -9208,6 +9210,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
 
+                const itemsDataForBom = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const getComponentDescription = (componentItemNo: string) => {
+                  const fromItems = (itemsDataForBom as any[]).find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (componentItemNo || '').toString().trim().toUpperCase());
+                  return fromItems?.['Description'] || '—';
+                };
                 return (
                   <div className="space-y-6">
                     <div>
@@ -9219,9 +9226,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Component</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty Per</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{bomDetails.map((bom: any, index: number) => (
-                            <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{bom['Component Item No.']}</td><td className="px-4 py-3 text-slate-700">{bom['Description'] || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
-                          ))}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bomDetails.map((bom: any, index: number) => {
+                            const compNo = bom['Component Item No.'] || '';
+                            const desc = bom['Description'] || getComponentDescription(compNo);
+                            return (
+                              <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{compNo || '—'}</td><td className="px-4 py-3 text-slate-700">{desc || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
+                            );
+                          })}</tbody>
                         </table>
                       </div>
                     </div>
@@ -9305,7 +9316,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 bg-white">{sorted.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
                         ))}</tbody>
                       </table>
                       {sorted.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {sorted.length}</div>}
@@ -9481,7 +9492,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Source</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
                         <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
                         ))}</tbody>
                       </table>
                       {historyRows.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {historyRows.length}</div>}
@@ -9565,7 +9576,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
                           <tbody className="divide-y divide-slate-200 bg-white">{lotHistory.slice(0, 100).map((r: any, i: number) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td></tr>
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td><td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td></tr>
                           ))}</tbody>
                         </table>
                         {lotHistory.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {lotHistory.length}</div>}
