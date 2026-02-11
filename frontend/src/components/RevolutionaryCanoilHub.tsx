@@ -346,19 +346,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [alphabetFilter, setAlphabetFilter] = useState('');
 
+  // Single source for PO data (same as MO: Full Company Data · MIPOH/MIPOD with legacy fallback)
+  const poHeadersSource = useMemo(() => (data?.['MIPOH.json'] ?? data?.['PurchaseOrders.json'] ?? []) as any[], [data]);
+  const poDetailsSource = useMemo(() => (data?.['MIPOD.json'] ?? data?.['PurchaseOrderDetails.json'] ?? []) as any[], [data]);
+
   // Purchase Order processing (works with or without PurchaseOrderExtensions)
   const processPurchaseOrders = useMemo(() => {
-    if (!data?.['PurchaseOrders.json'] || !data?.['PurchaseOrderDetails.json']) {
+    if (!poHeadersSource.length && !poDetailsSource.length) {
       return { headers: [], lines: [] };
     }
-    const extensions = data['PurchaseOrderExtensions.json'] || [];
+    const extensions = data?.['PurchaseOrderExtensions.json'] || data?.['MIPOHX.json'] || [];
 
-    const headers = data['PurchaseOrders.json'].map((po: any) => {
+    const headers = poHeadersSource.map((po: any) => {
+      const poKey = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
       // Find matching extension data (optional)
-      const extension = extensions.find((ext: any) => ext['PO No.'] === po['PO No.']);
+      const extension = extensions.find((ext: any) => (ext['PO No.'] ?? ext['pohId'] ?? '').toString().trim() === poKey);
       
       // Get all line items for this PO to calculate advanced metrics
-      const poLines = data['PurchaseOrderDetails.json'].filter((line: any) => line['PO No.'] === po['PO No.']);
+      const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId'] ?? '').toString().trim() === poKey);
       
       // Calculate total ordered and received quantities from line items
       const totalOrderedQty = poLines.reduce((sum: number, line: any) => 
@@ -454,7 +459,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       } as PoHeader;
     });
 
-    const lines = data['PurchaseOrderDetails.json'].map((line: any) => {
+    const lines = poDetailsSource.map((line: any) => {
       const ordered = parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? 0);
       const received = parseStockValue(line['Received Qty'] ?? line['Received'] ?? 0);
       const unitPrice = parseCostValue(line['Unit Price'] ?? line['Unit Cost'] ?? line['Cost'] ?? 0);
@@ -474,7 +479,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     });
 
     return { headers, lines };
-  }, [data]);
+  }, [data, poHeadersSource, poDetailsSource]);
 
   // Get PO lines for a specific PO
   const getPOLines = (poId: string) => {
@@ -483,7 +488,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Smart function to determine which PO columns have actual data
   const getAvailablePOColumns = useMemo(() => {
-    const pos = data['PurchaseOrders.json'] || [];
+    const pos = poHeadersSource;
     if (pos.length === 0) return [];
 
     const columns = [
@@ -511,7 +516,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       // For calculated fields, check if we actually have the underlying data
       if (col.calculated) {
-        const lineItems = data['PurchaseOrderDetails.json'] || [];
+        const lineItems = poDetailsSource;
         if (lineItems.length === 0) return false;
         
         // Check if the specific field actually has data
@@ -537,11 +542,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       return hasData;
     });
-  }, [data]);
+  }, [data, poHeadersSource, poDetailsSource]);
 
   // Smart function to determine which PO detail columns have actual data
   const getAvailablePODetailColumns = useMemo(() => {
-    const details = data['PurchaseOrderDetails.json'] || [];
+    const details = poDetailsSource;
     if (details.length === 0) return [];
 
     const columns = [
@@ -567,7 +572,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       return hasData;
     });
-  }, [data]);
+  }, [data, poDetailsSource]);
 
   // Listen for SO navigation messages from logistics
   React.useEffect(() => {
@@ -617,7 +622,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Helpers: open PO/MO/Item by id (for clickable keys in tables)
   const openPOById = (poId: string) => {
     if (!poId || !data) return;
-    const raw = (data['PurchaseOrders.json'] || []).find((h: any) => (h['PO No.'] ?? '').toString().trim() === (poId || '').toString().trim());
+    const raw = poHeadersSource.find((h: any) => (h['PO No.'] ?? h['pohId'] ?? '').toString().trim() === (poId || '').toString().trim());
     const fromProcessed = processPurchaseOrders.headers.find((h: any) => (h.poId ?? '').toString().trim() === (poId || '').toString().trim());
     const header = raw || (fromProcessed ? { 'PO No.': fromProcessed.poId, 'Supplier No.': fromProcessed.vendor, 'Name': fromProcessed.vendor, 'Order Date': fromProcessed.orderDate, 'Status': fromProcessed.status } : null);
     if (header) { setSelectedPO(header); setShowPODetails(true); }
@@ -796,7 +801,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Unique suppliers from existing POs (for Create PO dropdown)
   const poSuppliersList = useMemo(() => {
-    const pos = data?.['PurchaseOrders.json'] || [];
+    const pos = poHeadersSource;
     const seen = new Set<string>();
     const out: { supplier_no: string; supplier_name: string }[] = [];
     pos.forEach((po: any) => {
@@ -814,13 +819,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Smart search function for Purchase Orders
   const searchPurchaseOrders = useMemo(() => {
     if (!poSearchQuery.trim()) {
-      return data?.['PurchaseOrders.json'] || [];
+      return poHeadersSource;
     }
 
     const query = poSearchQuery.toLowerCase().trim();
     const searchTerms = query.split(' ').filter(term => term.length > 0);
 
-    return (data?.['PurchaseOrders.json'] || []).filter((po: any) => {
+    return poHeadersSource.filter((po: any) => {
       // Create searchable text from all relevant fields
       const searchableFields = [
         po['PO No.'],
@@ -850,7 +855,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       // Check if all search terms are found in the searchable text (partial matching)
       return searchTerms.every(term => searchableFields.includes(term));
     });
-  }, [data, poSearchQuery]);
+  }, [data, poSearchQuery, poHeadersSource]);
 
   // Enterprise Pagination Component
   const EnterprisePagination = ({ 
@@ -1214,7 +1219,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   }, [data]);
 
   const purchaseMetrics = useMemo(() => {
-    const purchaseDetails = data['PurchaseOrderDetails.json'] || [];
+    const purchaseDetails = poDetailsSource;
     const openPOs = purchaseDetails.filter((pod: any) => {
       const ordered = parseStockValue(pod["Ordered"]);
       const received = parseStockValue(pod["Received"]);
@@ -1896,7 +1901,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 PURCHASE
               </div>
               <div className={`text-xs mt-1 font-medium ${activeSection === 'purchase-orders' ? 'text-orange-100' : 'text-orange-600'}`}>
-                {(data?.['PurchaseOrders.json'] || []).length} Orders
+                {poHeadersSource.length} Orders
               </div>
             </div>
           </button>
@@ -2214,7 +2219,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                       <div>
                         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manufacturing Operations</h2>
-                        <p className="text-violet-700 text-sm mt-1 font-medium">Production planning and order management</p>
+                        <p className="text-violet-700 text-sm mt-1 font-medium">Full Company Data · MIMOH / MIMOMD — same source as Items &amp; PO</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -2957,11 +2962,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div>
                         <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Order Details</h3>
                         <p className="text-purple-100 text-base mt-1.5 font-medium">
-                          MO #{selectedMO['Mfg. Order No.']} - {selectedMO['Build Item No.']}
+                          MO #{selectedMO['Mfg. Order No.']} - {(selectedMO['Build Item No.'] ?? selectedMO['buildItem']) ? (
+                            <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); openItemById((selectedMO['Build Item No.'] ?? selectedMO['buildItem'] ?? '').toString()); }}>{selectedMO['Build Item No.'] ?? selectedMO['buildItem']}</span>
+                          ) : '—'}
                           {selectedMO['Description'] && (
                             <span className="ml-3 text-purple-200">• {selectedMO['Description']}</span>
                           )}
                         </p>
+                        <p className="text-purple-200/90 text-xs mt-1.5">Click any item #, location, or build item to see more.</p>
                       </div>
                     </div>
                     <button
@@ -3334,12 +3342,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="font-semibold text-gray-700">{selectedMO['Last Maintained']}</div>
                             </div>
                           )}
-                          {selectedMO['Sales Order Ship Date'] && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
-                              <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
-                              <div className="font-semibold text-orange-700">{selectedMO['Sales Order Ship Date']}</div>
-                            </div>
-                          )}
+{selectedMO['Sales Order Ship Date'] && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
+                                <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
+                                <div className="font-semibold text-orange-700">{selectedMO['Sales Order Ship Date']}</div>
+                              </div>
+                            )}
+                            {(selectedMO['Location No.'] ?? selectedMO['locId']) && (
+                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
+                                <div className="text-xs text-indigo-600 mb-1">Location</div>
+                                <div className="font-semibold text-indigo-700">
+                                  <span className="underline cursor-pointer hover:bg-indigo-100 rounded px-0.5" onClick={() => { setSelectedLocId((selectedMO['Location No.'] ?? selectedMO['locId'] ?? '').toString()); setShowLocationDetail(true); }}>{(selectedMO['Location No.'] ?? selectedMO['locId'])}</span>
+                                </div>
+                              </div>
+                            )}
                         </div>
                       </div>
 
@@ -3525,7 +3541,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <ClipboardList className="w-5 h-5 text-indigo-600" />
                                 <h4 className="font-semibold text-indigo-900">Bill of Materials (BOM) Information</h4>
                                 <span className="ml-auto text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
-                                  Build Item: {buildItemNo}
+                                  Build Item: {buildItemNo ? <span className="underline cursor-pointer hover:bg-indigo-200 rounded px-0.5" onClick={() => openItemById(buildItemNo)}>{buildItemNo}</span> : '—'}
                                 </span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -3685,7 +3701,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         hasShortage ? 'bg-red-50' : ''
                                       }`}>
                                         <td className="p-3 font-mono text-blue-600 font-medium">
-                                          {componentItemNo || '—'}
+                                          {componentItemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(componentItemNo); }}>{componentItemNo}</span> : '—'}
                                         </td>
                                         <td className="p-3 text-gray-700">
                                           {description}
@@ -3718,7 +3734,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           {totalCost > 0 ? `$${totalCost.toFixed(2)}` : '—'}
                                         </td>
                                         <td className="p-3 text-gray-600">
-                                          {detail.sourceLocation || '—'}
+                                          {detail.sourceLocation ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(detail.sourceLocation); setShowLocationDetail(true); }}>{detail.sourceLocation}</span> : '—'}
                                         </td>
                                         <td className="p-3">
                                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -4253,11 +4269,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div>
                         <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Order Details</h3>
                         <p className="text-blue-100 text-base mt-1.5 font-medium">
-                          PO #{selectedPO['PO No.']} - {selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.'] || 'Unknown Supplier'}
+                          PO #{selectedPO['PO No.'] ?? selectedPO['pohId']} - {(() => { const supl = (selectedPO['Supplier No.'] ?? selectedPO['Name'] ?? selectedPO['suplId'] ?? selectedPO['Vendor No.'] ?? '').toString(); return supl ? <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); setSelectedSuplId(supl); setShowSupplierDetail(true); }}>{supl}</span> : 'Unknown Supplier'; })()}
                           {selectedPO['Description'] && (
                             <span className="ml-3 text-blue-200">• {selectedPO['Description']}</span>
                           )}
                         </p>
+                        <p className="text-blue-200/90 text-xs mt-1.5">Click supplier or item # to see more.</p>
                       </div>
                     </div>
                     <button
@@ -4430,7 +4447,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               {(selectedPO['Supplier No.'] || selectedPO['Name']) && (
                                 <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
                                   <span className="text-xs font-semibold text-gray-700">Supplier:</span>
-                                  <span className="font-bold text-xs text-gray-900 font-mono">{selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']}</span>
+                                  <span className="font-bold text-xs text-gray-900 font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => { const s = selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']; if (s) { setSelectedSuplId(s.toString()); setShowSupplierDetail(true); } }}>{selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']}</span>
                                 </div>
                               )}
                               {selectedPO['Buyer'] && (
@@ -4496,8 +4513,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                       {(() => {
                         // Get PO Line Items from real data
-                        const poLineItems = (data['PurchaseOrderDetails.json'] || []).filter((line: any) => 
-                          line['PO No.'] === selectedPO['PO No.']
+                        const poLineItems = poDetailsSource.filter((line: any) => 
+                          (line['PO No.'] ?? line['pohId']) === (selectedPO['PO No.'] ?? selectedPO['pohId'])
                         );
 
 
@@ -4559,9 +4576,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                 );
                                               
                                               case 'Item No.':
+                                                const itemNo = (getValue(line, 'Item No.', 'Part No.') ?? line['itemId'] ?? '').toString().trim();
                                                 return (
                                                   <td key={col.key} className="p-3 font-mono text-blue-600 font-medium">
-                                                    {getValue(line, 'Item No.', 'Part No.') || '—'}
+                                                    {itemNo ? <span className="underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={(e) => { e.stopPropagation(); openItemById(itemNo); }}>{itemNo}</span> : '—'}
                                                   </td>
                                                 );
                                               
@@ -4610,9 +4628,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                 );
                                               
                                               case 'Location':
+                                                const locVal = getValue(line, 'Location', 'Location No.') || '';
                                                 return (
                                                   <td key={col.key} className="p-3 text-gray-600">
-                                                    {getValue(line, 'Location', 'Location No.') || '—'}
+                                                    {locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal.toString()); setShowLocationDetail(true); }}>{locVal}</span> : '—'}
                                                   </td>
                                                 );
                                               
@@ -4971,7 +4990,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <div className="overflow-y-auto p-6 flex-1">
                   {(() => {
                     const supl = (data['MISUPL.json'] || []).find((s: any) => (s['Supplier No.'] ?? s['suplId'] ?? '').toString().trim() === (selectedSuplId || '').toString().trim());
-                    const pos = (data['MIPOH.json'] || data['PurchaseOrders.json'] || []).filter((p: any) => (p['Supplier No.'] ?? p['suplId'] ?? '').toString().trim() === (selectedSuplId || '').toString().trim());
+                    const pos = poHeadersSource.filter((p: any) => (p['Supplier No.'] ?? p['suplId'] ?? p['Name'] ?? '').toString().trim() === (selectedSuplId || '').toString().trim());
                     return (
                       <div className="space-y-6">
                         {supl && (
@@ -5158,16 +5177,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                       <div>
                         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Purchase Orders</h2>
-                        <p className="text-blue-700 text-sm mt-1 font-medium">Procurement and vendor management</p>
+                        <p className="text-blue-700 text-sm mt-1 font-medium">Full Company Data · MIPOH / MIPOD — same source as Items &amp; MO</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setShowPRModal(true)}
-                        className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-orange-500/25"
-                      >
-                        📝 Purchase Requisitions
-                      </button>
                       <button
                         onClick={() => setShowExportAllCompanyDataModal(true)}
                         className="px-5 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-white hover:shadow-md transition-all flex items-center gap-2"
@@ -5175,6 +5188,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       >
                         <Download className="w-4 h-4" />
                         Export
+                      </button>
+                      <button className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25">
+                        <RefreshCw className="w-4 h-4" />
+                        Refresh
+                      </button>
+                      <button
+                        onClick={() => setShowPRModal(true)}
+                        className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-orange-500/25"
+                      >
+                        📝 Purchase Requisitions
                       </button>
                       <button
                         onClick={() => setShowCreatePOModal(true)}
@@ -5187,9 +5210,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
 
-                {/* Enhanced KPI Cards Row */}
+                {/* Enhanced KPI Cards Row (same layout as MO: 4 cards) */}
                 <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Total POs */}
                     <div className="group bg-white rounded-2xl p-5 border border-blue-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 hover:-translate-y-1">
                       <div className="flex items-center justify-between mb-4">
@@ -5198,22 +5221,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                         <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg">TOTAL</span>
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{data?.['PurchaseOrders.json']?.length || 0}</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poHeadersSource.length}</div>
                       <div className="text-sm text-slate-600 font-medium mt-2">Purchase Orders</div>
                       <div className="mt-3 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full opacity-60"></div>
                     </div>
 
-                    {/* Line Items */}
+                    {/* Open / Active POs */}
                     <div className="group bg-white rounded-2xl p-5 border border-emerald-200 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 hover:-translate-y-1">
                       <div className="flex items-center justify-between mb-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Package2 className="w-6 h-6 text-emerald-600" />
+                          <Activity className="w-6 h-6 text-emerald-600" />
                         </div>
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">ITEMS</span>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">OPEN</span>
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{data?.['PurchaseOrderDetails.json']?.length || 0}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">PO Line Items</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poHeadersSource.filter((po: any) => ['0', '1', 0, 1].includes(po['Status'] as any)).length}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">Active / Pending</div>
                       <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
+                    </div>
+
+                    {/* Line Items */}
+                    <div className="group bg-white rounded-2xl p-5 border border-amber-200 shadow-sm hover:shadow-xl hover:border-amber-300 transition-all duration-300 hover:-translate-y-1">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Package2 className="w-6 h-6 text-amber-600" />
+                        </div>
+                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1.5 rounded-lg">ITEMS</span>
+                      </div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poDetailsSource.length}</div>
+                      <div className="text-sm text-slate-600 font-medium mt-2">PO Line Items</div>
+                      <div className="mt-3 h-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full opacity-60"></div>
                     </div>
 
                     {/* Active Vendors */}
@@ -5224,7 +5260,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                         <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-1.5 rounded-lg">VENDORS</span>
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{new Set(data?.['PurchaseOrders.json']?.map((po: any) => po['Supplier No.'] || po['Name'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
+                      <div className="text-4xl font-black text-slate-900 tracking-tight">{new Set(poHeadersSource.map((po: any) => po['Supplier No.'] || po['Name'] || po['suplId'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
                       <div className="text-sm text-slate-600 font-medium mt-2">Active Suppliers</div>
                       <div className="mt-3 h-1 bg-gradient-to-r from-purple-500 to-violet-500 rounded-full opacity-60"></div>
                     </div>
@@ -5233,7 +5269,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
 
                 {/* Purchase Orders Table */}
-                {data?.['PurchaseOrders.json'] && Array.isArray(data['PurchaseOrders.json']) && data['PurchaseOrders.json'].length > 0 && (
+                {poHeadersSource.length > 0 && (
                   <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
                     <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
                       <div className="flex items-center justify-between mb-4">
@@ -5357,7 +5393,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             // Get supplier defaults from other POs (for better fallback values)
                             const getSupplierDefaults = (supplierNo: string) => {
                               if (!supplierNo) return {};
-                              const allPOs = data['PurchaseOrders.json'] || [];
+                              const allPOs = poHeadersSource;
                               const supplierPOs = allPOs.filter((p: any) => 
                                 (p['Supplier No.'] === supplierNo || p['Name'] === supplierNo) && 
                                 p['PO No.'] !== po['PO No.'] // Exclude current PO
@@ -5463,7 +5499,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       
                                       case 'totalOrderedQty':
                                         // Calculate total ordered quantity from line items
-                                        const poLines = (data['PurchaseOrderDetails.json'] || []).filter((line: any) => 
+                                        const poLines = poDetailsSource.filter((line: any) => 
                                           line['PO No.'] === po['PO No.']
                                         );
                                         const totalOrdered = poLines.reduce((sum: number, line: any) => 
@@ -5476,7 +5512,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       
                                       case 'totalReceivedQty':
                                         // Calculate total received quantity from line items
-                                        const poLinesRec = (data['PurchaseOrderDetails.json'] || []).filter((line: any) => 
+                                        const poLinesRec = poDetailsSource.filter((line: any) => 
                                           line['PO No.'] === po['PO No.']
                                         );
                                         const totalReceived = poLinesRec.reduce((sum: number, line: any) => 
@@ -5551,7 +5587,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         {(() => {
                           // Filter to only POs with real data
-                          const realPOs = (data['PurchaseOrders.json'] || []).filter((po: any) => 
+                          const realPOs = poHeadersSource.filter((po: any) => 
                             po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
                             (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0)
                           );
@@ -8626,7 +8662,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           const processedPOLines = processPurchaseOrders.lines.filter((line: any) => 
             (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
           );
-          const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
+          const rawPODetails = poDetailsSource.filter((detail: any) => {
             const fields = [detail['Item No.'], detail['ItemNo'], detail['Component Item No.'], detail['Part No.']];
             return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
           });
@@ -8978,7 +9014,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   (line.itemId || '').toString().trim().toUpperCase() === itemNoUpper
                 );
                 
-                const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((detail: any) => {
+                const rawPODetails = poDetailsSource.filter((detail: any) => {
                   const fields = [detail['Item No.'], detail['Component Item No.'], detail['Part No.']];
                   return fields.some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper);
                 });
@@ -8987,7 +9023,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const allPOData: any[] = [];
                 const seenPOs = new Set();
                 
-                const rawPOHeaders = data['PurchaseOrders.json'] || [];
+                const rawPOHeaders = poHeadersSource;
                 processedPOLines.forEach((line: any) => {
                   if (seenPOs.has(line.poId)) return;
                   seenPOs.add(line.poId);
@@ -9614,8 +9650,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
               {/* ===== SUPPLIERS TAB (from PO history + MISUPL for names) ===== */}
               {itemModalActiveView === 'suppliers' && (() => {
-                const rawPODetails = (data['PurchaseOrderDetails.json'] || []).filter((d: any) => [d['Item No.'], d['Component Item No.']].some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper));
-                const poHeaders = data['PurchaseOrders.json'] || [];
+                const rawPODetails = poDetailsSource.filter((d: any) => [d['Item No.'], d['Component Item No.']].some(f => (f || '').toString().trim().toUpperCase() === itemNoUpper));
+                const poHeaders = poHeadersSource;
                 const suplMaster = (data['MISUPL.json'] || []) as any[];
                 const supplierMap: Record<string, { name: string; orderCount: number; lastOrder?: string }> = {};
                 rawPODetails.forEach((d: any) => {
