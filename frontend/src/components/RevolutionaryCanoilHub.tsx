@@ -231,7 +231,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [inventoryFilter, setInventoryFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [showItemModal, setShowItemModal] = useState(false);
-  const [itemModalActiveView, setItemModalActiveView] = useState('po');
+  const [itemModalActiveView, setItemModalActiveView] = useState('master');
   
   // Purchase Requisition modal state
   const [showPRModal, setShowPRModal] = useState(false);
@@ -2026,6 +2026,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               onNavigate={setActiveSection}
               onItemClick={(item) => {
                 setSelectedItem(item);
+                setItemModalActiveView('master');
                 setShowItemModal(true);
                 setShowAnalytics(false);
                 setShowBOMPlanning(false);
@@ -7547,6 +7548,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       key={index} 
                       onClick={() => {
                         setSelectedItem(item);
+                        setItemModalActiveView('master');
                         setShowItemModal(true);
                         setShowAnalytics(false);
                         setShowBOMPlanning(false);
