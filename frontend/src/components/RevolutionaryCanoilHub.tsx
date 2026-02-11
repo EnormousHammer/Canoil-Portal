@@ -8564,18 +8564,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const statusVal = item['Status'] ?? item['status'];
                 const statusLabel = statusVal === 0 || statusVal === '0' || (typeof statusVal === 'string' && statusVal.toLowerCase() === 'inactive') ? 'Inactive' : 'Active';
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                      <div><span className="text-slate-500 block text-xs font-medium uppercase tracking-wide">Item No.</span><div className="font-mono font-bold text-slate-900">{itemNo}</div></div>
-                      <div className="col-span-2 sm:col-span-1"><span className="text-gray-500 block text-xs font-medium uppercase">Type</span><div><span className={`px-2 py-1 rounded text-xs font-medium ${typeLabel === 'Assembled' ? 'bg-orange-100 text-orange-700' : typeLabel === 'Resource' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{typeLabel}</span></div></div>
-                      <div className="col-span-2"><span className="text-gray-500 block text-xs font-medium uppercase">Description</span><div className="font-medium text-gray-900">{description}</div></div>
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Stocking unit</span><div className="font-semibold text-gray-900">{stockingUnit}</div></div>
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Purchasing unit</span><div className="font-semibold text-gray-900">{purchasingUnit}</div></div>
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Status</span><div><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusLabel === 'Inactive' ? 'bg-gray-100 text-gray-600' : stockStatus === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel}</span></div></div>
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Reorder level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
-                      <div><span className="text-gray-500 block text-xs font-medium uppercase">Reorder qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
-                      {(minimum > 0 || maximum > 0) && <div><span className="text-gray-500 block text-xs font-medium uppercase">Minimum</span><div className="font-medium">{minimum.toLocaleString()}</div></div>}
-                      {(minimum > 0 || maximum > 0) && <div><span className="text-gray-500 block text-xs font-medium uppercase">Maximum</span><div className="font-medium">{maximum.toLocaleString()}</div></div>}
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Identification</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Item No.</span><div className="font-mono font-bold text-slate-900 text-lg">{itemNo}</div></div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Type</span><div><span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${typeLabel === 'Assembled' ? 'bg-orange-100 text-orange-700' : typeLabel === 'Resource' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{typeLabel}</span></div></div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 sm:col-span-2 lg:col-span-1"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Status</span><div><span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusLabel === 'Inactive' ? 'bg-slate-100 text-slate-600' : stockStatus === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel}</span></div></div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-2 lg:col-span-3"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Description</span><div className="text-slate-900 font-medium">{description}</div></div>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Units & reorder</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Stocking unit</span><div className="font-semibold text-slate-900">{stockingUnit}</div></div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Purchasing unit</span><div className="font-semibold text-slate-900">{purchasingUnit}</div></div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Reorder level</span><div className="font-semibold text-slate-900">{reorderLevel.toLocaleString()}</div></div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Reorder qty</span><div className="font-semibold text-slate-900">{reorderQty.toLocaleString()}</div></div>
+                        {(minimum > 0 || maximum > 0) && <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Minimum</span><div className="font-semibold text-slate-900">{minimum.toLocaleString()}</div></div>}
+                        {(minimum > 0 || maximum > 0) && <div className="rounded-lg border border-slate-200 bg-white p-4"><span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Maximum</span><div className="font-semibold text-slate-900">{maximum.toLocaleString()}</div></div>}
+                      </div>
                     </div>
                   </div>
                 );
@@ -8602,44 +8610,53 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 })() : [];
                 const bins = (data['MIBINQ.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
                 return (
-                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                  <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">Aggregated stock</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
-                    <div className="p-3 bg-emerald-50 rounded-lg"><div className="text-gray-500 text-xs">On Hand</div><div className="text-xl font-bold text-emerald-600">{currentStock.toLocaleString()}</div></div>
-                    <div className="p-3 bg-blue-50 rounded-lg"><div className="text-gray-500 text-xs">WIP</div><div className="text-xl font-bold text-blue-600">{currentWIP.toLocaleString()}</div></div>
-                    <div className="p-3 bg-amber-50 rounded-lg"><div className="text-gray-500 text-xs">Reserve</div><div className="text-xl font-bold text-amber-700">{reserve.toLocaleString()}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">On Order</div><div className="text-xl font-bold text-gray-800">{onOrder.toLocaleString()}</div></div>
-                    <div className="p-3 bg-gray-50 rounded-lg"><div className="text-gray-500 text-xs">Available</div><div className="text-xl font-bold text-gray-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Aggregated stock</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">On Hand</div><div className="text-2xl font-bold text-emerald-700">{currentStock.toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">WIP</div><div className="text-2xl font-bold text-blue-700">{currentWIP.toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Reserve</div><div className="text-2xl font-bold text-amber-700">{reserve.toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">On Order</div><div className="text-2xl font-bold text-slate-800">{onOrder.toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Available</div><div className="text-2xl font-bold text-slate-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
+                    </div>
                   </div>
                   {byLoc.length > 0 && (
-                    <div className="pt-3 border-t border-gray-100">
-                      <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">By location (MIILOCQT)</div>
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b border-gray-200"><th className="text-left py-2 font-medium text-gray-600">Location</th><th className="text-right py-2 font-medium text-gray-600">On Hand</th><th className="text-right py-2 font-medium text-gray-600">WIP</th><th className="text-right py-2 font-medium text-gray-600">Reserve</th><th className="text-right py-2 font-medium text-gray-600">On Order</th></tr></thead>
-                        <tbody className="divide-y divide-gray-100">{byLoc.map((row: any, i: number) => (
-                          <tr key={i}><td className="py-2 font-mono text-gray-800">{row.location}</td><td className="text-right py-2">{row.onHand?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.wip?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.reserve?.toLocaleString() ?? '0'}</td><td className="text-right py-2">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
-                        ))}</tbody>
-                      </table>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">By location (MIILOCQT)</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">WIP</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Reserve</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Order</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{byLoc.map((row: any, i: number) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono font-medium text-slate-800">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                   {bins.length > 0 && (
-                    <div className="pt-3 border-t border-gray-100">
-                      <div className="text-xs font-medium uppercase text-slate-500 tracking-wide mb-2">By bin (MIBINQ)</div>
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b border-gray-200"><th className="text-left py-2 font-medium text-gray-600">Location</th><th className="text-left py-2 font-medium text-gray-600">Bin</th><th className="text-right py-2 font-medium text-gray-600">On Hand</th></tr></thead>
-                        <tbody className="divide-y divide-gray-100">{bins.slice(0, 50).map((row: any, i: number) => (
-                          <tr key={i}><td className="py-2 font-mono text-gray-700">{row['Location No.'] ?? row['locId'] ?? '—'}</td><td className="py-2 font-mono text-gray-700">{row['Bin No.'] ?? row['binId'] ?? '—'}</td><td className="text-right py-2">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
-                        ))}</tbody>
-                      </table>
-                      {bins.length > 50 && <div className="text-xs text-gray-500 mt-1">Showing 50 of {bins.length} bins</div>}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">By bin (MIBINQ)</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Bin</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bins.slice(0, 50).map((row: any, i: number) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{row['Location No.'] ?? row['locId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{row['Bin No.'] ?? row['binId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
+                          ))}</tbody>
+                        </table>
+                        {bins.length > 50 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 50 of {bins.length} bins</div>}
+                      </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pt-2 border-t border-gray-100">
-                    <div><span className="text-gray-500 text-xs">Min</span><div className="font-medium">{parseStockValue(item['Minimum'] ?? item['minQty'] ?? 0).toLocaleString()}</div></div>
-                    <div><span className="text-gray-500 text-xs">Max</span><div className="font-medium">{parseStockValue(item['Maximum'] ?? item['maxQty'] ?? 0).toLocaleString()}</div></div>
-                    <div><span className="text-gray-500 text-xs">Reorder level</span><div className="font-medium">{reorderLevel.toLocaleString()}</div></div>
-                    <div><span className="text-gray-500 text-xs">Reorder qty</span><div className="font-medium">{reorderQty.toLocaleString()}</div></div>
-                    {lotSize > 0 && <div><span className="text-gray-500 text-xs">Lot size</span><div className="font-medium">{lotSize.toLocaleString()}</div></div>}
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Parameters</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3"><span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Min</span><div className="font-semibold text-slate-900 mt-0.5">{parseStockValue(item['Minimum'] ?? item['minQty'] ?? 0).toLocaleString()}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3"><span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Max</span><div className="font-semibold text-slate-900 mt-0.5">{parseStockValue(item['Maximum'] ?? item['maxQty'] ?? 0).toLocaleString()}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3"><span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Reorder level</span><div className="font-semibold text-slate-900 mt-0.5">{reorderLevel.toLocaleString()}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3"><span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Reorder qty</span><div className="font-semibold text-slate-900 mt-0.5">{reorderQty.toLocaleString()}</div></div>
+                      {lotSize > 0 && <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3"><span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Lot size</span><div className="font-semibold text-slate-900 mt-0.5">{lotSize.toLocaleString()}</div></div>}
+                    </div>
                   </div>
                 </div>
                 );
@@ -8650,27 +8667,32 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const costHistory = (data['MIICST.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
                 const sortedCosts = [...costHistory].sort((a: any, b: any) => (b['Transaction Date'] ?? b['transDate'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['transDate'] ?? '').toString()));
                 return (
-                <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Standard Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(standardCost)}</div></div>
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Average Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(averageCost)}</div></div>
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Last Cost / Recent</div><div className="text-xl font-bold text-slate-900">{formatCAD(recentCost)}</div></div>
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100"><div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Unit Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(unitCost)}</div></div>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Cost summary</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Standard Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(standardCost)}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Average Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(averageCost)}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Last / Recent</div><div className="text-xl font-bold text-slate-900">{formatCAD(recentCost)}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Unit Cost</div><div className="text-xl font-bold text-slate-900">{formatCAD(unitCost)}</div></div>
+                    </div>
                   </div>
-                  <div className="pt-2 border-t border-slate-200">
-                    <div className="text-slate-500 text-xs font-medium uppercase tracking-wide">Current value (on hand × unit cost)</div>
-                    <div className="text-lg font-bold text-slate-900">{formatCAD(totalValue)}</div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Current value (on hand × unit cost)</div>
+                    <div className="text-2xl font-bold text-slate-900">{formatCAD(totalValue)}</div>
                   </div>
                   {sortedCosts.length > 0 && (
-                    <div className="pt-4 border-t border-slate-200">
-                      <div className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-2">Cost history (MIICST)</div>
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b border-slate-200"><th className="text-left py-2 font-medium text-slate-600">Date</th><th className="text-left py-2 font-medium text-slate-600">Location</th><th className="text-right py-2 font-medium text-slate-600">Cost</th><th className="text-left py-2 font-medium text-slate-600">PO No.</th><th className="text-right py-2 font-medium text-slate-600">Qty</th></tr></thead>
-                        <tbody className="divide-y divide-slate-100">{sortedCosts.slice(0, 100).map((r: any, i: number) => (
-                          <tr key={i}><td className="py-2 text-slate-800">{r['Transaction Date'] ?? r['transDt'] ?? r['transDate'] ?? '—'}</td><td className="py-2 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="py-2 text-right font-medium">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="py-2 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="py-2 text-right">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
-                        ))}</tbody>
-                      </table>
-                      {sortedCosts.length > 100 && <div className="text-xs text-slate-500 mt-1">Showing 100 of {sortedCosts.length}</div>}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Cost history (MIICST)</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Cost</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r: any, i: number) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['transDt'] ?? r['transDate'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{r['PO No.'] ?? r['poId'] ?? '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
+                          ))}</tbody>
+                        </table>
+                        {sortedCosts.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sortedCosts.length}</div>}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -8756,81 +8778,67 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const totalValue = allPOData.reduce((sum, po) => sum + ((po.orderedQty || 0) * (po.unitPrice || 0)), 0);
 
                 return (
-                  <div>
-                    {/* Summary Row */}
-                    <div className="grid grid-cols-4 gap-3 mb-4">
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-blue-600">{allPOData.length}</div>
-                        <div className="text-xs text-gray-500">Total POs</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-gray-800">{totalOrdered.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Ordered</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-emerald-600">{totalReceived.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Received</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-gray-800">{formatCAD(totalValue)}</div>
-                        <div className="text-xs text-gray-500">Total Value</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total POs</div><div className="text-2xl font-bold text-blue-600">{allPOData.length}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Ordered</div><div className="text-2xl font-bold text-slate-800 tabular-nums">{totalOrdered.toLocaleString()}</div></div>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Received</div><div className="text-2xl font-bold text-emerald-600 tabular-nums">{totalReceived.toLocaleString()}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total Value</div><div className="text-xl font-bold text-slate-800">{formatCAD(totalValue)}</div></div>
                       </div>
                     </div>
-                    
-                    {/* Table */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">PO #</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Vendor</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Ordered</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Received</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {allPOData.slice(0, 20).map((po, index) => {
-                            const statusNum = Number(po.status);
-                            const statusColor = statusNum === 2 || statusNum === 3 ? 'bg-green-100 text-green-700' 
-                              : statusNum === 1 ? 'bg-amber-100 text-amber-700' 
-                              : 'bg-blue-100 text-blue-700';
-                            const statusText = statusNum === 2 ? 'Received' : statusNum === 3 ? 'Closed' 
-                              : statusNum === 1 ? 'Released' : 'Open';
-                            
-                            return (
-                              <tr
-                                key={index}
-                                className="hover:bg-gray-50 cursor-pointer"
-                                onClick={() => {
-                                  if (po.poHeader) {
-                                    setSelectedPO(po.poHeader);
-                                    setShowPODetails(true);
-                                    setPoActiveTab('overview');
-                                  }
-                                }}
-                              >
-                                <td className="px-4 py-3 font-mono text-blue-600 font-medium underline decoration-blue-600/50">{po.poNumber}</td>
-                                <td className="px-4 py-3 text-gray-700">{po.vendor}</td>
-                                <td className="px-4 py-3 text-gray-500">{formatDisplayDate(po.orderDate) || '—'}</td>
-                                <td className="px-4 py-3 text-right font-medium">{(po.orderedQty || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{(po.receivedQty || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right">{formatCAD(po.unitPrice || 0)}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor}`}>{statusText}</span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {allPOData.length > 20 && (
-                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
-                          Showing 20 of {allPOData.length} records
-                        </div>
-                      )}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Purchase orders</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200">
+                            <tr>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO #</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Vendor</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Ordered</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Received</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Price</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">
+                            {allPOData.slice(0, 20).map((po, index) => {
+                              const statusNum = Number(po.status);
+                              const statusColor = statusNum === 2 || statusNum === 3 ? 'bg-emerald-100 text-emerald-700' 
+                                : statusNum === 1 ? 'bg-amber-100 text-amber-700' 
+                                : 'bg-blue-100 text-blue-700';
+                              const statusText = statusNum === 2 ? 'Received' : statusNum === 3 ? 'Closed' 
+                                : statusNum === 1 ? 'Released' : 'Open';
+                              return (
+                                <tr
+                                  key={index}
+                                  className={`cursor-pointer transition-colors hover:bg-slate-50 ${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}`}
+                                  onClick={() => {
+                                    if (po.poHeader) {
+                                      setSelectedPO(po.poHeader);
+                                      setShowPODetails(true);
+                                      setPoActiveTab('overview');
+                                    }
+                                  }}
+                                >
+                                  <td className="px-4 py-3 font-mono text-blue-600 font-medium underline decoration-blue-600/50">{po.poNumber}</td>
+                                  <td className="px-4 py-3 text-slate-700">{po.vendor}</td>
+                                  <td className="px-4 py-3 text-slate-600">{formatDisplayDate(po.orderDate) || '—'}</td>
+                                  <td className="px-4 py-3 text-right font-medium tabular-nums">{(po.orderedQty || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-right font-medium text-emerald-600 tabular-nums">{(po.receivedQty || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-right tabular-nums">{formatCAD(po.unitPrice || 0)}</td>
+                                  <td className="px-4 py-3"><span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusColor}`}>{statusText}</span></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        {allPOData.length > 20 && (
+                          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 20 of {allPOData.length} records</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -8905,84 +8913,71 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const totalCompleted = allMOData.reduce((sum, mo) => sum + (mo.completedQty || 0), 0);
 
                 return (
-                  <div>
-                    {/* Summary Row */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-green-600">{allMOData.length}</div>
-                        <div className="text-xs text-gray-500">Total MOs</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-gray-800">{totalRequired.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Required</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-emerald-600">{totalCompleted.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Completed</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total MOs</div><div className="text-2xl font-bold text-emerald-600">{allMOData.length}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Required</div><div className="text-2xl font-bold text-slate-800 tabular-nums">{totalRequired.toLocaleString()}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Completed</div><div className="text-2xl font-bold text-emerald-600 tabular-nums">{totalCompleted.toLocaleString()}</div></div>
                       </div>
                     </div>
-                    
-                    {/* Table */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">MO #</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Build Item</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Required</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Completed</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {allMOData.slice(0, 20).map((mo, index) => {
-                            const statusNum = Number(mo.status);
-                            const getMOStatusInfo = (s: number) => {
-                              switch (s) {
-                                case 0: return { text: 'Planned', color: 'bg-yellow-100 text-yellow-700' };
-                                case 1: return { text: 'Released', color: 'bg-amber-100 text-amber-700' };
-                                case 2: return { text: 'Started', color: 'bg-blue-100 text-blue-700' };
-                                case 3: return { text: 'Finished', color: 'bg-green-100 text-green-700' };
-                                case 4: return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
-                                default: return { text: 'Unknown', color: 'bg-slate-100 text-slate-700' };
-                              }
-                            };
-                            const statusInfo = getMOStatusInfo(statusNum);
-                            
-                            return (
-                              <tr
-                                key={index}
-                                className="hover:bg-gray-50 cursor-pointer"
-                                onClick={() => {
-                                  if (mo.moHeader) {
-                                    setSelectedMO(mo.moHeader);
-                                    setShowMODetails(true);
-                                  }
-                                }}
-                              >
-                                <td className="px-4 py-3 font-mono text-green-600 font-medium underline decoration-green-600/50">{mo.moNumber}</td>
-                                <td className="px-4 py-3 text-gray-700">{mo.buildItem}</td>
-                                <td className="px-4 py-3 text-gray-500">{formatDisplayDate(mo.orderDate) || '—'}</td>
-                                <td className="px-4 py-3 text-right font-medium">{(mo.requiredQty || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{(mo.completedQty || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${mo.type === 'Build' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{mo.type}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusInfo.color}`}>{statusInfo.text}</span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {allMOData.length > 20 && (
-                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
-                          Showing 20 of {allMOData.length} records
-                        </div>
-                      )}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Manufacturing orders</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200">
+                            <tr>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO #</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Build Item</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Required</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Completed</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">
+                            {allMOData.slice(0, 20).map((mo, index) => {
+                              const statusNum = Number(mo.status);
+                              const getMOStatusInfo = (s: number) => {
+                                switch (s) {
+                                  case 0: return { text: 'Planned', color: 'bg-yellow-100 text-yellow-700' };
+                                  case 1: return { text: 'Released', color: 'bg-amber-100 text-amber-700' };
+                                  case 2: return { text: 'Started', color: 'bg-blue-100 text-blue-700' };
+                                  case 3: return { text: 'Finished', color: 'bg-emerald-100 text-emerald-700' };
+                                  case 4: return { text: 'Closed', color: 'bg-slate-100 text-slate-700' };
+                                  default: return { text: 'Unknown', color: 'bg-slate-100 text-slate-700' };
+                                }
+                              };
+                              const statusInfo = getMOStatusInfo(statusNum);
+                              return (
+                                <tr
+                                  key={index}
+                                  className={`cursor-pointer transition-colors hover:bg-slate-50 ${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}`}
+                                  onClick={() => {
+                                    if (mo.moHeader) {
+                                      setSelectedMO(mo.moHeader);
+                                      setShowMODetails(true);
+                                    }
+                                  }}
+                                >
+                                  <td className="px-4 py-3 font-mono text-emerald-600 font-medium underline decoration-emerald-600/50">{mo.moNumber}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-800">{mo.buildItem}</td>
+                                  <td className="px-4 py-3 text-slate-600">{formatDisplayDate(mo.orderDate) || '—'}</td>
+                                  <td className="px-4 py-3 text-right font-medium tabular-nums">{(mo.requiredQty || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3 text-right font-medium text-emerald-600 tabular-nums">{(mo.completedQty || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3"><span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${mo.type === 'Build' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{mo.type}</span></td>
+                                  <td className="px-4 py-3"><span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusInfo.color}`}>{statusInfo.text}</span></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        {allMOData.length > 20 && (
+                          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 20 of {allMOData.length} records</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -9106,54 +9101,37 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 const totalRevenue = allSOData.reduce((sum, so) => sum + ((so.quantity || 0) * (so.unitPrice || 0)), 0);
 
                 return (
-                  <div>
-                    {/* Summary Row */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-purple-600">{allSOData.length}</div>
-                        <div className="text-xs text-gray-500">Total SOs</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-gray-800">{totalQty.toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Total Sold</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xl font-bold text-emerald-600">{formatCAD(totalRevenue)}</div>
-                        <div className="text-xs text-gray-500">Revenue</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-xl border border-violet-200 bg-violet-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total SOs</div><div className="text-2xl font-bold text-violet-600">{allSOData.length}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Total Sold</div><div className="text-2xl font-bold text-slate-800 tabular-nums">{totalQty.toLocaleString()}</div></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Revenue</div><div className="text-xl font-bold text-emerald-600">{formatCAD(totalRevenue)}</div></div>
                       </div>
                     </div>
-                    
-                    {/* Table */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">SO #</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Qty</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {allSOData.slice(0, 20).map((so, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-purple-600 font-medium">{so.soNumber}</td>
-                              <td className="px-4 py-3 text-gray-700">{so.customer}</td>
-                              <td className="px-4 py-3 text-gray-500">{so.orderDate}</td>
-                              <td className="px-4 py-3 text-right font-medium">{(so.quantity || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 text-right">{formatCAD(so.unitPrice || 0)}</td>
-                              <td className="px-4 py-3 text-right font-medium text-emerald-600">{formatCAD((so.quantity || 0) * (so.unitPrice || 0))}</td>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Sales orders</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200">
+                            <tr>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">SO #</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Customer</th>
+                              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Price</th>
+                              <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Total</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {allSOData.length > 20 && (
-                        <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">
-                          Showing 20 of {allSOData.length} records
-                        </div>
-                      )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">
+                            {allSOData.slice(0, 20).map((so, index) => (
+                              <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-violet-600 font-medium">{so.soNumber}</td><td className="px-4 py-3 text-slate-700">{so.customer}</td><td className="px-4 py-3 text-slate-600">{so.orderDate}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{(so.quantity || 0).toLocaleString()}</td><td className="px-4 py-3 text-right tabular-nums">{formatCAD(so.unitPrice || 0)}</td><td className="px-4 py-3 text-right font-medium text-emerald-600 tabular-nums">{formatCAD((so.quantity || 0) * (so.unitPrice || 0))}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {allSOData.length > 20 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 20 of {allSOData.length} records</div>}
+                      </div>
                     </div>
                   </div>
                 );
@@ -9181,39 +9159,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 return (
-                  <div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
-                      <div className="text-xl font-bold text-teal-600">{bomWhereUsedRows.length}</div>
-                      <div className="text-xs text-gray-500">Parent BOMs</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="rounded-xl border border-teal-200 bg-teal-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Parent BOMs</div><div className="text-2xl font-bold text-teal-600">{bomWhereUsedRows.length}</div></div>
                     </div>
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Parent Item No.</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Parent Description</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Required Qty</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Unit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {bomWhereUsedRows.map((bom: any, index: number) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-teal-600 font-medium">{bom['Parent Item No.'] || '—'}</td>
-                              <td className="px-4 py-3 text-gray-700">{getParentDescription(bom['Parent Item No.'])}</td>
-                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(bom['Required Quantity'] || bom['Quantity Per'] || bom['Qty Per'] || 1)}</td>
-                              <td className="px-4 py-3 text-gray-500">{bom['Unit'] || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Where used</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Parent Item No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Parent Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Required Qty</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Unit</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bomWhereUsedRows.map((bom: any, index: number) => (
+                            <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-teal-600 font-medium">{bom['Parent Item No.'] || '—'}</td><td className="px-4 py-3 text-slate-700">{getParentDescription(bom['Parent Item No.'])}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Required Quantity'] || bom['Quantity Per'] || bom['Qty Per'] || 1)}</td><td className="px-4 py-3 text-slate-600">{bom['Unit'] || '—'}</td></tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 );
               })()}
 
               {/* ===== BOM TAB (for assembled items) ===== */}
-              {itemModalActiveView === 'bom' && isAssembled && (() => {
+              {itemModalActiveView === 'bom' && (() => {
+                if (!isAssembled) {
+                  return (
+                    <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
+                        <Package2 className="w-7 h-7 text-slate-400" />
+                      </div>
+                      <div className="text-base font-semibold text-slate-700">Not an assembled item</div>
+                      <p className="text-sm text-slate-500 mt-1">BOM is only available for assembled items</p>
+                    </div>
+                  );
+                }
                 const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
                   (bom['Parent Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
                 );
@@ -9231,31 +9209,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 }
 
                 return (
-                  <div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
-                      <div className="text-xl font-bold text-orange-600">{bomDetails.length}</div>
-                      <div className="text-xs text-gray-500">Components</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="rounded-xl border border-orange-200 bg-orange-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Components</div><div className="text-2xl font-bold text-orange-600">{bomDetails.length}</div></div>
                     </div>
-                    
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Component</th>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Qty Per</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {bomDetails.map((bom: any, index: number) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-orange-600 font-medium">{bom['Component Item No.']}</td>
-                              <td className="px-4 py-3 text-gray-700">{bom['Description'] || '—'}</td>
-                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">BOM components</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Component</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty Per</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bomDetails.map((bom: any, index: number) => (
+                            <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{bom['Component Item No.']}</td><td className="px-4 py-3 text-slate-700">{bom['Description'] || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 );
@@ -9277,26 +9245,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 }
                 const woHeaders = data['WorkOrders.json'] || [];
                 return (
-                  <div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4"><div className="text-xl font-bold text-cyan-600">{woDetails.length}</div><div className="text-xs text-gray-500">Work Orders</div></div>
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200"><tr><th className="text-left px-4 py-3 font-medium text-gray-600">WO #</th><th className="text-right px-4 py-3 font-medium text-gray-600">Qty</th><th className="text-left px-4 py-3 font-medium text-gray-600">Status</th></tr></thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {woDetails.slice(0, 20).map((wo: any, idx: number) => {
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="rounded-xl border border-cyan-200 bg-cyan-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Work Orders</div><div className="text-2xl font-bold text-cyan-600">{woDetails.length}</div></div>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Work order list</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">WO #</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{woDetails.slice(0, 20).map((wo: any, idx: number) => {
                             const header = woHeaders.find((h: any) => (h['WO No.'] || h['Work Order No.']) === (wo['WO No.'] || wo['Work Order No.']));
                             return (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-mono text-cyan-600 font-medium">{wo['WO No.'] || wo['Work Order No.'] || '—'}</td>
-                                <td className="px-4 py-3 text-right">{parseStockValue(wo['Ordered'] || wo['Quantity'] || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-gray-600">{header?.['Status'] ?? wo['Status'] ?? '—'}</td>
-                              </tr>
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-cyan-600 font-medium">{wo['WO No.'] || wo['Work Order No.'] || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(wo['Ordered'] || wo['Quantity'] || 0).toLocaleString()}</td><td className="px-4 py-3 text-slate-600">{header?.['Status'] ?? wo['Status'] ?? '—'}</td></tr>
                             );
-                          })}
-                        </tbody>
-                      </table>
+                          })}</tbody>
+                        </table>
+                        {woDetails.length > 20 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 20 of {woDetails.length}</div>}
+                      </div>
                     </div>
-                    {woDetails.length > 20 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 20 of {woDetails.length}</div>}
                   </div>
                 );
               })()}
@@ -9329,35 +9297,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   return db.localeCompare(da);
                 });
                 return (
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-500">Source: {sourceLabel} · {sorted.length} records</div>
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">PO No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {sorted.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {sorted.length > 200 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 200 of {sorted.length}</div>}
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-600">Source: <span className="font-semibold">{sourceLabel}</span> · {sorted.length} records</div>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200">
+                          <tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">{sorted.slice(0, 200).map((m: any, i: number) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['PO No.'] ?? m['xvarPOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
+                        ))}</tbody>
+                      </table>
+                      {sorted.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {sorted.length}</div>}
+                    </div>
                   </div>
                 );
               })()}
@@ -9392,13 +9344,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 return (
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr><th className="text-left px-4 py-3 font-medium text-gray-600">Supplier No.</th><th className="text-left px-4 py-3 font-medium text-gray-600">Name</th><th className="text-right px-4 py-3 font-medium text-gray-600">PO count</th><th className="text-left px-4 py-3 font-medium text-gray-600">Last order</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">{suppliers.map(([suplId, v], i) => <tr key={i} className="hover:bg-gray-50"><td className="px-4 py-3 font-mono text-gray-700">{suplId || '—'}</td><td className="px-4 py-3 text-gray-800">{v.name}</td><td className="px-4 py-3 text-right">{v.orderCount}</td><td className="px-4 py-3 text-gray-600">{v.lastOrder ?? '—'}</td></tr>)}</tbody>
-                    </table>
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Suppliers</h3>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Supplier No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Name</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO count</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Last order</th></tr></thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">{suppliers.map(([suplId, v], i) => <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{suplId || '—'}</td><td className="px-4 py-3 text-slate-800">{v.name}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{v.orderCount}</td><td className="px-4 py-3 text-slate-600">{v.lastOrder ?? '—'}</td></tr>)}</tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })()}
@@ -9418,19 +9371,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Manufacturer No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Name</th><th className="text-left px-4 py-3 font-medium text-slate-600">Product code</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">{mfgRows.map((r: any, i: number) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-mono text-slate-800">{r['Manufacturer No.'] ?? r['mfgId'] ?? '—'}</td>
-                          <td className="px-4 py-3 text-slate-800">{r['Manufacturer Name'] ?? r['mfgName'] ?? '—'}</td>
-                          <td className="px-4 py-3 font-mono text-slate-700">{r['Product Code'] ?? r['mfgProdCode'] ?? '—'}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Manufacturers</h3>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Manufacturer No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Name</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Product code</th></tr></thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">{mfgRows.map((r: any, i: number) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{r['Manufacturer No.'] ?? r['mfgId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{r['Manufacturer Name'] ?? r['mfgName'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Product Code'] ?? r['mfgProdCode'] ?? '—'}</td></tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })()}
@@ -9455,19 +9405,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 }
                 const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Item No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Alternate Item No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Description</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">{alternates.map((r: any, i: number) => {
-                        const altId = (r['Alternate Item No.'] ?? r['altItemId'] ?? '').toString().trim();
-                        const itId = (r['Item No.'] ?? r['itemId'] ?? '').toString().trim();
-                        const showId = itId.toUpperCase() === itemNoUpper ? altId : itId;
-                        const desc = itemsData.find((x: any) => (x['Item No.'] || '').toString().trim().toUpperCase() === showId.toUpperCase())?.['Description'] ?? '—';
-                        return <tr key={i} className="hover:bg-slate-50"><td className="px-4 py-3 font-mono text-slate-800">{itId || '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{altId || '—'}</td><td className="px-4 py-3 text-slate-700">{desc}</td></tr>;
-                      })}</tbody>
-                    </table>
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Alternate items</h3>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Item No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Alternate Item No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th></tr></thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">{alternates.map((r: any, i: number) => {
+                          const altId = (r['Alternate Item No.'] ?? r['altItemId'] ?? '').toString().trim();
+                          const itId = (r['Item No.'] ?? r['itemId'] ?? '').toString().trim();
+                          const showId = itId.toUpperCase() === itemNoUpper ? altId : itId;
+                          const desc = itemsData.find((x: any) => (x['Item No.'] || '').toString().trim().toUpperCase() === showId.toUpperCase())?.['Description'] ?? '—';
+                          return <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{itId || '—'}</td><td className="px-4 py-3 font-mono text-slate-800">{altId || '—'}</td><td className="px-4 py-3 text-slate-700">{desc}</td></tr>;
+                        })}</tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })()}
@@ -9498,10 +9449,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 return (
-                  <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                    {noteRow['Notes'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Notes</div><div className="text-slate-800 whitespace-pre-wrap">{noteRow['Notes']}</div></div>}
-                    {noteRow['Document Path'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Document path</div><div className="text-slate-700 font-mono text-sm">{noteRow['Document Path']}</div></div>}
-                    {noteRow['Picture Path'] && <div><div className="text-xs font-medium uppercase text-slate-500 mb-1">Picture path</div><div className="text-slate-700 font-mono text-sm">{noteRow['Picture Path']}</div></div>}
+                  <div className="space-y-5">
+                    {noteRow['Notes'] && <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Notes</h3><div className="text-slate-800 whitespace-pre-wrap text-sm leading-relaxed">{noteRow['Notes']}</div></div>}
+                    {noteRow['Document Path'] && <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Document path</h3><div className="text-slate-700 font-mono text-sm">{noteRow['Document Path']}</div></div>}
+                    {noteRow['Picture Path'] && <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Picture path</h3><div className="text-slate-700 font-mono text-sm">{noteRow['Picture Path']}</div></div>}
                   </div>
                 );
               })()}
@@ -9524,35 +9475,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 return (
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="text-xs font-medium text-gray-500 px-4 py-2 border-b border-gray-100">Merged transaction history ({historyRows.length} records)</div>
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                          <th className="text-right px-4 py-3 font-medium text-gray-600">Quantity</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">MO No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {historyRows.slice(0, 200).map((m: any, i: number) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{m._src ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-800">{m['User'] ?? m['userId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {historyRows.length > 200 && <div className="px-4 py-2 bg-gray-50 text-center text-xs text-gray-500">Showing 200 of {historyRows.length}</div>}
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-600">Merged transaction history · <span className="font-semibold">{historyRows.length}</span> records</div>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Source</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m: any, i: number) => (
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{m['Location No.'] ?? m['locId'] ?? '—'}</td></tr>
+                        ))}</tbody>
+                      </table>
+                      {historyRows.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {historyRows.length}</div>}
+                    </div>
                   </div>
                 );
               })()}
@@ -9585,28 +9518,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   r['Quantity Used'] != null || r['Quantity Received'] != null || r['Scrap Quantity'] != null || r['Description'] != null
                 );
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                   {lotSerials.length > 0 && (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">Lot/Serial detail (MISLTD)</div>
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot/Serial detail (MISLTD)</h3>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
+                      <thead className="bg-slate-100 border-b border-slate-200">
                         <tr>
-                          <th className="text-left px-4 py-3 font-medium text-slate-600">Lot No.</th>
-                          <th className="text-left px-4 py-3 font-medium text-slate-600">Serial No.</th>
-                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Description</th>}
-                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>}
-                          {hasExtraCols && <th className="text-left px-4 py-3 font-medium text-slate-600">Expiration</th>}
-                          <th className="text-right px-4 py-3 font-medium text-slate-600">Quantity</th>
-                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">In Stock</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Used</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Received</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 font-medium text-slate-600">Scrap</th>}
+                          <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Serial No.</th>
+                          {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th>}
+                          {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th>}
+                          {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Expiration</th>}
+                          <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th>
+                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">In Stock</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Used</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Received</th>}
+                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Scrap</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-200 bg-white">
                         {lotSerials.map((r: any, i: number) => (
-                          <tr key={i} className="hover:bg-slate-50">
+                          <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
                             <td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '—'}</td>
                             <td className="px-4 py-3 font-mono text-slate-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
                             {hasExtraCols && <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={r['Description']}>{r['Description'] ?? '—'}</td>}
@@ -9621,28 +9555,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                    </div>
                   )}
                   {lotHistory.length > 0 && (
-                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-500">Lot history (MISLHIST)</div>
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr><th className="text-left px-4 py-3 font-medium text-slate-600">Lot No.</th><th className="text-left px-4 py-3 font-medium text-slate-600">Date</th><th className="text-left px-4 py-3 font-medium text-slate-600">User</th><th className="text-right px-4 py-3 font-medium text-slate-600">Quantity</th><th className="text-left px-4 py-3 font-medium text-slate-600">Location</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {lotHistory.slice(0, 100).map((r: any, i: number) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td>
-                              <td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt'] ?? '—'}</td>
-                              <td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td>
-                              <td className="px-4 py-3 text-right font-medium">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {lotHistory.length > 100 && <div className="px-4 py-2 bg-slate-50 text-center text-xs text-slate-500">Showing 100 of {lotHistory.length}</div>}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot history (MISLHIST)</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{lotHistory.slice(0, 100).map((r: any, i: number) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-slate-800">{r['Lot No.'] ?? r['lotId'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt'] ?? '—'}</td><td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td><td className="px-4 py-3 font-mono text-slate-700">{r['Location No.'] ?? r['locId'] ?? '—'}</td></tr>
+                          ))}</tbody>
+                        </table>
+                        {lotHistory.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {lotHistory.length}</div>}
+                      </div>
                     </div>
                   )}
                   </div>
@@ -9668,42 +9595,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 }
 
                 return (
-                  <div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200 mb-4">
-                      <div className="text-xl font-bold text-amber-600">{itemLocations.length}</div>
-                      <div className="text-xs text-gray-500">Locations</div>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Locations</div><div className="text-2xl font-bold text-amber-600">{itemLocations.length}</div></div>
                     </div>
-                    
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">On Hand</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Allocated</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Available</th>
-                            <th className="text-right px-4 py-3 font-medium text-gray-600">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {itemLocations.map((loc: any, index: number) => {
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">By location</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Allocated</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Available</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Value</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{itemLocations.map((loc: any, index: number) => {
                             const onHand = parseStockValue(loc['On Hand'] || 0);
                             const allocated = parseStockValue(loc['Allocated'] || 0);
                             const available = onHand - allocated;
                             const unitCost = parseCostValue(loc['Unit Cost'] || 0);
-                            
                             return (
-                              <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-mono text-amber-600 font-medium">{loc['Location'] || '—'}</td>
-                                <td className="px-4 py-3 text-right font-medium">{onHand.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right text-gray-500">{allocated.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right font-medium text-emerald-600">{available.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right">{formatCAD(onHand * unitCost)}</td>
-                              </tr>
+                              <tr key={index} className={index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 font-mono text-amber-600 font-medium">{loc['Location'] || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{onHand.toLocaleString()}</td><td className="px-4 py-3 text-right tabular-nums text-slate-600">{allocated.toLocaleString()}</td><td className="px-4 py-3 text-right font-medium text-emerald-600 tabular-nums">{available.toLocaleString()}</td><td className="px-4 py-3 text-right tabular-nums">{formatCAD(onHand * unitCost)}</td></tr>
                             );
-                          })}
-                        </tbody>
-                      </table>
+                          })}</tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 );
