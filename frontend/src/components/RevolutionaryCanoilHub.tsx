@@ -11,6 +11,8 @@ import { getApiUrl } from '../utils/apiConfig';
 import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
+import { buildIndexes, buildDataCatalog, buildTransactionIndexes } from '../data';
+import { buildMOView, buildItemView, buildPOView, buildLotTraceView, buildBOMView, buildItemLotSummaryView, buildTransactionSearchView } from '../views';
 import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import ExportAllCompanyDataModal from './ExportAllCompanyDataModal';
@@ -251,6 +253,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [autoCreatePOLoading, setAutoCreatePOLoading] = useState(false);
   // Lot history (portal-recorded + optional Full Company Data)
   const [showLotHistory, setShowLotHistory] = useState(false);
+  const [showTransactionExplorer, setShowTransactionExplorer] = useState(false);
+  const [txExplorerFilters, setTxExplorerFilters] = useState<{ itemNo?: string; docRef?: string; lot?: string; serial?: string; dateFrom?: string; dateTo?: string }>({});
   const [lotHistoryList, setLotHistoryList] = useState<any[]>([]);
   const [inventoryByLotList, setInventoryByLotList] = useState<any[]>([]);
   const [lotHistoryLoading, setLotHistoryLoading] = useState(false);
@@ -349,6 +353,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Single source for PO data (same as MO: Full Company Data · MIPOH/MIPOD with legacy fallback)
   const poHeadersSource = useMemo(() => (data?.['MIPOH.json'] ?? data?.['PurchaseOrders.json'] ?? []) as any[], [data]);
   const poDetailsSource = useMemo(() => (data?.['MIPOD.json'] ?? data?.['PurchaseOrderDetails.json'] ?? []) as any[], [data]);
+
+  // Data indexes built once on load (avoids repeated .filter over 165k+ rows)
+  const indexes = useMemo(() => buildIndexes(data), [data]);
+  const dataCatalog = useMemo(() => buildDataCatalog(data), [data]);
+  const txIndexes = useMemo(() => buildTransactionIndexes(data), [data]);
+  const txExplorerView = useMemo(() => buildTransactionSearchView(txIndexes, {
+    ...txExplorerFilters,
+    limit: 300,
+  }), [txIndexes, txExplorerFilters]);
 
   // Purchase Order processing (works with or without PurchaseOrderExtensions)
   const processPurchaseOrders = useMemo(() => {
@@ -600,6 +613,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [selectedMO, setSelectedMO] = useState<any>(null);
   const [showMODetails, setShowMODetails] = useState(false);
   const [moActiveTab, setMoActiveTab] = useState('overview');
+
+  // MO view for modal (MiSys-style UI-ready data, derived from selectedMO)
+  const selectedMoNo = (selectedMO?.['Mfg. Order No.'] ?? selectedMO?.['MO No.'] ?? selectedMO?.['MO'] ?? selectedMO?.['mohId'] ?? '').toString().trim();
+  const moView = useMemo(() => {
+    if (!selectedMoNo) return null;
+    return buildMOView(data, indexes, selectedMoNo);
+  }, [data, indexes, selectedMoNo]);
+
+  const selectedItemNo = (selectedItem?.['Item No.'] ?? selectedItem?.['itemId'] ?? '').toString().trim();
+  const itemView = useMemo(() => {
+    if (!selectedItemNo) return null;
+    return buildItemView(data, indexes, selectedItemNo);
+  }, [data, indexes, selectedItemNo]);
+
+  const bomView = useMemo(() => {
+    if (!selectedItemNo) return null;
+    return buildBOMView(data, indexes, selectedItemNo);
+  }, [data, indexes, selectedItemNo]);
+
+  const itemLotSummaryView = useMemo(() => {
+    if (!selectedItemNo) return { itemNo: '', lots: [], serialRows: [], lotHistoryRows: [], hasData: false };
+    return buildItemLotSummaryView(data, selectedItemNo);
+  }, [data, selectedItemNo]);
+
+  const moTransactionView = useMemo(() => {
+    if (!moView?.moNo) return { rows: [], totalCount: 0, filters: {}, hasData: false };
+    return buildTransactionSearchView(txIndexes, { docRef: moView.moNo, limit: 200 });
+  }, [txIndexes, moView?.moNo]);
+
+  const moItemLotSummaryView = useMemo(() => {
+    if (!moView?.buildItemNo) return { itemNo: '', lots: [], serialRows: [], lotHistoryRows: [], hasData: false };
+    return buildItemLotSummaryView(data, moView.buildItemNo);
+  }, [data, moView?.buildItemNo]);
   
   // PO details modal state
   const [selectedPO, setSelectedPO] = useState<any>(null);
@@ -618,6 +664,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showBinDetail, setShowBinDetail] = useState(false);
   const [selectedWOHId, setSelectedWOHId] = useState<string | null>(null);
   const [showWODetail, setShowWODetail] = useState(false);
+
+  const selectedPONo = (selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? selectedPO?.['Purchase Order No.'] ?? '').toString().trim();
+  const poView = useMemo(() => {
+    if (!selectedPONo) return null;
+    return buildPOView(data, indexes, selectedPONo);
+  }, [data, indexes, selectedPONo]);
+
+  const lotTraceView = useMemo(() => {
+    if (!selectedLotId) return null;
+    return buildLotTraceView(data, selectedLotId);
+  }, [data, selectedLotId]);
   
   // Helpers: open PO/MO/Item by id (for clickable keys in tables)
   const openPOById = (poId: string) => {
@@ -1238,17 +1295,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     };
   }, [data]);
 
-  // Pre-compute assembled items (PERFORMANCE: do once, not in render loop)
+  // Pre-compute assembled items (PERFORMANCE: do once, not in render loop) - uses indexes
   const assembledItemsSet = useMemo(() => {
-    const bomDetails = data['BillOfMaterialDetails.json'] || [];
     const set = new Set<string>();
-    bomDetails.forEach((bom: any) => {
-      if (bom["Parent Item No."]) {
-        set.add(bom["Parent Item No."]);
-      }
+    indexes.bomDetailsByParent.forEach((_, parent) => {
+      if (parent) set.add(parent);
     });
     return set;
-  }, [data]);
+  }, [indexes]);
 
   // Filtered inventory with sorting and filtering - Uses CANOIL STOCK ONLY
   const filteredInventory = useMemo(() => {
@@ -2944,8 +2998,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Enhanced Manufacturing Order Details Modal */}
-          {showMODetails && selectedMO && (
+          {/* Enhanced Manufacturing Order Details Modal - uses moView (data contract layer) */}
+          {showMODetails && moView && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
                 {/* Decorative gradient overlay */}
@@ -2962,11 +3016,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div>
                         <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Order Details</h3>
                         <p className="text-purple-100 text-base mt-1.5 font-medium">
-                          MO #{selectedMO['Mfg. Order No.']} - {(selectedMO['Build Item No.'] ?? selectedMO['buildItem']) ? (
-                            <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); openItemById((selectedMO['Build Item No.'] ?? selectedMO['buildItem'] ?? '').toString()); }}>{selectedMO['Build Item No.'] ?? selectedMO['buildItem']}</span>
+                          MO #{moView.moNo} - {moView.buildItemNo ? (
+                            <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); openItemById(moView.buildItemNo!); }}>{moView.buildItemNo}</span>
                           ) : '—'}
-                          {selectedMO['Description'] && (
-                            <span className="ml-3 text-purple-200">• {selectedMO['Description']}</span>
+                          {moView.buildItemDesc && (
+                            <span className="ml-3 text-purple-200">• {moView.buildItemDesc}</span>
                           )}
                         </p>
                         <p className="text-purple-200/90 text-xs mt-1.5">Click any item #, location, or build item to see more.</p>
@@ -3030,6 +3084,32 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <Link2 className="w-4 h-4" />
                       Sales Order Related
                     </button>
+                    {dataCatalog.hasTransactions && (
+                    <button
+                      onClick={() => setMoActiveTab('transactions')}
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'transactions' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <Activity className="w-4 h-4" />
+                      Transactions
+                    </button>
+                    )}
+                    {dataCatalog.hasLotTrace && moView?.buildItemNo && (
+                    <button
+                      onClick={() => setMoActiveTab('lots')}
+                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
+                        moActiveTab === 'lots' 
+                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <Hash className="w-4 h-4" />
+                      Lots
+                    </button>
+                    )}
                   </div>
 
                   {/* MO Overview Tab */}
@@ -3037,8 +3117,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="space-y-6">
                       {/* Related Information - Sales Order, Job, Work Order */}
                       {(() => {
-                        const salesOrderNo = selectedMO['Sales Order No.'];
-                        const jobNo = selectedMO['Job No.'];
+                        const salesOrderNo = moView.salesOrderNo;
+                        const jobNo = moView.jobNo;
                         const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => 
                           so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo
                         ) : null;
@@ -3116,19 +3196,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
                                 <span className="text-xs font-semibold text-gray-700">Status:</span>
                                 <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
-                                  selectedMO['Status'] === 1 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
-                                  selectedMO['Status'] === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
-                                  selectedMO['Status'] === 2 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
-                                  selectedMO['Status'] === 3 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
+                                  moView.status === 1 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                                  moView.status === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
+                                  moView.status === 2 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                                  moView.status === 3 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
                                   'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
                                 }`}>
-                                  {selectedMO['Status'] === 1 ? 'Released' :
-                                   selectedMO['Status'] === 0 ? 'Planned' :
-                                   selectedMO['Status'] === 2 ? 'Started' :
-                                   selectedMO['Status'] === 3 ? 'Finished' : 'Unknown'}
+                                  {moView.status === 1 ? 'Released' :
+                                   moView.status === 0 ? 'Planned' :
+                                   moView.status === 2 ? 'Started' :
+                                   moView.status === 3 ? 'Finished' : 'Unknown'}
                                 </span>
                               </div>
-                              {selectedMO['On Hold'] && (
+                              {moView.onHold && (
                                 <div className="flex items-center justify-between bg-red-50 rounded-lg p-2 border border-red-200">
                                   <span className="text-xs font-semibold text-red-700">On Hold:</span>
                                   <span className="px-2 py-1 text-xs font-bold rounded-lg bg-red-500 text-white shadow-sm">
@@ -3137,10 +3217,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </div>
                               )}
                               {(() => {
-                                const orderedQty = parseFloat(selectedMO['Ordered'] || 0);
-                                const completedQty = parseFloat(selectedMO['Completed'] || 0);
-                                const wipQty = parseFloat(selectedMO['WIP'] || 0);
-                                const issuedQty = parseFloat(selectedMO['Issued'] || 0);
+                                const orderedQty = moView.orderedQty;
+                                const completedQty = moView.completedQty;
+                                const wipQty = moView.wipQty;
+                                const issuedQty = moView.releasedQty;
                                 const progressPercentage = orderedQty > 0 
                                   ? Math.round((completedQty / orderedQty) * 100) 
                                   : 0;
@@ -3203,36 +3283,32 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="space-y-1.5">
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
                                 <span className="text-xs font-semibold text-gray-700">Ordered:</span>
-                                <span className="font-bold text-sm text-gray-900">{selectedMO['Ordered']?.toLocaleString() || '0'}</span>
+                                <span className="font-bold text-sm text-gray-900">{moView.orderedQty?.toLocaleString() || '0'}</span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
                                 <span className="text-xs font-semibold text-gray-700">Release Qty:</span>
                                 <span className="font-bold text-sm text-blue-600">
-                                  {(() => {
-                                    const releaseQty = selectedMO['Release Order Quantity'];
-                                    if (releaseQty != null && releaseQty !== undefined) {
-                                      return releaseQty.toLocaleString();
-                                    }
-                                    return (selectedMO['Ordered']?.toLocaleString() || '0');
-                                  })()}
+                                  {moView.releaseOrderQty != null && moView.releaseOrderQty !== undefined
+                                    ? moView.releaseOrderQty.toLocaleString()
+                                    : (moView.orderedQty?.toLocaleString() || '0')}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
                                 <span className="text-xs font-semibold text-gray-700">Completed:</span>
-                                <span className="font-bold text-sm text-green-600">{selectedMO['Completed']?.toLocaleString() || '0'}</span>
+                                <span className="font-bold text-sm text-green-600">{moView.completedQty?.toLocaleString() || '0'}</span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
                                 <span className="text-xs font-semibold text-gray-700">Allocated:</span>
-                                <span className="font-bold text-sm text-purple-600">{selectedMO['Allocated']?.toLocaleString() || '0'}</span>
+                                <span className="font-bold text-sm text-purple-600">{moView.rawHeader?.['Allocated']?.toLocaleString() || '0'}</span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
                                 <span className="text-xs font-semibold text-gray-700">Reserved:</span>
-                                <span className="font-bold text-sm text-orange-600">{selectedMO['Reserved']?.toLocaleString() || '0'}</span>
+                                <span className="font-bold text-sm text-orange-600">{moView.rawHeader?.['Reserved']?.toLocaleString() || '0'}</span>
                               </div>
                               <div className="flex justify-between items-center bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-2.5 border-2 border-blue-300 mt-2">
                                 <span className="text-xs font-bold text-blue-900">Remaining:</span>
                                 <span className="font-bold text-base text-blue-700">
-                                  {((selectedMO['Ordered'] || 0) - (selectedMO['Completed'] || 0)).toLocaleString()}
+                                  {((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}
                                 </span>
                               </div>
                             </div>
@@ -3253,43 +3329,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                                 <span className="text-xs font-semibold text-gray-700">Proj Material:</span>
                                 <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(selectedMO['Projected Material Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
                                 <span className="text-xs font-semibold text-gray-700">Actual Material:</span>
                                 <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(selectedMO['Actual Material Cost'] || selectedMO['Used Material Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                                 <span className="text-xs font-semibold text-gray-700">Proj Labor:</span>
                                 <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(selectedMO['Projected Labor Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
                                 <span className="text-xs font-semibold text-gray-700">Actual Labor:</span>
                                 <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(selectedMO['Actual Labor Cost'] || selectedMO['Used Labor Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                                 <span className="text-xs font-semibold text-gray-700">Proj Overhead:</span>
                                 <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(selectedMO['Projected Overhead Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
                                 <span className="text-xs font-semibold text-gray-700">Actual Overhead:</span>
                                 <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(selectedMO['Actual Overhead Cost'] || selectedMO['Used Overhead Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-2.5 border-2 border-green-300 mt-2">
                                 <span className="text-xs font-bold text-green-900">Total:</span>
                                 <span className="font-bold text-base text-green-700">
-                                  ${(parseFloat(selectedMO['Cumulative Cost'] || selectedMO['Total Material Cost'] || 0)).toFixed(2)}
+                                  ${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}
                                 </span>
                               </div>
                             </div>
@@ -3306,61 +3382,61 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <h4 className="font-bold text-sm text-slate-900">Dates & Timeline</h4>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                          {selectedMO['Order Date'] && (
+                          {moView.dates.order && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                               <div className="text-xs text-gray-500 mb-0.5">Order Date</div>
-                              <div className="font-semibold text-xs text-gray-900">{selectedMO['Order Date']}</div>
+                              <div className="font-semibold text-xs text-gray-900">{moView.dates.order}</div>
                             </div>
                           )}
-                          {selectedMO['Release Date'] && (
+                          {moView.dates.release && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
                               <div className="text-xs text-blue-600 mb-1">Release Date</div>
-                              <div className="font-semibold text-blue-700">{selectedMO['Release Date']}</div>
+                              <div className="font-semibold text-blue-700">{moView.dates.release}</div>
                             </div>
                           )}
-                          {selectedMO['Start Date'] && (
+                          {moView.dates.start && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-green-200">
                               <div className="text-xs text-green-600 mb-1">Start Date</div>
-                              <div className="font-semibold text-green-700">{selectedMO['Start Date']}</div>
+                              <div className="font-semibold text-green-700">{moView.dates.start}</div>
                             </div>
                           )}
-                          {selectedMO['Completion Date'] && (
+                          {moView.dates.completion && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
                               <div className="text-xs text-purple-600 mb-1">Completion Date</div>
-                              <div className="font-semibold text-purple-700">{selectedMO['Completion Date']}</div>
+                              <div className="font-semibold text-purple-700">{moView.dates.completion}</div>
                             </div>
                           )}
-                          {selectedMO['Close Date'] && (
+                          {moView.dates.close && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
                               <div className="text-xs text-gray-600 mb-1">Close Date</div>
-                              <div className="font-semibold text-gray-700">{selectedMO['Close Date']}</div>
+                              <div className="font-semibold text-gray-700">{moView.dates.close}</div>
                             </div>
                           )}
-                          {selectedMO['Last Maintained'] && (
+                          {moView.dates.lastMaintained && (
                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
                               <div className="text-xs text-gray-600 mb-1">Last Maintained</div>
-                              <div className="font-semibold text-gray-700">{selectedMO['Last Maintained']}</div>
+                              <div className="font-semibold text-gray-700">{moView.dates.lastMaintained}</div>
                             </div>
                           )}
-{selectedMO['Sales Order Ship Date'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
-                                <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
-                                <div className="font-semibold text-orange-700">{selectedMO['Sales Order Ship Date']}</div>
+                          {moView.rawHeader?.['Sales Order Ship Date'] && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
+                              <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
+                              <div className="font-semibold text-orange-700">{moView.rawHeader['Sales Order Ship Date']}</div>
+                            </div>
+                          )}
+                          {moView.locationNo && (
+                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
+                              <div className="text-xs text-indigo-600 mb-1">Location</div>
+                              <div className="font-semibold text-indigo-700">
+                                <span className="underline cursor-pointer hover:bg-indigo-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span>
                               </div>
-                            )}
-                            {(selectedMO['Location No.'] ?? selectedMO['locId']) && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
-                                <div className="text-xs text-indigo-600 mb-1">Location</div>
-                                <div className="font-semibold text-indigo-700">
-                                  <span className="underline cursor-pointer hover:bg-indigo-100 rounded px-0.5" onClick={() => { setSelectedLocId((selectedMO['Location No.'] ?? selectedMO['locId'] ?? '').toString()); setShowLocationDetail(true); }}>{(selectedMO['Location No.'] ?? selectedMO['locId'])}</span>
-                                </div>
-                              </div>
-                            )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Customer & Sales Information - Compact Card */}
-                      {(selectedMO['Customer'] || selectedMO['Sales Order No.'] || selectedMO['Sales Item No.'] || selectedMO['Priority'] || selectedMO['Operation Count']) && (
+                      {(moView.customer || moView.salesOrderNo || moView.rawHeader?.['Sales Item No.'] || moView.rawHeader?.['Priority'] || moView.rawHeader?.['Operation Count']) && (
                         <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="p-1.5 bg-blue-100 rounded-lg">
@@ -3369,58 +3445,58 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <h4 className="font-bold text-sm text-slate-900">Customer & Sales Info</h4>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                            {selectedMO['Customer'] && (
+                            {moView.customer && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
                                 <div className="text-xs text-gray-500 mb-0.5">Customer</div>
-                                <div className="font-semibold text-xs text-gray-900">{selectedMO['Customer']}</div>
+                                <div className="font-semibold text-xs text-gray-900">{moView.customer}</div>
                               </div>
                             )}
-                            {selectedMO['Sales Order No.'] && (
+                            {moView.salesOrderNo && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
                                 <div className="text-xs text-blue-600 mb-1">Sales Order</div>
-                                <div className="font-semibold text-blue-700">#{selectedMO['Sales Order No.']}</div>
+                                <div className="font-semibold text-blue-700">#{moView.salesOrderNo}</div>
                               </div>
                             )}
-                            {selectedMO['Sales Order Detail No.'] && (
+                            {moView.rawHeader?.['Sales Order Detail No.'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
                                 <div className="text-xs text-gray-500 mb-1">SO Detail</div>
-                                <div className="font-semibold text-gray-900">{selectedMO['Sales Order Detail No.']}</div>
+                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Order Detail No.']}</div>
                               </div>
                             )}
-                            {selectedMO['Sales Item No.'] && (
+                            {moView.rawHeader?.['Sales Item No.'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
                                 <div className="text-xs text-gray-500 mb-1">Sales Item</div>
-                                <div className="font-semibold text-gray-900">{selectedMO['Sales Item No.']}</div>
+                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Item No.']}</div>
                               </div>
                             )}
-                            {selectedMO['Sales Location'] && (
+                            {moView.rawHeader?.['Sales Location'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
                                 <div className="text-xs text-gray-500 mb-1">Sales Location</div>
-                                <div className="font-semibold text-gray-900">{selectedMO['Sales Location']}</div>
+                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Location']}</div>
                               </div>
                             )}
-                            {selectedMO['Sales Transfer Quantity'] && (
+                            {moView.rawHeader?.['Sales Transfer Quantity'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
                                 <div className="text-xs text-gray-500 mb-1">Transfer Qty</div>
-                                <div className="font-semibold text-gray-900">{selectedMO['Sales Transfer Quantity']?.toLocaleString()}</div>
+                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Transfer Quantity']?.toLocaleString()}</div>
                               </div>
                             )}
-                            {selectedMO['Priority'] && (
+                            {moView.rawHeader?.['Priority'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
                                 <div className="text-xs text-orange-600 mb-1">Priority</div>
-                                <div className="font-semibold text-orange-700">{selectedMO['Priority']}</div>
+                                <div className="font-semibold text-orange-700">{moView.rawHeader['Priority']}</div>
                               </div>
                             )}
-                            {selectedMO['Operation Count'] && (
+                            {moView.rawHeader?.['Operation Count'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
                                 <div className="text-xs text-purple-600 mb-1">Operations</div>
-                                <div className="font-semibold text-purple-700">{selectedMO['Operation Count']}</div>
+                                <div className="font-semibold text-purple-700">{moView.rawHeader['Operation Count']}</div>
                               </div>
                             )}
-                            {selectedMO['Work Order Reference Count'] && (
+                            {moView.rawHeader?.['Work Order Reference Count'] && (
                               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
                                 <div className="text-xs text-indigo-600 mb-1">Work Orders</div>
-                                <div className="font-semibold text-indigo-700">{selectedMO['Work Order Reference Count']}</div>
+                                <div className="font-semibold text-indigo-700">{moView.rawHeader['Work Order Reference Count']}</div>
                               </div>
                             )}
                           </div>
@@ -3440,27 +3516,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
                                 <span className="text-gray-600">MO Number:</span>
-                                <span className="font-mono">{selectedMO['Mfg. Order No.'] || '—'}</span>
+                                <span className="font-mono">{moView.moNo || '—'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Build Item:</span>
-                                <span className="font-mono">{selectedMO['Build Item No.'] || '—'}</span>
+                                <span className="font-mono">{moView.buildItemNo || '—'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Location:</span>
-                                <span>{selectedMO['Location No.'] || '—'}</span>
+                                <span>{moView.locationNo || '—'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">WIP Qty:</span>
-                                <span>{selectedMO['WIP']?.toLocaleString() || '—'}</span>
+                                <span>{moView.wipQty?.toLocaleString() || '—'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Issued Qty:</span>
-                                <span>{selectedMO['Issued']?.toLocaleString() || '—'}</span>
+                                <span>{moView.releasedQty?.toLocaleString() || '—'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Completed Qty:</span>
-                                <span className="text-green-600">{selectedMO['Completed']?.toLocaleString() || '—'}</span>
+                                <span className="text-green-600">{moView.completedQty?.toLocaleString() || '—'}</span>
                               </div>
                             </div>
                           </div>
@@ -3473,7 +3549,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Planned Qty</label>
                                 <input
                                   type="number"
-                                  value={selectedMO['Ordered'] || ''}
+                                  value={moView.orderedQty?.toString() || ''}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   readOnly
                                 />
@@ -3482,7 +3558,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Scheduled Start</label>
                                 <input
                                   type="date"
-                                  value={selectedMO['Release Date'] || ''}
+                                  value={moView.dates.release || ''}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   readOnly
                                 />
@@ -3491,7 +3567,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Scheduled End</label>
                                 <input
                                   type="date"
-                                  value={selectedMO['Completion Date'] || ''}
+                                  value={moView.dates.completion || ''}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   readOnly
                                 />
@@ -3500,7 +3576,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
                                 <input
                                   type="text"
-                                  value={selectedMO['Priority'] || ''}
+                                  value={moView.rawHeader?.['Priority'] || ''}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   readOnly
                                 />
@@ -3509,7 +3585,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Job No.</label>
                                 <input
                                   type="text"
-                                  value={selectedMO['Job No.'] || ''}
+                                  value={moView.jobNo || ''}
                                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
                                   readOnly
                                 />
@@ -3526,13 +3602,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="space-y-6">
                       {/* BOM Information Section */}
                       {(() => {
-                        const buildItemNo = selectedMO['Build Item No.'];
-                        const bomHeaders = (data['BillsOfMaterial.json'] || []).filter((bom: any) => 
-                          bom['Item No.'] === buildItemNo
-                        );
-                        const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
-                          bom['Parent Item No.'] === buildItemNo
-                        );
+                        const buildItemNo = moView.buildItemNo;
+                        const bomHeaders = indexes.bomHeadersByParent.get(buildItemNo || '') ?? [];
+                        const bomDetails = indexes.bomDetailsByParent.get(buildItemNo || '') ?? [];
 
                         if (bomHeaders.length > 0 || bomDetails.length > 0) {
                           return (
@@ -3568,177 +3640,91 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         return null;
                       })()}
 
-                      {(() => {
-                        // Get MO Details from real data
-                        const allMoDetails = (data['ManufacturingOrderDetails.json'] || []).filter((detail: any) => 
-                          detail['Mfg. Order No.'] === selectedMO['Mfg. Order No.']
-                        );
-
-                        // Get inventory items for stock lookup
-                        const inventoryItems = data['CustomAlert5.json'] || [];
-
-                        console.log('🔧 MO Details for', selectedMO['Mfg. Order No.'], ':', allMoDetails);
-
-                        if (allMoDetails.length === 0) {
-                          return (
-                            <div className="text-center py-12 text-gray-500">
-                              <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                              <div className="font-medium text-lg mb-1">No component details found</div>
-                              <div className="text-sm">This MO may not have detailed component breakdown in the system</div>
+                      {moView.components.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                          <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                          <div className="font-medium text-lg mb-1">No component details found</div>
+                          <div className="text-sm">This MO may not have detailed component breakdown in the system</div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Wrench className="w-5 h-5 text-blue-600" />
+                              <h4 className="font-semibold text-blue-900">Manufacturing Order Components</h4>
                             </div>
-                          );
-                        }
+                            <p className="text-sm text-blue-700">
+                              Materials and components required for MO #{moView.moNo}
+                            </p>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="text-left p-3 font-medium text-gray-700">Component Item</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Description</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Required Qty</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Issued Qty</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Remaining</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Available Stock</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Shortage</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Unit Cost</th>
+                                  <th className="text-right p-3 font-medium text-gray-700">Total Cost</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Location</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {moView.components.map((c, index) => {
+                                  const remainingQty = c.requiredQty - c.releasedQty;
+                                  const hasShortage = c.shortage > 0;
+                                  const stockStatus = c.availableStock >= remainingQty ? 'sufficient' :
+                                                    c.availableStock > 0 ? 'low' : 'out';
 
-                        // DEDUPLICATE: Group by Component Item No. and sum quantities using plain object
-                        const componentMap: Record<string, any> = {};
-                        
-                        allMoDetails.forEach((detail: any) => {
-                          const componentItemNo = detail['Component Item No.'] || detail['Item No.'] || '';
-                          if (!componentItemNo) return;
-
-                          if (componentMap[componentItemNo]) {
-                            // Sum quantities for duplicate components
-                            const existing = componentMap[componentItemNo];
-                            existing.requiredQty += parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0);
-                            existing.issuedQty += parseFloat(detail['Released Qty.'] || detail['Issued Qty'] || detail['Issued'] || 0);
-                            existing.materialCost += parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0);
-                            existing.totalCost += (parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0) * 
-                                                  parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0));
-                            // Keep the first location found, or combine if needed
-                            if (!existing.sourceLocation && detail['Source Location']) {
-                              existing.sourceLocation = detail['Source Location'];
-                            } else if (detail['Source Location'] && existing.sourceLocation !== detail['Source Location']) {
-                              existing.sourceLocation = `${existing.sourceLocation}, ${detail['Source Location']}`;
-                            }
-                            // Keep description from first entry
-                            if (!existing.description) {
-                              existing.description = detail['Non-stocked Item Description'] || detail['Description'] || detail['Item Description'] || '';
-                            }
-                          } else {
-                            // First occurrence of this component
-                            const requiredQty = parseFloat(detail['Required Qty.'] || detail['Required Qty'] || detail['Quantity'] || 0);
-                            const issuedQty = parseFloat(detail['Released Qty.'] || detail['Issued Qty'] || detail['Issued'] || 0);
-                            const unitCost = parseFloat(detail['Material Cost'] || detail['Unit Cost'] || detail['Cost'] || 0);
-                            
-                            componentMap[componentItemNo] = {
-                              componentItemNo,
-                              description: detail['Non-stocked Item Description'] || detail['Description'] || detail['Item Description'] || '',
-                              requiredQty,
-                              issuedQty,
-                              materialCost: unitCost,
-                              totalCost: requiredQty * unitCost,
-                              sourceLocation: detail['Source Location'] || detail['Location'] || detail['Location No.'] || '',
-                              detail // Keep reference to original detail for other fields
-                            };
-                          }
-                        });
-
-                        // Convert object to array for display
-                        const moDetails = Object.values(componentMap);
-
-                        return (
-                          <>
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Wrench className="w-5 h-5 text-blue-600" />
-                                    <h4 className="font-semibold text-blue-900">Manufacturing Order Components</h4>
-                                  </div>
-                                  <p className="text-sm text-blue-700">
-                                    Materials and components required for MO #{selectedMO['Mfg. Order No.']}
-                                    {allMoDetails.length > moDetails.length && (
-                                      <span className="ml-2 text-blue-600">
-                                        ({allMoDetails.length} entries consolidated into {moDetails.length} unique components)
-                                      </span>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead className="bg-gray-50">
-                                  <tr>
-                                    <th className="text-left p-3 font-medium text-gray-700">Component Item</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Required Qty</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Issued Qty</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Remaining</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Available Stock</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Shortage</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Unit Cost</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Total Cost</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Location</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Status</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {moDetails.map((detail: any, index: number) => {
-                                    const componentItemNo = detail.componentItemNo;
-                                    const requiredQty = detail.requiredQty;
-                                    const issuedQty = detail.issuedQty;
-                                    const unitCost = detail.requiredQty > 0 ? detail.totalCost / detail.requiredQty : detail.materialCost;
-                                    const remainingQty = requiredQty - issuedQty;
-                                    const totalCost = detail.totalCost;
-
-                                    // Find inventory item for stock levels
-                                    const inventoryItem = inventoryItems.find((item: any) => 
-                                      item['Item No.'] === componentItemNo
-                                    );
-                                    const availableStock = parseFloat(inventoryItem?.['Available'] || inventoryItem?.['On Hand'] || inventoryItem?.['Stock'] || 0);
-                                    const shortage = Math.max(0, remainingQty - availableStock);
-                                    const hasShortage = shortage > 0;
-                                    const stockStatus = availableStock >= remainingQty ? 'sufficient' : 
-                                                      availableStock > 0 ? 'low' : 'out';
-
-                                    // Get description from inventory if not in detail
-                                    const description = detail.description || inventoryItem?.['Description'] || '—';
-
-                                    return (
-                                      <tr key={index} className={`border-b border-gray-100 hover:bg-blue-50 ${
-                                        hasShortage ? 'bg-red-50' : ''
+                                  return (
+                                    <tr key={index} className={`border-b border-gray-100 hover:bg-blue-50 ${
+                                      hasShortage ? 'bg-red-50' : ''
+                                    }`}>
+                                      <td className="p-3 font-mono text-blue-600 font-medium">
+                                        {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
+                                      </td>
+                                      <td className="p-3 text-gray-700">
+                                        {c.desc || '—'}
+                                      </td>
+                                      <td className="p-3 text-right font-medium">
+                                        {c.requiredQty > 0 ? c.requiredQty.toLocaleString() : '—'}
+                                      </td>
+                                      <td className="p-3 text-right font-medium text-green-600">
+                                        {c.releasedQty > 0 ? c.releasedQty.toLocaleString() : '—'}
+                                      </td>
+                                      <td className="p-3 text-right font-medium text-orange-600">
+                                        {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
+                                      </td>
+                                      <td className={`p-3 text-right font-medium ${
+                                        stockStatus === 'sufficient' ? 'text-green-600' :
+                                        stockStatus === 'low' ? 'text-yellow-600' :
+                                        'text-red-600'
                                       }`}>
-                                        <td className="p-3 font-mono text-blue-600 font-medium">
-                                          {componentItemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(componentItemNo); }}>{componentItemNo}</span> : '—'}
-                                        </td>
-                                        <td className="p-3 text-gray-700">
-                                          {description}
-                                        </td>
-                                        <td className="p-3 text-right font-medium">
-                                          {requiredQty > 0 ? requiredQty.toLocaleString() : '—'}
-                                        </td>
-                                        <td className="p-3 text-right font-medium text-green-600">
-                                          {issuedQty > 0 ? issuedQty.toLocaleString() : '—'}
-                                        </td>
-                                        <td className="p-3 text-right font-medium text-orange-600">
-                                          {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
-                                        </td>
-                                        <td className={`p-3 text-right font-medium ${
-                                          stockStatus === 'sufficient' ? 'text-green-600' :
-                                          stockStatus === 'low' ? 'text-yellow-600' :
-                                          'text-red-600'
-                                        }`}>
-                                          {availableStock > 0 ? availableStock.toLocaleString() : '0'}
-                                        </td>
-                                        <td className={`p-3 text-right font-medium font-bold ${
-                                          hasShortage ? 'text-red-600' : 'text-green-600'
-                                        }`}>
-                                          {hasShortage ? `-${shortage.toLocaleString()}` : '✓'}
-                                        </td>
-                                        <td className="p-3 text-right font-mono">
-                                          {unitCost > 0 ? `$${unitCost.toFixed(2)}` : '—'}
-                                        </td>
-                                        <td className="p-3 text-right font-mono font-bold text-green-600">
-                                          {totalCost > 0 ? `$${totalCost.toFixed(2)}` : '—'}
-                                        </td>
-                                        <td className="p-3 text-gray-600">
-                                          {detail.sourceLocation ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(detail.sourceLocation); setShowLocationDetail(true); }}>{detail.sourceLocation}</span> : '—'}
-                                        </td>
-                                        <td className="p-3">
-                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                            stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
+                                        {c.availableStock > 0 ? c.availableStock.toLocaleString() : '0'}
+                                      </td>
+                                      <td className={`p-3 text-right font-medium font-bold ${
+                                        hasShortage ? 'text-red-600' : 'text-green-600'
+                                      }`}>
+                                        {hasShortage ? `-${c.shortage.toLocaleString()}` : '✓'}
+                                      </td>
+                                      <td className="p-3 text-right font-mono">
+                                        {c.materialCost > 0 ? `$${c.materialCost.toFixed(2)}` : '—'}
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-green-600">
+                                        {c.totalCost > 0 ? `$${c.totalCost.toFixed(2)}` : '—'}
+                                      </td>
+                                      <td className="p-3 text-gray-600">
+                                        {c.sourceLocation ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(c.sourceLocation!); setShowLocationDetail(true); }}>{c.sourceLocation}</span> : '—'}
+                                      </td>
+                                      <td className="p-3">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                          stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
                                             stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
                                             'bg-red-100 text-red-700'
                                           }`}>
@@ -3758,22 +3744,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
                               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-3">
                                 {(() => {
-                                  const totalComponents = moDetails.length;
-                                  const totalRequiredQty = moDetails.reduce((sum: number, detail: any) => 
-                                    sum + detail.requiredQty, 0);
-                                  const totalIssuedQty = moDetails.reduce((sum: number, detail: any) => 
-                                    sum + detail.issuedQty, 0);
-                                  const totalCost = moDetails.reduce((sum: number, detail: any) => 
-                                    sum + detail.totalCost, 0);
-
-                                  // Calculate stock shortages
-                                  const componentsWithShortage = moDetails.filter((detail: any) => {
-                                    const componentItemNo = detail.componentItemNo;
-                                    const remainingQty = detail.requiredQty - detail.issuedQty;
-                                    const inventoryItem = inventoryItems.find((item: any) => item['Item No.'] === componentItemNo);
-                                    const availableStock = parseFloat(inventoryItem?.['Available'] || inventoryItem?.['On Hand'] || 0);
-                                    return remainingQty > availableStock;
-                                  }).length;
+                                  const totalComponents = moView.components.length;
+                                  const totalRequiredQty = moView.components.reduce((sum, c) => sum + c.requiredQty, 0);
+                                  const totalIssuedQty = moView.components.reduce((sum, c) => sum + c.releasedQty, 0);
+                                  const totalCost = moView.components.reduce((sum, c) => sum + c.totalCost, 0);
+                                  const componentsWithShortage = moView.components.filter((c) => c.shortage > 0).length;
 
                                   return (
                                     <>
@@ -3806,8 +3781,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </div>
                           </div>
                           </>
-                        );
-                      })()}
+                        )}
                     </div>
                   )}
 
@@ -3820,17 +3794,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <h4 className="font-semibold text-purple-900">Manufacturing Operations & Routing</h4>
                         </div>
                         <p className="text-sm text-purple-700">
-                          Work centers, operations, and routing details for MO #{selectedMO['Mfg. Order No.']}
+                          Work centers, operations, and routing details for MO #{moView.moNo}
                         </p>
                       </div>
 
                       {(() => {
                         // Get MO Routings from real data
                         const moRoutings = (data['ManufacturingOrderRoutings.json'] || []).filter((routing: any) => 
-                          routing['Mfg. Order No.'] === selectedMO['Mfg. Order No.']
+                          routing['Mfg. Order No.'] === moView.moNo
                         );
 
-                        console.log('⚙️ MO Routings for', selectedMO['Mfg. Order No.'], ':', moRoutings);
+                        console.log('⚙️ MO Routings for', moView.moNo, ':', moRoutings);
 
                         if (moRoutings.length === 0) {
                           return (
@@ -3951,9 +3925,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="space-y-6">
                       {(() => {
                         // Extract SO number from multiple sources
-                        const directSONo = selectedMO['Sales Order No.'] || selectedMO['SalesOrderNo'] || selectedMO['SO No.'];
-                        const description = selectedMO['Description'] || '';
-                        const moNo = selectedMO['Mfg. Order No.'] || '';
+                        const directSONo = moView.salesOrderNo || moView.rawHeader?.['SalesOrderNo'] || moView.rawHeader?.['SO No.'];
+                        const description = moView.buildItemDesc || moView.rawHeader?.['Description'] || '';
+                        const moNo = moView.moNo || '';
                         
                         // Try to extract SO number from description with multiple patterns
                         // Patterns: "SO 3130", "SO3130", "SO#3130", "Sales Order 3130", "S.O. 3130", "for SO 3130", etc.
@@ -4245,14 +4219,90 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       })()}
                     </div>
                   )}
+
+                  {/* MO Transactions Tab */}
+                  {moActiveTab === 'transactions' && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-slate-600">Transactions for MO #{moView.moNo}</div>
+                      {!moTransactionView.hasData ? (
+                        <p className="p-4 text-slate-500 text-sm">No transactions for this MO. Include MILOGH.CSV with Mfg. Order No. reference.</p>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Type</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200">{moTransactionView.rows.map((tx, i) => (
+                              <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                                <td className="px-4 py-2 text-slate-800">{formatDisplayDate(tx.date) || '—'}</td>
+                                <td className="px-4 py-2">{tx.type || '—'}</td>
+                                <td className="px-4 py-2 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => tx.itemNo && openItemById(tx.itemNo)}>{tx.itemNo || '—'}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{tx.qty.toLocaleString()}</td>
+                                <td className="px-4 py-2 font-mono text-slate-600">{tx.location || '—'}</td>
+                                <td className="px-4 py-2 text-slate-600">{tx.user || '—'}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                          {moTransactionView.totalCount > 200 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 200 of {moTransactionView.totalCount}</div>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* MO Lots Tab (build item lots) */}
+                  {moActiveTab === 'lots' && (
+                    <div className="space-y-6">
+                      <div className="text-sm text-slate-600">Lots for build item {moView.buildItemNo}</div>
+                      {!moItemLotSummaryView.hasData ? (
+                        <p className="p-4 text-slate-500 text-sm">No lot/serial records for this build item.</p>
+                      ) : (
+                        <>
+                          {moItemLotSummaryView.lots.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Lot summary</h4>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Lot No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Total Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Last Move</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Expiry</th></tr></thead>
+                                  <tbody className="divide-y divide-slate-200">{moItemLotSummaryView.lots.map((l, i) => (
+                                    <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { setSelectedLotId(l.lotNo); setShowLotDetail(true); setShowMODetails(false); }}>
+                                      <td className="px-4 py-2 font-mono text-blue-600 underline decoration-blue-600/50">{l.lotNo}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums">{l.totalQty.toLocaleString()}</td>
+                                      <td className="px-4 py-2 text-slate-800">{formatDisplayDate(l.lastMoveDate) || '—'}</td>
+                                      <td className="px-4 py-2 text-slate-700">{l.expiry || '—'}</td>
+                                    </tr>
+                                  ))}</tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                          {moItemLotSummaryView.serialRows.length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Serial/Lot detail</h4>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Lot No.</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Serial No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th></tr></thead>
+                                  <tbody className="divide-y divide-slate-200">{moItemLotSummaryView.serialRows.slice(0, 50).map((r, i) => (
+                                    <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (r.lotNo) { setSelectedLotId(r.lotNo); setShowLotDetail(true); setShowMODetails(false); } }}>
+                                      <td className="px-4 py-2 font-mono text-blue-600 underline decoration-blue-600/50">{r.lotNo || '—'}</td>
+                                      <td className="px-4 py-2 font-mono text-slate-800">{r.serialNo || '—'}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums">{r.qty.toLocaleString()}</td>
+                                    </tr>
+                                  ))}</tbody>
+                                </table>
+                                {moItemLotSummaryView.serialRows.length > 50 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 50 of {moItemLotSummaryView.serialRows.length}</div>}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Enhanced Purchase Order Details Modal */}
-          {showPODetails && selectedPO && (
+          {/* Enhanced Purchase Order Details Modal - uses poView when available */}
+          {showPODetails && (poView || selectedPO) && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
                 {/* Decorative gradient overlay */}
@@ -4269,9 +4319,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div>
                         <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Order Details</h3>
                         <p className="text-blue-100 text-base mt-1.5 font-medium">
-                          PO #{selectedPO['PO No.'] ?? selectedPO['pohId']} - {(() => { const supl = (selectedPO['Supplier No.'] ?? selectedPO['Name'] ?? selectedPO['suplId'] ?? selectedPO['Vendor No.'] ?? '').toString(); return supl ? <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); setSelectedSuplId(supl); setShowSupplierDetail(true); }}>{supl}</span> : 'Unknown Supplier'; })()}
-                          {selectedPO['Description'] && (
-                            <span className="ml-3 text-blue-200">• {selectedPO['Description']}</span>
+                          PO #{poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId']} - {(() => { const supl = (poView?.vendorNo ?? poView?.vendorName ?? selectedPO?.['Supplier No.'] ?? selectedPO?.['Name'] ?? selectedPO?.['suplId'] ?? selectedPO?.['Vendor No.'] ?? '').toString(); return supl ? <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); setSelectedSuplId(supl); setShowSupplierDetail(true); }}>{supl}</span> : 'Unknown Supplier'; })()}
+                          {poView?.rawHeader?.['Description'] && (
+                            <span className="ml-3 text-blue-200">• {poView.rawHeader['Description']}</span>
                           )}
                         </p>
                         <p className="text-blue-200/90 text-xs mt-1.5">Click supplier or item # to see more.</p>
@@ -4344,22 +4394,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
                               <span className="text-xs font-semibold text-gray-700">Status:</span>
                               <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
-                                selectedPO['Status'] === 0 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
-                                selectedPO['Status'] === 1 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
-                                selectedPO['Status'] === 2 ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white' :
-                                selectedPO['Status'] === 3 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' :
+                                (poView?.status ?? selectedPO?.['Status']) === 0 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                                (poView?.status ?? selectedPO?.['Status']) === 1 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
+                                (poView?.status ?? selectedPO?.['Status']) === 2 ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white' :
+                                (poView?.status ?? selectedPO?.['Status']) === 3 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' :
                                 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
                               }`}>
-                                {selectedPO['Status'] === 0 ? 'Open' :
-                                 selectedPO['Status'] === 1 ? 'Pending' :
-                                 selectedPO['Status'] === 2 ? 'Closed' :
-                                 selectedPO['Status'] === 3 ? 'Cancelled' : 'Unknown'}
+                                {(poView?.status ?? selectedPO?.['Status']) === 0 ? 'Open' :
+                                 (poView?.status ?? selectedPO?.['Status']) === 1 ? 'Pending' :
+                                 (poView?.status ?? selectedPO?.['Status']) === 2 ? 'Closed' :
+                                 (poView?.status ?? selectedPO?.['Status']) === 3 ? 'Cancelled' : 'Unknown'}
                               </span>
                             </div>
-                            {selectedPO['Revision'] && (
+                            {(poView?.rawHeader?.['Revision'] ?? selectedPO?.['Revision']) && (
                               <div className="mt-2 flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                                 <span className="text-xs font-semibold text-gray-700">Revision:</span>
-                                <span className="font-bold text-xs text-gray-900">{selectedPO['Revision']}</span>
+                                <span className="font-bold text-xs text-gray-900">{poView?.rawHeader?.['Revision'] ?? selectedPO?.['Revision']}</span>
                               </div>
                             )}
                           </div>
@@ -4378,7 +4428,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="space-y-1.5">
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
                                 <span className="text-xs font-semibold text-gray-700">Total Amount:</span>
-                                <span className="font-bold text-sm text-gray-900">${(parseFloat(selectedPO['Total Amount'] || selectedPO['Total'] || 0)).toFixed(2)}</span>
+                                <span className="font-bold text-sm text-gray-900">${(poView?.totalValue ?? parseFloat(selectedPO?.['Total Amount'] || selectedPO?.['Total'] || 0)).toFixed(2)}</span>
                               </div>
                               <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
                                 <span className="text-xs font-semibold text-gray-700">Invoiced:</span>
@@ -4926,8 +4976,59 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Lot detail drilldown (MISLHIST, MISLTH, MISLTD, MISLBINQ) */}
-          {showLotDetail && selectedLotId && (
+          {/* Lot detail drilldown - uses lotTraceView */}
+          {showLotDetail && selectedLotId && (lotTraceView ? (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800">Lot: {lotTraceView.lotNo}</h3>
+                  <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="overflow-y-auto p-6 flex-1">
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 cursor-pointer hover:bg-blue-50" onClick={() => { if (lotTraceView.parentItemNo) { openItemById(lotTraceView.parentItemNo); setShowLotDetail(false); setSelectedLotId(null); } }}><div className="text-xs font-semibold text-slate-500 uppercase">Parent Item</div><div className="font-mono font-medium text-blue-600 underline">{lotTraceView.parentItemNo ?? '—'}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Parent desc</div><div className="text-slate-800 truncate">{lotTraceView.parentItemDesc ?? '—'}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">First movement</div><div className="text-slate-800">{formatDisplayDate(lotTraceView.movements[lotTraceView.movements.length - 1]?.date) || '—'}</div></div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Current qty (bins)</div><div className="font-medium tabular-nums">{lotTraceView.totalQty.toLocaleString()}</div></div>
+                    </div>
+                    {lotTraceView.qtyByBin.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Qty by location/bin</h4>
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Bin</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200">{lotTraceView.qtyByBin.map((r, i) => (
+                              <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-2 font-mono">{r.location || '—'}</td><td className="px-4 py-2 font-mono">{r.bin || '—'}</td><td className="px-4 py-2 text-right tabular-nums">{r.qty.toLocaleString()}</td></tr>
+                            ))}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {lotTraceView.movements.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Movement history</h4>
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th></tr></thead>
+                            <tbody className="divide-y divide-slate-200">{lotTraceView.movements.slice(0, 100).map((r, i) => (
+                              <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                                <td className="px-4 py-2 text-slate-800">{formatDisplayDate(r.date) || '—'}</td>
+                                <td className="px-4 py-2 font-mono">{r.userId ?? '—'}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{(r.qty ?? 0).toLocaleString()}</td>
+                                <td className="px-4 py-2 font-mono">{r.raw?.['Location No.'] ?? r.raw?.['locId'] ?? '—'}</td>
+                              </tr>
+                            ))}</tbody>
+                          </table>
+                          {lotTraceView.movements.length > 100 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 100 of {lotTraceView.movements.length}</div>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
@@ -4935,49 +5036,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
-                  {(() => {
-                    const lotHist = (data['MISLHIST.json'] || data['LotSerialHistory.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
-                    const lotMovements = (data['LotSerialHistory.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
-                    const movements = lotHist.length > 0 ? lotHist : lotMovements;
-                    const binQty = (data['MISLBINQ.json'] || []).filter((r: any) => (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim() === (selectedLotId || '').toString().trim());
-                    const prntItem = movements.length > 0 ? (movements[0]['Parent Item No.'] ?? movements[0]['prntItemId'] ?? movements[0]['Item No.'] ?? movements[0]['itemId']) : null;
-                    const firstDate = movements.length > 0 ? (movements[movements.length - 1]['Transaction Date'] ?? movements[movements.length - 1]['tranDate'] ?? movements[movements.length - 1]['tranDt']) : null;
-                    const firstUser = movements.length > 0 ? (movements[movements.length - 1]['User'] ?? movements[movements.length - 1]['userId']) : null;
-                    const sorted = [...movements].sort((a: any, b: any) => (b['Transaction Date'] ?? b['tranDate'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['tranDate'] ?? '').toString()));
-                    return (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Parent Item</div><div className="font-mono font-medium text-slate-900">{prntItem ?? '—'}</div></div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">First movement</div><div className="text-slate-800">{formatDisplayDate(firstDate) || '—'}</div></div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Created by</div><div className="font-mono text-slate-800">{firstUser ?? '—'}</div></div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500 uppercase">Current qty (bins)</div><div className="font-medium tabular-nums">{binQty.reduce((s: number, r: any) => s + parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0), 0).toLocaleString()}</div></div>
-                        </div>
-                        {sorted.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-semibold text-slate-700 mb-2">Movement history</h4>
-                            <div className="rounded-xl border border-slate-200 overflow-hidden">
-                              <table className="w-full text-sm">
-                                <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th></tr></thead>
-                                <tbody className="divide-y divide-slate-200">{sorted.slice(0, 100).map((r: any, i: number) => (
-                                  <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                                    <td className="px-4 py-2 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td>
-                                    <td className="px-4 py-2 font-mono">{r['User'] ?? r['userId'] ?? '—'}</td>
-                                    <td className="px-4 py-2 text-right tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
-                                    <td className="px-4 py-2 font-mono">{r['Location No.'] ?? r['locId'] ?? '—'}</td>
-                                  </tr>
-                                ))}</tbody>
-                              </table>
-                              {sorted.length > 100 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 100 of {sorted.length}</div>}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div className="text-center py-12 text-slate-500">No lot data found for this lot number.</div>
                 </div>
               </div>
             </div>
-          )}
+          ))}
 
           {/* Supplier detail drilldown (MISUPL + POs by suplId) */}
           {showSupplierDetail && selectedSuplId && (
@@ -6510,6 +6573,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </button>
                     )}
                   {/* Lot history - portal + optional Full Company Data */}
+                    {dataCatalog.hasLotTrace && (
                     <button
                       type="button"
                       disabled={lotHistoryLoading}
@@ -6539,6 +6603,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     >
                       {lotHistoryLoading ? '…' : 'Lot history'}
                     </button>
+                    )}
+                    {dataCatalog.hasTransactions && (
+                    <button
+                      onClick={() => setShowTransactionExplorer(!showTransactionExplorer)}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showTransactionExplorer ? 'bg-violet-600 text-white shadow-md' : 'bg-white text-violet-600 hover:bg-violet-50 border border-violet-200'
+                      }`}
+                      title="Inventory Log - search by item, MO, lot, date"
+                    >
+                      <Activity className="w-4 h-4" />
+                      Inventory Log
+                    </button>
+                    )}
                     <button 
                       onClick={() => setShowBomCart(!showBomCart)}
                       className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
@@ -6649,6 +6726,47 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           {inventoryByLotList.length > 50 && <p className="text-xs text-slate-500 p-1">+ {inventoryByLotList.length - 50} more</p>}
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+                {/* Transaction Explorer (Inventory Log) - indexed search */}
+                {showTransactionExplorer && (
+                  <div className="px-6 py-3 border-t border-violet-200 bg-violet-50/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-violet-800">Inventory Log</span>
+                      <button type="button" onClick={() => setShowTransactionExplorer(false)} className="text-violet-600 hover:text-violet-800 text-sm font-medium">Close</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <input type="text" placeholder="Item No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28" value={txExplorerFilters.itemNo ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, itemNo: e.target.value || undefined }))} />
+                      <input type="text" placeholder="MO/PO ref" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28" value={txExplorerFilters.docRef ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, docRef: e.target.value || undefined }))} />
+                      <input type="text" placeholder="Lot No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-24" value={txExplorerFilters.lot ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, lot: e.target.value || undefined }))} />
+                      <input type="text" placeholder="Serial No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-24" value={txExplorerFilters.serial ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, serial: e.target.value || undefined }))} />
+                      <input type="date" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg" value={txExplorerFilters.dateFrom ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, dateFrom: e.target.value || undefined }))} />
+                      <span className="text-slate-400">to</span>
+                      <input type="date" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg" value={txExplorerFilters.dateTo ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, dateTo: e.target.value || undefined }))} />
+                    </div>
+                    <div className="overflow-x-auto max-h-60 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                      {!txExplorerView.hasData ? (
+                        <p className="p-4 text-slate-500 text-sm">No transactions. Include MILOGH.CSV or LotSerialHistory in Full Company Data.</p>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 sticky top-0"><tr><th className="text-left p-2 font-medium text-slate-600">Date</th><th className="text-left p-2 font-medium text-slate-600">Type</th><th className="text-left p-2 font-medium text-slate-600">Item</th><th className="text-right p-2 font-medium text-slate-600">Qty</th><th className="text-left p-2 font-medium text-slate-600">Loc</th><th className="text-left p-2 font-medium text-slate-600">Ref</th><th className="text-left p-2 font-medium text-slate-600">User</th></tr></thead>
+                          <tbody>
+                            {txExplorerView.rows.map((tx, i) => (
+                              <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                <td className="p-2 text-slate-700">{formatDisplayDate(tx.date) || '—'}</td>
+                                <td className="p-2">{tx.type || '—'}</td>
+                                <td className="p-2 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => tx.itemNo && openItemById(tx.itemNo)}>{tx.itemNo || '—'}</td>
+                                <td className="p-2 text-right tabular-nums">{tx.qty.toLocaleString()}</td>
+                                <td className="p-2 font-mono text-slate-600">{tx.location || '—'}</td>
+                                <td className="p-2 font-mono text-slate-600">{tx.reference || '—'}</td>
+                                <td className="p-2 text-slate-600">{tx.user || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      {txExplorerView.totalCount > 300 && <p className="text-xs text-slate-500 p-2 border-t">Showing 300 of {txExplorerView.totalCount}</p>}
                     </div>
                   </div>
                 )}
@@ -7823,7 +7941,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   }
                   
                   // Check if item is assembled (PERFORMANCE: using pre-computed Set)
-                  const isAssembled = assembledItemsSet.has(item["Item No."]);
+                  const isAssembled = assembledItemsSet.has((item["Item No."] ?? "").toString().trim().toUpperCase());
                   
                   // Status colors - accent on left border + stock number
                   const stockTextColor = stock <= 0 
@@ -8630,28 +8748,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         </div>
       </div>
 
-      {/* ITEM DETAILS MODAL - Clean Redesign */}
-      {showItemModal && selectedItem && (() => {
-        // Resolve full item from data so we always show correct info (table row may be partial)
-        const itemNo = selectedItem['Item No.'] || 'Unknown';
+      {/* ITEM DETAILS MODAL - Uses itemView (data contract layer) */}
+      {showItemModal && itemView && (() => {
+        const iv = itemView;
+        const itemNo = iv.itemNo;
         const itemNoUpper = itemNo.toString().trim().toUpperCase();
-        const itemsSource = data['CustomAlert5.json'] || data['Items.json'] || [];
-        const fullItem = (Array.isArray(itemsSource) && itemsSource.find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper)) || selectedItem;
-        const item = fullItem;
+        const item = iv.rawItem;
 
-        const description = item['Description'] || 'No description';
-        const isAssembled = assembledItemsSet.has(itemNo);
+        const description = iv.description || 'No description';
+        const isAssembled = assembledItemsSet.has(itemNoUpper);
 
-        const currentStock = parseStockValue(item['On Hand'] || item['Stock'] || item['totQStk'] || 0);
-        const currentWIP = parseStockValue(item['WIP'] || item['totQWip'] || 0);
-        const reserve = parseStockValue(item['Reserve'] || item['totQRes'] || 0);
-        const onOrder = parseStockValue(item['On Order'] || item['Qty On Order'] || item['totQOrd'] || 0);
-        const reorderLevel = parseStockValue(item['Reorder Level'] || item['Minimum'] || item['reordPoint'] || 0);
-        const reorderQty = parseStockValue(item['Reorder Quantity'] || item['Reorder Qty'] || item['reordQty'] || 0);
+        const currentStock = iv.stock;
+        const currentWIP = iv.wip;
+        const reserve = iv.reserve;
+        const onOrder = iv.onOrder;
+        const reorderLevel = iv.reorderLevel;
+        const reorderQty = iv.reorderQuantity;
         const lotSize = parseStockValue(item['Lot Size'] || item['lotSize'] || 0);
-        const unitCost = parseCostValue(item['Unit Cost'] || item['Recent Cost'] || item['Standard Cost'] || item['unitCost'] || 0);
-        const standardCost = parseCostValue(item['Standard Cost'] || item['stdCost'] || 0);
-        const recentCost = parseCostValue(item['Recent Cost'] || item['lastCost'] || 0);
+        const unitCost = iv.recentCost || iv.standardCost || iv.unitCost || 0;
+        const standardCost = iv.standardCost;
+        const recentCost = iv.recentCost;
         const averageCost = parseCostValue(item['Average Cost'] || item['avgCost'] || 0);
         const totalValue = currentStock * unitCost;
         
@@ -8703,12 +8819,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           return matches.length;
         })();
         
-        const bomWhereUsedCount = (() => {
-          const bomDetails = data['BillOfMaterialDetails.json'] || [];
-          return bomDetails.filter((bom: any) =>
-            (bom['Component Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-          ).length;
-        })();
+        const bomWhereUsedCount = (indexes.bomWhereUsedByComponent.get(itemNoUpper) ?? []).length;
         
         const stockOwnership = getStockByOwnership(itemNo, data);
         const hasCustomerStock = stockOwnership.customerStock > 0;
@@ -8738,7 +8849,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           { title: 'Inventory & history', items: [
             { id: 'stock-movement', label: 'Stock movement', icon: <Activity className="w-4 h-4" /> },
             { id: 'history', label: 'History', icon: <Clock className="w-4 h-4" /> },
-            { id: 'sl-numbers', label: 'Serial / lot numbers', icon: <Hash className="w-4 h-4" /> },
+            ...(dataCatalog.hasLotTrace ? [{ id: 'sl-numbers', label: 'Serial / lot numbers', icon: <Hash className="w-4 h-4" /> }] : []),
             { id: 'locations', label: 'Locations', icon: <MapPin className="w-4 h-4" /> },
           ]},
           { title: 'Other', items: [
@@ -8889,26 +9000,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== STOCK TAB (MIILOCQT location breakdown + MIBINQ bins when available) ===== */}
+              {/* ===== STOCK TAB (itemView.stockByLocation + itemView.bins) ===== */}
               {itemModalActiveView === 'stock' && (() => {
-                const locQt = (data['MIILOCQT.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
-                const byLoc = locQt.length > 0 ? (() => {
-                  const latest: Record<string, { onHand: number; wip: number; reserve: number; onOrder: number }> = {};
-                  locQt.forEach((r: any) => {
-                    const loc = (r['Location No.'] || r['locId'] || '').toString();
-                    const dateKey = (r['Date ISO'] || r['dateISO'] || r['Date'] || '').toString();
-                    if (!loc) return;
-                    const onHand = parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0);
-                    const wip = parseStockValue(r['WIP'] ?? r['qWip'] ?? 0);
-                    const res = parseStockValue(r['Reserve'] ?? r['qRes'] ?? 0);
-                    const ord = parseStockValue(r['On Order'] ?? r['qOrd'] ?? 0);
-                    if (!latest[loc] || dateKey > (latest[loc] as any)._date) {
-                      (latest[loc] as any) = { onHand, wip, reserve: res, onOrder: ord, _date: dateKey };
-                    }
-                  });
-                  return Object.entries(latest).map(([loc, v]) => ({ location: loc, ...v }));
-                })() : [];
-                const bins = (data['MIBINQ.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
+                const byLoc = iv.stockByLocation;
+                const bins = iv.bins;
                 return (
                 <div className="space-y-6">
                   <div>
@@ -8927,7 +9022,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">WIP</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Reserve</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Order</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{byLoc.map((row: any, i: number) => (
+                          <tbody className="divide-y divide-slate-200 bg-white">{byLoc.map((row, i) => (
                             <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { setSelectedLocId(row.location || null); setShowLocationDetail(true); }}><td className="px-4 py-3 font-mono font-medium text-blue-600 underline decoration-blue-600/50">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
                           ))}</tbody>
                         </table>
@@ -8940,13 +9035,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Bin</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">On Hand</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{bins.slice(0, 50).map((row: any, i: number) => {
-                            const loc = (row['Location No.'] ?? row['locId'] ?? '').toString();
-                            const bin = (row['Bin No.'] ?? row['binId'] ?? '').toString();
-                            return (
-                            <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (loc && bin) { setSelectedBinLocId(loc); setSelectedBinId(bin); setShowBinDetail(true); } }}><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{loc || '—'}</td><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{bin || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(row['On Hand'] ?? row['qStk'] ?? 0).toLocaleString()}</td></tr>
-                            );
-                          })}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{bins.slice(0, 50).map((row, i) => (
+                            <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (row.location && row.bin) { setSelectedBinLocId(row.location); setSelectedBinId(row.bin); setShowBinDetail(true); } }}><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{row.location || '—'}</td><td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{row.bin || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand.toLocaleString()}</td></tr>
+                          ))}</tbody>
                         </table>
                         {bins.length > 50 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 50 of {bins.length} bins</div>}
                       </div>
@@ -8966,10 +9057,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== COSTS TAB (snapshot + MIICST cost history when available) ===== */}
+              {/* ===== COSTS TAB (itemView.costHistory - already sorted) ===== */}
               {itemModalActiveView === 'costs' && (() => {
-                const costHistory = (data['MIICST.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
-                const sortedCosts = [...costHistory].sort((a: any, b: any) => (b['Transaction Date'] ?? b['transDate'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['transDate'] ?? '').toString()));
+                const sortedCosts = iv.costHistory;
                 return (
                 <div className="space-y-6">
                   <div>
@@ -8991,13 +9081,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Cost</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r: any, i: number) => {
-                            const locVal = (r['Location No.'] ?? r['locId'] ?? '').toString().trim();
-                            const poVal = (r['PO No.'] ?? r['poId'] ?? '').toString().trim();
-                            return (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['transDt'] ?? r['transDate']) || '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(parseCostValue(r['Cost'] ?? r['cost'] ?? 0))}</td><td className="px-4 py-3 font-mono text-slate-600">{poVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); openPOById(poVal); }}>{poVal}</span> : '—'}</td><td className="px-4 py-3 text-right tabular-nums">{parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0).toLocaleString()}</td></tr>
-                            );
-                          })}</tbody>
+                          <tbody className="divide-y divide-slate-200 bg-white">{sortedCosts.slice(0, 100).map((r, i) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}><td className="px-4 py-3 text-slate-800">{formatDisplayDate(r.date) || '—'}</td><td className="px-4 py-3 font-mono text-slate-700">{r.location ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); setSelectedLocId(r.location!); setShowLocationDetail(true); }}>{r.location}</span> : '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(r.cost)}</td><td className="px-4 py-3 font-mono text-slate-600">{r.poNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); openPOById(r.poNo!); }}>{r.poNo}</span> : '—'}</td><td className="px-4 py-3 text-right tabular-nums">{(r.qtyReceived ?? 0).toLocaleString()}</td></tr>
+                          ))}</tbody>
                         </table>
                         {sortedCosts.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sortedCosts.length}</div>}
                       </div>
@@ -9445,11 +9531,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== BOM WHERE USED TAB (item as component in parent BOMs) ===== */}
+              {/* ===== BOM WHERE USED TAB (item as component in parent BOMs) - uses indexes ===== */}
               {itemModalActiveView === 'bom-where-used' && (() => {
-                const bomWhereUsedRows = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) =>
-                  (bom['Component Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-                );
+                const bomWhereUsedRows = indexes.bomWhereUsedByComponent.get(itemNoUpper) ?? [];
                 const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
                 const getParentDescription = (parentItemNo: string) => {
                   const item = itemsData.find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (parentItemNo || '').toString().trim().toUpperCase());
@@ -9490,7 +9574,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== BOM TAB (for assembled items) ===== */}
+              {/* ===== BOM TAB (for assembled items) - uses bomView ===== */}
               {itemModalActiveView === 'bom' && (() => {
                 if (!isAssembled) {
                   return (
@@ -9503,11 +9587,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   );
                 }
-                const bomDetails = (data['BillOfMaterialDetails.json'] || []).filter((bom: any) => 
-                  (bom['Parent Item No.'] || '').toString().trim().toUpperCase() === itemNoUpper
-                );
-                
-                if (bomDetails.length === 0) {
+                const components = bomView?.components ?? [];
+                const itemsDataForBom = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const getComponentDescription = (componentItemNo: string) => {
+                  const fromItems = (itemsDataForBom as any[]).find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (componentItemNo || '').toString().trim().toUpperCase());
+                  return fromItems?.['Description'] || '—';
+                };
+                if (components.length === 0) {
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
                       <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
@@ -9518,28 +9604,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   );
                 }
-
-                const itemsDataForBom = data['CustomAlert5.json'] || data['Items.json'] || [];
-                const getComponentDescription = (componentItemNo: string) => {
-                  const fromItems = (itemsDataForBom as any[]).find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (componentItemNo || '').toString().trim().toUpperCase());
-                  return fromItems?.['Description'] || '—';
-                };
                 return (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Summary</h3>
-                      <div className="rounded-xl border border-orange-200 bg-orange-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Components</div><div className="text-2xl font-bold text-orange-600">{bomDetails.length}</div></div>
+                      <div className="flex flex-wrap gap-3 items-center">
+                        <div className="rounded-xl border border-orange-200 bg-orange-50/80 p-4 shadow-sm inline-block"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Components</div><div className="text-2xl font-bold text-orange-600">{components.length}</div></div>
+                        {bomView?.revision && <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><span className="text-xs text-slate-500">Rev:</span> <span className="font-mono font-medium text-slate-700">{bomView.revision}</span></div>}
+                        {bomView?.buildQuantity != null && bomView.buildQuantity > 0 && <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><span className="text-xs text-slate-500">Build Qty:</span> <span className="font-mono font-medium text-slate-700">{bomView.buildQuantity.toLocaleString()}</span></div>}
+                      </div>
                     </div>
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">BOM components</h3>
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Component</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Description</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Qty Per</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{bomDetails.map((bom: any, index: number) => {
-                            const compNo = (bom['Component Item No.'] ?? bom['partId'] ?? '').toString().trim();
-                            const desc = bom['Description'] || getComponentDescription(compNo);
+                          <tbody className="divide-y divide-slate-200 bg-white">{components.map((c, index: number) => {
+                            const compNo = c.componentItemNo;
+                            const desc = (c.raw?.['Description'] ?? c.comment ?? getComponentDescription(compNo));
                             return (
-                              <tr key={index} className={`${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => compNo && openItemById(compNo)}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{compNo ? <span className="text-blue-600 underline decoration-blue-600/50">{compNo}</span> : '—'}</td><td className="px-4 py-3 text-slate-700">{desc || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(bom['Quantity Per'] || bom['Qty Per'] || 1)}</td></tr>
+                              <tr key={index} className={`${index % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => compNo && openItemById(compNo)}><td className="px-4 py-3 font-mono text-orange-600 font-medium">{compNo ? <span className="text-blue-600 underline decoration-blue-600/50">{compNo}</span> : '—'}</td><td className="px-4 py-3 text-slate-700">{desc || '—'}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{c.requiredQty.toLocaleString()}</td></tr>
                             );
                           })}</tbody>
                         </table>
@@ -9590,18 +9674,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== STOCK MOVEMENT TAB (MILOGH inventory log first, then LotSerialHistory / MISLTH) ===== */}
+              {/* ===== STOCK MOVEMENT TAB (itemView.transactions + lotHistory) ===== */}
               {itemModalActiveView === 'stock-movement' && (() => {
-                const logMovements = (data['MILOGH.json'] || []).filter((r: any) => {
-                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
-                  return id === itemNoUpper || id === 'P-' + itemNoUpper;
-                });
-                const lotMovements = (data['LotSerialHistory.json'] || []).filter((r: any) =>
-                  (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper
-                );
-                const movements = logMovements.length > 0 ? logMovements : lotMovements;
-                const sourceLabel = logMovements.length > 0 ? 'MILOGH' : 'MISLTH';
-                if (movements.length === 0) {
+                const rows = iv.transactions.length > 0 ? iv.transactions : iv.mergedHistory;
+                const sourceLabel = iv.transactions.length > 0 ? 'MILOGH' : 'MISLTH';
+                if (rows.length === 0) {
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
                       <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
@@ -9612,37 +9689,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   );
                 }
-                const sorted = [...movements].sort((a: any, b: any) => {
-                  const da = (a['Transaction Date'] ?? a['tranDate'] ?? a['tranDt'] ?? '').toString();
-                  const db = (b['Transaction Date'] ?? b['tranDate'] ?? b['tranDt'] ?? '').toString();
-                  return db.localeCompare(da);
-                });
                 return (
                   <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-600">Source: <span className="font-semibold">{sourceLabel}</span> · {sorted.length} records</div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-600">Source: <span className="font-semibold">{sourceLabel}</span> · {rows.length} records</div>
                     <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200">
                           <tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">PO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">{sorted.slice(0, 200).map((m: any, i: number) => {
-                          const poVal = (m['PO No.'] ?? m['xvarPOId'] ?? '').toString().trim();
-                          const moVal = (m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '').toString().trim();
-                          const locVal = (m['Location No.'] ?? m['locId'] ?? '').toString().trim();
-                          return (
+                        <tbody className="divide-y divide-slate-200 bg-white">{rows.slice(0, 200).map((m: any, i: number) => (
                           <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td>
-                            <td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-slate-700">{poVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openPOById(poVal); }}>{poVal}</span> : '—'}</td>
-                            <td className="px-4 py-3 font-mono text-slate-700">{moVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(moVal); }}>{moVal}</span> : '—'}</td>
-                            <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m.date ?? m['Transaction Date'] ?? m['tranDate']) || '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m.userId ?? m['User'] ?? m['userId'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m.type ?? m['Type'] ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium tabular-nums">{(m.qty ?? m['Quantity'] ?? m['qty'] ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{(m.poNo ?? m['PO No.'] ?? m['xvarPOId'] ?? '') ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openPOById(m.poNo ?? m['PO No.'] ?? m['xvarPOId']); }}>{m.poNo ?? m['PO No.'] ?? m['xvarPOId']}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{(m.moNo ?? m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '') ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(m.moNo ?? m['Mfg. Order No.'] ?? m['xvarMOId']); }}>{m.moNo ?? m['Mfg. Order No.'] ?? m['xvarMOId']}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{(m.locId ?? m['Location No.'] ?? m['locId'] ?? '') ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(m.locId ?? m['Location No.'] ?? m['locId']); setShowLocationDetail(true); }}>{m.locId ?? m['Location No.'] ?? m['locId']}</span> : '—'}</td>
                           </tr>
-                          );
-                        })}</tbody>
+                        ))}</tbody>
                       </table>
-                      {sorted.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {sorted.length}</div>}
+                      {rows.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {rows.length}</div>}
                     </div>
                   </div>
                 );
@@ -9804,12 +9871,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== HISTORY TAB (merged MILOGH + LotSerialHistory, sorted by date) ===== */}
+              {/* ===== HISTORY TAB (itemView.mergedHistory) ===== */}
               {itemModalActiveView === 'history' && (() => {
-                const logRows = (data['MILOGH.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
-                const lotRows = (data['LotSerialHistory.json'] || []).filter((r: any) => (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase() === itemNoUpper);
-                const merged = [...logRows.map((r: any) => ({ ...r, _src: 'MILOGH' })), ...lotRows.map((r: any) => ({ ...r, _src: 'MISLTH' }))];
-                const historyRows = merged.sort((a: any, b: any) => (b['Transaction Date'] ?? b['tranDate'] ?? b['tranDt'] ?? '').toString().localeCompare((a['Transaction Date'] ?? a['tranDate'] ?? a['tranDt'] ?? '').toString()));
+                const historyRows = iv.mergedHistory;
                 if (historyRows.length === 0) {
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
@@ -9827,21 +9891,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Source</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Type</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">MO No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m: any, i: number) => {
-                          const moVal = (m['Mfg. Order No.'] ?? m['xvarMOId'] ?? '').toString().trim();
-                          const locVal = (m['Location No.'] ?? m['locId'] ?? '').toString().trim();
-                          return (
+                        <tbody className="divide-y divide-slate-200 bg-white">{historyRows.slice(0, 200).map((m, i) => (
                           <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m['Transaction Date'] ?? m['tranDate'] ?? m['tranDt']) || '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m.date) || '—'}</td>
                             <td className="px-4 py-3 text-slate-500 font-mono text-xs">{m._src ?? '—'}</td>
-                            <td className="px-4 py-3 text-slate-800">{m['User'] ?? m['userId'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-slate-800">{m['Type'] ?? '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(m['Quantity'] ?? m['qty'] ?? m['trnQty'] ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-slate-700">{moVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(moVal); }}>{moVal}</span> : '—'}</td>
-                            <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m.userId ?? '—'}</td>
+                            <td className="px-4 py-3 text-slate-800">{m.type ?? '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium tabular-nums">{(m.qty ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{m.moNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(m.moNo!); }}>{m.moNo}</span> : '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{m.locId ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(m.locId!); setShowLocationDetail(true); }}>{m.locId}</span> : '—'}</td>
                           </tr>
-                          );
-                        })}</tbody>
+                        ))}</tbody>
                       </table>
                       {historyRows.length > 200 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 200 of {historyRows.length}</div>}
                     </div>
@@ -9849,19 +9909,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 );
               })()}
 
-              {/* ===== SL NUMBERS TAB (MISLTD + MISLHIST when available) ===== */}
+              {/* ===== SL NUMBERS TAB - uses itemLotSummaryView ===== */}
               {itemModalActiveView === 'sl-numbers' && (() => {
-                const lotSerials = (data['LotSerialDetail.json'] || []).filter((r: any) => {
-                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
-                  const prnt = (r['Parent Item No.'] || r['prntItemId'] || '').toString().trim().toUpperCase();
-                  return id === itemNoUpper || prnt === itemNoUpper;
-                });
-                const lotHistory = (data['MISLHIST.json'] || []).filter((r: any) => {
-                  const id = (r['Item No.'] || r['itemId'] || '').toString().trim().toUpperCase();
-                  const prnt = (r['Parent Item No.'] || r['prntItemId'] || '').toString().trim().toUpperCase();
-                  return id === itemNoUpper || prnt === itemNoUpper;
-                });
-                if (lotSerials.length === 0 && lotHistory.length === 0) {
+                const slv = itemLotSummaryView;
+                if (!slv.hasData) {
                   return (
                     <div className="rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center py-16 px-6">
                       <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
@@ -9872,15 +9923,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   );
                 }
-                const hasExtraCols = lotSerials.length > 0 && lotSerials.some((r: any) =>
-                  r['Status'] != null || r['Expiration Date'] != null || r['Quantity in Stock'] != null ||
-                  r['Quantity Used'] != null || r['Quantity Received'] != null || r['Scrap Quantity'] != null || r['Description'] != null
-                );
+                const hasExtraCols = slv.serialRows.some((r) => r.description || r.status || r.expiry);
                 return (
                   <div className="space-y-6">
-                  {lotSerials.length > 0 && (
+                  {slv.serialRows.length > 0 && (
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot/Serial detail (MISLTD)</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot/Serial detail</h3>
                     <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-100 border-b border-slate-200">
@@ -9891,25 +9939,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th>}
                           {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Expiration</th>}
                           <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th>
-                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">In Stock</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Used</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Received</th>}
-                          {hasExtraCols && <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Scrap</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 bg-white">
-                        {lotSerials.map((r: any, i: number) => (
-                          <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { const lot = (r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '').toString().trim(); if (lot) { setSelectedLotId(lot); setShowLotDetail(true); } }}>
-                            <td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{r['Lot No.'] ?? r['lotId'] ?? r['SL No.'] ?? '—'}</td>
-                            <td className="px-4 py-3 font-mono text-slate-800">{r['Serial No.'] ?? r['serialNo'] ?? '—'}</td>
-                            {hasExtraCols && <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={r['Description']}>{r['Description'] ?? '—'}</td>}
-                            {hasExtraCols && <td className="px-4 py-3"><span className={r['Status'] === 'Active' ? 'text-emerald-600' : 'text-slate-500'}>{r['Status'] ?? '—'}</span></td>}
-                            {hasExtraCols && <td className="px-4 py-3 text-slate-700">{r['Expiration Date'] ?? '—'}</td>}
-                            <td className="px-4 py-3 text-right font-medium">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
-                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity in Stock'] ?? 0).toLocaleString()}</td>}
-                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity Used'] ?? 0).toLocaleString()}</td>}
-                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Quantity Received'] ?? 0).toLocaleString()}</td>}
-                            {hasExtraCols && <td className="px-4 py-3 text-right">{parseStockValue(r['Scrap Quantity'] ?? 0).toLocaleString()}</td>}
+                        {slv.serialRows.map((r, i) => (
+                          <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { if (r.lotNo) { setSelectedLotId(r.lotNo); setShowLotDetail(true); } }}>
+                            <td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{r.lotNo || '—'}</td>
+                            <td className="px-4 py-3 font-mono text-slate-800">{r.serialNo || '—'}</td>
+                            {hasExtraCols && <td className="px-4 py-3 text-slate-700 max-w-[120px] truncate" title={r.description}>{r.description || '—'}</td>}
+                            {hasExtraCols && <td className="px-4 py-3"><span className={r.status === 'Active' ? 'text-emerald-600' : 'text-slate-500'}>{r.status || '—'}</span></td>}
+                            {hasExtraCols && <td className="px-4 py-3 text-slate-700">{r.expiry || '—'}</td>}
+                            <td className="px-4 py-3 text-right font-medium">{r.qty.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -9917,27 +9957,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     </div>
                   )}
-                  {lotHistory.length > 0 && (
+                  {slv.lots.length > 0 && (
                     <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot history (MISLHIST)</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot summary</h3>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Total Qty</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Last Move</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Expiry</th></tr></thead>
+                          <tbody className="divide-y divide-slate-200 bg-white">{slv.lots.map((l, i) => (
+                            <tr key={i} className={`${i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'} cursor-pointer hover:bg-blue-50`} onClick={() => { setSelectedLotId(l.lotNo); setShowLotDetail(true); }}>
+                              <td className="px-4 py-3 font-mono text-blue-600 underline decoration-blue-600/50">{l.lotNo}</td>
+                              <td className="px-4 py-3 text-right font-medium tabular-nums">{l.totalQty.toLocaleString()}</td>
+                              <td className="px-4 py-3 text-slate-800">{formatDisplayDate(l.lastMoveDate) || '—'}</td>
+                              <td className="px-4 py-3 text-slate-700">{l.expiry || '—'}</td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  {slv.lotHistoryRows.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot history</h3>
                       <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-100 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Lot No.</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Date</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">User</th><th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Quantity</th><th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">Location</th></tr></thead>
-                          <tbody className="divide-y divide-slate-200 bg-white">{lotHistory.slice(0, 100).map((r: any, i: number) => {
-                            const lot = (r['Lot No.'] ?? r['lotId'] ?? '').toString().trim();
-                            const locVal = (r['Location No.'] ?? r['locId'] ?? '').toString().trim();
-                            return (
+                          <tbody className="divide-y divide-slate-200 bg-white">{slv.lotHistoryRows.slice(0, 100).map((r, i) => (
                             <tr key={i} className={i % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                              <td className="px-4 py-3 font-mono text-slate-800">{lot ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLotId(lot); setShowLotDetail(true); }}>{lot}</span> : '—'}</td>
-                              <td className="px-4 py-3 text-slate-800">{formatDisplayDate(r['Transaction Date'] ?? r['tranDate'] ?? r['tranDt']) || '—'}</td>
-                              <td className="px-4 py-3 text-slate-800">{r['User'] ?? r['userId'] ?? '—'}</td>
-                              <td className="px-4 py-3 text-right font-medium tabular-nums">{parseStockValue(r['Quantity'] ?? r['qty'] ?? 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 font-mono text-slate-700">{locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal); setShowLocationDetail(true); }}>{locVal}</span> : '—'}</td>
+                              <td className="px-4 py-3 font-mono text-slate-800">{r.lotNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLotId(r.lotNo); setShowLotDetail(true); }}>{r.lotNo}</span> : '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{formatDisplayDate(r.date) || '—'}</td>
+                              <td className="px-4 py-3 text-slate-800">{r.userId || '—'}</td>
+                              <td className="px-4 py-3 text-right font-medium tabular-nums">{r.qty.toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-700">{r.location ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(r.location ?? null); setShowLocationDetail(true); }}>{r.location}</span> : '—'}</td>
                             </tr>
-                            );
-                          })}</tbody>
+                          ))}</tbody>
                         </table>
-                        {lotHistory.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {lotHistory.length}</div>}
+                        {slv.lotHistoryRows.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {slv.lotHistoryRows.length}</div>}
                       </div>
                     </div>
                   )}
