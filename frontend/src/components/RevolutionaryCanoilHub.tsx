@@ -2260,11 +2260,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Manufacturing Orders */}
           {activeSection === 'manufacturing-orders' && (
             <div className="space-y-6">
-              {/* Enterprise Manufacturing Header - Dark Premium */}
-              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-700/50">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-violet-500/15 via-transparent to-transparent"></div>
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-500/15 via-transparent to-transparent"></div>
+              {/* Enterprise Manufacturing Header - Dark Premium (vibrant, not faded) */}
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-600/60">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-violet-500/25 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-500/25 via-transparent to-transparent"></div>
                 <div className="absolute inset-0 opacity-[0.03]" style={{
                   backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
                   backgroundSize: '32px 32px'
@@ -2309,40 +2309,40 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   
                   {/* Enterprise KPI Bar */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-violet-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-violet-500/20 flex items-center justify-center">
-                        <Factory className="w-5 h-5 text-violet-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-violet-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-violet-500/30 flex items-center justify-center">
+                        <Factory className="w-5 h-5 text-violet-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
-                        <div className="text-slate-500 text-xs font-medium">Total Orders</div>
+                        <div className="text-slate-300 text-xs font-semibold">Total Orders</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-emerald-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                        <Activity className="w-5 h-5 text-emerald-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-500/30 flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-emerald-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
-                        <div className="text-slate-500 text-xs font-medium">In Production</div>
+                        <div className="text-slate-300 text-xs font-semibold">In Production</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                        <Calendar className="w-5 h-5 text-amber-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500/30 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-amber-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
-                        <div className="text-slate-500 text-xs font-medium">Awaiting Release</div>
+                        <div className="text-slate-300 text-xs font-semibold">Awaiting Release</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                        <Package2 className="w-5 h-5 text-blue-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/30 flex items-center justify-center">
+                        <Package2 className="w-5 h-5 text-blue-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
-                        <div className="text-slate-500 text-xs font-medium">Total Components</div>
+                        <div className="text-slate-300 text-xs font-semibold">Total Components</div>
                       </div>
                     </div>
                   </div>
@@ -2351,8 +2351,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
               {/* Manufacturing Orders Table - Enterprise */}
               {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
-              <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+              <div className="bg-white shadow-xl rounded-2xl border-2 border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-slate-100 border-b-2 border-slate-200">
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="flex-1 min-w-[280px] relative">
@@ -2362,7 +2362,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               placeholder="Search MO#, Customer, Item, Status, Dates..."
                               value={moSearchQuery}
                               onChange={(e) => { setMoSearchQuery(e.target.value); setMoCurrentPage(1); }}
-                              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white"
+                              className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-lg font-semibold text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 text-sm bg-white"
                             />
                           </div>
                           <select
@@ -2451,34 +2451,34 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                      <thead className="bg-slate-100 sticky top-0 border-b border-slate-200">
+                      <thead className="bg-slate-200 sticky top-0 border-b-2 border-slate-300">
                         <tr>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Mfg. Order No.', 'mo')}>MO # {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[150px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[150px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Customer', 'mo')}>Customer {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Build Item No.', 'mo')}>Build Item {moSortField === 'Build Item No.' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[200px]">Description</th>
-                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[200px]">Description</th>
+                            <th className="text-right px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Ordered', 'mo')}>Ordered {moSortField === 'Ordered' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-right px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Completed', 'mo')}>Done {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-center px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-center px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Status', 'mo')}>Status {moSortField === 'Status' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Order Date', 'mo')}>Order Date {moSortField === 'Order Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Release Date', 'mo')}>Start {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Completion Date', 'mo')}>Complete {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px]">Location</th>
-                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px]">Batch No.</th>
-                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[80px]">Location</th>
+                            <th className="text-left px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[100px]">Batch No.</th>
+                            <th className="text-right px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Projected Material Cost', 'mo')}>Unit Cost {moSortField === 'Projected Material Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[120px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                            <th className="text-right px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[120px] cursor-pointer hover:bg-slate-300/70 transition-colors"
                                 onClick={() => handleSort('Cumulative Cost', 'mo')}>Total {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
-                            <th className="text-center px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[140px]">Actions</th>
+                            <th className="text-center px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[140px]">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2556,7 +2556,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return (
                               <tr 
                                 key={index} 
-                                className={`border-b border-slate-100 transition-colors cursor-pointer hover:bg-slate-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                className={`border-b border-slate-200 transition-colors cursor-pointer hover:bg-violet-50/80 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
                                 onClick={() => {
                                   setSelectedMO(mo);
                                   setShowMODetails(true);
@@ -2564,43 +2564,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 }}
                               >
                                 {/* PRIMARY COLUMNS */}
-                                <td className="p-2 font-mono text-blue-600 font-bold">
+                                <td className="p-3 font-mono text-blue-600 font-bold">
                                   {mo['Mfg. Order No.']}
                                 </td>
-                                <td className="p-2 text-gray-900 font-medium max-w-[150px] truncate">
+                                <td className="p-3 text-slate-900 font-medium max-w-[150px] truncate">
                                   {customerName}
                                 </td>
-                                <td className="p-2 font-mono text-gray-900">
+                                <td className="p-3 font-mono text-slate-900">
                                   {mo['Build Item No.']}
                                 </td>
-                                <td className="p-2 text-gray-700 max-w-[200px] truncate">
+                                <td className="p-3 text-slate-700 max-w-[200px] truncate">
                                   {mo['Non-Stocked Build Item Description'] && mo['Non-Stocked Build Item Description'].trim() ? mo['Non-Stocked Build Item Description'] : mo['Description'] || '—'}
                                 </td>
                                 
                                 {/* QUANTITY & STATUS COLUMNS */}
-                                <td className="p-2 text-right font-mono text-green-600 font-medium">
+                                <td className="p-3 text-right font-mono text-green-600 font-medium">
                                   {mo['Ordered'] > 0 ? mo['Ordered'].toLocaleString() : '—'}
                                 </td>
-                                <td className="p-2 text-right font-mono text-blue-600">
+                                <td className="p-3 text-right font-mono text-blue-600">
                                   {(mo['Completed'] || 0).toLocaleString()}
                                 </td>
-                                <td className="p-2 text-center">
+                                <td className="p-3 text-center">
                                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
                                     {statusInfo.text}
                               </span>
                             </td>
                                 
                                 {/* DATE COLUMNS - Using Real Data */}
-                                <td className="p-2 text-gray-600 text-xs">
+                                <td className="p-3 text-slate-600 text-xs">
                                   {formatDisplayDate(orderDate)}
                                 </td>
-                                <td className="p-2 text-gray-600 text-xs">
+                                <td className="p-3 text-slate-600 text-xs">
                                   {formatDisplayDate(startDate)}
                                   {releaseDate && mo['Released By'] && (
                                     <div className="text-green-600 text-xs">Released by: {mo['Released By']}</div>
                                   )}
                                 </td>
-                                <td className="p-2 text-gray-600 text-xs">
+                                <td className="p-3 text-slate-600 text-xs">
                                   {formatDisplayDate(completionDate)}
                                   {mo['Completed'] > 0 && completionDate && (
                                     <div className="text-green-600 text-xs">✓ Done</div>
@@ -2608,26 +2608,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </td>
                                 
                                 {/* LOCATION & COST COLUMNS - Using Real Data */}
-                                <td className="p-2 text-gray-600">
+                                <td className="p-3 text-slate-600">
                                   {location && location.trim() ? location : '—'}
                                 </td>
-                                <td className="p-2 font-mono text-slate-700 text-xs">
+                                <td className="p-3 font-mono text-slate-700 text-xs">
                                   {(mo['Batch No.'] || mo['Batch Number'] || '').trim() || '—'}
                                 </td>
-                                <td className="p-2 text-right font-mono text-green-600">
+                                <td className="p-3 text-right font-mono text-green-600">
                                   {unitCost > 0 ? `$${unitCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—'}
                                   {actualMaterialCost > 0 && (
                                     <div className="text-blue-600 text-xs">Actual</div>
                                   )}
                                 </td>
-                                <td className="p-2 text-right font-mono text-green-600 font-bold">
+                                <td className="p-3 text-right font-mono text-green-600 font-bold">
                                   {totalCost > 0 ? `$${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 
                                    (quantity > 0 && unitCost > 0) ? `$${(quantity * unitCost).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—'}
                                   {cumulativeCost > 0 && (
                                     <div className="text-purple-600 text-xs">Cumulative</div>
                                   )}
                                 </td>
-                                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                                   {mo['Status'] === 0 && (
                                     <button
                                       type="button"
@@ -2933,14 +2933,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* MO Details Modal - Enterprise layout (matches Item modal) */}
+          {/* MO Details Modal - Enterprise layout (improved) */}
           {showMODetails && moView && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" onClick={() => setShowMODetails(false)} role="dialog" aria-modal="true">
-              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-2 ring-purple-400 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                {/* Enterprise header bar */}
-                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-slate-800 text-white rounded-t-2xl">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowMODetails(false)} role="dialog" aria-modal="true">
+              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl ring-2 ring-violet-500 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                {/* Enterprise header bar - gradient */}
+                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-800 via-violet-900/90 to-slate-800 text-white rounded-t-2xl border-b border-violet-400/30">
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-purple-500/20 text-purple-300">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-violet-500/30 text-white shadow-lg">
                       <Factory className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
@@ -2964,14 +2964,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
+                    <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
                   </div>
                 </div>
 
                 {/* Body: sidebar + content */}
-                <div className="flex-1 flex min-h-0">
+                <div className="flex-1 flex min-h-0 bg-slate-50">
                   {/* Left sidebar nav */}
-                  <aside className="flex-shrink-0 w-56 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+                  <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
                     {[
                       { title: 'Order', items: [
                         { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
@@ -3005,7 +3005,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* Main content area */}
                   <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6">
-                      <div className="bg-white rounded-xl border-2 border-purple-200 shadow-sm overflow-hidden">
+                      <div className="bg-white rounded-xl border-2 border-violet-200 shadow-md overflow-hidden">
                         <div className="p-6">
                   {/* MO Overview Tab - MISys-style */}
                   {moActiveTab === 'overview' && (
@@ -3934,14 +3934,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* PO Details Modal - Enterprise layout (matches Item modal) */}
+          {/* PO Details Modal - Enterprise layout (improved) */}
           {showPODetails && (poView || selectedPO) && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" onClick={() => setShowPODetails(false)} role="dialog" aria-modal="true">
-              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-2 ring-blue-400 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                {/* Enterprise header bar */}
-                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-slate-800 text-white rounded-t-2xl">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowPODetails(false)} role="dialog" aria-modal="true">
+              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl ring-2 ring-blue-500 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                {/* Enterprise header bar - gradient */}
+                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-800 via-blue-900/90 to-slate-800 text-white rounded-t-2xl border-b border-blue-400/30">
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500/20 text-blue-300">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500/30 text-white shadow-lg">
                       <ShoppingBag className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
@@ -3961,14 +3961,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
+                    <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
                   </div>
                 </div>
 
                 {/* Body: sidebar + content */}
-                <div className="flex-1 flex min-h-0">
+                <div className="flex-1 flex min-h-0 bg-slate-50">
                   {/* Left sidebar nav */}
-                  <aside className="flex-shrink-0 w-56 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+                  <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
                     {[
                       { title: 'Order', items: [
                         { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
@@ -3997,7 +3997,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* Main content area */}
                   <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6">
-                      <div className="bg-white rounded-xl border-2 border-blue-200 shadow-sm overflow-hidden">
+                      <div className="bg-white rounded-xl border-2 border-blue-200 shadow-md overflow-hidden">
                         <div className="p-6">
                   {/* PO Overview Tab - MISys-style */}
                   {poActiveTab === 'overview' && (
@@ -4756,11 +4756,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
             <div className="space-y-6">
-              {/* Enterprise Purchase Orders Header - Dark Premium */}
-              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-700/50">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"></div>
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-500/15 via-transparent to-transparent"></div>
+              {/* Enterprise Purchase Orders Header - Dark Premium (vibrant, matches MO) */}
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-600/60">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/25 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-500/25 via-transparent to-transparent"></div>
                 <div className="absolute inset-0 opacity-[0.03]" style={{
                   backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
                   backgroundSize: '32px 32px'
@@ -4818,50 +4818,50 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   
                   {/* Enterprise KPI Bar */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                        <ShoppingBag className="w-5 h-5 text-blue-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/30 flex items-center justify-center">
+                        <ShoppingBag className="w-5 h-5 text-blue-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{poHeadersSource.length}</div>
-                        <div className="text-slate-500 text-xs font-medium">Total Orders</div>
+                        <div className="text-slate-300 text-xs font-semibold">Total Orders</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-emerald-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                        <Activity className="w-5 h-5 text-emerald-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-500/30 flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-emerald-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{poHeadersSource.filter((po: any) => ['0', '1', 0, 1].includes(po['Status'] as any)).length}</div>
-                        <div className="text-slate-500 text-xs font-medium">Active / Pending</div>
+                        <div className="text-slate-300 text-xs font-semibold">Active / Pending</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                        <Package2 className="w-5 h-5 text-amber-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500/30 flex items-center justify-center">
+                        <Package2 className="w-5 h-5 text-amber-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{poDetailsSource.length}</div>
-                        <div className="text-slate-500 text-xs font-medium">Line Items</div>
+                        <div className="text-slate-300 text-xs font-semibold">Line Items</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-purple-500/30 transition-colors">
-                      <div className="w-11 h-11 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-purple-400" />
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-purple-400/40 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-purple-500/30 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-purple-300" />
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">{new Set(poHeadersSource.map((po: any) => po['Supplier No.'] || po['Name'] || po['suplId'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
-                        <div className="text-slate-500 text-xs font-medium">Active Suppliers</div>
+                        <div className="text-slate-300 text-xs font-semibold">Active Suppliers</div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-                {/* Purchase Orders Table - Enterprise */}
+                {/* Purchase Orders Table - Enterprise (matches MO table) */}
                 {poHeadersSource.length > 0 && (
-                  <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                  <div className="bg-white shadow-xl rounded-2xl border-2 border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-slate-100 border-b-2 border-slate-200">
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="flex-1 min-w-[280px] relative">
@@ -4871,7 +4871,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               placeholder="Search PO#, Supplier, Buyer, Status, Amounts..."
                               value={poSearchQuery}
                               onChange={(e) => { setPoSearchQuery(e.target.value); setPoCurrentPage(1); }}
-                              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white"
+                              className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-lg font-semibold text-slate-900 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm bg-white"
                             />
                           </div>
                           <select
@@ -4937,18 +4937,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                        <thead className="bg-slate-100 sticky top-0 border-b border-slate-200">
+                        <thead className="bg-slate-200 sticky top-0 border-b-2 border-slate-300">
                           <tr>
                             {getAvailablePOColumns.map((col, index) => (
                               <th 
                                 key={col.key}
-                                className={`px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] ${
+                                className={`px-4 py-3.5 font-bold text-slate-700 text-xs uppercase tracking-wider min-w-[80px] ${
                                   col.key === 'Total Amount' || col.key === 'Invoiced Amount' || col.key === 'Received Amount' || col.key === 'Freight' ||
                                   col.key === 'totalOrderedQty' || col.key === 'totalReceivedQty' || col.key === 'remainingQty'
                                     ? 'text-right' : 'text-left'
                                 } ${
                                   ['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)
-                                    ? 'cursor-pointer hover:bg-slate-200/50 transition-colors' : ''
+                                    ? 'cursor-pointer hover:bg-slate-300/70 transition-colors' : ''
                                 }`}
                                 onClick={() => {
                                   if (['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)) {
@@ -5030,7 +5030,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return (
                               <tr 
                                 key={index} 
-                                className={`border-b border-slate-100 transition-colors cursor-pointer hover:bg-slate-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                className={`border-b border-slate-200 transition-colors cursor-pointer hover:bg-blue-50/80 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
                                 onClick={() => {
                                   setSelectedPO(po);
                                   setShowPODetails(true);
@@ -5051,21 +5051,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     switch (col.key) {
                                       case 'PO No.':
                                         return (
-                                          <td key={col.key} className="p-2 font-mono text-blue-600 font-medium">
+                                          <td key={col.key} className="p-3 font-mono text-blue-600 font-medium">
                                             {value || po['pohId'] || '—'}
                                 </td>
                                         );
                                       
                                       case 'Supplier No.':
                                         return (
-                                          <td key={col.key} className="p-2 font-medium text-gray-900">
+                                          <td key={col.key} className="p-3 font-medium text-slate-900">
                                             {getValue(po, 'Supplier No.', 'Name') || po['suplId'] || po['Vendor No.'] || '—'}
                                 </td>
                                         );
                                       
                                       case 'Status':
                                         return (
-                                          <td key={col.key} className="p-2">
+                                          <td key={col.key} className="p-3">
                                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
                                     {statusInfo.text}
                                 </span>
@@ -5091,14 +5091,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       case 'Order Date':
                                       case 'Close Date':
                                         return (
-                                          <td key={col.key} className="p-2 text-gray-600 text-xs">
+                                          <td key={col.key} className="p-3 text-slate-600 text-xs">
                                             {value ? formatDisplayDate(value) : (col.key === 'Close Date' ? 'Open' : '—')}
                                 </td>
                                         );
                                       
                                       case 'Source Currency':
                                         return (
-                                          <td key={col.key} className="p-2 text-gray-600 font-mono">
+                                          <td key={col.key} className="p-3 text-slate-600 font-mono">
                                             {getValue(po, 'Source Currency', 'Home Currency') || '—'}
                                 </td>
                                         );
@@ -5111,7 +5111,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         const totalOrdered = poLines.reduce((sum: number, line: any) => 
                                           sum + parseFloat(line['Ordered Qty'] || line['Ordered'] || 0), 0);
                                         return (
-                                          <td key={col.key} className="p-2 text-right font-medium text-blue-600">
+                                          <td key={col.key} className="p-3 text-right font-medium text-blue-600">
                                             {totalOrdered > 0 ? totalOrdered.toLocaleString() : '—'}
                                 </td>
                                         );
@@ -5125,7 +5125,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         const totalReceived = poLinesRec.reduce((sum: number, line: any) => 
                                           sum + parseFloat(line['Received Qty'] || line['Received'] || 0), 0);
                                         return (
-                                          <td key={col.key} className="p-2 text-right font-medium text-green-600">
+                                          <td key={col.key} className="p-3 text-right font-medium text-green-600">
                                             {totalReceived > 0 ? totalReceived.toLocaleString() : '—'}
                                 </td>
                                         );
@@ -5139,10 +5139,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         const textValue = value && value.toString().trim() ? value.toString().trim() : null;
                                         if (!textValue) {
                                           // Return empty cell to maintain table structure
-                                          return <td key={col.key} className="p-2"></td>;
+                                          return <td key={col.key} className="p-3"></td>;
                                         }
                                         return (
-                                          <td key={col.key} className="p-2 text-gray-600">
+                                          <td key={col.key} className="p-3 text-slate-600">
                                             {textValue}
                                 </td>
                                         );
@@ -5154,26 +5154,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           const freightNum = parseFloat(freightValue);
                                           if (freightNum > 0) {
                                             return (
-                                              <td key={col.key} className="p-2 text-right font-mono text-gray-600">
+                                              <td key={col.key} className="p-3 text-right font-mono text-slate-600">
                                                 ${freightNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                             );
                                           }
                                         } else if (freightValue && freightValue.toString().trim()) {
                                           return (
-                                            <td key={col.key} className="p-2 text-gray-600">
+                                            <td key={col.key} className="p-3 text-slate-600">
                                               {freightValue.toString().trim()}
                                 </td>
                                           );
                                         }
                                         // Return empty cell to maintain table structure
-                                        return <td key={col.key} className="p-2"></td>;
+                                        return <td key={col.key} className="p-3"></td>;
                                       
                                       default:
                                         const displayValue = value && value.toString().trim() ? value : 
                                                            ((col as { showAlways?: boolean }).showAlways ? 'N/A' : '—');
                                         return (
-                                          <td key={col.key} className="p-2 text-gray-600">
+                                          <td key={col.key} className="p-3 text-slate-600">
                                             {displayValue}
                                 </td>
                                         );
