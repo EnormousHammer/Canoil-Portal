@@ -1,5 +1,5 @@
 /* @import must be first (CSS spec) */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@400;500;600;700&display=swap');
 
 /* stylelint-disable at-rule-no-unknown */
 @tailwind base;
@@ -129,7 +129,7 @@
 
 @layer base {
   html {
-    font-family: 'DM Sans', 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', 'DM Sans', 'Segoe UI', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -210,6 +210,102 @@
 
   .table-modern tr:hover {
     @apply bg-gray-50;
+  }
+
+  /* Modern list - Linear/Notion style. No grid, no table vibe. */
+  .data-list {
+    @apply flex flex-col;
+    font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+    gap: 8px;
+  }
+
+  .data-list-header {
+    @apply flex items-center px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider;
+    letter-spacing: 0.1em;
+  }
+
+  .data-list-card {
+    @apply flex items-center rounded-xl bg-white cursor-pointer transition-all duration-200;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    min-height: 64px;
+  }
+
+  .data-list-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .data-list-mo .data-list-card:hover {
+    background: linear-gradient(to right, rgba(139, 92, 246, 0.04), transparent);
+  }
+
+  .data-list-po .data-list-card:hover {
+    background: linear-gradient(to right, rgba(37, 99, 235, 0.04), transparent);
+  }
+
+  .data-list-wo .data-list-card:hover {
+    background: linear-gradient(to right, rgba(79, 70, 229, 0.04), transparent);
+  }
+
+  .data-list-cell {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* MO: Modern flex row - primary info left, meta right */
+  .data-list-mo .data-list-header {
+    gap: 24px;
+  }
+
+  .data-list-mo .data-list-card {
+    gap: 24px;
+    padding: 0 20px;
+  }
+
+  .data-list-mo .data-list-card .mo-id {
+    min-width: 72px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #7c3aed;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-list-mo .data-list-card .mo-primary {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .data-list-mo .data-list-card .mo-meta {
+    @apply flex items-center gap-6 shrink-0;
+  }
+
+  /* PO: same flex pattern */
+  .data-list-po .data-list-card {
+    gap: 24px;
+    padding: 0 20px;
+    min-height: 64px;
+  }
+
+  .data-list-po .data-list-card .po-id {
+    min-width: 72px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #2563eb;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Work Orders */
+  .data-list-wo .data-list-card {
+    gap: 24px;
+    padding: 0 20px;
+    min-height: 64px;
+  }
+
+  .data-list-wo .data-list-card .wo-id {
+    min-width: 72px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #4f46e5;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Status badges */
