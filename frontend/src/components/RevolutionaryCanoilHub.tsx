@@ -972,19 +972,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (totalPages <= 1) return null;
 
     return (
-      <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
+      <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-200">
         <div className="flex items-center space-x-4">
-          <div className="text-sm text-gray-700">
-            Showing <span className="font-semibold text-gray-900">{startItem}</span> to{' '}
-            <span className="font-semibold text-gray-900">{endItem}</span> of{' '}
-            <span className="font-semibold text-gray-900">{totalItems}</span> results
+          <div className="text-sm text-slate-600">
+            Showing <span className="font-semibold text-slate-900">{startItem}</span>–<span className="font-semibold text-slate-900">{endItem}</span> of{' '}
+            <span className="font-semibold text-slate-900">{totalItems}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-600 font-medium">Show:</label>
+            <label className="text-sm text-slate-500 font-medium">Per page:</label>
             <select 
               value={itemsPerPage} 
               onChange={(e) => onPageSizeChange(parseInt(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-500/20 bg-white font-medium"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -994,26 +993,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           </div>
         </div>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           
           {getPageNumbers().map((page, index) => (
             page === '...' ? (
-              <span key={index} className="px-3 py-2 text-sm text-gray-500">...</span>
+              <span key={index} className="px-3 py-2 text-sm text-slate-500">...</span>
             ) : (
               <button
                 key={index}
                 onClick={() => onPageChange(page as number)}
-                className={`px-3 py-2 text-sm font-medium border transition-colors shadow-sm ${
+                className={`px-3 py-2 text-sm font-medium border rounded-lg transition-colors ${
                   currentPage === page
-                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    ? 'bg-slate-800 text-white border-slate-800 hover:bg-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {page}
@@ -1024,7 +1023,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -2261,247 +2260,188 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Manufacturing Orders */}
           {activeSection === 'manufacturing-orders' && (
             <div className="space-y-6">
-              {/* Enhanced Manufacturing Header */}
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                <div className="relative bg-gradient-to-r from-violet-100 via-purple-50 to-indigo-100 border-b border-violet-200/50 p-6 overflow-hidden">
-                  {/* Decorative background elements */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-violet-200/30 to-transparent rounded-full -translate-y-32 translate-x-32"></div>
-                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full translate-y-24 -translate-x-24"></div>
-                  
-                  <div className="relative flex items-center justify-between">
-                    <div className="flex items-center gap-5">
+              {/* Enterprise Manufacturing Header - Dark Premium */}
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-700/50">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-violet-500/15 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-500/15 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 opacity-[0.03]" style={{
+                  backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
+                  backgroundSize: '32px 32px'
+                }}></div>
+                
+                <div className="relative p-6 lg:p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
                       <div className="relative">
-                        <div className="w-16 h-16 bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-violet-500/30 ring-4 ring-white">
-                          <Factory className="w-8 h-8 text-white" />
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                          <Factory className="w-7 h-7 text-white" />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center border-3 border-white shadow-lg">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manufacturing Operations</h2>
-                        <p className="text-violet-700 text-sm mt-1 font-medium">Full Company Data · MIMOH / MIMOMD — same source as Items &amp; PO</p>
+                        <h2 className="text-2xl font-bold text-white tracking-tight">Manufacturing Operations</h2>
+                        <p className="text-slate-400 text-sm font-medium mt-0.5 flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 text-slate-400 text-xs">MIMOH / MIMOMD</span>
+                          Full Company Data · Same source as Items &amp; PO
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold rounded-lg border border-emerald-500/30 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                        LIVE
+                      </span>
                       <button
                         onClick={() => setShowExportAllCompanyDataModal(true)}
-                        className="px-5 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-white hover:shadow-md transition-all flex items-center gap-2"
-                        title="Export all company data (items, orders, BOMs) to Excel, CSV, or XML"
+                        className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
+                        title="Export all company data"
                       >
                         <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-500 hover:to-purple-500 transition-all flex items-center gap-2 shadow-lg shadow-violet-500/25">
+                      <button className="px-4 py-2.5 bg-gradient-to-r from-violet-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:from-violet-600 hover:to-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-violet-500/25">
                         <RefreshCw className="w-4 h-4" />
                         Refresh
                       </button>
                     </div>
                   </div>
-                </div>
-                
-                {/* Enhanced KPI Cards Row */}
-                <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    {/* Total MOs */}
-                    <div className="group bg-white rounded-2xl p-5 border border-violet-200 shadow-sm hover:shadow-xl hover:border-violet-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-violet-100 to-purple-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Factory className="w-6 h-6 text-violet-600" />
-                        </div>
-                        <span className="text-xs font-bold text-violet-700 bg-violet-100 px-3 py-1.5 rounded-lg">TOTAL</span>
+                  
+                  {/* Enterprise KPI Bar */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-violet-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                        <Factory className="w-5 h-5 text-violet-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Manufacturing Orders</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-violet-500 to-purple-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
+                        <div className="text-slate-500 text-xs font-medium">Total Orders</div>
+                      </div>
                     </div>
-
-                    {/* Active Orders */}
-                    <div className="group bg-white rounded-2xl p-5 border border-emerald-200 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Activity className="w-6 h-6 text-emerald-600" />
-                        </div>
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">ACTIVE</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-emerald-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-emerald-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">In Production</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
+                        <div className="text-slate-500 text-xs font-medium">In Production</div>
+                      </div>
                     </div>
-
-                    {/* Planned Orders */}
-                    <div className="group bg-white rounded-2xl p-5 border border-amber-200 shadow-sm hover:shadow-xl hover:border-amber-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Calendar className="w-6 h-6 text-amber-600" />
-                        </div>
-                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1.5 rounded-lg">PLANNED</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-amber-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Awaiting Release</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
+                        <div className="text-slate-500 text-xs font-medium">Awaiting Release</div>
+                      </div>
                     </div>
-
-                    {/* Components */}
-                    <div className="group bg-white rounded-2xl p-5 border border-blue-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Package2 className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg">PARTS</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                        <Package2 className="w-5 h-5 text-blue-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Total Components</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
+                        <div className="text-slate-500 text-xs font-medium">Total Components</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Manufacturing Orders Table */}
+              {/* Manufacturing Orders Table - Enterprise */}
               {data?.['ManufacturingOrderHeaders.json'] && Array.isArray(data['ManufacturingOrderHeaders.json']) && data['ManufacturingOrderHeaders.json'].length > 0 && (
               <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-violet-50 border-b border-slate-200">
-                      <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-4">
-                        <div className="text-sm text-gray-600">
-                          {(() => {
-                            // Calculate filtered count using smart search
-                            let filteredMOs = searchManufacturingOrders.filter((mo: any) => 
-                              mo['Mfg. Order No.'] && mo['Build Item No.']
-                            );
-                                
-                            if (moStatusFilter !== 'all') {
-                              filteredMOs = filteredMOs.filter((mo: any) => 
-                                mo['Status']?.toString() === moStatusFilter
-                              );
-                            }
-                            if (moCustomerFilter !== 'all') {
-                              filteredMOs = filteredMOs.filter((mo: any) => 
-                                getCustomerName(mo) === moCustomerFilter
-                              );
-                            }
-                            
-                            const startItem = (moCurrentPage - 1) * moPageSize + 1;
-                            const endItem = Math.min(moCurrentPage * moPageSize, filteredMOs.length);
-                            return `Showing ${startItem}-${endItem} of ${filteredMOs.length} Orders`;
-                          })()}
-                            </div>
-                            
-                            {/* Page Size Selector */}
-                            <div className="flex items-center space-x-2">
-                              <label className="text-sm text-gray-600">Show:</label>
-                              <select 
-                                value={moPageSize} 
-                                onChange={(e) => {
-                                  setMoPageSize(parseInt(e.target.value));
-                                  setMoCurrentPage(1);
-                                }}
-                                className="px-2 py-1 border border-gray-300 rounded text-sm"
-                              >
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={200}>200</option>
-                              </select>
-                            </div>
-                        </div>
-                      </div>
-                      
-                      {/* Search and Filter Controls */}
-                      <div className="space-y-3">
-                        {/* Search Bar */}
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-1 relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-gray-400" />
+                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex-1 min-w-[280px] relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Search MO#, Customer, Item, Status, Dates..."
+                              value={moSearchQuery}
+                              onChange={(e) => { setMoSearchQuery(e.target.value); setMoCurrentPage(1); }}
+                              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white"
+                            />
                           </div>
-                          <input
-                            type="text"
-                            placeholder="Search anything... MO#, Customer, Item, Status, Dates, Quantities..."
-                            value={moSearchQuery}
-                            onChange={(e) => {
-                              setMoSearchQuery(e.target.value);
-                              setMoCurrentPage(1); // Reset to first page when searching
-                            }}
-                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
-                          />
-                        </div>
-                        <select
-                          value={moSortField}
-                          onChange={(e) => setMoSortField(e.target.value)}
-                          className="px-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
-                        >
-                          <option value="Mfg. Order No.">Sort by MO Number</option>
-                          <option value="Customer">Sort by Customer</option>
-                          <option value="Order Date">Sort by Order Date</option>
-                          <option value="Cumulative Cost">Sort by Total Cost</option>
-                          <option value="Ordered">Sort by Quantity</option>
-                        </select>
-                        <button
-                          onClick={() => setMoSortDirection(moSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl hover:from-violet-500 hover:to-purple-500 text-sm font-semibold shadow-md transition-all"
-                        >
-                          {moSortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
-                        </button>
-                      </div>
-
-                        {/* Filter Controls */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status:</label>
-                            <select
-                              value={moStatusFilter}
-                              onChange={(e) => setMoStatusFilter(e.target.value)}
-                              className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm bg-white shadow-sm"
-                            >
-                              <option value="all">All Status</option>
-                              <option value="0">Planned</option>
-                              <option value="1">Released</option>
-                              <option value="2">Started</option>
-                              <option value="3">Finished</option>
-                              <option value="4">Closed</option>
-                            </select>
-                  </div>
-
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer:</label>
-                            <select
-                              value={moCustomerFilter}
-                              onChange={(e) => setMoCustomerFilter(e.target.value)}
-                              className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm min-w-[150px] bg-white shadow-sm"
-                            >
-                              <option value="all">All Customers</option>
-                              {(() => {
-                                const uniqueCustomers = Array.from(new Set(
-                                  (data['ManufacturingOrderHeaders.json'] || [])
-                                    .map((mo: any) => getCustomerName(mo))
-                                    .filter((name: string) => name && name !== 'Internal')
-                                )).sort();
-                                
-                                return uniqueCustomers.map((customer: string) => (
-                                  <option key={customer} value={customer}>{customer}</option>
-                                ));
-                              })()}
-                            </select>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              setMoStatusFilter('all');
-                              setMoCustomerFilter('all');
-                              setMoSearchQuery('');
-                              setMoCurrentPage(1);
-                            }}
-                            className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-semibold transition-all border border-slate-200"
+                          <select
+                            value={moStatusFilter}
+                            onChange={(e) => setMoStatusFilter(e.target.value)}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-violet-500/20"
                           >
-                            Clear Filters
+                            <option value="all">All Status</option>
+                            <option value="0">Planned</option>
+                            <option value="1">Released</option>
+                            <option value="2">Started</option>
+                            <option value="3">Finished</option>
+                            <option value="4">Closed</option>
+                          </select>
+                          <select
+                            value={moCustomerFilter}
+                            onChange={(e) => setMoCustomerFilter(e.target.value)}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 min-w-[140px] focus:ring-2 focus:ring-violet-500/20"
+                          >
+                            <option value="all">All Customers</option>
+                            {(() => {
+                              const uniqueCustomers = Array.from(new Set(
+                                (data['ManufacturingOrderHeaders.json'] || [])
+                                  .map((mo: any) => getCustomerName(mo))
+                                  .filter((name: string) => name && name !== 'Internal')
+                              )).sort();
+                              return uniqueCustomers.map((customer: string) => (
+                                <option key={customer} value={customer}>{customer}</option>
+                              ));
+                            })()}
+                          </select>
+                          <select
+                            value={moSortField}
+                            onChange={(e) => setMoSortField(e.target.value)}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-violet-500/20"
+                          >
+                            <option value="Mfg. Order No.">Sort: MO #</option>
+                            <option value="Customer">Sort: Customer</option>
+                            <option value="Order Date">Sort: Date</option>
+                            <option value="Cumulative Cost">Sort: Cost</option>
+                            <option value="Ordered">Sort: Qty</option>
+                          </select>
+                          <button
+                            onClick={() => setMoSortDirection(moSortDirection === 'asc' ? 'desc' : 'asc')}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-semibold bg-white hover:bg-slate-50 transition-colors"
+                          >
+                            {moSortDirection === 'asc' ? '↑' : '↓'}
                           </button>
                           <button
+                            onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }}
+                            className="px-3 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            {(() => {
+                              let filteredMOs = searchManufacturingOrders.filter((mo: any) => mo['Mfg. Order No.'] && mo['Build Item No.']);
+                              if (moStatusFilter !== 'all') filteredMOs = filteredMOs.filter((mo: any) => mo['Status']?.toString() === moStatusFilter);
+                              if (moCustomerFilter !== 'all') filteredMOs = filteredMOs.filter((mo: any) => getCustomerName(mo) === moCustomerFilter);
+                              const startItem = (moCurrentPage - 1) * moPageSize + 1;
+                              const endItem = Math.min(moCurrentPage * moPageSize, filteredMOs.length);
+                              return `${startItem}-${endItem} of ${filteredMOs.length}`;
+                            })()}
+                          </span>
+                          <select
+                            value={moPageSize}
+                            onChange={(e) => { setMoPageSize(parseInt(e.target.value)); setMoCurrentPage(1); }}
+                            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white font-medium"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                          </select>
+                          <button
                             onClick={() => setShowCreateMOModal(true)}
-                            className="px-4 py-2.5 bg-violet-600 text-white rounded-xl hover:bg-violet-700 text-sm font-semibold transition-all border border-violet-500 shadow-sm flex items-center gap-2"
+                            className="px-4 py-2.5 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 transition-all flex items-center gap-2 shadow-sm"
                           >
                             <Plus className="w-4 h-4" />
                             Create MO
@@ -2511,63 +2451,34 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                      <thead className="bg-gradient-to-r from-slate-50 via-violet-50 to-slate-50 sticky top-0 border-b border-slate-200">
+                      <thead className="bg-slate-100 sticky top-0 border-b border-slate-200">
                         <tr>
-                            {/* PRIMARY COLUMNS */}
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Mfg. Order No.', 'mo')}>
-                              MO # {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[150px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Customer', 'mo')}>
-                              Customer {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Build Item No.', 'mo')}>
-                              Build Item {moSortField === 'Build Item No.' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[200px]">Description</th>
-                            
-                            {/* QUANTITY & STATUS */}
-                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Ordered', 'mo')}>
-                              Ordered {moSortField === 'Ordered' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Completed', 'mo')}>
-                              Done {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-center p-3 font-semibold text-slate-700 min-w-[80px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Status', 'mo')}>
-                              Status {moSortField === 'Status' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            
-                            {/* DATES */}
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Order Date', 'mo')}>
-                              Order Date {moSortField === 'Order Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Release Date', 'mo')}>
-                              Start {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[90px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Completion Date', 'mo')}>
-                              Complete {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            
-                            {/* LOCATION & COST */}
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[80px]">Location</th>
-                            <th className="text-left p-3 font-semibold text-slate-700 min-w-[100px]">Batch No.</th>
-                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[100px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Projected Material Cost', 'mo')}>
-                              Unit Cost {moSortField === 'Projected Material Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-right p-3 font-semibold text-slate-700 min-w-[120px] cursor-pointer hover:bg-violet-100/50 transition-colors"
-                                onClick={() => handleSort('Cumulative Cost', 'mo')}>
-                              Total {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}
-                            </th>
-                            <th className="text-center p-3 font-semibold text-slate-700 min-w-[140px]">Actions</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Mfg. Order No.', 'mo')}>MO # {moSortField === 'Mfg. Order No.' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[150px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Customer', 'mo')}>Customer {moSortField === 'Customer' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Build Item No.', 'mo')}>Build Item {moSortField === 'Build Item No.' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[200px]">Description</th>
+                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Ordered', 'mo')}>Ordered {moSortField === 'Ordered' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Completed', 'mo')}>Done {moSortField === 'Completed' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-center px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Status', 'mo')}>Status {moSortField === 'Status' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Order Date', 'mo')}>Order Date {moSortField === 'Order Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Release Date', 'mo')}>Start {moSortField === 'Release Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[90px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Completion Date', 'mo')}>Complete {moSortField === 'Completion Date' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px]">Location</th>
+                            <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px]">Batch No.</th>
+                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[100px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Projected Material Cost', 'mo')}>Unit Cost {moSortField === 'Projected Material Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-right px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[120px] cursor-pointer hover:bg-slate-200/50 transition-colors"
+                                onClick={() => handleSort('Cumulative Cost', 'mo')}>Total {moSortField === 'Cumulative Cost' && (moSortDirection === 'desc' ? '↓' : '↑')}</th>
+                            <th className="text-center px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[140px]">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2645,7 +2556,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return (
                               <tr 
                                 key={index} 
-                                className="border-b border-gray-200 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200 cursor-pointer group"
+                                className={`border-b border-slate-100 transition-colors cursor-pointer hover:bg-slate-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
                                 onClick={() => {
                                   setSelectedMO(mo);
                                   setShowMODetails(true);
@@ -2763,9 +2674,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </table>
                   </div>
                     
-                    {/* MO Summary Statistics - Only count real data */}
-                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    {/* MO Summary Statistics - Enterprise footer */}
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-sm">
                         {(() => {
                           // Filter to only MOs with real data
                           const realMOs = (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => 
@@ -2780,35 +2691,50 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           
                           return (
                             <>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {totalOrdered.toLocaleString()}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-slate-200/50 flex items-center justify-center">
+                                  <Package2 className="w-4 h-4 text-slate-600" />
                                 </div>
-                                <div className="text-gray-600">Total Ordered</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{totalOrdered.toLocaleString()}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Total Ordered</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {totalCompleted.toLocaleString()}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                  <Activity className="w-4 h-4 text-emerald-600" />
                                 </div>
-                                <div className="text-gray-600">Total Completed</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{totalCompleted.toLocaleString()}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Total Completed</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {activeMOs}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center">
+                                  <Factory className="w-4 h-4 text-violet-600" />
                                 </div>
-                                <div className="text-gray-600">Active MOs</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{activeMOs}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Active MOs</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {completedMOs}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                                  <Calendar className="w-4 h-4 text-blue-600" />
                                 </div>
-                                <div className="text-gray-600">Completed MOs</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{completedMOs}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Completed MOs</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  ${totalValue.toLocaleString()}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+                                  <span className="text-amber-600 font-bold text-xs">$</span>
                                 </div>
-                                <div className="text-gray-600">Total Value</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">${totalValue.toLocaleString()}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Total Value</div>
+                                </div>
                               </div>
                             </>
                           );
@@ -4830,125 +4756,150 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Purchase Orders */}
           {activeSection === 'purchase-orders' && (
             <div className="space-y-6">
-              {/* Enhanced Purchase Orders Header */}
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-                <div className="relative bg-gradient-to-r from-blue-100 via-cyan-50 to-teal-100 border-b border-blue-200/50 p-6 overflow-hidden">
-                  {/* Decorative background elements */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/30 to-transparent rounded-full -translate-y-32 translate-x-32"></div>
-                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-cyan-200/30 to-transparent rounded-full translate-y-24 -translate-x-24"></div>
-                  
-                  <div className="relative flex items-center justify-between">
-                    <div className="flex items-center gap-5">
+              {/* Enterprise Purchase Orders Header - Dark Premium */}
+              <div className="relative overflow-hidden rounded-2xl shadow-2xl border border-slate-700/50">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/15 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-500/15 via-transparent to-transparent"></div>
+                <div className="absolute inset-0 opacity-[0.03]" style={{
+                  backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
+                  backgroundSize: '32px 32px'
+                }}></div>
+                
+                <div className="relative p-6 lg:p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
                       <div className="relative">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 ring-4 ring-white">
-                          <ShoppingBag className="w-8 h-8 text-white" />
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                          <ShoppingBag className="w-7 h-7 text-white" />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center border-3 border-white shadow-lg">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900 animate-pulse"></div>
                       </div>
                       <div>
-                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Purchase Orders</h2>
-                        <p className="text-blue-700 text-sm mt-1 font-medium">Full Company Data · MIPOH / MIPOD — same source as Items &amp; MO</p>
+                        <h2 className="text-2xl font-bold text-white tracking-tight">Purchase Orders</h2>
+                        <p className="text-slate-400 text-sm font-medium mt-0.5 flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 text-slate-400 text-xs">MIPOH / MIPOD</span>
+                          Full Company Data · Same source as Items &amp; MO
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold rounded-lg border border-emerald-500/30 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                        LIVE
+                      </span>
                       <button
                         onClick={() => setShowExportAllCompanyDataModal(true)}
-                        className="px-5 py-2.5 bg-white/80 backdrop-blur-sm text-slate-700 rounded-xl font-semibold text-sm border border-slate-200 hover:bg-white hover:shadow-md transition-all flex items-center gap-2"
-                        title="Export all company data (items, orders, BOMs) to Excel, CSV, or XML"
+                        className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
+                        title="Export all company data"
                       >
                         <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25">
-                        <RefreshCw className="w-4 h-4" />
-                        Refresh
-                      </button>
                       <button
                         onClick={() => setShowPRModal(true)}
-                        className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm hover:from-orange-400 hover:to-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-orange-500/25"
+                        className="px-4 py-2.5 bg-amber-500/20 text-amber-300 rounded-lg font-medium text-sm border border-amber-500/30 hover:bg-amber-500/30 transition-all flex items-center gap-2"
                       >
-                        📝 Purchase Requisitions
+                        📝 Requisitions
                       </button>
                       <button
                         onClick={() => setShowCreatePOModal(true)}
-                        className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold text-sm hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
+                        className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg font-semibold text-sm hover:from-blue-600 hover:to-cyan-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/25"
                       >
                         <Plus className="w-4 h-4" />
                         New PO
                       </button>
+                      <button className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4" />
+                        Refresh
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Enhanced KPI Cards Row (same layout as MO: 4 cards) */}
-                <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                    {/* Total POs */}
-                    <div className="group bg-white rounded-2xl p-5 border border-blue-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <ShoppingBag className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg">TOTAL</span>
+                  
+                  {/* Enterprise KPI Bar */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                        <ShoppingBag className="w-5 h-5 text-blue-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poHeadersSource.length}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Purchase Orders</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{poHeadersSource.length}</div>
+                        <div className="text-slate-500 text-xs font-medium">Total Orders</div>
+                      </div>
                     </div>
-
-                    {/* Open / Active POs */}
-                    <div className="group bg-white rounded-2xl p-5 border border-emerald-200 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Activity className="w-6 h-6 text-emerald-600" />
-                        </div>
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg">OPEN</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-emerald-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-emerald-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poHeadersSource.filter((po: any) => ['0', '1', 0, 1].includes(po['Status'] as any)).length}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Active / Pending</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{poHeadersSource.filter((po: any) => ['0', '1', 0, 1].includes(po['Status'] as any)).length}</div>
+                        <div className="text-slate-500 text-xs font-medium">Active / Pending</div>
+                      </div>
                     </div>
-
-                    {/* Line Items */}
-                    <div className="group bg-white rounded-2xl p-5 border border-amber-200 shadow-sm hover:shadow-xl hover:border-amber-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Package2 className="w-6 h-6 text-amber-600" />
-                        </div>
-                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1.5 rounded-lg">ITEMS</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                        <Package2 className="w-5 h-5 text-amber-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{poDetailsSource.length}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">PO Line Items</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{poDetailsSource.length}</div>
+                        <div className="text-slate-500 text-xs font-medium">Line Items</div>
+                      </div>
                     </div>
-
-                    {/* Active Vendors */}
-                    <div className="group bg-white rounded-2xl p-5 border border-purple-200 shadow-sm hover:shadow-xl hover:border-purple-300 transition-all duration-300 hover:-translate-y-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-violet-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Users className="w-6 h-6 text-purple-600" />
-                        </div>
-                        <span className="text-xs font-bold text-purple-700 bg-purple-100 px-3 py-1.5 rounded-lg">VENDORS</span>
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-purple-500/30 transition-colors">
+                      <div className="w-11 h-11 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-purple-400" />
                       </div>
-                      <div className="text-4xl font-black text-slate-900 tracking-tight">{new Set(poHeadersSource.map((po: any) => po['Supplier No.'] || po['Name'] || po['suplId'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
-                      <div className="text-sm text-slate-600 font-medium mt-2">Active Suppliers</div>
-                      <div className="mt-3 h-1 bg-gradient-to-r from-purple-500 to-violet-500 rounded-full opacity-60"></div>
+                      <div>
+                        <div className="text-2xl font-bold text-white">{new Set(poHeadersSource.map((po: any) => po['Supplier No.'] || po['Name'] || po['suplId'] || po['Vendor No.']).filter(Boolean)).size || 0}</div>
+                        <div className="text-slate-500 text-xs font-medium">Active Suppliers</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-                {/* Purchase Orders Table */}
+                {/* Purchase Orders Table - Enterprise */}
                 {poHeadersSource.length > 0 && (
                   <div className="bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-4">
-                        <div className="text-sm text-gray-600">
+                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex-1 min-w-[280px] relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Search PO#, Supplier, Buyer, Status, Amounts..."
+                              value={poSearchQuery}
+                              onChange={(e) => { setPoSearchQuery(e.target.value); setPoCurrentPage(1); }}
+                              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white"
+                            />
+                          </div>
+                          <select
+                            value={poSortField}
+                            onChange={(e) => setPoSortField(e.target.value)}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20"
+                          >
+                            <option value="PO No.">Sort: PO #</option>
+                            <option value="Supplier No.">Sort: Supplier</option>
+                            <option value="Order Date">Sort: Date</option>
+                            <option value="Total Amount">Sort: Amount</option>
+                            <option value="Status">Sort: Status</option>
+                          </select>
+                          <button
+                            onClick={() => setPoSortDirection(poSortDirection === 'asc' ? 'desc' : 'asc')}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-semibold bg-white hover:bg-slate-50 transition-colors"
+                          >
+                            {poSortDirection === 'asc' ? '↑' : '↓'}
+                          </button>
+                          <button
+                            onClick={() => { setPoSearchQuery(''); setPoCurrentPage(1); }}
+                            className="px-3 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                             {(() => {
                               const filteredPOs = searchPurchaseOrders.filter((po: any) => {
                                 const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
@@ -4961,78 +4912,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               });
                               const startItem = (poCurrentPage - 1) * poPageSize + 1;
                               const endItem = Math.min(poCurrentPage * poPageSize, filteredPOs.length);
-                              return `Showing ${startItem}-${endItem} of ${filteredPOs.length} Orders`;
+                              return `${startItem}-${endItem} of ${filteredPOs.length}`;
                             })()}
+                          </span>
+                          <select
+                            value={poPageSize}
+                            onChange={(e) => { setPoPageSize(parseInt(e.target.value)); setPoCurrentPage(1); }}
+                            className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white font-medium"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={200}>200</option>
+                          </select>
+                          <button
+                            onClick={() => setShowCreatePOModal(true)}
+                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-all flex items-center gap-2 shadow-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            New PO
+                          </button>
                         </div>
-                          <div className="flex items-center space-x-2">
-                            <label className="text-sm text-gray-600 font-medium">Show:</label>
-                            <select 
-                              value={poPageSize} 
-                              onChange={(e) => {
-                                setPoPageSize(parseInt(e.target.value));
-                                setPoCurrentPage(1);
-                              }}
-                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
-                            >
-                              <option value={25}>25</option>
-                              <option value={50}>50</option>
-                              <option value={100}>100</option>
-                              <option value={200}>200</option>
-                            </select>
-                      </div>
-                    </div>
-                      </div>
-                      
-                      {/* PO Search and Filter Controls */}
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-1 relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-gray-400" />
-                          </div>
-                          <input
-                            type="text"
-                            placeholder="Search anything... PO#, Supplier, Buyer, Status, Amounts, Dates..."
-                            value={poSearchQuery}
-                            onChange={(e) => {
-                              setPoSearchQuery(e.target.value);
-                              setPoCurrentPage(1); // Reset to first page when searching
-                            }}
-                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white shadow-sm"
-                          />
-                        </div>
-                        <select
-                          value={poSortField}
-                          onChange={(e) => setPoSortField(e.target.value)}
-                          className="px-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm bg-white shadow-sm"
-                        >
-                          <option value="PO No.">Sort by PO Number</option>
-                          <option value="Supplier No.">Sort by Supplier</option>
-                          <option value="Order Date">Sort by Order Date</option>
-                          <option value="Total Amount">Sort by Total Amount</option>
-                          <option value="Status">Sort by Status</option>
-                        </select>
-                        <button
-                          onClick={() => setPoSortDirection(poSortDirection === 'asc' ? 'desc' : 'asc')}
-                          className="px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-500 hover:to-cyan-500 text-sm font-semibold shadow-md transition-all"
-                        >
-                          {poSortDirection === 'asc' ? '↑ Asc' : '↓ Desc'}
-                        </button>
                       </div>
                     </div>
                     <div className="overflow-x-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                        <thead className="bg-gradient-to-r from-slate-50 via-blue-50 to-slate-50 sticky top-0 border-b border-slate-200">
+                        <thead className="bg-slate-100 sticky top-0 border-b border-slate-200">
                           <tr>
                             {getAvailablePOColumns.map((col, index) => (
                               <th 
                                 key={col.key}
-                                className={`p-3 font-semibold text-slate-700 min-w-[80px] ${
+                                className={`px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider min-w-[80px] ${
                                   col.key === 'Total Amount' || col.key === 'Invoiced Amount' || col.key === 'Received Amount' || col.key === 'Freight' ||
                                   col.key === 'totalOrderedQty' || col.key === 'totalReceivedQty' || col.key === 'remainingQty'
                                     ? 'text-right' : 'text-left'
                                 } ${
                                   ['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)
-                                    ? 'cursor-pointer hover:bg-blue-100/50 transition-colors' : ''
+                                    ? 'cursor-pointer hover:bg-slate-200/50 transition-colors' : ''
                                 }`}
                                 onClick={() => {
                                   if (['PO No.', 'Supplier No.', 'Buyer', 'Order Date', 'Status', 'Total Amount', 'Invoiced Amount', 'Received Amount', 'Close Date'].includes(col.key)) {
@@ -5114,7 +5030,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             return (
                               <tr 
                                 key={index} 
-                                className="border-b border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 cursor-pointer group"
+                                className={`border-b border-slate-100 transition-colors cursor-pointer hover:bg-slate-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
                                 onClick={() => {
                                   setSelectedPO(po);
                                   setShowPODetails(true);
@@ -5274,11 +5190,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </table>
                     </div>
                     
-                    {/* PO Summary Statistics - Only count real data */}
-                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    {/* PO Summary Statistics - Enterprise footer */}
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
                         {(() => {
-                          // Filter to POs with ID and (supplier OR any amount)
                           const realPOs = poHeadersSource.filter((po: any) => {
                             const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                             if (!poId) return false;
@@ -5288,7 +5203,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
                             return !!supl || tot > 0 || inv > 0 || recv > 0;
                           });
-                          
                           const totalAmount = realPOs.reduce((sum: number, po: any) => sum + (parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0), 0);
                           const totalInvoiced = realPOs.reduce((sum: number, po: any) => sum + (parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0), 0);
                           const openPOs = realPOs.filter((po: any) => (po['Status'] ?? po['poStatus']) === 0 || (po['Status'] ?? po['poStatus']) === '0').length;
@@ -5296,29 +5210,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           
                           return (
                             <>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  ${totalAmount.toLocaleString()}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                  <span className="text-emerald-600 font-bold text-xs">$</span>
                                 </div>
-                                <div className="text-gray-600">Total Amount</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">${totalAmount.toLocaleString()}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Total Amount</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  ${totalInvoiced.toLocaleString()}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                                  <span className="text-blue-600 font-bold text-xs">$</span>
                                 </div>
-                                <div className="text-gray-600">Total Invoiced</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">${totalInvoiced.toLocaleString()}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Total Invoiced</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {openPOs}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
+                                  <Activity className="w-4 h-4 text-amber-600" />
                                 </div>
-                                <div className="text-gray-600">Open POs</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{openPOs}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Open POs</div>
+                                </div>
                               </div>
-                              <div className="text-center">
-                                <div className="font-semibold text-gray-900">
-                                  {uniqueSuppliers}
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center">
+                                  <Users className="w-4 h-4 text-purple-600" />
                                 </div>
-                                <div className="text-gray-600">Active Suppliers</div>
+                                <div>
+                                  <div className="font-bold text-slate-900">{uniqueSuppliers}</div>
+                                  <div className="text-slate-500 text-xs font-medium">Active Suppliers</div>
+                                </div>
                               </div>
                             </>
                           );
