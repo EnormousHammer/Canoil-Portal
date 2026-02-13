@@ -384,11 +384,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       const totalReceivedQty = poLines.reduce((sum: number, line: any) => 
         sum + parseStockValue(line['Received Qty'] || line['Received'] || 0), 0);
       
-      // Calculate weighted average unit cost from line items
+      // Calculate weighted average unit cost from line items (use Item Recent Cost when PO line has no price)
       const recentUnitCost = (() => {
         if (poLines.length > 0) {
+          const items = (data?.['CustomAlert5.json'] ?? data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
+          const itemByNo: Record<string, any> = {};
+          items.forEach((r: any) => {
+            const k = (r['Item No.'] ?? r['Item'] ?? r['ItemNo'] ?? '').toString().trim().toUpperCase();
+            if (k) itemByNo[k] = r;
+          });
           const totalOrderValue = poLines.reduce((sum: number, line: any) => {
-            const unitPrice = parseCostValue(line['Unit Price'] || line['Cost'] || line['Unit Cost'] || 0);
+            let unitPrice = parseCostValue(line['Unit Price'] || line['Cost'] || line['Unit Cost'] || 0);
+            if (unitPrice <= 0) {
+              const ino = (line['Item No.'] ?? line['Part No.'] ?? line['itemId'] ?? '').toString().trim().toUpperCase();
+              const itemRow = ino ? itemByNo[ino] : null;
+              unitPrice = itemRow ? parseCostValue(itemRow['Recent Cost'] ?? itemRow['cLast'] ?? itemRow['Last Cost'] ?? 0) : 0;
+            }
             const orderedQty = parseStockValue(line['Ordered'] || line['Ordered Qty'] || 0);
             return sum + (unitPrice * orderedQty);
           }, 0);
@@ -574,7 +585,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       { key: 'Description', label: 'Description' },
       { key: 'Ordered Qty', label: 'Ordered Qty', fallback: 'Ordered' },
       { key: 'Received Qty', label: 'Received Qty', fallback: 'Received' },
-      { key: 'Unit Price', label: 'Unit Price', fallback: 'Price' }, // backend also stores Unit Cost
+      { key: 'Unit Price', label: 'Unit Price', fallback: 'Price' },
+      { key: '_ItemRecentCost', label: 'Item Recent Cost', required: true },
       { key: 'Required Date', label: 'Required Date', fallback: 'Due Date' },
       { key: 'Location', label: 'Location', fallback: 'Location No.' },
       { key: 'Billed Qty', label: 'Billed Qty' },
@@ -3938,6 +3950,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
                         { id: 'lineitems', label: 'Line Items', icon: <Package className="w-4 h-4" /> },
                         { id: 'costs', label: 'Additional Costs', icon: <DollarSign className="w-4 h-4" /> },
+                        { id: 'costhistory', label: 'Cost History', icon: <TrendingUp className="w-4 h-4" /> },
                       ]},
                     ].map((section) => (
                       <div key={section.title} className="py-2">
@@ -3991,11 +4004,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <span className="text-xs text-slate-500">Rev. {poView?.rawHeader?.['Revision'] ?? h['Revision']}</span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-6 text-sm tabular-nums">
+                              <div className="flex flex-wrap items-center gap-6 text-sm tabular-nums">
                                 <span><span className="text-slate-500">Total</span> <span className="font-semibold text-slate-900">${totalAmt.toFixed(2)}</span></span>
                                 <span><span className="text-slate-500">Received</span> <span className="font-semibold text-blue-600">${receivedAmt.toFixed(2)}</span></span>
                                 <span><span className="text-slate-500">Invoiced</span> <span className="font-semibold text-amber-600">${invoicedAmt.toFixed(2)}</span></span>
                                 <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-emerald-600">${(totalAmt - invoicedAmt).toFixed(2)}</span></span>
+                                {(() => {
+                                  const poIdForAvg = (poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '').toString();
+                                  const procHdr = processPurchaseOrders.headers.find((ph: any) => (ph.poId ?? '').toString() === poIdForAvg);
+                                  return procHdr?.recentUnitCost != null && procHdr.recentUnitCost > 0 ? (
+                                    <span title="Weighted avg unit cost from line items"><span className="text-slate-500">Avg Unit Cost</span> <span className="font-semibold text-slate-700">${procHdr.recentUnitCost.toFixed(2)}</span></span>
+                                  ) : null;
+                                })()}
                               </div>
                             </div>
 
@@ -4112,7 +4132,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   {poLineItems.map((line: any, index: number) => {
                                     const orderedQty = parseFloat(line['Ordered Qty'] || line['Ordered'] || 0);
                                     const receivedQty = parseFloat(line['Received Qty'] || line['Received'] || 0);
-                                    const unitPrice = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || 0);
+                                    let unitPrice = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || line['Cost'] || 0);
+                                    const itemNo = (line['Item No.'] ?? line['Part No.'] ?? line['itemId'] ?? '').toString().trim().toUpperCase();
+                                    const itemData = itemNo ? (indexes.alertByItemNo.get(itemNo) ?? indexes.itemByNo.get(itemNo)) : null;
+                                    const itemRecentCost = itemData ? parseCostValue(itemData['Recent Cost'] ?? itemData['cLast'] ?? itemData['Last Cost'] ?? 0) : 0;
+                                    if (unitPrice <= 0 && itemRecentCost > 0) unitPrice = itemRecentCost;
+                                    const fromItemFallback = unitPrice > 0 && parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || line['Cost'] || 0) <= 0;
                                     const remainingQty = orderedQty - receivedQty;
                                     const lineTotal = orderedQty * unitPrice;
                                     const extendedPrice = parseFloat(line['Extended Price'] || 0);
@@ -4168,7 +4193,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                               case 'Unit Price':
                                                 return (
                                                   <td key={col.key} className="px-5 py-4 text-right font-mono">
-                                                    {unitPrice > 0 ? `$${unitPrice.toFixed(2)}` : '—'}
+                                                    {unitPrice > 0 ? (
+                                                      <span title={fromItemFallback ? 'From Item Recent Cost (PO line had no price)' : ''}>
+                                                        ${unitPrice.toFixed(2)}
+                                                        {fromItemFallback && <span className="text-xs text-slate-500 ml-1">(from Item)</span>}
+                                                      </span>
+                                                    ) : itemRecentCost > 0 ? (
+                                                      <span className="text-amber-600" title="Item has Recent Cost but PO line has no price - consider updating PO">—</span>
+                                                    ) : '—'}
+                                                  </td>
+                                                );
+                                              
+                                              case '_ItemRecentCost':
+                                                return (
+                                                  <td key={col.key} className="px-5 py-4 text-right font-mono text-slate-600">
+                                                    {itemRecentCost > 0 ? `$${itemRecentCost.toFixed(2)}` : '—'}
                                                   </td>
                                                 );
                                               
@@ -4255,7 +4294,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     sum + parseFloat(line['Received Qty'] || line['Received'] || 0), 0);
                                   const totalValue = poLineItems.reduce((sum: number, line: any) => {
                                     const qty = parseFloat(line['Ordered Qty'] || line['Ordered'] || 0);
-                                    const price = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || 0);
+                                    let price = parseFloat(line['Unit Price'] || line['Price'] || line['Unit Cost'] || line['Cost'] || 0);
+                                    if (price <= 0) {
+                                      const ino = (line['Item No.'] ?? line['Part No.'] ?? line['itemId'] ?? '').toString().trim().toUpperCase();
+                                      const idata = ino ? (indexes.alertByItemNo.get(ino) ?? indexes.itemByNo.get(ino)) : null;
+                                      price = idata ? parseCostValue(idata['Recent Cost'] ?? idata['cLast'] ?? 0) : 0;
+                                    }
                                     return sum + (qty * price);
                                   }, 0);
 
@@ -4468,6 +4512,68 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       })()}
                         </div>
                       )}
+
+                  {/* PO Cost History Tab - MIICST for items on this PO */}
+                  {poActiveTab === 'costhistory' && (() => {
+                    const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
+                    const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
+                    const itemNos = [...new Set(poLines.map((l: any) => (l['Item No.'] ?? l['Part No.'] ?? l['itemId'] ?? '').toString().trim().toUpperCase()).filter(Boolean))];
+                    const allCostHistory: Array<{ itemNo: string; date: string; location: string; cost: number; poNo: string; qtyReceived: number }> = [];
+                    itemNos.forEach((itemNoUpper: string) => {
+                      const rows = indexes.miicstByItemNo.get(itemNoUpper) ?? [];
+                      rows.forEach((r: any) => {
+                        allCostHistory.push({
+                          itemNo: itemNoUpper,
+                          date: (r['Transaction Date'] ?? r['transDate'] ?? r['transDt'] ?? '').toString(),
+                          location: (r['Location No.'] ?? r['locId'] ?? '').toString(),
+                          cost: parseCostValue(r['Cost'] ?? r['cost'] ?? 0),
+                          poNo: (r['PO No.'] ?? r['poId'] ?? '').toString(),
+                          qtyReceived: parseStockValue(r['Qty Received'] ?? r['qRecd'] ?? 0),
+                        });
+                      });
+                    });
+                    const sorted = [...allCostHistory].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                    const hasData = sorted.length > 0;
+                    return (
+                      <div className="space-y-6">
+                        <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50">
+                          <h4 className="font-semibold text-slate-800 text-sm mb-2">Cost History (MIICST) · Items on this PO</h4>
+                          <p className="text-xs text-slate-600 mb-4">Purchase cost history for items on PO #{poId}. Shows when each item was last purchased, at what cost, and on which PO.</p>
+                          {!hasData ? (
+                            <p className="p-4 text-slate-500 text-sm">No cost history (MIICST) for items on this PO. Include MIICST.CSV in Full Company Data for cost history.</p>
+                          ) : (
+                            <div className="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+                              <table className="w-full text-sm">
+                                <thead className="bg-white/95 border-b border-slate-200">
+                                  <tr>
+                                    <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Item</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Date</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Location</th>
+                                    <th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Cost</th>
+                                    <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">PO No.</th>
+                                    <th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Qty</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                  {sorted.slice(0, 100).map((r, i) => (
+                                    <tr key={i} className="bg-white">
+                                      <td className="px-4 py-3 font-mono text-blue-600"><span className="underline cursor-pointer hover:bg-blue-50" onClick={() => { openItemById(r.itemNo); }}>{r.itemNo}</span></td>
+                                      <td className="px-4 py-3 text-slate-800">{formatDisplayDate(r.date) || '—'}</td>
+                                      <td className="px-4 py-3 font-mono text-slate-700">{r.location ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={() => { setSelectedLocId(r.location); setShowLocationDetail(true); }}>{r.location}</span> : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-medium tabular-nums">{formatCAD(r.cost)}</td>
+                                      <td className="px-4 py-3 font-mono text-slate-600">{r.poNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50" onClick={() => { if (r.poNo !== poId) openPOById(r.poNo); }}>{r.poNo}</span> : '—'}</td>
+                                      <td className="px-4 py-3 text-right tabular-nums">{(r.qtyReceived ?? 0).toLocaleString()}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {sorted.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sorted.length}</div>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                     </div>
                   </div>
                 </div>
