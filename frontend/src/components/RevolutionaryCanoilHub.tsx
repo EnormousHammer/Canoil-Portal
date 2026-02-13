@@ -505,7 +505,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (pos.length === 0) return [];
 
     const columns = [
-      { key: 'PO No.', label: 'PO Number', required: true },
+      { key: 'PO No.', label: 'PO Number', required: true, fallback: 'pohId' },
       { key: 'Supplier No.', label: 'Supplier', required: true, fallback: 'Name' },
       { key: 'Buyer', label: 'Buyer' },
       { key: 'Order Date', label: 'Order Date' },
@@ -549,7 +549,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       }
       
       const hasData = pos.some((po: any) => {
-        const value = po[col.key] || (col.fallback ? po[col.fallback] : null);
+        let value = po[col.key] || (col.fallback ? po[col.fallback] : null);
+        if (col.key === 'PO No.' && !value) value = po['pohId'];
+        if (col.key === 'Supplier No.' && !value) value = po['suplId'] || po['Vendor No.'];
+        if (col.key === 'Total Amount' && value == null) value = po['totalAmt'] || po['Total'];
+        if (col.key === 'Invoiced Amount' && value == null) value = po['Total Invoiced'] || po['totInvoiced'];
+        if (col.key === 'Order Date' && !value) value = po['ordDt'];
+        if (col.key === 'Close Date' && !value) value = po['closeDt'];
         return value && value !== '' && value !== 0 && value !== '0';
       });
       
@@ -886,8 +892,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       // Create searchable text from all relevant fields
       const searchableFields = [
         po['PO No.'],
+        po['pohId'],
         po['Supplier No.'],
         po['Name'],
+        po['suplId'],
+        po['Vendor No.'],
         po['Buyer'],
         po['Terms'],
         po['Ship Via'],
@@ -895,18 +904,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         po['Contact'],
         po['Source Currency'],
         po['Home Currency'],
-        po['Status'] === 0 ? 'open active' : 
-        po['Status'] === 1 ? 'pending' : 
-        po['Status'] === 2 ? 'closed completed' : 
-        po['Status'] === 3 ? 'cancelled' : '',
+        ((po['Status'] ?? po['poStatus']) === 0 || (po['Status'] ?? po['poStatus']) === '0') ? 'open active' : 
+        ((po['Status'] ?? po['poStatus']) === 1 || (po['Status'] ?? po['poStatus']) === '1') ? 'pending' : 
+        ((po['Status'] ?? po['poStatus']) === 2 || (po['Status'] ?? po['poStatus']) === '2') ? 'closed completed' : 
+        ((po['Status'] ?? po['poStatus']) === 3 || (po['Status'] ?? po['poStatus']) === '3') ? 'cancelled' : '',
         // Add formatted dates for search
-        po['Order Date'] ? formatDisplayDate(po['Order Date']) : '',
-        po['Close Date'] ? formatDisplayDate(po['Close Date']) : '',
+        (po['Order Date'] ?? po['ordDt']) ? formatDisplayDate(po['Order Date'] ?? po['ordDt']) : '',
+        (po['Close Date'] ?? po['closeDt']) ? formatDisplayDate(po['Close Date'] ?? po['closeDt']) : '',
         // Add amounts as searchable text
-        po['Total Amount'] ? `$${po['Total Amount'].toLocaleString()}` : '',
-        po['Invoiced Amount'] ? `$${po['Invoiced Amount'].toLocaleString()}` : '',
-        po['Received Amount'] ? `$${po['Received Amount'].toLocaleString()}` : '',
-        po['Freight'] ? `$${po['Freight'].toLocaleString()}` : ''
+        (po['Total Amount'] ?? po['totalAmt'] ?? po['Total']) ? `$${Number(po['Total Amount'] ?? po['totalAmt'] ?? po['Total']).toLocaleString()}` : '',
+        (po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced']) ? `$${Number(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced']).toLocaleString()}` : '',
+        (po['Received Amount'] ?? po['Total Received'] ?? po['totReceived']) ? `$${Number(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived']).toLocaleString()}` : '',
+        po['Freight'] ? `$${Number(po['Freight']).toLocaleString()}` : ''
       ].filter(Boolean).join(' ').toLowerCase();
 
       // Check if all search terms are found in the searchable text (partial matching)
@@ -3357,26 +3366,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       ) : (
                         <>
                           <div className="rounded-xl border border-slate-200 overflow-hidden">
-                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                            <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
                               <Wrench className="w-4 h-4 text-slate-600" />
                               <h4 className="font-semibold text-slate-800 text-sm">MIMOMD · Components & Materials</h4>
                               <span className="text-xs text-slate-500 ml-auto">Showing {moView.components.length} of {moView.components.length}</span>
                             </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full text-sm min-w-[980px]">
                               <thead className="bg-slate-100">
                                 <tr>
-                                  <th className="text-left p-3 font-medium text-slate-600">Component</th>
-                                  <th className="text-left p-3 font-medium text-slate-600">Description</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Required</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Issued</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Remaining</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Available</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Shortage</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Unit Cost</th>
-                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Total</th>
-                                  <th className="text-left p-3 font-medium text-slate-600">Location</th>
-                                  <th className="text-left p-3 font-medium text-slate-600">Status</th>
+                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[130px]">Component</th>
+                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[200px]">Description</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Required</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Issued</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Remaining</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Available</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Shortage</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Unit Cost</th>
+                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Total</th>
+                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[90px]">Location</th>
+                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[100px]">Status</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3390,62 +3399,62 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <tr key={index} className={`border-b border-slate-100 tabular-nums ${
                                       hasShortage ? 'bg-red-50/50' : index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'
                                     } hover:bg-slate-50`}>
-                                      <td className="p-3 font-mono text-blue-600 font-medium">
+                                      <td className="px-4 py-3 font-mono text-blue-600 font-medium whitespace-nowrap">
                                         {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
                                       </td>
-                                      <td className="p-3 text-gray-700">
+                                      <td className="px-4 py-3 text-slate-700 break-words">
                                         {c.desc || '—'}
                                       </td>
-                                      <td className="p-3 text-right font-medium">
+                                      <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
                                         {c.requiredQty > 0 ? c.requiredQty.toLocaleString() : '—'}
                                       </td>
-                                      <td className="p-3 text-right font-medium text-green-600">
+                                      <td className="px-4 py-3 text-right font-medium text-green-600 whitespace-nowrap">
                                         {c.releasedQty > 0 ? c.releasedQty.toLocaleString() : '—'}
                                       </td>
-                                      <td className="p-3 text-right font-medium text-orange-600">
+                                      <td className="px-4 py-3 text-right font-medium text-orange-600 whitespace-nowrap">
                                         {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
                                       </td>
-                                      <td className={`p-3 text-right font-medium ${
+                                      <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
                                         stockStatus === 'sufficient' ? 'text-green-600' :
                                         stockStatus === 'low' ? 'text-yellow-600' :
                                         'text-red-600'
                                       }`}>
                                         {c.availableStock > 0 ? c.availableStock.toLocaleString() : '0'}
                                       </td>
-                                      <td className={`p-3 text-right font-medium font-bold ${
+                                      <td className={`px-4 py-3 text-right font-medium font-bold whitespace-nowrap ${
                                         hasShortage ? 'text-red-600' : 'text-green-600'
                                       }`}>
                                         {hasShortage ? `-${c.shortage.toLocaleString()}` : '✓'}
                                       </td>
-                                      <td className="p-3 text-right font-mono">
+                                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
                                         {c.materialCost > 0 ? `$${c.materialCost.toFixed(2)}` : '—'}
                                       </td>
-                                      <td className="p-3 text-right font-mono font-bold text-green-600">
+                                      <td className="px-4 py-3 text-right font-mono font-bold text-green-600 whitespace-nowrap">
                                         {c.totalCost > 0 ? `$${c.totalCost.toFixed(2)}` : '—'}
                                       </td>
-                                      <td className="p-3 text-gray-600">
+                                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                                         {c.sourceLocation ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(c.sourceLocation!); setShowLocationDetail(true); }}>{c.sourceLocation}</span> : '—'}
                                       </td>
-                                      <td className="p-3">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      <td className="px-4 py-3 whitespace-nowrap">
+                                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
                                           stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
                                             stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
                                             'bg-red-100 text-red-700'
-                                          }`}>
-                                            {stockStatus === 'sufficient' ? '✓ In Stock' :
-                                             stockStatus === 'low' ? '⚠ Low Stock' :
-                                             '✗ Out of Stock'}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
+                                        }`}>
+                                          {stockStatus === 'sufficient' ? '✓ In Stock' :
+                                           stockStatus === 'low' ? '⚠ Low Stock' :
+                                           '✗ Out of Stock'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                             
-                            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
-                              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-3">
+                            <div className="px-5 py-4 bg-slate-50 border-t border-slate-200">
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-sm">
                                 {(() => {
                                   const totalComponents = moView.components.length;
                                   const totalRequiredQty = moView.components.reduce((sum, c) => sum + c.requiredQty, 0);
@@ -4941,10 +4950,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="flex items-center space-x-4">
                         <div className="text-sm text-gray-600">
                             {(() => {
-                              const filteredPOs = searchPurchaseOrders.filter((po: any) => 
-                                po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
-                                (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0)
-                              );
+                              const filteredPOs = searchPurchaseOrders.filter((po: any) => {
+                                const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
+                                if (!poId) return false;
+                                const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
+                                const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
+                                const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
+                                const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                                return !!supl || tot > 0 || inv > 0 || recv > 0;
+                              });
                               const startItem = (poCurrentPage - 1) * poPageSize + 1;
                               const endItem = Math.min(poCurrentPage * poPageSize, filteredPOs.length);
                               return `Showing ${startItem}-${endItem} of ${filteredPOs.length} Orders`;
@@ -5033,11 +5047,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </thead>
                         <tbody>
                           {(() => {
-                            // Filter using smart search results
-                            const filteredPOs = searchPurchaseOrders.filter((po: any) => 
-                              po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
-                              (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0)
-                            );
+                            // Filter: show POs with ID and (supplier OR any amount)
+                            const filteredPOs = searchPurchaseOrders.filter((po: any) => {
+                              const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
+                              if (!poId) return false;
+                              const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
+                              const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
+                              const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
+                              const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                              return !!supl || tot > 0 || inv > 0 || recv > 0;
+                            });
                             const sortedPOs = sortData(filteredPOs, poSortField, poSortDirection);
                             const startIndex = (poCurrentPage - 1) * poPageSize;
                             const endIndex = startIndex + poPageSize;
@@ -5053,15 +5072,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               }
                             };
                             
-                            const statusInfo = getStatusInfo(po['Status']);
+                            const statusInfo = getStatusInfo(po['Status'] ?? po['poStatus']);
                             
                             // Get supplier defaults from other POs (for better fallback values)
                             const getSupplierDefaults = (supplierNo: string) => {
                               if (!supplierNo) return {};
                               const allPOs = poHeadersSource;
+                              const currPoId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                               const supplierPOs = allPOs.filter((p: any) => 
-                                (p['Supplier No.'] === supplierNo || p['Name'] === supplierNo) && 
-                                p['PO No.'] !== po['PO No.'] // Exclude current PO
+                                (p['Supplier No.'] === supplierNo || p['Name'] === supplierNo || p['suplId'] === supplierNo) && 
+                                (p['PO No.'] ?? p['pohId'] ?? '').toString().trim() !== currPoId
                               );
                               
                               if (supplierPOs.length === 0) return {};
@@ -5080,11 +5100,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               };
                             };
                             
-                            const supplierDefaults = getSupplierDefaults(po['Supplier No.'] || po['Name']);
+                            const supplierDefaults = getSupplierDefaults((po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString());
                             
-                            // Only show rows with meaningful data
-                            const hasData = po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
-                                          (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0);
+                            const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
+                            const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
+                            const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
+                            const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
+                            const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                            const hasData = !!poId && (!!supl || tot > 0 || inv > 0 || recv > 0);
                             
                             if (!hasData) return null;
                             
@@ -5113,14 +5136,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       case 'PO No.':
                                         return (
                                           <td key={col.key} className="p-2 font-mono text-blue-600 font-medium">
-                                            {value || '—'}
+                                            {value || po['pohId'] || '—'}
                                 </td>
                                         );
                                       
                                       case 'Supplier No.':
                                         return (
                                           <td key={col.key} className="p-2 font-medium text-gray-900">
-                                            {getValue(po, 'Supplier No.', 'Name') || '—'}
+                                            {getValue(po, 'Supplier No.', 'Name') || po['suplId'] || po['Vendor No.'] || '—'}
                                 </td>
                                         );
                                       
@@ -5134,8 +5157,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         );
                                       
                                       case 'Total Amount':
-                                      case 'Invoiced Amount':
-                                        const amount = parseFloat(value || 0);
+                                      case 'Invoiced Amount': {
+                                        const amtVal = value ?? (col.key === 'Total Amount' ? (po['totalAmt'] ?? po['Total']) : (po['Total Invoiced'] ?? po['totInvoiced']));
+                                        const amount = parseFloat(amtVal || 0);
                                         const colorClass = col.key === 'Total Amount' ? 'text-green-600' :
                                                          col.key === 'Invoiced Amount' ? 'text-blue-600' : 'text-gray-600';
                                         return (
@@ -5146,6 +5170,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   }
                                 </td>
                                         );
+                                      }
                                       
                                       case 'Order Date':
                                       case 'Close Date':
@@ -5162,10 +5187,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </td>
                                         );
                                       
-                                      case 'totalOrderedQty':
-                                        // Calculate total ordered quantity from line items
+                                      case 'totalOrderedQty': {
+                                        const poKey = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                                         const poLines = poDetailsSource.filter((line: any) => 
-                                          line['PO No.'] === po['PO No.']
+                                          (line['PO No.'] ?? line['pohId'] ?? '').toString().trim() === poKey
                                         );
                                         const totalOrdered = poLines.reduce((sum: number, line: any) => 
                                           sum + parseFloat(line['Ordered Qty'] || line['Ordered'] || 0), 0);
@@ -5174,11 +5199,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             {totalOrdered > 0 ? totalOrdered.toLocaleString() : '—'}
                                 </td>
                                         );
+                                      }
                                       
-                                      case 'totalReceivedQty':
-                                        // Calculate total received quantity from line items
+                                      case 'totalReceivedQty': {
+                                        const poKeyRec = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                                         const poLinesRec = poDetailsSource.filter((line: any) => 
-                                          line['PO No.'] === po['PO No.']
+                                          (line['PO No.'] ?? line['pohId'] ?? '').toString().trim() === poKeyRec
                                         );
                                         const totalReceived = poLinesRec.reduce((sum: number, line: any) => 
                                           sum + parseFloat(line['Received Qty'] || line['Received'] || 0), 0);
@@ -5187,6 +5213,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                             {totalReceived > 0 ? totalReceived.toLocaleString() : '—'}
                                 </td>
                                         );
+                                      }
                                       
                                       case 'Terms':
                                       case 'Ship Via':
@@ -5251,16 +5278,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         {(() => {
-                          // Filter to only POs with real data
-                          const realPOs = poHeadersSource.filter((po: any) => 
-                            po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
-                            (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0)
-                          );
+                          // Filter to POs with ID and (supplier OR any amount)
+                          const realPOs = poHeadersSource.filter((po: any) => {
+                            const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
+                            if (!poId) return false;
+                            const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
+                            const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
+                            const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
+                            const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                            return !!supl || tot > 0 || inv > 0 || recv > 0;
+                          });
                           
-                          const totalAmount = realPOs.reduce((sum: number, po: any) => sum + (po['Total Amount'] || 0), 0);
-                          const totalInvoiced = realPOs.reduce((sum: number, po: any) => sum + (po['Invoiced Amount'] || 0), 0);
-                          const openPOs = realPOs.filter((po: any) => po['Status'] === 0).length;
-                          const uniqueSuppliers = new Set(realPOs.map((po: any) => po['Supplier No.'] || po['Name']).filter(Boolean)).size;
+                          const totalAmount = realPOs.reduce((sum: number, po: any) => sum + (parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0), 0);
+                          const totalInvoiced = realPOs.reduce((sum: number, po: any) => sum + (parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0), 0);
+                          const openPOs = realPOs.filter((po: any) => (po['Status'] ?? po['poStatus']) === 0 || (po['Status'] ?? po['poStatus']) === '0').length;
+                          const uniqueSuppliers = new Set(realPOs.map((po: any) => po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.']).filter(Boolean)).size;
                           
                           return (
                             <>
@@ -5296,10 +5328,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     
                     {/* PO Pagination */}
                     {(() => {
-                      const filteredPOs = searchPurchaseOrders.filter((po: any) => 
-                        po['PO No.'] && (po['Supplier No.'] || po['Name']) && 
-                        (po['Total Amount'] > 0 || po['Invoiced Amount'] > 0 || po['Received Amount'] > 0)
-                      );
+                      const filteredPOs = searchPurchaseOrders.filter((po: any) => {
+                        const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
+                        if (!poId) return false;
+                        const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
+                        const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
+                        const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
+                        const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                        return !!supl || tot > 0 || inv > 0 || recv > 0;
+                      });
                       
                       return (
                         <EnterprisePagination
