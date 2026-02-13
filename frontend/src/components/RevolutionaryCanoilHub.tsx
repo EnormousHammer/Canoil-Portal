@@ -217,6 +217,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [moSortDirection, setMoSortDirection] = useState<'asc' | 'desc'>('desc');
   const [moStatusFilter, setMoStatusFilter] = useState<string>('all');
   const [moCustomerFilter, setMoCustomerFilter] = useState<string>('all');
+  const [poStatusFilter, setPoStatusFilter] = useState<string>('all');
+  const [poSupplierFilter, setPoSupplierFilter] = useState<string>('all');
   const [showCreateMOModal, setShowCreateMOModal] = useState(false);
   const [createMOForm, setCreateMOForm] = useState({
     build_item_no: '',
@@ -227,8 +229,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     description: ''
   });
   const [createMOSubmitting, setCreateMOSubmitting] = useState(false);
-  const [poStatusFilter, setPoStatusFilter] = useState<string>('all');
-  const [poVendorFilter, setPoVendorFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inventoryFilter, setInventoryFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -835,6 +835,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       // Create searchable text from all relevant fields
       const searchableFields = [
         mo['Mfg. Order No.'],
+        mo['Batch No.'],
+        mo['Batch Number'],
         getCustomerName(mo),
         mo['Build Item No.'],
         mo['Description'],
@@ -842,6 +844,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         mo['Location No.'],
         mo['Sales Location'],
         mo['Work Center'],
+        mo['Sales Order No.'],
+        mo['SO No.'],
+        mo['Job No.'],
         mo['Released By'],
         mo['Status'] === 0 ? 'planned' : 
         mo['Status'] === 1 ? 'released active' : 
@@ -2295,16 +2300,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <Download className="w-4 h-4" />
                         Export
                       </button>
-                      <button className="px-4 py-2.5 bg-gradient-to-r from-violet-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:from-violet-600 hover:to-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-violet-500/25">
+                      <button
+                        onClick={async () => { await onRefreshData?.(); }}
+                        className="px-4 py-2.5 bg-gradient-to-r from-violet-500 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:from-violet-600 hover:to-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-violet-500/25"
+                        title="Refresh data from backend"
+                      >
                         <RefreshCw className="w-4 h-4" />
                         Refresh
                       </button>
                     </div>
                   </div>
                   
-                  {/* Enterprise KPI Bar */}
+                  {/* Enterprise KPI Bar - Clickable to filter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-violet-400/40 transition-colors">
+                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-violet-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-violet-500/30 flex items-center justify-center">
                         <Factory className="w-5 h-5 text-violet-300" />
                       </div>
@@ -2312,8 +2321,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Total Orders</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setMoStatusFilter('1'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-emerald-500/30 flex items-center justify-center">
                         <Activity className="w-5 h-5 text-emerald-300" />
                       </div>
@@ -2321,8 +2330,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">In Production</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setMoStatusFilter('0'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-amber-500/30 flex items-center justify-center">
                         <Calendar className="w-5 h-5 text-amber-300" />
                       </div>
@@ -2330,8 +2339,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Awaiting Release</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-blue-500/30 flex items-center justify-center">
                         <Package2 className="w-5 h-5 text-blue-300" />
                       </div>
@@ -2339,7 +2348,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Total Components</div>
                       </div>
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2546,6 +2555,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     {mo['Build Item No.']}
                                     {(mo['Non-Stocked Build Item Description'] || mo['Description']) && (
                                       <span className="text-slate-400"> · {(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().slice(0, 40)}{(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().length > 40 ? '…' : ''}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-600">
+                                    {(mo['Batch No.'] || mo['Batch Number']) && (
+                                      <span className="font-mono font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">Batch: {mo['Batch No.'] || mo['Batch Number']}</span>
+                                    )}
+                                    {(mo['Sales Order No.'] || mo['SO No.']) && (
+                                      <span>SO: <span className="font-medium text-blue-600">{mo['Sales Order No.'] || mo['SO No.']}</span></span>
+                                    )}
+                                    {(mo['Location No.'] || mo['Sales Location'] || mo['Work Center']) && (
+                                      <span>Loc: {mo['Location No.'] || mo['Sales Location'] || mo['Work Center']}</span>
+                                    )}
+                                    {mo['Job No.'] && (
+                                      <span>Job: {mo['Job No.']}</span>
                                     )}
                                   </div>
                                 </div>
@@ -2992,20 +3015,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Mfg. Order No.</td>
                                 <td className="p-3 font-mono font-medium">{moView.moNo || '—'}</td>
+                                <td className="p-3 text-slate-600">Batch No.</td>
+                                <td className="p-3 font-mono font-semibold text-violet-700">{(moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']) || '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Build Item</td>
                                 <td className="p-3">{moView.buildItemNo ? <span className="font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span> : '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Location</td>
                                 <td className="p-3">{moView.locationNo ? <span className="underline cursor-pointer hover:bg-slate-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span> : '—'}</td>
-                                <td className="p-3 text-slate-600">Sales Order</td>
-                                <td className="p-3 font-mono">{moView.salesOrderNo || '—'}</td>
                               </tr>
                               <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Sales Order</td>
+                                <td className="p-3 font-mono">{moView.salesOrderNo || '—'}</td>
                                 <td className="p-3 text-slate-600">Job No.</td>
                                 <td className="p-3 font-mono">{moView.jobNo || '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Customer</td>
-                                <td className="p-3">{moView.customer || '—'}</td>
+                                <td className="p-3" colSpan={3}>{moView.customer || '—'}</td>
                               </tr>
                               <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Release Qty</td>
@@ -4746,16 +4773,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <Plus className="w-4 h-4" />
                         New PO
                       </button>
-                      <button className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2">
+                      <button
+                        onClick={async () => { await onRefreshData?.(); }}
+                        className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
+                        title="Refresh data from backend"
+                      >
                         <RefreshCw className="w-4 h-4" />
                         Refresh
                       </button>
                     </div>
                   </div>
                   
-                  {/* Enterprise KPI Bar */}
+                  {/* Enterprise KPI Bar - Clickable to filter */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors">
+                    <button type="button" onClick={() => { setPoStatusFilter('all'); setPoSupplierFilter('all'); setPoSearchQuery(''); setPoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-blue-500/30 flex items-center justify-center">
                         <ShoppingBag className="w-5 h-5 text-blue-300" />
                       </div>
@@ -4763,8 +4794,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{poHeadersSource.length.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Total Orders</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setPoStatusFilter('open-pending'); setPoSupplierFilter('all'); setPoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-emerald-500/30 flex items-center justify-center">
                         <Activity className="w-5 h-5 text-emerald-300" />
                       </div>
@@ -4772,8 +4803,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{poHeadersSource.filter((po: any) => ['0', '1', 0, 1].includes(po['Status'] as any)).length.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Open / Pending</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setPoStatusFilter('all'); setPoSupplierFilter('all'); setPoSearchQuery(''); setPoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-amber-500/30 flex items-center justify-center">
                         <Package2 className="w-5 h-5 text-amber-300" />
                       </div>
@@ -4781,8 +4812,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{poDetailsSource.length.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Line Items</div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-purple-400/40 transition-colors">
+                    </button>
+                    <button type="button" onClick={() => { setPoStatusFilter('all'); setPoSupplierFilter('all'); setPoSearchQuery(''); setPoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-purple-400/40 transition-colors text-left">
                       <div className="w-11 h-11 rounded-xl bg-purple-500/30 flex items-center justify-center">
                         <Users className="w-5 h-5 text-purple-300" />
                       </div>
@@ -4790,7 +4821,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="text-2xl font-bold text-white">{(new Set(poHeadersSource.map((po: any) => po['Supplier No.'] || po['Name'] || po['suplId'] || po['Vendor No.']).filter(Boolean)).size || 0).toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Suppliers</div>
                       </div>
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -4812,6 +4843,33 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             />
                           </div>
                           <select
+                            value={poStatusFilter}
+                            onChange={(e) => { setPoStatusFilter(e.target.value); setPoCurrentPage(1); }}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20"
+                          >
+                            <option value="all">All Status</option>
+                            <option value="open-pending">Open / Pending</option>
+                            <option value="0">Open</option>
+                            <option value="1">Pending</option>
+                            <option value="2">Closed</option>
+                            <option value="3">Cancelled</option>
+                          </select>
+                          <select
+                            value={poSupplierFilter}
+                            onChange={(e) => { setPoSupplierFilter(e.target.value); setPoCurrentPage(1); }}
+                            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 min-w-[140px] focus:ring-2 focus:ring-blue-500/20"
+                          >
+                            <option value="all">All Suppliers</option>
+                            {(() => {
+                              const uniqueSuppliers = Array.from(new Set(
+                                poHeadersSource.map((po: any) => (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim()).filter(Boolean)
+                              )).sort();
+                              return uniqueSuppliers.map((supplier: string) => (
+                                <option key={supplier} value={supplier}>{supplier}</option>
+                              ));
+                            })()}
+                          </select>
+                          <select
                             value={poSortField}
                             onChange={(e) => setPoSortField(e.target.value)}
                             className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20"
@@ -4829,7 +4887,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             {poSortDirection === 'asc' ? '↑' : '↓'}
                           </button>
                           <button
-                            onClick={() => { setPoSearchQuery(''); setPoCurrentPage(1); }}
+                            onClick={() => { setPoSearchQuery(''); setPoStatusFilter('all'); setPoSupplierFilter('all'); setPoCurrentPage(1); }}
                             className="px-3 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium"
                           >
                             Clear
@@ -4838,7 +4896,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                             {(() => {
-                              const filteredPOs = searchPurchaseOrders.filter((po: any) => {
+                              let filteredPOs = searchPurchaseOrders.filter((po: any) => {
                                 const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                                 if (!poId) return false;
                                 const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
@@ -4847,6 +4905,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
                                 return !!supl || tot > 0 || inv > 0 || recv > 0;
                               });
+                              if (poStatusFilter !== 'all') {
+                                if (poStatusFilter === 'open-pending') {
+                                  filteredPOs = filteredPOs.filter((po: any) => ['0', '1', 0, 1].includes((po['Status'] ?? po['poStatus']) as any));
+                                } else {
+                                  filteredPOs = filteredPOs.filter((po: any) => (po['Status'] ?? po['poStatus'])?.toString() === poStatusFilter);
+                                }
+                              }
+                              if (poSupplierFilter !== 'all') filteredPOs = filteredPOs.filter((po: any) => (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim() === poSupplierFilter);
                               const startItem = (poCurrentPage - 1) * poPageSize + 1;
                               const endItem = Math.min(poCurrentPage * poPageSize, filteredPOs.length);
                               return `${startItem}-${endItem} of ${filteredPOs.length}`;
@@ -4884,7 +4950,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                           {(() => {
                             // Filter: show POs with ID and (supplier OR any amount)
-                            const filteredPOs = searchPurchaseOrders.filter((po: any) => {
+                            let filteredPOs = searchPurchaseOrders.filter((po: any) => {
                               const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                               if (!poId) return false;
                               const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
@@ -4893,6 +4959,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
                               return !!supl || tot > 0 || inv > 0 || recv > 0;
                             });
+                            if (poStatusFilter !== 'all') {
+                              if (poStatusFilter === 'open-pending') {
+                                filteredPOs = filteredPOs.filter((po: any) => ['0', '1', 0, 1].includes((po['Status'] ?? po['poStatus']) as any));
+                              } else {
+                                filteredPOs = filteredPOs.filter((po: any) => (po['Status'] ?? po['poStatus'])?.toString() === poStatusFilter);
+                              }
+                            }
+                            if (poSupplierFilter !== 'all') filteredPOs = filteredPOs.filter((po: any) => (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim() === poSupplierFilter);
                             const sortedPOs = sortData(filteredPOs, poSortField, poSortDirection);
                             const startIndex = (poCurrentPage - 1) * poPageSize;
                             const endIndex = startIndex + poPageSize;
