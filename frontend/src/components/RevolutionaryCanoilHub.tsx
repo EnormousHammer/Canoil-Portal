@@ -2998,602 +2998,310 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Enhanced Manufacturing Order Details Modal - uses moView (data contract layer) */}
+          {/* MO Details Modal - Enterprise layout (matches Item modal) */}
           {showMODetails && moView && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
-                {/* Decorative gradient overlay */}
-                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600"></div>
-                <div className="overflow-y-auto max-h-[95vh]">
-                {/* Ultra Modern MO Header */}
-                <div className="relative bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-700 text-white px-8 py-6 border-b-4 border-purple-800/50 shadow-2xl">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
-                        <Factory className="w-10 h-10 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Manufacturing Order Details</h3>
-                        <p className="text-purple-100 text-base mt-1.5 font-medium">
-                          MO #{moView.moNo} - {moView.buildItemNo ? (
-                            <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); openItemById(moView.buildItemNo!); }}>{moView.buildItemNo}</span>
-                          ) : '—'}
-                          {moView.buildItemDesc && (
-                            <span className="ml-3 text-purple-200">• {moView.buildItemDesc}</span>
-                          )}
-                        </p>
-                        <p className="text-purple-200/90 text-xs mt-1.5">Click any item #, location, or build item to see more.</p>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" onClick={() => setShowMODetails(false)} role="dialog" aria-modal="true">
+              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-2 ring-purple-400 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                {/* Enterprise header bar */}
+                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-slate-800 text-white rounded-t-2xl">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-purple-500/20 text-purple-300">
+                      <Factory className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl font-bold tracking-tight text-white truncate">MO #{moView.moNo}</h1>
+                      <p className="text-slate-300 text-sm truncate mt-0.5">
+                        {moView.buildItemNo ? (
+                          <span className="text-white cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openItemById(moView.buildItemNo!); }}>{moView.buildItemNo}</span>
+                        ) : '—'}
+                        {moView.buildItemDesc && <span className="ml-2 text-slate-300">• {moView.buildItemDesc}</span>}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200">
+                          {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
+                        </span>
+                        <span className="text-slate-400 text-xs">Ordered {moView.orderedQty?.toLocaleString() ?? '—'}</span>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-slate-400 text-xs">WIP {moView.wipQty?.toLocaleString() ?? '—'}</span>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-slate-400 text-xs">Completed {moView.completedQty?.toLocaleString() ?? '—'}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowMODetails(false)}
-                      className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 rounded-xl px-4 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                      aria-label="Close"
-                    >
-                      <X className="w-5 h-5" />
-                      <span className="text-sm font-medium">Close</span>
-                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-gradient-to-br from-gray-50 to-white">
-                  {/* Modern Tabs */}
-                  <div className="flex space-x-2 mb-4 border-b border-gray-200">
-                    <button
-                      onClick={() => setMoActiveTab('overview')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'overview' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <ClipboardList className="w-4 h-4" />
-                      MO Overview
-                    </button>
-                    <button
-                      onClick={() => setMoActiveTab('details')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'details' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Wrench className="w-4 h-4" />
-                      Components & Materials
-                    </button>
-                    <button
-                      onClick={() => setMoActiveTab('routings')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'routings' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Cog className="w-4 h-4" />
-                      Operations & Routing
-                    </button>
-                    <button
-                      onClick={() => setMoActiveTab('pegged')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'pegged' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Link2 className="w-4 h-4" />
-                      Sales Order Related
-                    </button>
-                    {dataCatalog.hasTransactions && (
-                    <button
-                      onClick={() => setMoActiveTab('transactions')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'transactions' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Activity className="w-4 h-4" />
-                      Transactions
-                    </button>
-                    )}
-                    {dataCatalog.hasLotTrace && moView?.buildItemNo && (
-                    <button
-                      onClick={() => setMoActiveTab('lots')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        moActiveTab === 'lots' 
-                          ? 'border-purple-600 text-purple-600 bg-purple-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Hash className="w-4 h-4" />
-                      Lots
-                    </button>
-                    )}
-                  </div>
+                {/* Body: sidebar + content */}
+                <div className="flex-1 flex min-h-0">
+                  {/* Left sidebar nav */}
+                  <aside className="flex-shrink-0 w-56 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+                    {[
+                      { title: 'Order', items: [
+                        { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
+                        { id: 'details', label: 'Components & Materials', icon: <Wrench className="w-4 h-4" /> },
+                        { id: 'routings', label: 'Operations & Routing', icon: <Cog className="w-4 h-4" /> },
+                      ]},
+                      { title: 'Related', items: [
+                        { id: 'pegged', label: 'Sales Order Related', icon: <Link2 className="w-4 h-4" /> },
+                        ...(dataCatalog.hasTransactions ? [{ id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> }] : []),
+                        ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots', icon: <Hash className="w-4 h-4" /> }] : []),
+                      ]},
+                    ].map((section) => (
+                      <div key={section.title} className="py-2">
+                        <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
+                        {section.items.map(({ id, label, icon }) => (
+                          <button
+                            key={id}
+                            onClick={() => setMoActiveTab(id)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors border-l-2 ${
+                              moActiveTab === id ? 'bg-slate-100 border-slate-800 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                            }`}
+                          >
+                            <span className="text-slate-400 flex-shrink-0">{icon}</span>
+                            <span className="truncate flex-1">{label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </aside>
 
-                  {/* MO Overview Tab */}
+                  {/* Main content area */}
+                  <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div className="bg-white rounded-xl border-2 border-purple-200 shadow-sm overflow-hidden">
+                        <div className="p-6">
+                  {/* MO Overview Tab - MISys-style */}
                   {moActiveTab === 'overview' && (
                     <div className="space-y-6">
-                      {/* Related Information - Sales Order, Job, Work Order */}
+                      {/* KPI strip - compact */}
+                      <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-slate-500">Status</span>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-md ${
+                            moView.status === 0 ? 'bg-amber-100 text-amber-800' :
+                            moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
+                            moView.status === 2 ? 'bg-blue-100 text-blue-800' :
+                            moView.status === 3 ? 'bg-violet-100 text-violet-800' :
+                            moView.status === 4 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
+                          </span>
+                          {moView.onHold && <span className="px-2 py-1 text-xs font-semibold rounded-md bg-red-100 text-red-700">On Hold</span>}
+                        </div>
+                        <div className="flex items-center gap-6 text-sm tabular-nums">
+                          <span><span className="text-slate-500">Ordered</span> <span className="font-semibold text-slate-900">{moView.orderedQty?.toLocaleString() ?? '—'}</span></span>
+                          <span><span className="text-slate-500">WIP</span> <span className="font-semibold text-blue-600">{moView.wipQty?.toLocaleString() ?? '—'}</span></span>
+                          <span><span className="text-slate-500">Completed</span> <span className="font-semibold text-emerald-600">{moView.completedQty?.toLocaleString() ?? '—'}</span></span>
+                          <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-slate-900">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</span></span>
+                          {moView.orderedQty > 0 && (
+                            <span><span className="text-slate-500">Progress</span> <span className="font-semibold text-purple-600">{Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100)}%</span></span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* MIMOH Header - structured table */}
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                          <h4 className="font-semibold text-slate-800 text-sm">MIMOH · Manufacturing Order Header</h4>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="text-left p-3 font-medium text-slate-600">Field</th>
+                                <th className="text-left p-3 font-medium text-slate-600">Value</th>
+                                <th className="text-left p-3 font-medium text-slate-600">Field</th>
+                                <th className="text-left p-3 font-medium text-slate-600">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Mfg. Order No.</td>
+                                <td className="p-3 font-mono font-medium">{moView.moNo || '—'}</td>
+                                <td className="p-3 text-slate-600">Build Item</td>
+                                <td className="p-3">{moView.buildItemNo ? <span className="font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span> : '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Location</td>
+                                <td className="p-3">{moView.locationNo ? <span className="underline cursor-pointer hover:bg-slate-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span> : '—'}</td>
+                                <td className="p-3 text-slate-600">Sales Order</td>
+                                <td className="p-3 font-mono">{moView.salesOrderNo || '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Job No.</td>
+                                <td className="p-3 font-mono">{moView.jobNo || '—'}</td>
+                                <td className="p-3 text-slate-600">Customer</td>
+                                <td className="p-3">{moView.customer || '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Release Qty</td>
+                                <td className="p-3 tabular-nums font-medium">{moView.releaseOrderQty?.toLocaleString() ?? moView.orderedQty?.toLocaleString() ?? '—'}</td>
+                                <td className="p-3 text-slate-600">Allocated</td>
+                                <td className="p-3 tabular-nums">{moView.rawHeader?.['Allocated']?.toLocaleString() ?? '—'}</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3 text-slate-600">Reserved</td>
+                                <td className="p-3 tabular-nums">{moView.rawHeader?.['Reserved']?.toLocaleString() ?? '—'}</td>
+                                <td className="p-3 text-slate-600">Priority</td>
+                                <td className="p-3">{moView.rawHeader?.['Priority'] || '—'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Dates */}
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">Dates</h4>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4">
+                          {moView.dates.order && <div><span className="text-xs text-slate-500 block">Order</span><span className="text-sm font-medium tabular-nums">{moView.dates.order}</span></div>}
+                          {moView.dates.release && <div><span className="text-xs text-slate-500 block">Release</span><span className="text-sm font-medium tabular-nums">{moView.dates.release}</span></div>}
+                          {moView.dates.start && <div><span className="text-xs text-slate-500 block">Start</span><span className="text-sm font-medium tabular-nums">{moView.dates.start}</span></div>}
+                          {moView.dates.completion && <div><span className="text-xs text-slate-500 block">Completion</span><span className="text-sm font-medium tabular-nums">{moView.dates.completion}</span></div>}
+                          {moView.dates.close && <div><span className="text-xs text-slate-500 block">Close</span><span className="text-sm font-medium tabular-nums">{moView.dates.close}</span></div>}
+                          {moView.rawHeader?.['Sales Order Ship Date'] && <div><span className="text-xs text-slate-500 block">SO Ship</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Sales Order Ship Date']}</span></div>}
+                        </div>
+                      </div>
+
+                      {/* Costs - MIMOH cost fields */}
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">Costs (MIMOH)</h4>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="text-left p-3 font-medium text-slate-600">Material</th>
+                                <th className="text-right p-3 font-medium text-slate-600">Labor</th>
+                                <th className="text-right p-3 font-medium text-slate-600">Overhead</th>
+                                <th className="text-right p-3 font-medium text-slate-600">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-b border-slate-100">
+                                <td className="p-3">
+                                  <span className="text-slate-500 text-xs block">Projected</span>
+                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-slate-500 text-xs block">Projected</span>
+                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-slate-500 text-xs block">Projected</span>
+                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right font-semibold text-slate-900">—</td>
+                              </tr>
+                              <tr className="hover:bg-slate-50/50">
+                                <td className="p-3">
+                                  <span className="text-slate-500 text-xs block">Actual</span>
+                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-slate-500 text-xs block">Actual</span>
+                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-slate-500 text-xs block">Actual</span>
+                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}</span>
+                                </td>
+                                <td className="p-3 text-right font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Related - SO, Job, Work Orders */}
                       {(() => {
                         const salesOrderNo = moView.salesOrderNo;
                         const jobNo = moView.jobNo;
-                        const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => 
-                          so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo
-                        ) : null;
-                        const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => 
-                          job['Job No.'] === jobNo
-                        ) : null;
-                        const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => 
-                          wo['Job No.'] === jobNo
-                        ) : [];
-
-                        if (relatedSO || relatedJob || relatedWorkOrders.length > 0) {
-                          return (
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 mb-3 shadow-sm">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Link2 className="w-4 h-4 text-blue-600" />
-                                <h4 className="font-semibold text-sm text-blue-900">Related Information</h4>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                                {relatedSO && (
-                                  <div className="bg-white rounded-lg p-2.5 border border-blue-200 shadow-sm">
-                                    <div className="flex items-center gap-1.5 font-medium text-blue-900 mb-1 text-xs">
-                                      <FileText className="w-3 h-3" />
-                                      Sales Order
-                                    </div>
-                                    <div className="text-blue-700 font-semibold text-sm">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
-                                    <div className="text-gray-600 text-xs mt-0.5">
-                                      {relatedSO['Customer'] || relatedSO['Customer Name'] || '—'}
-                                    </div>
-                                  </div>
-                                )}
-                                {relatedJob && (
-                                  <div className="bg-white rounded-lg p-2.5 border border-indigo-200 shadow-sm">
-                                    <div className="flex items-center gap-1.5 font-medium text-indigo-900 mb-1 text-xs">
-                                      <Briefcase className="w-3 h-3" />
-                                      Job
-                                    </div>
-                                    <div className="text-indigo-700 font-semibold text-sm">Job #{relatedJob['Job No.']}</div>
-                                    <div className="text-gray-600 text-xs mt-0.5">
-                                      {relatedJob['Status'] || '—'}
-                                    </div>
-                                  </div>
-                                )}
-                                {relatedWorkOrders.length > 0 && (
-                                  <div className="bg-white rounded-lg p-2.5 border border-purple-200 shadow-sm">
-                                    <div className="flex items-center gap-1.5 font-medium text-purple-900 mb-1 text-xs">
-                                      <Cog className="w-3 h-3" />
-                                      Work Orders
-                                    </div>
-                                    <div className="text-purple-700 font-semibold text-sm">{relatedWorkOrders.length} Work Order(s)</div>
-                                    <div className="text-gray-600 text-xs mt-0.5">
-                                      {relatedWorkOrders.map((wo: any) => wo['Work Order No.']).join(', ')}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                        const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo) : null;
+                        const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => job['Job No.'] === jobNo) : null;
+                        const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => wo['Job No.'] === jobNo) : [];
+                        if (!relatedSO && !relatedJob && relatedWorkOrders.length === 0) return null;
+                        return (
+                          <div className="rounded-xl border border-slate-200 overflow-hidden">
+                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                              <Link2 className="w-4 h-4 text-slate-600" />
+                              <h4 className="font-semibold text-slate-800 text-sm">Related</h4>
                             </div>
-                          );
-                        }
-                        return null;
-                      })()}
-
-                      {/* Header Information - Compact Modern Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Status & Progress Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-purple-100 rounded-lg">
-                                <BarChartIcon className="w-4 h-4 text-purple-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Status & Progress</h4>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
-                                <span className="text-xs font-semibold text-gray-700">Status:</span>
-                                <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
-                                  moView.status === 1 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
-                                  moView.status === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
-                                  moView.status === 2 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
-                                  moView.status === 3 ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
-                                  'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
-                                }`}>
-                                  {moView.status === 1 ? 'Released' :
-                                   moView.status === 0 ? 'Planned' :
-                                   moView.status === 2 ? 'Started' :
-                                   moView.status === 3 ? 'Finished' : 'Unknown'}
-                                </span>
-                              </div>
-                              {moView.onHold && (
-                                <div className="flex items-center justify-between bg-red-50 rounded-lg p-2 border border-red-200">
-                                  <span className="text-xs font-semibold text-red-700">On Hold:</span>
-                                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-red-500 text-white shadow-sm">
-                                    Yes
-                                  </span>
+                            <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              {relatedSO && (
+                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                                  <div className="text-xs font-medium text-slate-500 mb-1">Sales Order</div>
+                                  <div className="font-mono font-semibold text-blue-700">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
+                                  <div className="text-xs text-slate-600 mt-0.5">{relatedSO['Customer'] || relatedSO['Customer Name'] || '—'}</div>
                                 </div>
                               )}
-                              {(() => {
-                                const orderedQty = moView.orderedQty;
-                                const completedQty = moView.completedQty;
-                                const wipQty = moView.wipQty;
-                                const issuedQty = moView.releasedQty;
-                                const progressPercentage = orderedQty > 0 
-                                  ? Math.round((completedQty / orderedQty) * 100) 
-                                  : 0;
-                                return (
-                                  <div className="space-y-2">
-                                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2.5 border border-purple-100">
-                                      <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-semibold text-gray-700">Progress:</span>
-                                        <span className="text-sm font-bold text-purple-600">{progressPercentage}%</span>
-                                      </div>
-                                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-inner">
-                                        <div 
-                                          className={`h-2.5 rounded-full transition-all duration-700 shadow-md ${
-                                            progressPercentage >= 100 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                                            progressPercentage >= 50 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                                            progressPercentage > 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
-                                            'bg-gray-300'
-                                          }`}
-                                          style={{ width: `${Math.min(100, Math.max(0, progressPercentage))}%` }}
-                                        ></div>
-                                      </div>
-                                      <div className="mt-1 text-xs text-gray-500 flex justify-between">
-                                        <span>C: {completedQty.toLocaleString()}</span>
-                                        <span>O: {orderedQty.toLocaleString()}</span>
-                                      </div>
-                                    </div>
-                                    {(wipQty > 0 || issuedQty > 0) && (
-                                      <div className="grid grid-cols-2 gap-1.5">
-                                        {wipQty > 0 && (
-                                          <div className="bg-white/60 backdrop-blur-sm rounded-lg p-1.5 border border-blue-100">
-                                            <div className="text-xs text-gray-600">WIP</div>
-                                            <div className="text-xs font-bold text-blue-600">{wipQty.toLocaleString()}</div>
-                                          </div>
-                                        )}
-                                        {issuedQty > 0 && (
-                                          <div className="bg-white/60 backdrop-blur-sm rounded-lg p-1.5 border border-orange-100">
-                                            <div className="text-xs text-gray-600">Issued</div>
-                                            <div className="text-xs font-bold text-orange-600">{issuedQty.toLocaleString()}</div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                              {relatedJob && (
+                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                                  <div className="text-xs font-medium text-slate-500 mb-1">Job</div>
+                                  <div className="font-mono font-semibold text-slate-800">Job #{relatedJob['Job No.']}</div>
+                                  <div className="text-xs text-slate-600 mt-0.5">{relatedJob['Status'] || '—'}</div>
+                                </div>
+                              )}
+                              {relatedWorkOrders.length > 0 && (
+                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
+                                  <div className="text-xs font-medium text-slate-500 mb-1">Work Orders</div>
+                                  <div className="font-mono font-semibold text-slate-800">{relatedWorkOrders.length} WO(s)</div>
+                                  <div className="text-xs text-slate-600 mt-0.5">{relatedWorkOrders.map((wo: any) => wo['Work Order No.']).join(', ')}</div>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
+                        );
+                      })()}
 
-                        {/* Quantities Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-blue-100 rounded-lg">
-                                <Package className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Quantities</h4>
-                            </div>
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                                <span className="text-xs font-semibold text-gray-700">Ordered:</span>
-                                <span className="font-bold text-sm text-gray-900">{moView.orderedQty?.toLocaleString() || '0'}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                                <span className="text-xs font-semibold text-gray-700">Release Qty:</span>
-                                <span className="font-bold text-sm text-blue-600">
-                                  {moView.releaseOrderQty != null && moView.releaseOrderQty !== undefined
-                                    ? moView.releaseOrderQty.toLocaleString()
-                                    : (moView.orderedQty?.toLocaleString() || '0')}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
-                                <span className="text-xs font-semibold text-gray-700">Completed:</span>
-                                <span className="font-bold text-sm text-green-600">{moView.completedQty?.toLocaleString() || '0'}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
-                                <span className="text-xs font-semibold text-gray-700">Allocated:</span>
-                                <span className="font-bold text-sm text-purple-600">{moView.rawHeader?.['Allocated']?.toLocaleString() || '0'}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
-                                <span className="text-xs font-semibold text-gray-700">Reserved:</span>
-                                <span className="font-bold text-sm text-orange-600">{moView.rawHeader?.['Reserved']?.toLocaleString() || '0'}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg p-2.5 border-2 border-blue-300 mt-2">
-                                <span className="text-xs font-bold text-blue-900">Remaining:</span>
-                                <span className="font-bold text-base text-blue-700">
-                                  {((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+                      {/* R/E Fields - compact */}
+                      <div className="rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">MIMOH Fields (Read-Only)</h4>
                         </div>
-
-                        {/* Costs Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-green-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-green-100 rounded-lg">
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Costs</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+                          {[
+                            { l: 'MO No.', v: moView.moNo },
+                            { l: 'Build Item', v: moView.buildItemNo },
+                            { l: 'Location', v: moView.locationNo },
+                            { l: 'WIP Qty', v: moView.wipQty?.toLocaleString() },
+                            { l: 'Issued Qty', v: moView.releasedQty?.toLocaleString() },
+                            { l: 'Completed Qty', v: moView.completedQty?.toLocaleString() },
+                            { l: 'Planned Qty', v: moView.orderedQty?.toLocaleString() },
+                            { l: 'Release Date', v: moView.dates.release },
+                            { l: 'Completion Date', v: moView.dates.completion },
+                            { l: 'Priority', v: moView.rawHeader?.['Priority'] },
+                            { l: 'Job No.', v: moView.jobNo },
+                          ].map(({ l, v }) => v ? (
+                            <div key={l} className="flex flex-col">
+                              <span className="text-xs text-slate-500">{l}</span>
+                              <span className="text-sm font-medium tabular-nums">{v}</span>
                             </div>
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                <span className="text-xs font-semibold text-gray-700">Proj Material:</span>
-                                <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
-                                <span className="text-xs font-semibold text-gray-700">Actual Material:</span>
-                                <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                <span className="text-xs font-semibold text-gray-700">Proj Labor:</span>
-                                <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
-                                <span className="text-xs font-semibold text-gray-700">Actual Labor:</span>
-                                <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                <span className="text-xs font-semibold text-gray-700">Proj Overhead:</span>
-                                <span className="font-bold text-xs text-gray-900">
-                                  ${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-green-100">
-                                <span className="text-xs font-semibold text-gray-700">Actual Overhead:</span>
-                                <span className="font-bold text-sm text-green-600">
-                                  ${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-2.5 border-2 border-green-300 mt-2">
-                                <span className="text-xs font-bold text-green-900">Total:</span>
-                                <span className="font-bold text-base text-green-700">
-                                  ${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+                          ) : null)}
                         </div>
                       </div>
 
-                      {/* Dates & Timeline - Compact Card */}
-                      <div className="bg-gradient-to-br from-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="p-1.5 bg-indigo-100 rounded-lg">
-                            <Calendar className="w-4 h-4 text-indigo-600" />
+                      {/* Extra MIMOH fields */}
+                      {(moView.rawHeader?.['Sales Item No.'] || moView.rawHeader?.['Operation Count'] || moView.rawHeader?.['Work Order Reference Count']) && (
+                        <div className="rounded-xl border border-slate-200 overflow-hidden">
+                          <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                            <h4 className="font-semibold text-slate-800 text-sm">Additional Fields</h4>
                           </div>
-                          <h4 className="font-bold text-sm text-slate-900">Dates & Timeline</h4>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                          {moView.dates.order && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                              <div className="text-xs text-gray-500 mb-0.5">Order Date</div>
-                              <div className="font-semibold text-xs text-gray-900">{moView.dates.order}</div>
-                            </div>
-                          )}
-                          {moView.dates.release && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
-                              <div className="text-xs text-blue-600 mb-1">Release Date</div>
-                              <div className="font-semibold text-blue-700">{moView.dates.release}</div>
-                            </div>
-                          )}
-                          {moView.dates.start && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-green-200">
-                              <div className="text-xs text-green-600 mb-1">Start Date</div>
-                              <div className="font-semibold text-green-700">{moView.dates.start}</div>
-                            </div>
-                          )}
-                          {moView.dates.completion && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
-                              <div className="text-xs text-purple-600 mb-1">Completion Date</div>
-                              <div className="font-semibold text-purple-700">{moView.dates.completion}</div>
-                            </div>
-                          )}
-                          {moView.dates.close && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
-                              <div className="text-xs text-gray-600 mb-1">Close Date</div>
-                              <div className="font-semibold text-gray-700">{moView.dates.close}</div>
-                            </div>
-                          )}
-                          {moView.dates.lastMaintained && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-200">
-                              <div className="text-xs text-gray-600 mb-1">Last Maintained</div>
-                              <div className="font-semibold text-gray-700">{moView.dates.lastMaintained}</div>
-                            </div>
-                          )}
-                          {moView.rawHeader?.['Sales Order Ship Date'] && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
-                              <div className="text-xs text-orange-600 mb-1">SO Ship Date</div>
-                              <div className="font-semibold text-orange-700">{moView.rawHeader['Sales Order Ship Date']}</div>
-                            </div>
-                          )}
-                          {moView.locationNo && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
-                              <div className="text-xs text-indigo-600 mb-1">Location</div>
-                              <div className="font-semibold text-indigo-700">
-                                <span className="underline cursor-pointer hover:bg-indigo-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Customer & Sales Information - Compact Card */}
-                      {(moView.customer || moView.salesOrderNo || moView.rawHeader?.['Sales Item No.'] || moView.rawHeader?.['Priority'] || moView.rawHeader?.['Operation Count']) && (
-                        <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="p-1.5 bg-blue-100 rounded-lg">
-                              <Users className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <h4 className="font-bold text-sm text-slate-900">Customer & Sales Info</h4>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                            {moView.customer && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                                <div className="text-xs text-gray-500 mb-0.5">Customer</div>
-                                <div className="font-semibold text-xs text-gray-900">{moView.customer}</div>
-                              </div>
-                            )}
-                            {moView.salesOrderNo && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-blue-200">
-                                <div className="text-xs text-blue-600 mb-1">Sales Order</div>
-                                <div className="font-semibold text-blue-700">#{moView.salesOrderNo}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Sales Order Detail No.'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
-                                <div className="text-xs text-gray-500 mb-1">SO Detail</div>
-                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Order Detail No.']}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Sales Item No.'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
-                                <div className="text-xs text-gray-500 mb-1">Sales Item</div>
-                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Item No.']}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Sales Location'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
-                                <div className="text-xs text-gray-500 mb-1">Sales Location</div>
-                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Location']}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Sales Transfer Quantity'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-gray-100">
-                                <div className="text-xs text-gray-500 mb-1">Transfer Qty</div>
-                                <div className="font-semibold text-gray-900">{moView.rawHeader['Sales Transfer Quantity']?.toLocaleString()}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Priority'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-200">
-                                <div className="text-xs text-orange-600 mb-1">Priority</div>
-                                <div className="font-semibold text-orange-700">{moView.rawHeader['Priority']}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Operation Count'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-purple-200">
-                                <div className="text-xs text-purple-600 mb-1">Operations</div>
-                                <div className="font-semibold text-purple-700">{moView.rawHeader['Operation Count']}</div>
-                              </div>
-                            )}
-                            {moView.rawHeader?.['Work Order Reference Count'] && (
-                              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-indigo-200">
-                                <div className="text-xs text-indigo-600 mb-1">Work Orders</div>
-                                <div className="font-semibold text-indigo-700">{moView.rawHeader['Work Order Reference Count']}</div>
-                              </div>
-                            )}
+                          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {moView.rawHeader?.['Sales Item No.'] && <div><span className="text-xs text-slate-500 block">Sales Item</span><span className="text-sm font-medium">{moView.rawHeader['Sales Item No.']}</span></div>}
+                            {moView.rawHeader?.['Operation Count'] && <div><span className="text-xs text-slate-500 block">Operations</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Operation Count']}</span></div>}
+                            {moView.rawHeader?.['Work Order Reference Count'] && <div><span className="text-xs text-slate-500 block">WO Ref Count</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Work Order Reference Count']}</span></div>}
                           </div>
                         </div>
                       )}
-
-                      {/* R/E Fields Section */}
-                      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                          <FileText className="w-5 h-5 text-gray-600" />
-                          <h4 className="font-semibold text-slate-900">Manufacturing Order Fields (R/E)</h4>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Read-Only Fields */}
-                          <div>
-                            <h5 className="text-sm font-medium text-gray-700 mb-3">Read-Only Fields</h5>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">MO Number:</span>
-                                <span className="font-mono">{moView.moNo || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Build Item:</span>
-                                <span className="font-mono">{moView.buildItemNo || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Location:</span>
-                                <span>{moView.locationNo || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">WIP Qty:</span>
-                                <span>{moView.wipQty?.toLocaleString() || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Issued Qty:</span>
-                                <span>{moView.releasedQty?.toLocaleString() || '—'}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Completed Qty:</span>
-                                <span className="text-green-600">{moView.completedQty?.toLocaleString() || '—'}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Editable Fields */}
-                          <div>
-                            <h5 className="text-sm font-medium text-gray-700 mb-3">Editable Fields</h5>
-                            <div className="space-y-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Planned Qty</label>
-                                <input
-                                  type="number"
-                                  value={moView.orderedQty?.toString() || ''}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
-                                  readOnly
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Scheduled Start</label>
-                                <input
-                                  type="date"
-                                  value={moView.dates.release || ''}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
-                                  readOnly
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Scheduled End</label>
-                                <input
-                                  type="date"
-                                  value={moView.dates.completion || ''}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
-                                  readOnly
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
-                                <input
-                                  type="text"
-                                  value={moView.rawHeader?.['Priority'] || ''}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
-                                  readOnly
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Job No.</label>
-                                <input
-                                  type="text"
-                                  value={moView.jobNo || ''}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
-                                  readOnly
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
@@ -3641,38 +3349,34 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       })()}
 
                       {moView.components.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">
-                          <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                          <div className="font-medium text-lg mb-1">No component details found</div>
-                          <div className="text-sm">This MO may not have detailed component breakdown in the system</div>
+                        <div className="text-center py-12 text-slate-500">
+                          <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <div className="font-medium text-slate-700 mb-1">No component details found</div>
+                          <div className="text-sm">MIMOMD has no records for this MO</div>
                         </div>
                       ) : (
                         <>
-                          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Wrench className="w-5 h-5 text-blue-600" />
-                              <h4 className="font-semibold text-blue-900">Manufacturing Order Components</h4>
+                          <div className="rounded-xl border border-slate-200 overflow-hidden">
+                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                              <Wrench className="w-4 h-4 text-slate-600" />
+                              <h4 className="font-semibold text-slate-800 text-sm">MIMOMD · Components & Materials</h4>
+                              <span className="text-xs text-slate-500 ml-auto">Showing {moView.components.length} of {moView.components.length}</span>
                             </div>
-                            <p className="text-sm text-blue-700">
-                              Materials and components required for MO #{moView.moNo}
-                            </p>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                              <thead className="bg-gray-50">
+                              <thead className="bg-slate-100">
                                 <tr>
-                                  <th className="text-left p-3 font-medium text-gray-700">Component Item</th>
-                                  <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Required Qty</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Issued Qty</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Remaining</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Available Stock</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Shortage</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Unit Cost</th>
-                                  <th className="text-right p-3 font-medium text-gray-700">Total Cost</th>
-                                  <th className="text-left p-3 font-medium text-gray-700">Location</th>
-                                  <th className="text-left p-3 font-medium text-gray-700">Status</th>
+                                  <th className="text-left p-3 font-medium text-slate-600">Component</th>
+                                  <th className="text-left p-3 font-medium text-slate-600">Description</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Required</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Issued</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Remaining</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Available</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Shortage</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Unit Cost</th>
+                                  <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Total</th>
+                                  <th className="text-left p-3 font-medium text-slate-600">Location</th>
+                                  <th className="text-left p-3 font-medium text-slate-600">Status</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3683,9 +3387,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                     c.availableStock > 0 ? 'low' : 'out';
 
                                   return (
-                                    <tr key={index} className={`border-b border-gray-100 hover:bg-blue-50 ${
-                                      hasShortage ? 'bg-red-50' : ''
-                                    }`}>
+                                    <tr key={index} className={`border-b border-slate-100 tabular-nums ${
+                                      hasShortage ? 'bg-red-50/50' : index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'
+                                    } hover:bg-slate-50`}>
                                       <td className="p-3 font-mono text-blue-600 font-medium">
                                         {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
                                       </td>
@@ -3740,8 +3444,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </table>
                             </div>
                             
-                            {/* Enhanced Summary */}
-                            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
                               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mb-3">
                                 {(() => {
                                   const totalComponents = moView.components.length;
@@ -3785,51 +3488,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
 
-                  {/* MO Operations & Routing Tab */}
+                  {/* MO Operations & Routing Tab - MIMORD */}
                   {moActiveTab === 'routings' && (
                     <div className="space-y-6">
-                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Cog className="w-5 h-5 text-purple-600" />
-                          <h4 className="font-semibold text-purple-900">Manufacturing Operations & Routing</h4>
-                        </div>
-                        <p className="text-sm text-purple-700">
-                          Work centers, operations, and routing details for MO #{moView.moNo}
-                        </p>
-                      </div>
-
                       {(() => {
-                        // Get MO Routings from real data
-                        const moRoutings = (data['ManufacturingOrderRoutings.json'] || []).filter((routing: any) => 
-                          routing['Mfg. Order No.'] === moView.moNo
+                        const moRoutings = (data['ManufacturingOrderRoutings.json'] || data['MIMORD.json'] || []).filter((routing: any) => 
+                          (routing['Mfg. Order No.'] ?? routing['mohId']) === moView.moNo
                         );
-
-                        console.log('⚙️ MO Routings for', moView.moNo, ':', moRoutings);
 
                         if (moRoutings.length === 0) {
                           return (
-                            <div className="text-center py-12 text-gray-500">
-                              <Cog className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                              <div className="font-medium text-lg mb-1">No routing operations found</div>
-                              <div className="text-sm">This MO may not have detailed routing information in the system</div>
+                            <div className="text-center py-12 text-slate-500">
+                              <Cog className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                              <div className="font-medium text-slate-700 mb-1">No routing operations found</div>
+                              <div className="text-sm">MIMORD has no records for this MO</div>
                             </div>
                           );
                         }
 
                         return (
-                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="rounded-xl border border-slate-200 overflow-hidden">
+                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                              <Cog className="w-4 h-4 text-slate-600" />
+                              <h4 className="font-semibold text-slate-800 text-sm">MIMORD · Operations & Routing</h4>
+                              <span className="text-xs text-slate-500 ml-auto">Showing {moRoutings.length} of {moRoutings.length}</span>
+                            </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gray-50">
+                                <thead className="bg-slate-100">
                                   <tr>
-                                    <th className="text-left p-3 font-medium text-gray-700">Operation</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Work Center</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Setup Time</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Run Time</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Labor Hours</th>
-                                    <th className="text-right p-3 font-medium text-gray-700">Labor Cost</th>
-                                    <th className="text-left p-3 font-medium text-gray-700">Status</th>
+                                    <th className="text-left p-3 font-medium text-slate-600">Operation</th>
+                                    <th className="text-left p-3 font-medium text-slate-600">Work Center</th>
+                                    <th className="text-left p-3 font-medium text-slate-600">Description</th>
+                                    <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Setup</th>
+                                    <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Run</th>
+                                    <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Labor Hrs</th>
+                                    <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Cost</th>
+                                    <th className="text-left p-3 font-medium text-slate-600">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -3840,7 +3535,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     const laborCost = parseFloat(routing['Labor Cost'] || routing['Cost'] || 0);
 
                                     return (
-                                      <tr key={index} className="border-b border-gray-100 hover:bg-purple-50">
+                                      <tr key={index} className={`border-b border-slate-100 tabular-nums ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50`}>
                                         <td className="p-3 font-mono text-purple-600 font-medium">
                                           {routing['Operation No.'] || routing['Operation'] || '—'}
                                         </td>
@@ -3920,7 +3615,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
 
-                  {/* Sales Order Related Tab */}
+                  {/* MO Sales Order Related Tab */}
                   {moActiveTab === 'pegged' && (
                     <div className="space-y-6">
                       {(() => {
@@ -4295,307 +3990,223 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       )}
                     </div>
                   )}
-                </div>
+                        </div>
+                      </div>
+                    </div>
+                  </main>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Enhanced Purchase Order Details Modal - uses poView when available */}
+          {/* PO Details Modal - Enterprise layout (matches Item modal) */}
           {showPODetails && (poView || selectedPO) && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border-0 relative">
-                {/* Decorative gradient overlay */}
-                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600"></div>
-                <div className="overflow-y-auto max-h-[95vh]">
-                {/* Ultra Modern PO Header */}
-                <div className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 text-white px-8 py-6 border-b-4 border-blue-800/50 shadow-2xl">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg">
-                        <ShoppingBag className="w-10 h-10 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-3xl font-extrabold tracking-tight drop-shadow-lg">Purchase Order Details</h3>
-                        <p className="text-blue-100 text-base mt-1.5 font-medium">
-                          PO #{poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId']} - {(() => { const supl = (poView?.vendorNo ?? poView?.vendorName ?? selectedPO?.['Supplier No.'] ?? selectedPO?.['Name'] ?? selectedPO?.['suplId'] ?? selectedPO?.['Vendor No.'] ?? '').toString(); return supl ? <span className="underline cursor-pointer hover:text-white" onClick={(e) => { e.stopPropagation(); setSelectedSuplId(supl); setShowSupplierDetail(true); }}>{supl}</span> : 'Unknown Supplier'; })()}
-                          {poView?.rawHeader?.['Description'] && (
-                            <span className="ml-3 text-blue-200">• {poView.rawHeader['Description']}</span>
-                          )}
-                        </p>
-                        <p className="text-blue-200/90 text-xs mt-1.5">Click supplier or item # to see more.</p>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" onClick={() => setShowPODetails(false)} role="dialog" aria-modal="true">
+              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-slate-50 rounded-2xl shadow-2xl ring-2 ring-blue-400 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                {/* Enterprise header bar */}
+                <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-slate-800 text-white rounded-t-2xl">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500/20 text-blue-300">
+                      <ShoppingBag className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl font-bold tracking-tight text-white truncate">PO #{poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId']}</h1>
+                      <p className="text-slate-300 text-sm truncate mt-0.5">
+                        {(() => { const supl = (poView?.vendorNo ?? poView?.vendorName ?? selectedPO?.['Supplier No.'] ?? selectedPO?.['Name'] ?? selectedPO?.['suplId'] ?? selectedPO?.['Vendor No.'] ?? '').toString(); return supl ? <span className="text-white cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); setSelectedSuplId(supl); setShowSupplierDetail(true); }}>{supl}</span> : 'Unknown Supplier'; })()}
+                        {poView?.vendorName && poView?.vendorNo && (poView.vendorName !== poView.vendorNo) && <span className="ml-2 text-slate-300">• {poView.vendorName}</span>}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-200">
+                          {(poView?.status ?? selectedPO?.['Status']) === 0 ? 'Open' : (poView?.status ?? selectedPO?.['Status']) === 1 ? 'Pending' : (poView?.status ?? selectedPO?.['Status']) === 2 ? 'Closed' : (poView?.status ?? selectedPO?.['Status']) === 3 ? 'Cancelled' : 'Unknown'}
+                        </span>
+                        <span className="text-slate-400 text-xs">{(poView?.totalValue ?? parseFloat(selectedPO?.['Total Amount'] || selectedPO?.['Total'] || 0)).toLocaleString(undefined, { style: 'currency', currency: 'CAD' })}</span>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-slate-400 text-xs">{formatDisplayDate(poView?.orderDate ?? selectedPO?.['Order Date'] ?? selectedPO?.['ordDt']) || '—'}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowPODetails(false)}
-                      className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 rounded-xl px-4 py-3 transition-all duration-200 shadow-lg hover:shadow-xl"
-                      aria-label="Close"
-                    >
-                      <X className="w-5 h-5" />
-                      <span className="text-sm font-medium">Close</span>
-                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-gradient-to-br from-gray-50 to-white">
-                  {/* Modern Tabs */}
-                  <div className="flex space-x-2 mb-4 border-b border-gray-200">
-                    <button
-                      onClick={() => setPoActiveTab('overview')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        poActiveTab === 'overview' 
-                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <ClipboardList className="w-4 h-4" />
-                      PO Overview
-                    </button>
-                    <button
-                      onClick={() => setPoActiveTab('lineitems')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        poActiveTab === 'lineitems' 
-                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Package className="w-4 h-4" />
-                      Line Items
-                    </button>
-                    <button
-                      onClick={() => setPoActiveTab('costs')}
-                      className={`px-5 py-3 text-sm font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 ${
-                        poActiveTab === 'costs' 
-                          ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <DollarSign className="w-4 h-4" />
-                      Additional Costs
-                    </button>
-                  </div>
+                {/* Body: sidebar + content */}
+                <div className="flex-1 flex min-h-0">
+                  {/* Left sidebar nav */}
+                  <aside className="flex-shrink-0 w-56 bg-white border-r border-slate-200 flex flex-col overflow-y-auto">
+                    {[
+                      { title: 'Order', items: [
+                        { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
+                        { id: 'lineitems', label: 'Line Items', icon: <Package className="w-4 h-4" /> },
+                        { id: 'costs', label: 'Additional Costs', icon: <DollarSign className="w-4 h-4" /> },
+                      ]},
+                    ].map((section) => (
+                      <div key={section.title} className="py-2">
+                        <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
+                        {section.items.map(({ id, label, icon }) => (
+                          <button
+                            key={id}
+                            onClick={() => setPoActiveTab(id)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors border-l-2 ${
+                              poActiveTab === id ? 'bg-slate-100 border-slate-800 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                            }`}
+                          >
+                            <span className="text-slate-400 flex-shrink-0">{icon}</span>
+                            <span className="truncate flex-1">{label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </aside>
 
-                  {/* PO Overview Tab */}
+                  {/* Main content area */}
+                  <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div className="bg-white rounded-xl border-2 border-blue-200 shadow-sm overflow-hidden">
+                        <div className="p-6">
+                  {/* PO Overview Tab - MISys-style */}
                   {poActiveTab === 'overview' && (
-                    <div className="space-y-3">
-                      {/* Header Information - Compact Modern Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Status Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-blue-100 rounded-lg">
-                                <BarChartIcon className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Status</h4>
-                            </div>
-                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                              <span className="text-xs font-semibold text-gray-700">Status:</span>
-                              <span className={`px-2 py-1 text-xs font-bold rounded-lg shadow-sm ${
-                                (poView?.status ?? selectedPO?.['Status']) === 0 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
-                                (poView?.status ?? selectedPO?.['Status']) === 1 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
-                                (poView?.status ?? selectedPO?.['Status']) === 2 ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white' :
-                                (poView?.status ?? selectedPO?.['Status']) === 3 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' :
-                                'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                              }`}>
-                                {(poView?.status ?? selectedPO?.['Status']) === 0 ? 'Open' :
-                                 (poView?.status ?? selectedPO?.['Status']) === 1 ? 'Pending' :
-                                 (poView?.status ?? selectedPO?.['Status']) === 2 ? 'Closed' :
-                                 (poView?.status ?? selectedPO?.['Status']) === 3 ? 'Cancelled' : 'Unknown'}
-                              </span>
-                            </div>
-                            {(poView?.rawHeader?.['Revision'] ?? selectedPO?.['Revision']) && (
-                              <div className="mt-2 flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                <span className="text-xs font-semibold text-gray-700">Revision:</span>
-                                <span className="font-bold text-xs text-gray-900">{poView?.rawHeader?.['Revision'] ?? selectedPO?.['Revision']}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Financial Summary Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-50/30 border-2 border-green-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-green-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-green-100 rounded-lg">
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Financial Summary</h4>
-                            </div>
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                <span className="text-xs font-semibold text-gray-700">Total Amount:</span>
-                                <span className="font-bold text-sm text-gray-900">${(poView?.totalValue ?? parseFloat(selectedPO?.['Total Amount'] || selectedPO?.['Total'] || 0)).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-orange-100">
-                                <span className="text-xs font-semibold text-gray-700">Invoiced:</span>
-                                <span className="font-bold text-sm text-orange-600">${(parseFloat(selectedPO['Invoiced Amount'] || selectedPO['Total Invoiced'] || 0)).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                                <span className="text-xs font-semibold text-gray-700">Received:</span>
-                                <span className="font-bold text-sm text-blue-600">${(parseFloat(selectedPO['Received Amount'] || selectedPO['Total Received'] || 0)).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between items-center bg-gradient-to-r from-green-100 to-green-50 rounded-lg p-2.5 border-2 border-green-300 mt-2">
-                                <span className="text-xs font-bold text-green-900">Remaining:</span>
-                                <span className="font-bold text-base text-green-700">
-                                  ${((parseFloat(selectedPO['Total Amount'] || selectedPO['Total'] || 0)) - (parseFloat(selectedPO['Invoiced Amount'] || selectedPO['Total Invoiced'] || 0))).toFixed(2)}
+                    <div className="space-y-6">
+                      {(() => {
+                        const h = poView?.rawHeader ?? selectedPO ?? {};
+                        const status = (poView?.status ?? h['Status']) as number;
+                        const totalAmt = poView?.totalValue ?? parseFloat(h['Total Amount'] || h['Total'] || 0);
+                        const invoicedAmt = parseFloat(h['Invoiced Amount'] || h['Total Invoiced'] || 0);
+                        const receivedAmt = parseFloat(h['Received Amount'] || h['Total Received'] || 0);
+                        const suplId = (poView?.vendorNo ?? poView?.vendorName ?? h['Supplier No.'] ?? h['Name'] ?? h['suplId'] ?? h['Vendor No.'] ?? '').toString();
+                        return (
+                          <>
+                            {/* KPI strip */}
+                            <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-slate-500">Status</span>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-md ${
+                                  status === 0 ? 'bg-emerald-100 text-emerald-800' :
+                                  status === 1 ? 'bg-amber-100 text-amber-800' :
+                                  status === 2 ? 'bg-slate-200 text-slate-700' :
+                                  status === 3 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {status === 0 ? 'Open' : status === 1 ? 'Pending' : status === 2 ? 'Closed' : status === 3 ? 'Cancelled' : 'Unknown'}
                                 </span>
+                                {(poView?.rawHeader?.['Revision'] ?? h['Revision']) && (
+                                  <span className="text-xs text-slate-500">Rev. {poView?.rawHeader?.['Revision'] ?? h['Revision']}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-6 text-sm tabular-nums">
+                                <span><span className="text-slate-500">Total</span> <span className="font-semibold text-slate-900">${totalAmt.toFixed(2)}</span></span>
+                                <span><span className="text-slate-500">Received</span> <span className="font-semibold text-blue-600">${receivedAmt.toFixed(2)}</span></span>
+                                <span><span className="text-slate-500">Invoiced</span> <span className="font-semibold text-amber-600">${invoicedAmt.toFixed(2)}</span></span>
+                                <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-emerald-600">${(totalAmt - invoicedAmt).toFixed(2)}</span></span>
                               </div>
                             </div>
-                          </div>
-                        </div>
 
-                        {/* Dates & Terms Card */}
-                        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-indigo-50/30 border-2 border-indigo-200/50 rounded-xl p-4 shadow-lg">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-200/20 rounded-full -mr-12 -mt-12"></div>
-                          <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-indigo-100 rounded-lg">
-                                <Calendar className="w-4 h-4 text-indigo-600" />
+                            {/* MIPOH Header */}
+                            <div className="overflow-hidden rounded-xl border border-slate-200">
+                              <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                                <h4 className="font-semibold text-slate-800 text-sm">MIPOH · Purchase Order Header</h4>
                               </div>
-                              <h4 className="font-bold text-sm text-slate-900">Dates & Terms</h4>
-                            </div>
-                            <div className="space-y-1.5">
-                              {selectedPO['Order Date'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Order Date:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Order Date']}</span>
-                                </div>
-                              )}
-                              {selectedPO['Terms'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Terms:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Terms']}</span>
-                                </div>
-                              )}
-                              {(selectedPO['Source Currency'] || selectedPO['Home Currency']) && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Currency:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Source Currency'] || selectedPO['Home Currency']}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Additional PO Fields - Compact Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Vendor Information Card */}
-                        {(selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Buyer'] || selectedPO['Contact']) && (
-                          <div className="bg-gradient-to-br from-white to-blue-50/30 border-2 border-blue-200/50 rounded-xl p-4 shadow-lg">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-blue-100 rounded-lg">
-                                <Users className="w-4 h-4 text-blue-600" />
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-slate-50">
+                                    <tr>
+                                      <th className="text-left p-3 font-medium text-slate-600">Field</th>
+                                      <th className="text-left p-3 font-medium text-slate-600">Value</th>
+                                      <th className="text-left p-3 font-medium text-slate-600">Field</th>
+                                      <th className="text-left p-3 font-medium text-slate-600">Value</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    <tr className="hover:bg-slate-50/50">
+                                      <td className="p-3 text-slate-600">PO No.</td>
+                                      <td className="p-3 font-mono font-medium">{poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '—'}</td>
+                                      <td className="p-3 text-slate-600">Supplier</td>
+                                      <td className="p-3">{suplId ? <span className="font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => { setSelectedSuplId(suplId); setShowSupplierDetail(true); }}>{suplId}</span> : '—'}</td>
+                                    </tr>
+                                    <tr className="hover:bg-slate-50/50">
+                                      <td className="p-3 text-slate-600">Order Date</td>
+                                      <td className="p-3 tabular-nums">{formatDisplayDate(poView?.orderDate ?? h['Order Date'] ?? h['ordDt']) || '—'}</td>
+                                      <td className="p-3 text-slate-600">Close Date</td>
+                                      <td className="p-3 tabular-nums">{formatDisplayDate(h['Close Date'] ?? h['closeDt']) || '—'}</td>
+                                    </tr>
+                                    <tr className="hover:bg-slate-50/50">
+                                      <td className="p-3 text-slate-600">Buyer</td>
+                                      <td className="p-3">{h['Buyer'] || '—'}</td>
+                                      <td className="p-3 text-slate-600">Terms</td>
+                                      <td className="p-3">{h['Terms'] || '—'}</td>
+                                    </tr>
+                                    <tr className="hover:bg-slate-50/50">
+                                      <td className="p-3 text-slate-600">Contact</td>
+                                      <td className="p-3">{h['Contact'] || '—'}</td>
+                                      <td className="p-3 text-slate-600">Currency</td>
+                                      <td className="p-3">{h['Source Currency'] || h['Home Currency'] || '—'}</td>
+                                    </tr>
+                                    <tr className="hover:bg-slate-50/50">
+                                      <td className="p-3 text-slate-600">Ship Via</td>
+                                      <td className="p-3">{h['Ship Via'] || '—'}</td>
+                                      <td className="p-3 text-slate-600">FOB</td>
+                                      <td className="p-3">{h['FOB'] || '—'}</td>
+                                    </tr>
+                                    {(h['Freight'] != null && parseFloat(h['Freight']) !== 0) && (
+                                      <tr className="hover:bg-slate-50/50">
+                                        <td className="p-3 text-slate-600">Freight</td>
+                                        <td className="p-3 font-mono">${parseFloat(h['Freight'] || 0).toFixed(2)}</td>
+                                        <td className="p-3"></td>
+                                        <td className="p-3"></td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
                               </div>
-                              <h4 className="font-bold text-sm text-slate-900">Vendor Information</h4>
                             </div>
-                            <div className="space-y-1.5">
-                              {(selectedPO['Supplier No.'] || selectedPO['Name']) && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-blue-100">
-                                  <span className="text-xs font-semibold text-gray-700">Supplier:</span>
-                                  <span className="font-bold text-xs text-gray-900 font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => { const s = selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']; if (s) { setSelectedSuplId(s.toString()); setShowSupplierDetail(true); } }}>{selectedPO['Supplier No.'] || selectedPO['Name'] || selectedPO['Vendor No.']}</span>
-                                </div>
-                              )}
-                              {selectedPO['Buyer'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Buyer:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Buyer']}</span>
-                                </div>
-                              )}
-                              {selectedPO['Contact'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Contact:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Contact']}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Shipping Information Card */}
-                        {(selectedPO['Ship Via'] || selectedPO['FOB'] || selectedPO['Freight']) && (
-                          <div className="bg-gradient-to-br from-white to-purple-50/30 border-2 border-purple-200/50 rounded-xl p-4 shadow-lg">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="p-1.5 bg-purple-100 rounded-lg">
-                                <Truck className="w-4 h-4 text-purple-600" />
-                              </div>
-                              <h4 className="font-bold text-sm text-slate-900">Shipping Information</h4>
-                            </div>
-                            <div className="space-y-1.5">
-                              {selectedPO['Ship Via'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-purple-100">
-                                  <span className="text-xs font-semibold text-gray-700">Ship Via:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['Ship Via']}</span>
-                                </div>
-                              )}
-                              {selectedPO['FOB'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">FOB:</span>
-                                  <span className="font-bold text-xs text-gray-900">{selectedPO['FOB']}</span>
-                                </div>
-                              )}
-                              {selectedPO['Freight'] && (
-                                <div className="flex justify-between items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-100">
-                                  <span className="text-xs font-semibold text-gray-700">Freight:</span>
-                                  <span className="font-bold text-xs text-gray-900">${(parseFloat(selectedPO['Freight'] || 0)).toFixed(2)}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
-                  {/* PO Line Items Tab */}
+                  {/* PO Line Items Tab - MIPOD */}
                   {poActiveTab === 'lineitems' && (
                     <div className="space-y-6">
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-green-900 mb-2">📦 Purchase Order Line Items</h4>
-                        <p className="text-sm text-green-700">
-                          Detailed line items for PO #{selectedPO['PO No.']}
-                        </p>
-                      </div>
-
                       {(() => {
-                        // Get PO Line Items from real data
+                        const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
                         const poLineItems = poDetailsSource.filter((line: any) => 
-                          (line['PO No.'] ?? line['pohId']) === (selectedPO['PO No.'] ?? selectedPO['pohId'])
+                          (line['PO No.'] ?? line['pohId']) == poId
                         );
 
 
                         if (poLineItems.length === 0) {
                           return (
-                            <div className="text-center py-8 text-gray-500">
-                              <div className="text-4xl mb-2">📦</div>
-                              <div>No line items found</div>
-                              <div className="text-sm">This PO may not have detailed line item breakdown in the system</div>
+                            <div className="text-center py-12 text-slate-500">
+                              <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                              <div className="font-medium text-slate-700 mb-1">No line items found</div>
+                              <div className="text-sm">MIPOD has no records for this PO</div>
                             </div>
                           );
                         }
 
                         return (
-                          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="rounded-xl border border-slate-200 overflow-hidden">
+                            <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                              <Package className="w-4 h-4 text-slate-600" />
+                              <h4 className="font-semibold text-slate-800 text-sm">MIPOD · Line Items</h4>
+                              <span className="text-xs text-slate-500 ml-auto">Showing {poLineItems.length} of {poLineItems.length}</span>
+                            </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
-                                <thead className="bg-gray-50">
+                                <thead className="bg-slate-100">
                                   <tr>
                                     {getAvailablePODetailColumns.map((col) => (
                                       <th 
                                         key={col.key}
-                                        className={`p-3 font-medium text-gray-700 ${
+                                        className={`p-3 font-medium text-slate-600 ${
                                           ['Ordered Qty', 'Received Qty', 'Unit Price', 'Extended Price'].includes(col.key) 
-                                            ? 'text-right' : 'text-left'
+                                            ? 'text-right tabular-nums' : 'text-left'
                                         }`}
                                       >
                                         {col.label}
                                       </th>
                                     ))}
-                                    <th className="p-3 font-medium text-gray-700 text-center min-w-[100px]">Actions</th>
+                                    <th className="p-3 font-medium text-slate-600 text-center min-w-[100px]">Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -4608,7 +4219,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     const extendedPrice = parseFloat(line['Extended Price'] || 0);
 
                                     return (
-                                      <tr key={index} className="border-b border-gray-100 hover:bg-green-50">
+                                      <tr key={index} className={`border-b border-slate-100 tabular-nums ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50`}>
                                         {getAvailablePODetailColumns.map((col) => {
                                           const getValue = (line: any, key: string, fallback?: string) => {
                                             return line[key] || (fallback ? line[fallback] : null);
@@ -4709,7 +4320,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                 const location = prompt('Location (optional)', '') || '';
                                                 const lot = prompt('Lot/Batch (optional)', '') || '';
                                                 try {
-                                                  const res = await fetch(getApiUrl(`/api/purchase-orders/${encodeURIComponent(selectedPO['PO No.'])}/receive`), {
+                                                  const res = await fetch(getApiUrl(`/api/purchase-orders/${encodeURIComponent(poId)}/receive`), {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -4735,8 +4346,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </table>
                             </div>
                             
-                            {/* Summary */}
-                            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                 {(() => {
                                   const totalLines = poLineItems.length;
@@ -4779,51 +4389,43 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
 
-                  {/* PO Additional Costs Tab */}
+                  {/* PO Additional Costs Tab - MIPOCV, MIPODC */}
                   {poActiveTab === 'costs' && (
                     <div className="space-y-6">
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-yellow-900 mb-2">💰 Additional Costs & Taxes</h4>
-                        <p className="text-sm text-yellow-700">
-                          Additional costs, taxes, and charges for PO #{selectedPO['PO No.']}
-                        </p>
-                      </div>
-
                       {(() => {
-                        // Get Additional Costs from real data
+                        const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
                         const additionalCosts = (data['PurchaseOrderAdditionalCosts.json'] || []).filter((cost: any) => 
-                          cost['PO No.'] === selectedPO['PO No.']
+                          (cost['PO No.'] ?? cost['pohId']) == poId
                         );
                         const additionalTaxes = (data['PurchaseOrderAdditionalCostsTaxes.json'] || []).filter((tax: any) => 
-                          tax['PO No.'] === selectedPO['PO No.']
+                          (tax['PO No.'] ?? tax['pohId']) == poId
                         );
                         const detailCosts = (data['PurchaseOrderDetailAdditionalCosts.json'] || []).filter((cost: any) => 
-                          cost['PO No.'] === selectedPO['PO No.']
+                          (cost['PO No.'] ?? cost['pohId']) == poId
                         );
 
                         const hasAnyCosts = additionalCosts.length > 0 || additionalTaxes.length > 0 || detailCosts.length > 0;
 
                         if (!hasAnyCosts) {
                           return (
-                            <div className="text-center py-8 text-gray-500">
-                              <div className="text-4xl mb-2">💰</div>
-                              <div>No additional costs found</div>
-                              <div className="text-sm">This PO may not have additional costs or taxes in the system</div>
+                            <div className="text-center py-12 text-slate-500">
+                              <DollarSign className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                              <div className="font-medium text-slate-700 mb-1">No additional costs found</div>
+                              <div className="text-sm">MIPOCV / MIPODC have no records for this PO</div>
                             </div>
                           );
                         }
 
                         return (
                           <div className="space-y-6">
-                            {/* Additional Costs */}
                             {additionalCosts.length > 0 && (
-                              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-2">
-                                  <h5 className="font-medium text-gray-900">Additional Costs</h5>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                                  <h5 className="font-semibold text-slate-800 text-sm">MIPOCV · Additional Costs</h5>
                                 </div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-sm">
-                                    <thead className="bg-gray-50">
+                                    <thead className="bg-slate-100">
                                       <tr>
                                         <th className="text-left p-3 font-medium text-gray-700">Cost Type</th>
                                         <th className="text-left p-3 font-medium text-gray-700">Description</th>
@@ -4854,26 +4456,25 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </div>
                             )}
 
-                            {/* Detail-level additional costs (per PO line) */}
                             {detailCosts.length > 0 && (
-                              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-2">
-                                  <h5 className="font-medium text-gray-900">Line-level additional costs</h5>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                                  <h5 className="font-semibold text-slate-800 text-sm">MIPODC · Line-level additional costs</h5>
                                 </div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-sm">
-                                    <thead className="bg-gray-50">
+                                    <thead className="bg-slate-100">
                                       <tr>
-                                        <th className="text-left p-3 font-medium text-gray-700">PO Line</th>
-                                        <th className="text-left p-3 font-medium text-gray-700">Cost type</th>
-                                        <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                                        <th className="text-right p-3 font-medium text-gray-700">Amount</th>
-                                        <th className="text-right p-3 font-medium text-gray-700">Unit price</th>
+                                        <th className="text-left p-3 font-medium text-slate-600">PO Line</th>
+                                        <th className="text-left p-3 font-medium text-slate-600">Cost type</th>
+                                        <th className="text-left p-3 font-medium text-slate-600">Description</th>
+                                        <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Amount</th>
+                                        <th className="text-right p-3 font-medium text-slate-600 tabular-nums">Unit price</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {detailCosts.map((cost: any, index: number) => (
-                                        <tr key={index} className="border-b border-gray-100 hover:bg-yellow-50">
+                                        <tr key={index} className={`border-b border-slate-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50`}>
                                           <td className="p-3 font-mono text-gray-700">{cost['PO Line No.'] ?? cost['PO Line'] ?? '—'}</td>
                                           <td className="p-3 font-medium text-gray-900">{cost['Additional Cost'] || cost['Cost Type'] || '—'}</td>
                                           <td className="p-3 text-gray-700">{cost['Description'] || '—'}</td>
@@ -4889,11 +4490,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </div>
                             )}
 
-                            {/* Additional Taxes */}
                             {additionalTaxes.length > 0 && (
-                              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-2">
-                                  <h5 className="font-medium text-gray-900">Taxes</h5>
+                              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                                  <h5 className="font-semibold text-slate-800 text-sm">Taxes</h5>
                                 </div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-sm">
@@ -4928,8 +4528,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </div>
                             )}
 
-                            {/* Summary */}
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <div className="rounded-xl border border-slate-200 p-4 bg-slate-50">
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                                 {(() => {
                                   const totalAdditionalCosts = additionalCosts.reduce((sum: number, cost: any) => 
@@ -4968,9 +4567,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </div>
                         );
                       })()}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
+              </main>
                 </div>
               </div>
             </div>
