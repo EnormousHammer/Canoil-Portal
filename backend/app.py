@@ -1749,11 +1749,14 @@ Return ONLY the JSON, no explanations."""
 IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
 IS_RENDER = os.getenv('RENDER') is not None or os.getenv('RENDER_SERVICE_ID') is not None
 IS_CLOUD_ENVIRONMENT = IS_CLOUD_RUN or IS_RENDER
-USE_GOOGLE_DRIVE_API = IS_CLOUD_ENVIRONMENT or os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true'
+SKIP_GOOGLE_DRIVE = os.getenv('SKIP_GOOGLE_DRIVE', '').lower() in ('1', 'true', 'yes')
+USE_GOOGLE_DRIVE_API = (IS_CLOUD_ENVIRONMENT or os.getenv('USE_GOOGLE_DRIVE_API', 'false').lower() == 'true') and not SKIP_GOOGLE_DRIVE
 google_drive_service = None
 
 if IS_CLOUD_ENVIRONMENT:
-    if IS_RENDER:
+    if SKIP_GOOGLE_DRIVE:
+        print("Backend: Cloud — SKIP_GOOGLE_DRIVE=1, not using Google Drive (return empty data)")
+    elif IS_RENDER:
         print("Backend: Render/cloud — data from Google Drive API only (no local drive paths)")
     else:
         print("Backend: Cloud Run — data from Google Drive API only (no local drive paths)")
@@ -2049,6 +2052,25 @@ def get_all_data():
         
         # Default load (no ?source or any other value): prefer Full Company Data when available so MISys export "just works"
         if data_source_param != 'default':
+            # When SKIP_GOOGLE_DRIVE: skip all G Drive attempts, return empty immediately
+            if SKIP_GOOGLE_DRIVE:
+                print("📂 SKIP_GOOGLE_DRIVE=1: skipping Google Drive and G: path, returning empty data")
+                empty_data = get_empty_app_data_structure()
+                return jsonify({
+                    "data": empty_data,
+                    "folderInfo": {
+                        "folderName": "SKIP_GOOGLE_DRIVE",
+                        "syncDate": datetime.now().isoformat(),
+                        "lastModified": datetime.now().isoformat(),
+                        "folder": "Skipped",
+                        "created": datetime.now().isoformat(),
+                        "size": "0",
+                        "fileCount": 0,
+                    },
+                    "LoadTimestamp": datetime.now().isoformat(),
+                    "source": "empty (SKIP_GOOGLE_DRIVE=1)",
+                    "fullCompanyDataReady": False,
+                })
             full_data = None
             err_msg = None
             if IS_CLOUD_ENVIRONMENT:

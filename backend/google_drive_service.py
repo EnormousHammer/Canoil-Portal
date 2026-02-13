@@ -203,6 +203,11 @@ class GoogleDriveService:
             
             # If still no valid creds, need to authenticate
             if not creds or not creds.valid:
+                # Render/Cloud Run: no browser for OAuth - skip immediately if no SA/token
+                is_cloud_no_browser = os.getenv('RENDER') or os.getenv('RENDER_SERVICE_ID') or os.getenv('K_SERVICE')
+                if is_cloud_no_browser:
+                    print("[INFO] Cloud environment (Render/Cloud Run): no Service Account or token - skipping Google Drive (OAuth requires browser)")
+                    return False
                 # On Vercel/serverless, we can't run OAuth flow - need token from env var
                 is_serverless = os.getenv('VERCEL') or os.getenv('GOOGLE_DRIVE_TOKEN')
                 if is_serverless:
