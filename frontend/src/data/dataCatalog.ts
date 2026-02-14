@@ -26,6 +26,8 @@ export type DataCatalog = {
   hasItems: boolean;
   /** True if this dataset has transaction log (MILOG*) */
   hasTransactions: boolean;
+  /** True if portal has MO overlay events (moEvents from portal_store) */
+  hasMOEvents: boolean;
 };
 
 const KNOWN_KEYS = [
@@ -74,6 +76,7 @@ export function buildDataCatalog(data: FullCompanyData | undefined): DataCatalog
       hasLotTrace: false,
       hasItems: false,
       hasTransactions: false,
+      hasMOEvents: false,
     };
   }
 
@@ -105,6 +108,7 @@ export function buildDataCatalog(data: FullCompanyData | undefined): DataCatalog
   const hasTransactions =
     (byKey.get("MILOGH.json") ?? 0) > 0 ||
     (byKey.get("MILOGD.json") ?? 0) > 0;
+  const hasMOEvents = (data.moEvents && Array.isArray(data.moEvents) && data.moEvents.length > 0) || false;
 
   return {
     entries,
@@ -115,5 +119,6 @@ export function buildDataCatalog(data: FullCompanyData | undefined): DataCatalog
     hasLotTrace,
     hasItems,
     hasTransactions,
+    hasMOEvents,
   };
 }

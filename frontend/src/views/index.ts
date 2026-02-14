@@ -2,7 +2,7 @@
  * View builders - UI-ready data adapters
  */
 
-export { buildMOView, type MOView, type MOComponentView } from "./moViewBuilder";
+export { buildMOView, buildMOExactLines, type MOView, type MOComponentView, type MOExactLineView } from "./moViewBuilder";
 export { buildItemView, type ItemView, type ItemStockByLocation, type ItemBinRow, type ItemTransactionRow, type ItemCostHistoryRow } from "./itemViewBuilder";
 export { buildPOView, type POView, type POLineView } from "./poViewBuilder";
 export { buildBOMView, type BOMView, type BOMComponentView } from "./bomViewBuilder";

@@ -2701,6 +2701,12 @@ def release_manufacturing_order(mo_no):
             return jsonify({"error": "Portal store not available"}), 503
         now = datetime.now().strftime('%Y-%m-%d')
         portal_store.add_mo_update(mo_no, status=1, release_date=now)
+        portal_store.add_mo_event({
+            "type": "MO_RELEASE",
+            "moNo": mo_no,
+            "user": (request.get_json() or {}).get("user") or "portal",
+            "ref": "manual",
+        })
         _cache_timestamp = None
         _response_cache = None
         return jsonify({"ok": True, "mo_no": mo_no, "status": 1, "release_date": now}), 200
@@ -2758,16 +2764,40 @@ def complete_manufacturing_order(mo_no):
         if not build_item_no:
             return jsonify({"error": f"MO {mo_no} not found"}), 404
         components = _get_bom_components_for_item(data, build_item_no)
+        user = body.get("user") or "portal"
+        lot = (body.get("lot") or body.get("Lot No.") or body.get("batch_number") or "").strip()
         for comp_item, req_qty in components:
+            issue_qty = req_qty * completed_qty
             portal_store.add_inventory_adjustment(
-                comp_item, "", - (req_qty * completed_qty),
+                comp_item, "", -issue_qty,
                 reason=f"Backflush MO {mo_no}",
             )
+            portal_store.add_mo_event({
+                "type": "MO_ISSUE",
+                "moNo": mo_no,
+                "itemNo": comp_item,
+                "qty": -issue_qty,
+                "uom": "EA",
+                "lotNo": lot or "",
+                "location": "",
+                "user": user,
+                "ref": "backflush",
+            })
         now = datetime.now().strftime('%Y-%m-%d')
         portal_store.add_mo_update(mo_no, status=2, completed=completed_qty, completion_date=now)
-        lot = (body.get("lot") or body.get("Lot No.") or body.get("batch_number") or "").strip()
         if lot and build_item_no:
             portal_store.add_mo_completion_lot(mo_no, build_item_no, completed_qty, lot)
+        portal_store.add_mo_event({
+            "type": "MO_COMPLETE",
+            "moNo": mo_no,
+            "itemNo": build_item_no,
+            "qty": completed_qty,
+            "uom": "EA",
+            "lotNo": lot or "",
+            "location": "",
+            "user": user,
+            "ref": "manual",
+        })
         _cache_timestamp = None
         _response_cache = None
         return jsonify({"ok": True, "mo_no": mo_no, "completed_qty": completed_qty, "backflushed": len(components), "lot": lot or None}), 200

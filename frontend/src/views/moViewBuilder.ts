@@ -32,7 +32,30 @@ export type MOComponentView = {
   shortage: number;
   materialCost: number;
   totalCost: number;
+  /** Planned extended cost = requiredQty * unitCost */
+  plannedExt: number;
+  /** Actual extended cost = issuedQty * unitCost */
+  actualExt: number;
   sourceLocation?: string;
+  /** "—" when mixed sources; single location otherwise */
+  sourceLocationDisplay?: string;
+};
+
+/** Exact MISys line - one row per MIMOMD detail (no grouping) */
+export type MOExactLineView = {
+  lineNo: string | number;
+  opSeq: string | number;
+  plannedItemNo: string;
+  issuedItemNo: string;
+  desc?: string;
+  requiredQty: number;
+  issuedQty: number;
+  remainingQty: number;
+  unitCost: number;
+  plannedExt: number;
+  actualExt: number;
+  sourceLoc: string;
+  issueType: string;
 };
 
 export type MOView = {
@@ -141,6 +164,9 @@ export function buildMOView(
       alertRow?.["Stock"] ?? alertRow?.["Available"] ?? alertRow?.["On Hand"] ?? 0
     );
 
+    const plannedExtLine = required * unitCost;
+    const actualExtLine = released * unitCost;
+
     const existing = byItem.get(compNo);
     if (existing) {
       existing.requiredQty += required;
@@ -148,11 +174,15 @@ export function buildMOView(
       existing.wipQty += wip;
       existing.reserveQty += reserve;
       existing.completedQty += completed;
-      existing.totalCost += required * unitCost;
+      existing.totalCost += plannedExtLine;
+      existing.plannedExt += plannedExtLine;
+      existing.actualExt += actualExtLine;
       if (sourceLocation && !existing.sourceLocation) {
         existing.sourceLocation = sourceLocation;
+        existing.sourceLocationDisplay = sourceLocation;
       } else if (sourceLocation && existing.sourceLocation !== sourceLocation) {
         existing.sourceLocation = `${existing.sourceLocation}, ${sourceLocation}`;
+        existing.sourceLocationDisplay = "Mixed";
       }
     } else {
       const desc =
@@ -176,8 +206,11 @@ export function buildMOView(
         availableStock,
         shortage,
         materialCost: unitCost,
-        totalCost: required * unitCost,
+        totalCost: plannedExtLine,
+        plannedExt: plannedExtLine,
+        actualExt: actualExtLine,
         sourceLocation: sourceLocation || undefined,
+        sourceLocationDisplay: sourceLocation || undefined,
       });
     }
   }
@@ -222,4 +255,81 @@ export function buildMOView(
     releaseOrderQty: toNum(header?.["Release Order Quantity"] ?? header?.["Release Qty"]),
     components,
   };
+}
+
+/** Build exact MISys lines (no grouping) for Components tab Exact view */
+export function buildMOExactLines(
+  indexes: DataIndexes,
+  moNoRaw: string
+): MOExactLineView[] {
+  const moNo = toStr(moNoRaw);
+  if (!moNo) return [];
+
+  const details = indexes.moDetailsByNo.get(moNo) ?? [];
+  const lines: MOExactLineView[] = [];
+
+  for (const d of details) {
+    const plannedItemNo = toStr(
+      d["Component Item No."] ??
+        d["Component"] ??
+        d["Item No."] ??
+        d["Item"] ??
+        d["partId"]
+    );
+    if (!plannedItemNo) continue;
+
+    const requiredQty = toNum(
+      d["Required Quantity"] ??
+        d["Required Qty."] ??
+        d["Required Qty"] ??
+        d["Required"] ??
+        d["Quantity"]
+    );
+    const issuedQty = toNum(
+      d["Released"] ?? d["Released Qty."] ?? d["Released Qty"] ?? d["Issued"] ?? d["Issued Qty"] ?? d["Release"]
+    );
+    const unitCost = toNum(
+      d["Material Cost"] ?? d["Unit Cost"] ?? d["Cost"]
+    );
+    const sourceLoc = toStr(
+      d["Source Location"] ?? d["Location"] ?? d["Location No."]
+    );
+    const issueType = toStr(
+      d["Issue Type"] ?? d["Issue Method"] ?? d["Backflush"] ?? ""
+    );
+
+    const lineNo = d["Detail No."] ?? d["Line No."] ?? d["Line"] ?? d["podId"] ?? lines.length + 1;
+    const opSeq = d["Operation No."] ?? d["Operation"] ?? d["operNo"] ?? "—";
+    const issuedItemNo = toStr(d["Issued Item No."] ?? d["Alternate Item No."]) || plannedItemNo;
+
+    const alertRow = indexes.alertByItemNo.get(toUpper(plannedItemNo)) ?? indexes.itemByNo.get(toUpper(plannedItemNo));
+    const desc =
+      d["Non-stocked Item Description"] ??
+      d["Description"] ??
+      d["Item Description"] ??
+      alertRow?.["Description"] ??
+      undefined;
+
+    lines.push({
+      lineNo,
+      opSeq,
+      plannedItemNo,
+      issuedItemNo,
+      desc,
+      requiredQty,
+      issuedQty,
+      remainingQty: requiredQty - issuedQty,
+      unitCost,
+      plannedExt: requiredQty * unitCost,
+      actualExt: issuedQty * unitCost,
+      sourceLoc: sourceLoc || "—",
+      issueType: issueType || "—",
+    });
+  }
+
+  return lines.sort((a, b) => {
+    const lnA = typeof a.lineNo === "number" ? a.lineNo : parseInt(String(a.lineNo), 10) || 0;
+    const lnB = typeof b.lineNo === "number" ? b.lineNo : parseInt(String(b.lineNo), 10) || 0;
+    return lnA - lnB;
+  });
 }

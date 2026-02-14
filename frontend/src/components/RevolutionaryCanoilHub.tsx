@@ -12,7 +12,7 @@ import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
 import { buildIndexes, buildDataCatalog, buildTransactionIndexes } from '../data';
-import { buildMOView, buildItemView, buildPOView, buildLotTraceView, buildBOMView, buildItemLotSummaryView, buildTransactionSearchView } from '../views';
+import { buildMOView, buildMOExactLines, buildItemView, buildPOView, buildLotTraceView, buildBOMView, buildItemLotSummaryView, buildTransactionSearchView } from '../views';
 import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import ExportAllCompanyDataModal from './ExportAllCompanyDataModal';
@@ -631,6 +631,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [selectedMO, setSelectedMO] = useState<any>(null);
   const [showMODetails, setShowMODetails] = useState(false);
   const [moActiveTab, setMoActiveTab] = useState('overview');
+  const [moComponentsView, setMoComponentsView] = useState<'grouped' | 'exact'>('grouped');
+  const [moTxTypeFilter, setMoTxTypeFilter] = useState<string>('');
+  const [moTxItemFilter, setMoTxItemFilter] = useState<string>('');
 
   // MO view for modal (MiSys-style UI-ready data, derived from selectedMO)
   const selectedMoNo = (selectedMO?.['Mfg. Order No.'] ?? selectedMO?.['MO No.'] ?? selectedMO?.['MO'] ?? selectedMO?.['mohId'] ?? '').toString().trim();
@@ -638,6 +641,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (!selectedMoNo) return null;
     return buildMOView(data, indexes, selectedMoNo);
   }, [data, indexes, selectedMoNo]);
+
+  const moExactLines = useMemo(() => {
+    if (!selectedMoNo || !indexes) return [];
+    return buildMOExactLines(indexes, selectedMoNo);
+  }, [indexes, selectedMoNo]);
 
   const selectedItemNo = (selectedItem?.['Item No.'] ?? selectedItem?.['itemId'] ?? '').toString().trim();
   const itemView = useMemo(() => {
@@ -659,6 +667,56 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (!moView?.moNo) return { rows: [], totalCount: 0, filters: {}, hasData: false };
     return buildTransactionSearchView(txIndexes, { docRef: moView.moNo, limit: 200 });
   }, [txIndexes, moView?.moNo]);
+
+  /** MO overlay events (portal_store) + ledger rows, combined and sorted by date */
+  const moTransactionRows = useMemo(() => {
+    if (!moView?.moNo) return [];
+    const moNo = moView.moNo.toString().trim();
+    const overlay: any[] = (data?.['moEvents'] || []).filter((e: any) => (e.moNo || e.mo_no || '').toString().trim() === moNo);
+    const ledger = moTransactionView.rows || [];
+    const combined = [
+      ...overlay.map((e) => ({
+        date: e.ts || e.date || '',
+        type: e.type || 'MO_EVENT',
+        itemNo: e.itemNo || e.item_no || '',
+        qtyIn: (e.qty || 0) > 0 ? e.qty : null,
+        qtyOut: (e.qty || 0) < 0 ? Math.abs(e.qty) : null,
+        location: e.location || '',
+        lotNo: e.lotNo || e.lot_no || '',
+        user: e.user || '',
+        ref: e.ref || '',
+        source: 'overlay' as const,
+      })),
+      ...ledger.map((r) => ({
+        date: r.date || '',
+        type: r.type || '—',
+        itemNo: r.itemNo || '',
+        qtyIn: r.qty != null && r.qty > 0 ? r.qty : null,
+        qtyOut: r.qty != null && r.qty < 0 ? Math.abs(r.qty) : null,
+        location: r.location || '',
+        lotNo: r.lot || '',
+        user: r.user || '',
+        ref: r.reference || '',
+        source: 'ledger' as const,
+      })),
+    ];
+    return combined.sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      return db.localeCompare(da);
+    });
+  }, [data, moView?.moNo, moTransactionView.rows]);
+
+  const filteredMoTransactionRows = useMemo(() => {
+    let rows = moTransactionRows;
+    if (moTxTypeFilter) {
+      rows = rows.filter((r) => (r.type || '').toLowerCase().includes(moTxTypeFilter.toLowerCase()));
+    }
+    if (moTxItemFilter) {
+      rows = rows.filter((r) => (r.itemNo || '').toLowerCase().includes(moTxItemFilter.toLowerCase()));
+    }
+    return rows;
+  }, [moTransactionRows, moTxTypeFilter, moTxItemFilter]);
 
   const moItemLotSummaryView = useMemo(() => {
     if (!moView?.buildItemNo) return { itemNo: '', lots: [], serialRows: [], lotHistoryRows: [], hasData: false };
@@ -2952,7 +3010,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       ]},
                       { title: 'Related', items: [
                         { id: 'pegged', label: 'Sales Order Related', icon: <Link2 className="w-4 h-4" /> },
-                        ...(dataCatalog.hasTransactions ? [{ id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> }] : []),
+                        { id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> },
                         ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots', icon: <Hash className="w-4 h-4" /> }] : []),
                       ]},
                     ].map((section) => (
@@ -2999,6 +3057,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                         <div className="flex items-center gap-6 text-sm tabular-nums">
                           <span><span className="text-slate-500">Ordered</span> <span className="font-semibold text-slate-900">{moView.orderedQty?.toLocaleString() ?? '—'}</span></span>
+                          <span><span className="text-slate-500">Open Qty</span> <span className="font-semibold text-amber-600">{((moView.orderedQty || 0) - (moView.completedQty || 0) - (parseFloat(moView.rawHeader?.['Scrap'] ?? moView.rawHeader?.['Scrap Qty'] ?? 0) || 0)).toLocaleString()}</span></span>
                           <span><span className="text-slate-500">WIP</span> <span className="font-semibold text-blue-600">{moView.wipQty?.toLocaleString() ?? '—'}</span></span>
                           <span><span className="text-slate-500">Completed</span> <span className="font-semibold text-emerald-600">{moView.completedQty?.toLocaleString() ?? '—'}</span></span>
                           <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-slate-900">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</span></span>
@@ -3131,6 +3190,70 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                       </div>
 
+                      {/* Cost Tie-Out - Header vs Line totals */}
+                      {(() => {
+                        const sumPlannedMat = moView.components.reduce((s, c) => s + (c.plannedExt ?? c.totalCost ?? 0), 0);
+                        const sumActualMat = moView.components.reduce((s, c) => s + (c.actualExt ?? 0), 0);
+                        const headerPlanned = parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0);
+                        const headerActual = parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0);
+                        const deltaPlanned = Math.abs(headerPlanned - sumPlannedMat);
+                        const deltaActual = Math.abs(headerActual - sumActualMat);
+                        const hasMismatch = deltaPlanned > 0.01 || deltaActual > 0.01;
+                        return (
+                          <div className={`overflow-hidden rounded-xl border ${hasMismatch ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'}`}>
+                            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                              <Calculator className="w-4 h-4 text-slate-600" />
+                              <h4 className="font-semibold text-slate-800 text-sm">Cost Tie-Out</h4>
+                              {hasMismatch && (
+                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-md bg-amber-200 text-amber-800">Cost mismatch vs lines</span>
+                              )}
+                            </div>
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div className="space-y-2">
+                                <div className="font-medium text-slate-600">Planned Material</div>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-slate-500">Header:</span>
+                                  <span className="font-mono">${headerPlanned.toFixed(2)}</span>
+                                  <span className="text-slate-400">vs</span>
+                                  <span className="text-slate-500">Lines:</span>
+                                  <span className="font-mono">${sumPlannedMat.toFixed(2)}</span>
+                                  {deltaPlanned > 0.01 && <span className="text-amber-600 font-medium">Δ ${deltaPlanned.toFixed(2)}</span>}
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="font-medium text-slate-600">Actual Material</div>
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-slate-500">Header:</span>
+                                  <span className="font-mono text-emerald-600">${headerActual.toFixed(2)}</span>
+                                  <span className="text-slate-400">vs</span>
+                                  <span className="text-slate-500">Lines:</span>
+                                  <span className="font-mono text-emerald-600">${sumActualMat.toFixed(2)}</span>
+                                  {deltaActual > 0.01 && <span className="text-amber-600 font-medium">Δ ${deltaActual.toFixed(2)}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Audit + Revision block */}
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                          <User className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">Audit & Revision</h4>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div><span className="text-slate-500 text-xs block">Created By</span><span className="font-medium">{moView.rawHeader?.['Created By'] || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Created Date</span><span className="font-medium tabular-nums">{moView.rawHeader?.['Created Date'] || moView.rawHeader?.['Order Date'] || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Released By</span><span className="font-medium">{moView.rawHeader?.['Released By'] || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Released Date</span><span className="font-medium tabular-nums">{moView.dates.release || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Closed By</span><span className="font-medium">{moView.rawHeader?.['Closed By'] || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Closed Date</span><span className="font-medium tabular-nums">{moView.dates.close || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">BOM Revision</span><span className="font-medium">{moView.bomRev || 'Not in snapshot'}</span></div>
+                          <div><span className="text-slate-500 text-xs block">Effective Date</span><span className="font-medium tabular-nums">{moView.rawHeader?.['BOM Effective Date'] ?? moView.rawHeader?.['Effective Date'] ?? 'Not in snapshot'}</span></div>
+                        </div>
+                      </div>
+
                       {/* Related - SO, Job, Work Orders */}
                       {(() => {
                         const salesOrderNo = moView.salesOrderNo;
@@ -3259,7 +3382,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         return null;
                       })()}
 
-                      {moView.components.length === 0 ? (
+                      {moView.components.length === 0 && moExactLines.length === 0 ? (
                         <div className="text-center py-12 text-slate-500">
                           <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                           <div className="font-medium text-slate-700 mb-1">No component details found</div>
@@ -3267,108 +3390,189 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                       ) : (
                         <>
+                          {/* Exact / Grouped toggle */}
+                          <div className="flex items-center gap-2 mb-4">
+                            <span className="text-sm font-medium text-slate-600">View:</span>
+                            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                              <button
+                                onClick={() => setMoComponentsView('grouped')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                  moComponentsView === 'grouped' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                Grouped (Summary)
+                              </button>
+                              <button
+                                onClick={() => setMoComponentsView('exact')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                  moComponentsView === 'exact' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                Exact MISys Lines
+                              </button>
+                            </div>
+                          </div>
+
                           <div className="rounded-xl border border-slate-100 overflow-hidden">
                             <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
                               <Wrench className="w-4 h-4 text-slate-600" />
                               <h4 className="font-semibold text-slate-800 text-sm">MIMOMD · Components & Materials</h4>
-                              <span className="text-xs text-slate-500 ml-auto">Showing {moView.components.length} of {moView.components.length}</span>
+                              <span className="text-xs text-slate-500 ml-auto">
+                                Showing {moComponentsView === 'grouped' ? moView.components.length : moExactLines.length} {moComponentsView === 'grouped' ? 'components' : 'lines'}
+                              </span>
                             </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full text-sm min-w-[980px]">
-                              <thead className="bg-slate-100">
-                                <tr>
-                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[130px]">Component</th>
-                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[200px]">Description</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Required</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Issued</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Remaining</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Available</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Shortage</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Unit Cost</th>
-                                  <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Total</th>
-                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[90px]">Location</th>
-                                  <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[100px]">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {moView.components.map((c, index) => {
-                                  const remainingQty = c.requiredQty - c.releasedQty;
-                                  const hasShortage = c.shortage > 0;
-                                  const stockStatus = c.availableStock >= remainingQty ? 'sufficient' :
-                                                    c.availableStock > 0 ? 'low' : 'out';
+                            {moComponentsView === 'grouped' ? (
+                              <table className="w-full text-sm min-w-[980px]">
+                                <thead className="bg-slate-100">
+                                  <tr>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[130px]">Item</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[200px]">Description</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Required</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Issued</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Remaining</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Unit Cost</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Planned Cost</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Actual Cost</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[90px]">Source Loc</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[100px]">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {moView.components.map((c, index) => {
+                                    const remainingQty = c.requiredQty - c.releasedQty;
+                                    const hasShortage = c.shortage > 0;
+                                    const stockStatus = c.availableStock >= remainingQty ? 'sufficient' :
+                                                      c.availableStock > 0 ? 'low' : 'out';
 
-                                  return (
-                                    <tr key={index} className={`border-b border-slate-100 tabular-nums ${
-                                      hasShortage ? 'bg-red-50/50' : 'bg-white'
-                                    } hover:bg-slate-50`}>
-                                      <td className="px-4 py-3 font-mono text-blue-600 font-medium whitespace-nowrap">
-                                        {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
+                                    return (
+                                      <tr key={index} className={`border-b border-slate-100 tabular-nums ${
+                                        hasShortage ? 'bg-red-50/50' : 'bg-white'
+                                      } hover:bg-slate-50`}>
+                                        <td className="px-4 py-3 font-mono text-blue-600 font-medium whitespace-nowrap">
+                                          {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-700 break-words">
+                                          {c.desc || '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
+                                          {c.requiredQty > 0 ? c.requiredQty.toLocaleString() : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-green-600 whitespace-nowrap">
+                                          {c.releasedQty > 0 ? c.releasedQty.toLocaleString() : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-orange-600 whitespace-nowrap">
+                                          {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                                          {c.sourceLocationDisplay === 'Mixed' ? 'Mixed' : (c.materialCost > 0 ? `$${c.materialCost.toFixed(2)}` : '—')}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                                          {(c.plannedExt ?? c.totalCost) > 0 ? `$${(c.plannedExt ?? c.totalCost).toFixed(2)}` : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
+                                          {(c.actualExt ?? 0) > 0 ? `$${(c.actualExt ?? 0).toFixed(2)}` : '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                                          {c.sourceLocationDisplay && c.sourceLocationDisplay !== 'Mixed' ? (
+                                            <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(c.sourceLocation!); setShowLocationDetail(true); }}>{c.sourceLocationDisplay}</span>
+                                          ) : c.sourceLocationDisplay ? (
+                                            <span>{c.sourceLocationDisplay}</span>
+                                          ) : (
+                                            '—'
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                                            stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
+                                              stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
+                                              'bg-red-100 text-red-700'
+                                          }`}>
+                                            {stockStatus === 'sufficient' ? '✓ In Stock' :
+                                             stockStatus === 'low' ? '⚠ Low Stock' :
+                                             '✗ Out of Stock'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <table className="w-full text-sm min-w-[1100px]">
+                                <thead className="bg-slate-100">
+                                  <tr>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[60px]">Line #</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[70px]">Op Seq</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[110px]">Planned Item</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[110px]">Issued Item</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[180px]">Description</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Required</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[72px]">Issued</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Remaining</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[76px]">Unit Cost</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Planned Cost</th>
+                                    <th className="text-right px-4 py-3 font-medium text-slate-600 tabular-nums min-w-[80px]">Actual Cost</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[90px]">Source Loc</th>
+                                    <th className="text-left px-4 py-3 font-medium text-slate-600 min-w-[90px]">Issue Type</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {moExactLines.map((line, index) => (
+                                    <tr key={index} className="border-b border-slate-100 tabular-nums bg-white hover:bg-slate-50">
+                                      <td className="px-4 py-3 font-mono text-slate-600">{line.lineNo}</td>
+                                      <td className="px-4 py-3 font-mono text-slate-600">{line.opSeq}</td>
+                                      <td className="px-4 py-3 font-mono text-blue-600 font-medium">
+                                        <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(line.plannedItemNo); }}>{line.plannedItemNo}</span>
                                       </td>
-                                      <td className="px-4 py-3 text-slate-700 break-words">
-                                        {c.desc || '—'}
+                                      <td className="px-4 py-3 font-mono text-slate-700">
+                                        {line.issuedItemNo !== line.plannedItemNo ? (
+                                          <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(line.issuedItemNo); }}>{line.issuedItemNo}</span>
+                                        ) : (
+                                          <span className="text-slate-400">—</span>
+                                        )}
                                       </td>
-                                      <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
-                                        {c.requiredQty > 0 ? c.requiredQty.toLocaleString() : '—'}
+                                      <td className="px-4 py-3 text-slate-700 break-words">{line.desc || '—'}</td>
+                                      <td className="px-4 py-3 text-right font-medium">{line.requiredQty > 0 ? line.requiredQty.toLocaleString() : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-medium text-green-600">{line.issuedQty > 0 ? line.issuedQty.toLocaleString() : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-medium text-orange-600">{line.remainingQty > 0 ? line.remainingQty.toLocaleString() : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{line.unitCost > 0 ? `$${line.unitCost.toFixed(2)}` : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{line.plannedExt > 0 ? `$${line.plannedExt.toFixed(2)}` : '—'}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{line.actualExt > 0 ? `$${line.actualExt.toFixed(2)}` : '—'}</td>
+                                      <td className="px-4 py-3 text-slate-600">
+                                        {line.sourceLoc !== '—' ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(line.sourceLoc); setShowLocationDetail(true); }}>{line.sourceLoc}</span> : '—'}
                                       </td>
-                                      <td className="px-4 py-3 text-right font-medium text-green-600 whitespace-nowrap">
-                                        {c.releasedQty > 0 ? c.releasedQty.toLocaleString() : '—'}
-                                      </td>
-                                      <td className="px-4 py-3 text-right font-medium text-orange-600 whitespace-nowrap">
-                                        {remainingQty > 0 ? remainingQty.toLocaleString() : '—'}
-                                      </td>
-                                      <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${
-                                        stockStatus === 'sufficient' ? 'text-green-600' :
-                                        stockStatus === 'low' ? 'text-yellow-600' :
-                                        'text-red-600'
-                                      }`}>
-                                        {c.availableStock > 0 ? c.availableStock.toLocaleString() : '0'}
-                                      </td>
-                                      <td className={`px-4 py-3 text-right font-medium font-bold whitespace-nowrap ${
-                                        hasShortage ? 'text-red-600' : 'text-green-600'
-                                      }`}>
-                                        {hasShortage ? `-${c.shortage.toLocaleString()}` : '✓'}
-                                      </td>
-                                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap">
-                                        {c.materialCost > 0 ? `$${c.materialCost.toFixed(2)}` : '—'}
-                                      </td>
-                                      <td className="px-4 py-3 text-right font-mono font-bold text-green-600 whitespace-nowrap">
-                                        {c.totalCost > 0 ? `$${c.totalCost.toFixed(2)}` : '—'}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                                        {c.sourceLocation ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-1" onClick={(e) => { e.stopPropagation(); setSelectedLocId(c.sourceLocation!); setShowLocationDetail(true); }}>{c.sourceLocation}</span> : '—'}
-                                      </td>
-                                      <td className="px-4 py-3 whitespace-nowrap">
-                                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                          stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
-                                            stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-red-100 text-red-700'
-                                        }`}>
-                                          {stockStatus === 'sufficient' ? '✓ In Stock' :
-                                           stockStatus === 'low' ? '⚠ Low Stock' :
-                                           '✗ Out of Stock'}
-                                        </span>
-                                      </td>
+                                      <td className="px-4 py-3 text-slate-600">{line.issueType}</td>
                                     </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
                           </div>
                             
                             <div className="px-5 py-4 bg-slate-50 border-t border-slate-200">
-                              <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-sm">
+                              <div className="grid grid-cols-2 md:grid-cols-6 gap-6 text-sm">
                                 {(() => {
-                                  const totalComponents = moView.components.length;
-                                  const totalRequiredQty = moView.components.reduce((sum, c) => sum + c.requiredQty, 0);
-                                  const totalIssuedQty = moView.components.reduce((sum, c) => sum + c.releasedQty, 0);
-                                  const totalCost = moView.components.reduce((sum, c) => sum + c.totalCost, 0);
+                                  const totalComponents = moComponentsView === 'grouped' ? moView.components.length : moExactLines.length;
+                                  const totalRequiredQty = moComponentsView === 'grouped'
+                                    ? moView.components.reduce((sum, c) => sum + c.requiredQty, 0)
+                                    : moExactLines.reduce((sum, l) => sum + l.requiredQty, 0);
+                                  const totalIssuedQty = moComponentsView === 'grouped'
+                                    ? moView.components.reduce((sum, c) => sum + c.releasedQty, 0)
+                                    : moExactLines.reduce((sum, l) => sum + l.issuedQty, 0);
+                                  const totalPlannedCost = moComponentsView === 'grouped'
+                                    ? moView.components.reduce((sum, c) => sum + (c.plannedExt ?? c.totalCost ?? 0), 0)
+                                    : moExactLines.reduce((sum, l) => sum + l.plannedExt, 0);
+                                  const totalActualCost = moComponentsView === 'grouped'
+                                    ? moView.components.reduce((sum, c) => sum + (c.actualExt ?? 0), 0)
+                                    : moExactLines.reduce((sum, l) => sum + l.actualExt, 0);
                                   const componentsWithShortage = moView.components.filter((c) => c.shortage > 0).length;
 
                                   return (
                                     <>
                                       <div className="text-center">
                                         <div className="font-semibold text-gray-900">{totalComponents}</div>
-                                        <div className="text-gray-600">Components</div>
+                                        <div className="text-gray-600">{moComponentsView === 'grouped' ? 'Components' : 'Lines'}</div>
                                       </div>
                                       <div className="text-center">
                                         <div className="font-semibold text-gray-900">{totalRequiredQty.toLocaleString()}</div>
@@ -3379,15 +3583,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <div className="text-gray-600">Total Issued</div>
                                       </div>
                                       <div className="text-center">
-                                        <div className="font-semibold text-green-600">${totalCost.toFixed(2)}</div>
-                                        <div className="text-gray-600">Material Cost</div>
+                                        <div className="font-semibold text-slate-700">${totalPlannedCost.toFixed(2)}</div>
+                                        <div className="text-gray-600">Planned Cost</div>
                                       </div>
                                       <div className="text-center">
-                                        <div className={`font-semibold ${componentsWithShortage > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                          {componentsWithShortage}
-                                        </div>
-                                        <div className="text-gray-600">Stock Shortages</div>
+                                        <div className="font-semibold text-green-600">${totalActualCost.toFixed(2)}</div>
+                                        <div className="text-gray-600">Actual Cost</div>
                                       </div>
+                                      {moComponentsView === 'grouped' && (
+                                        <div className="text-center">
+                                          <div className={`font-semibold ${componentsWithShortage > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                            {componentsWithShortage}
+                                          </div>
+                                          <div className="text-gray-600">Stock Shortages</div>
+                                        </div>
+                                      )}
                                     </>
                                   );
                                 })()}
@@ -3826,28 +4036,70 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   )}
 
-                  {/* MO Transactions Tab */}
+                  {/* MO Transactions Tab - overlay events + ledger */}
                   {moActiveTab === 'transactions' && (
                     <div className="space-y-4">
-                      <div className="text-sm text-slate-600">Transactions for MO #{moView.moNo}</div>
-                      {!moTransactionView.hasData ? (
-                        <p className="p-4 text-slate-500 text-sm">No transactions for this MO. Include MILOGH.CSV with Mfg. Order No. reference.</p>
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="text-sm text-slate-600">Transactions for MO #{moView.moNo}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select
+                            value={moTxTypeFilter}
+                            onChange={(e) => setMoTxTypeFilter(e.target.value)}
+                            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white"
+                          >
+                            <option value="">All Types</option>
+                            <option value="MO_ISSUE">MO_ISSUE</option>
+                            <option value="MO_COMPLETE">MO_COMPLETE</option>
+                            <option value="MO_RELEASE">MO_RELEASE</option>
+                            <option value="MO_ADJUST">MO_ADJUST</option>
+                            <option value="MO_UNISSUE">MO_UNISSUE</option>
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Filter by item..."
+                            value={moTxItemFilter}
+                            onChange={(e) => setMoTxItemFilter(e.target.value)}
+                            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 w-40"
+                          />
+                        </div>
+                      </div>
+                      {filteredMoTransactionRows.length === 0 ? (
+                        <p className="p-4 text-slate-500 text-sm">
+                          No transactions for this MO. Overlay events (MO complete, component issue) appear here when recorded via the portal. Ledger events from MILOG appear when available.
+                        </p>
                       ) : (
                         <div className="rounded-xl border border-slate-100 overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Type</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th></tr></thead>
-                            <tbody className="divide-y divide-slate-100">{moTransactionView.rows.map((tx, i) => (
-                              <tr key={i} className={'bg-white'}>
-                                <td className="px-4 py-2 text-slate-800">{formatDisplayDate(tx.date) || '—'}</td>
-                                <td className="px-4 py-2">{tx.type || '—'}</td>
-                                <td className="px-4 py-2 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => tx.itemNo && openItemById(tx.itemNo)}>{tx.itemNo || '—'}</td>
-                                <td className="px-4 py-2 text-right tabular-nums">{tx.qty.toLocaleString()}</td>
-                                <td className="px-4 py-2 font-mono text-slate-600">{tx.location || '—'}</td>
-                                <td className="px-4 py-2 text-slate-600">{tx.user || '—'}</td>
+                          <table className="w-full text-sm min-w-[900px]">
+                            <thead className="bg-slate-100">
+                              <tr>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date/Time</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Type</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item</th>
+                                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty In</th>
+                                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty Out</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Lot/Serial</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th>
+                                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Reference</th>
                               </tr>
-                            ))}</tbody>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {filteredMoTransactionRows.map((tx, i) => (
+                                <tr key={i} className="bg-white hover:bg-slate-50">
+                                  <td className="px-4 py-2 text-slate-800 font-mono text-xs">{formatDisplayDate(tx.date) || tx.date || '—'}</td>
+                                  <td className="px-4 py-2"><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${tx.source === 'overlay' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-700'}`}>{tx.type || '—'}</span></td>
+                                  <td className="px-4 py-2 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => tx.itemNo && openItemById(tx.itemNo)}>{tx.itemNo || '—'}</td>
+                                  <td className="px-4 py-2 text-right tabular-nums text-green-600">{tx.qtyIn != null ? tx.qtyIn.toLocaleString() : '—'}</td>
+                                  <td className="px-4 py-2 text-right tabular-nums text-orange-600">{tx.qtyOut != null ? tx.qtyOut.toLocaleString() : '—'}</td>
+                                  <td className="px-4 py-2 font-mono text-slate-600">{tx.location || '—'}</td>
+                                  <td className="px-4 py-2 font-mono text-slate-600">{tx.lotNo || '—'}</td>
+                                  <td className="px-4 py-2 text-slate-600">{tx.user || '—'}</td>
+                                  <td className="px-4 py-2 text-slate-600">{tx.ref || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
                           </table>
-                          {moTransactionView.totalCount > 200 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 200 of {moTransactionView.totalCount}</div>}
+                          {filteredMoTransactionRows.length > 200 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing {filteredMoTransactionRows.length} transactions</div>}
                         </div>
                       )}
                     </div>

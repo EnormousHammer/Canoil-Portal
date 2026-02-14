@@ -19,6 +19,7 @@ def _default_store():
     return {
         "created_mos": [],
         "mo_updates": [],
+        "mo_events": [],
         "inventory_adjustments": [],
         "location_transfers": [],
         "item_overrides": {},
@@ -197,6 +198,20 @@ def add_mo_completion_lot(mo_no, item_no, qty, lot=""):
 def get_wo_updates():
     return load().get("wo_updates", [])
 
+
+def get_mo_events():
+    return load().get("mo_events", [])
+
+
+def add_mo_event(event):
+    """Add an MO transaction event (issue, complete, adjust, unissue)."""
+    s = load()
+    events = s.get("mo_events", [])
+    event.setdefault("ts", datetime.utcnow().isoformat() + "Z")
+    events.append(event)
+    s["mo_events"] = events
+    save(s)
+
 def add_wo_update(wo_no, status=None, release_date=None, completed=None, completion_date=None, scrap=None):
     s = load()
     updates = s.get("wo_updates", [])
@@ -369,6 +384,9 @@ def apply_to_data(data):
                 break
         # Inventory already updated via add_inventory_adjustment when receive was recorded
     data["PurchaseOrderDetails.json"] = all_po_details
+
+    # MO events: expose for Transactions tab (overlay events from portal actions)
+    data["moEvents"] = store.get("mo_events", [])
 
     # WO updates (E2/E3): apply release/complete to WorkOrders.json and WorkOrderDetails.json
     wo_updates = store.get("wo_updates") or []
