@@ -772,6 +772,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const item = (items as any[]).find((i: any) => (i['Item No.'] || i['itemId'] || '').toString().trim().toUpperCase() === upper);
     if (item) { setSelectedItem(item); setShowItemModal(true); }
   };
+  const transactionExplorerRef = React.useRef<HTMLDivElement>(null);
   const openTransactionExplorerWithFilters = (filters: { itemNo?: string; docRef?: string }) => {
     setTxExplorerFilters((prev) => ({ ...prev, ...filters }));
     setShowTransactionExplorer(true);
@@ -779,6 +780,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     setShowItemModal(false);
     setShowPODetails(false);
     setShowMODetails(false);
+    setTimeout(() => transactionExplorerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
   };
   
   // Logistics section state
@@ -6537,7 +6539,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 )}
                 {/* Transaction Explorer (Inventory Log) - indexed search */}
                 {showTransactionExplorer && (
-                  <div className="px-6 py-3 border-t border-violet-200 bg-violet-50/50">
+                  <div ref={transactionExplorerRef} className="px-6 py-3 border-t border-violet-200 bg-violet-50/50">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-semibold text-violet-800">Inventory Log</span>
                       <button type="button" onClick={() => setShowTransactionExplorer(false)} className="text-violet-600 hover:text-violet-800 text-sm font-medium">Close</button>
@@ -8673,7 +8675,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
         return (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" 
           onClick={closeItemModal}
           role="dialog"
           aria-modal="true"
