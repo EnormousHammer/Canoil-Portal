@@ -772,6 +772,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const item = (items as any[]).find((i: any) => (i['Item No.'] || i['itemId'] || '').toString().trim().toUpperCase() === upper);
     if (item) { setSelectedItem(item); setShowItemModal(true); }
   };
+  const openTransactionExplorerWithFilters = (filters: { itemNo?: string; docRef?: string }) => {
+    setTxExplorerFilters((prev) => ({ ...prev, ...filters }));
+    setShowTransactionExplorer(true);
+    setActiveSection('inventory');
+    setShowItemModal(false);
+    setShowPODetails(false);
+    setShowMODetails(false);
+  };
   
   // Logistics section state
   const [logisticsStep, setLogisticsStep] = useState(1);
@@ -2994,6 +3002,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {dataCatalog.hasTransactions && moView?.moNo && (
+                    <button onClick={() => openTransactionExplorerWithFilters({ docRef: moView.moNo })} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white border border-violet-400/50 transition-colors font-medium">
+                      <Activity className="w-5 h-5" /><span className="text-sm">View in Ledger</span>
+                    </button>
+                    )}
                     <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
                   </div>
                 </div>
@@ -4189,6 +4202,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {dataCatalog.hasTransactions && selectedPONo && (
+                    <button onClick={() => openTransactionExplorerWithFilters({ docRef: selectedPONo })} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white border border-violet-400/50 transition-colors font-medium">
+                      <Activity className="w-5 h-5" /><span className="text-sm">View in Ledger</span>
+                    </button>
+                    )}
                     <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
                   </div>
                 </div>
@@ -6524,7 +6542,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <span className="text-sm font-semibold text-violet-800">Inventory Log</span>
                       <button type="button" onClick={() => setShowTransactionExplorer(false)} className="text-violet-600 hover:text-violet-800 text-sm font-medium">Close</button>
                     </div>
-                    <div className="flex flex-wrap gap-2 mb-3">
+                    <div className="flex flex-wrap gap-2 mb-3 items-center">
                       <input type="text" placeholder="Item No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28" value={txExplorerFilters.itemNo ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, itemNo: e.target.value || undefined }))} />
                       <input type="text" placeholder="MO/PO ref" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28" value={txExplorerFilters.docRef ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, docRef: e.target.value || undefined }))} />
                       <input type="text" placeholder="Lot No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-24" value={txExplorerFilters.lot ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, lot: e.target.value || undefined }))} />
@@ -6532,6 +6550,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <input type="date" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg" value={txExplorerFilters.dateFrom ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, dateFrom: e.target.value || undefined }))} />
                       <span className="text-slate-400">to</span>
                       <input type="date" className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg" value={txExplorerFilters.dateTo ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, dateTo: e.target.value || undefined }))} />
+                      {(txExplorerFilters.itemNo || txExplorerFilters.docRef || txExplorerFilters.lot || txExplorerFilters.serial || txExplorerFilters.dateFrom || txExplorerFilters.dateTo) && (
+                        <button type="button" onClick={() => setTxExplorerFilters({})} className="px-2 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Clear filters</button>
+                      )}
                     </div>
                     <div className="overflow-x-auto max-h-60 overflow-y-auto border border-slate-200 rounded-lg bg-white">
                       {!txExplorerView.hasData ? (
@@ -6547,7 +6568,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <td className="p-2 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => tx.itemNo && openItemById(tx.itemNo)}>{tx.itemNo || '—'}</td>
                                 <td className="p-2 text-right tabular-nums">{tx.qty.toLocaleString()}</td>
                                 <td className="p-2 font-mono text-slate-600">{tx.location || '—'}</td>
-                                <td className="p-2 font-mono text-slate-600">{tx.reference || '—'}</td>
+                                <td className="p-2 font-mono text-slate-600">
+                                  {tx.reference ? (
+                                    <span className="text-violet-600 cursor-pointer hover:underline" onClick={() => setTxExplorerFilters((f) => ({ ...f, docRef: tx.reference }))}>{tx.reference}</span>
+                                  ) : '—'}
+                                </td>
                                 <td className="p-2 text-slate-600">{tx.user || '—'}</td>
                               </tr>
                             ))}
@@ -8690,6 +8715,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <button onClick={() => { setQuickAddItem(item); setQuickAddQty(1); setShowQuickAddPopup(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors">
                   <Plus className="w-4 h-4" /> Add to PR
                 </button>
+                {dataCatalog.hasTransactions && (
+                <button onClick={() => openTransactionExplorerWithFilters({ itemNo })} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500 hover:bg-violet-400 text-white text-sm font-medium transition-colors">
+                  <Activity className="w-4 h-4" /> View in Ledger
+                </button>
+                )}
                 <button onClick={closeItemModal} className="flex items-center gap-2 px-4 py-2.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm font-medium">Close</span></button>
               </div>
             </div>
