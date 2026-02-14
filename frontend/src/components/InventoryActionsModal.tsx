@@ -166,7 +166,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-labelledby="inventory-actions-title">
+    <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50" style={{ zIndex: 10000 }} role="dialog" aria-labelledby="inventory-actions-title">
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <h2 id="inventory-actions-title" className="text-lg font-semibold text-slate-800">Inventory actions</h2>

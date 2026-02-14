@@ -2981,9 +2981,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* MO Details Modal - Enterprise layout (improved) */}
-          {showMODetails && moView && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowMODetails(false)} role="dialog" aria-modal="true">
+          {/* MO Details Modal - Enterprise layout (portal so it appears on top) */}
+          {showMODetails && selectedMoNo && createPortal(
+            <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowMODetails(false)} role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
               <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl ring-2 ring-violet-500 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Enterprise header bar - gradient */}
                 <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-800 via-violet-900/90 to-slate-800 text-white rounded-t-2xl border-b border-violet-400/30">
@@ -2992,37 +2992,48 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <Factory className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-xl font-bold tracking-tight text-white truncate">MO #{moView.moNo}</h1>
+                      <h1 className="text-xl font-bold tracking-tight text-white truncate">MO #{moView?.moNo ?? selectedMoNo}</h1>
                       <p className="text-slate-300 text-sm truncate mt-0.5">
-                        {moView.buildItemNo ? (
-                          <span className="text-white cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openItemById(moView.buildItemNo!); }}>{moView.buildItemNo}</span>
+                        {(moView?.buildItemNo ?? selectedMO?.['Build Item No.']) ? (
+                          <span className="text-white cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openItemById(moView?.buildItemNo ?? selectedMO?.['Build Item No.'] ?? ''); }}>{moView?.buildItemNo ?? selectedMO?.['Build Item No.']}</span>
                         ) : '—'}
-                        {moView.buildItemDesc && <span className="ml-2 text-slate-300">• {moView.buildItemDesc}</span>}
+                        {(moView?.buildItemDesc ?? selectedMO?.['Non-Stocked Build Item Description']) && <span className="ml-2 text-slate-300">• {moView?.buildItemDesc ?? selectedMO?.['Non-Stocked Build Item Description']}</span>}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200">
-                          {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
+                          {(moView?.status ?? selectedMO?.['Status']) === 0 ? 'Planned' : (moView?.status ?? selectedMO?.['Status']) === 1 ? 'Released' : (moView?.status ?? selectedMO?.['Status']) === 2 ? 'Started' : (moView?.status ?? selectedMO?.['Status']) === 3 ? 'Finished' : (moView?.status ?? selectedMO?.['Status']) === 4 ? 'Closed' : 'Unknown'}
                         </span>
-                        <span className="text-slate-400 text-xs">Ordered {moView.orderedQty?.toLocaleString() ?? '—'}</span>
+                        <span className="text-slate-400 text-xs">Ordered {(moView?.orderedQty ?? selectedMO?.['Ordered'])?.toLocaleString() ?? '—'}</span>
                         <span className="text-slate-500">·</span>
-                        <span className="text-slate-400 text-xs">WIP {moView.wipQty?.toLocaleString() ?? '—'}</span>
+                        <span className="text-slate-400 text-xs">WIP {(moView?.wipQty ?? selectedMO?.['WIP'])?.toLocaleString() ?? '—'}</span>
                         <span className="text-slate-500">·</span>
-                        <span className="text-slate-400 text-xs">Completed {moView.completedQty?.toLocaleString() ?? '—'}</span>
+                        <span className="text-slate-400 text-xs">Completed {(moView?.completedQty ?? selectedMO?.['Completed'])?.toLocaleString() ?? '—'}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {dataCatalog.hasTransactions && moView?.moNo && (
-                    <button onClick={() => openTransactionExplorerWithFilters({ docRef: moView.moNo })} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white border border-violet-400/50 transition-colors font-medium">
+                    {dataCatalog.hasTransactions && (moView?.moNo ?? selectedMoNo) && (
+                    <button onClick={() => openTransactionExplorerWithFilters({ docRef: moView?.moNo ?? selectedMoNo })} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white border border-violet-400/50 transition-colors font-medium">
                       <Activity className="w-5 h-5" /><span className="text-sm">View in Ledger</span>
                     </button>
                     )}
-                    <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
+                    <button onClick={() => setShowMODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" title="Back"><ArrowLeft className="w-5 h-5" /><span className="text-sm">Back</span></button>
+                    <button onClick={() => setShowMODetails(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Close"><X className="w-5 h-5" /></button>
                   </div>
                 </div>
 
                 {/* Body: sidebar + content */}
                 <div className="flex-1 flex min-h-0 bg-slate-50">
+                  {!moView ? (
+                    <div className="flex-1 flex items-center justify-center p-12">
+                      <div className="text-center">
+                        <p className="text-slate-600 font-medium">MO #{selectedMoNo}</p>
+                        <p className="text-slate-500 text-sm mt-2">Minimal view — full details require MIMOH/MIMOMD in Full Company Data.</p>
+                        <button onClick={() => openTransactionExplorerWithFilters({ docRef: selectedMoNo })} className="mt-4 px-4 py-2 bg-violet-500 text-white rounded-lg text-sm font-medium">View in Ledger</button>
+                      </div>
+                    </div>
+                  ) : (
+                  <>
                   {/* Left sidebar nav */}
                   {(() => {
                     const moNavSections = [
@@ -4219,16 +4230,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                     </>
                   ); })()}
-                    </div>
-                  </main>
+                </div>
+              </main>
+              </>
+                  )}
                 </div>
               </div>
             </div>
-          )}
+          , document.body)}
 
-          {/* PO Details Modal - Enterprise layout (improved) */}
-          {showPODetails && (poView || selectedPO) && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowPODetails(false)} role="dialog" aria-modal="true">
+          {/* PO Details Modal - Enterprise layout (portal so it appears on top) */}
+          {showPODetails && (selectedPONo || selectedPO) && createPortal(
+            <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-lg" onClick={() => setShowPODetails(false)} role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
               <div className="w-full max-w-6xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl ring-2 ring-blue-500 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Enterprise header bar - gradient */}
                 <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-800 via-blue-900/90 to-slate-800 text-white rounded-t-2xl border-b border-blue-400/30">
@@ -4258,7 +4271,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <Activity className="w-5 h-5" /><span className="text-sm">View in Ledger</span>
                     </button>
                     )}
-                    <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" aria-label="Close"><X className="w-5 h-5" /><span className="text-sm">Close</span></button>
+                    <button onClick={() => setShowPODetails(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors font-medium" title="Back"><ArrowLeft className="w-5 h-5" /><span className="text-sm">Back</span></button>
+                    <button onClick={() => setShowPODetails(false)} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Close"><X className="w-5 h-5" /></button>
                   </div>
                 </div>
 
@@ -4927,11 +4941,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
             </div>
-          )}
+          , document.body)}
 
           {/* Lot detail drilldown - uses lotTraceView - portal */}
           {showLotDetail && selectedLotId && createPortal(lotTraceView ? (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -4990,7 +5004,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
             </div>
           ) : (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5010,7 +5024,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Supplier detail drilldown (MISUPL + POs by suplId) - portal */}
           {showSupplierDetail && selectedSuplId && createPortal(
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5060,7 +5074,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Location detail drilldown (MIILOCQT by locId) - modern card layout - portal for reliable stacking */}
           {showLocationDetail && selectedLocId && createPortal(
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5114,7 +5128,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Bin detail drilldown (MIBINQ by locId + binId) - modern card layout - portal */}
           {showBinDetail && selectedBinLocId && selectedBinId && createPortal(
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5153,7 +5167,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Work Order detail drilldown (MIWOH, MIWOD) - portal */}
           {showWODetail && selectedWOHId && createPortal(
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -8680,8 +8694,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         </div>
       </div>
 
-      {/* ITEM DETAILS MODAL - Uses itemView (data contract layer) */}
-      {showItemModal && itemView && (() => {
+      {/* ITEM DETAILS MODAL - Uses itemView (portal so it appears on top) */}
+      {showItemModal && itemView && createPortal((() => {
         const iv = itemView;
         const itemNo = iv.itemNo;
         const itemNoUpper = itemNo.toString().trim().toUpperCase();
@@ -8797,7 +8811,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
         return (
         <div 
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" 
+          className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md" 
+          style={{ zIndex: 9999 }}
           onClick={closeItemModal}
           role="dialog"
           aria-modal="true"
@@ -10011,11 +10026,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           </div>
         </div>
         );
-      })()}
+      })(), document.body)}
 
       {/* SO VIEWER MODAL - Premium Design with Embedded PDF */}
       {showSOViewer && selectedSOFile && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
             {/* Modal Header - Sleek Design */}
             <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white px-6 py-4 flex-shrink-0">
@@ -10154,7 +10169,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
       {/* QUICK VIEW MODAL - Full Screen PDF Viewer */}
       {showQuickView && selectedSOFile && (
-        <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col">
+        <div className="fixed inset-0 bg-slate-900 flex flex-col" style={{ zIndex: 10000 }}>
           {/* Quick View Header - Floating Toolbar */}
           <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
             {/* Left Side - File Info */}
@@ -10263,17 +10278,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         onClose={() => setShowExportAllCompanyDataModal(false)}
       />
 
-      <InventoryActionsModal
-        isOpen={showInventoryActionsModal}
-        onClose={() => setShowInventoryActionsModal(false)}
-        itemNo={selectedItem?.['Item No.'] || selectedItem?.['itemId'] || ''}
-        onSuccess={onRefreshData}
-        initialTab={inventoryActionsInitialTab}
-      />
+      {showInventoryActionsModal && createPortal(
+        <InventoryActionsModal
+          isOpen={showInventoryActionsModal}
+          onClose={() => setShowInventoryActionsModal(false)}
+          itemNo={selectedItem?.['Item No.'] || selectedItem?.['itemId'] || ''}
+          onSuccess={onRefreshData}
+          initialTab={inventoryActionsInitialTab}
+        />,
+        document.body
+      )}
 
       {/* Create PO Modal (Phase 4) – full header + supplier picker + costs */}
       {showCreatePOModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !createPOSubmitting && setShowCreatePOModal(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => !createPOSubmitting && setShowCreatePOModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Create Purchase Order</h3>
@@ -10459,7 +10477,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
       {/* Create MO Modal - batch number + optional Sales Order # (for future Sage link) */}
       {showCreateMOModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => !createMOSubmitting && setShowCreateMOModal(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => !createMOSubmitting && setShowCreateMOModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4 flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Create Manufacturing Order</h3>
@@ -10553,7 +10571,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
       {/* Quick Add to Cart Popup */}
       {showQuickAddPopup && quickAddItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowQuickAddPopup(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => setShowQuickAddPopup(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4">
               <h3 className="text-lg font-bold text-white">Add to PR Cart</h3>
@@ -10656,7 +10674,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       {/* BOM PR Generation Modal */}
       {showBOMPRModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-gradient-to-r from-orange-500 to-red-600 px-6 py-4">
               <h3 className="text-xl font-bold text-white">Generate Purchase Requisitions</h3>
@@ -10817,7 +10835,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
       {/* Redo PR Modal - Regenerate PRs with editable quantities */}
       {showRedoPRModal && redoPRData && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="bg-gradient-to-r from-indigo-600 to-purple-700 px-6 py-4">
               <h3 className="text-xl font-bold text-white">🔄 Regenerate Purchase Requisitions</h3>
