@@ -122,6 +122,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   ChevronRight,
   Calendar,
   MapPin,
@@ -4857,10 +4858,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Lot detail drilldown - uses lotTraceView */}
           {showLotDetail && selectedLotId && (lotTraceView ? (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Lot: {lotTraceView.lotNo}</h3>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors" title="Back">
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h3 className="text-lg font-bold text-slate-800">Lot: {lotTraceView.lotNo}</h3>
+                  </div>
                   <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
@@ -4908,10 +4914,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
             </div>
           ) : (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Lot: {selectedLotId}</h3>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600" title="Back"><ArrowLeft className="w-5 h-5" /></button>
+                    <h3 className="text-lg font-bold text-slate-800">Lot: {selectedLotId}</h3>
+                  </div>
                   <button onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
@@ -4923,10 +4932,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Supplier detail drilldown (MISUPL + POs by suplId) */}
           {showSupplierDetail && selectedSuplId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Supplier: {selectedSuplId}</h3>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors" title="Back">
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h3 className="text-lg font-bold text-slate-800">Supplier: {selectedSuplId}</h3>
+                  </div>
                   <button onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
@@ -4965,13 +4979,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Location detail drilldown (MIILOCQT by locId) */}
+          {/* Location detail drilldown (MIILOCQT by locId) - modern card layout */}
           {showLocationDetail && selectedLocId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Location: {selectedLocId}</h3>
-                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors" title="Back">
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-indigo-500" />
+                      <h3 className="text-lg font-bold text-slate-800">Location: {selectedLocId}</h3>
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors" title="Close"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
                   {(() => {
@@ -4989,20 +5011,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     const rows = Object.entries(byItem).map(([item, v]) => ({ item, ...v })).sort((a, b) => (b.onHand + b.wip) - (a.onHand + a.wip));
                     return (
                       <div>
-                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Items at this location ({rows.length})</h4>
-                        <div className="rounded-xl border border-slate-100 overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">On Hand</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">WIP</th></tr></thead>
-                            <tbody className="divide-y divide-slate-100">{rows.slice(0, 100).map((r: any, i: number) => (
-                              <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { openItemById(r.item); setShowLocationDetail(false); setSelectedLocId(null); }}>
-                                <td className="px-4 py-2 font-mono text-blue-600 underline">{r.item}</td>
-                                <td className="px-4 py-2 text-right tabular-nums">{r.onHand.toLocaleString()}</td>
-                                <td className="px-4 py-2 text-right tabular-nums">{r.wip.toLocaleString()}</td>
-                              </tr>
-                            ))}</tbody>
-                          </table>
-                          {rows.length > 100 && <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 text-center">Showing 100 of {rows.length}</div>}
+                        <h4 className="text-sm font-semibold text-slate-600 mb-4">Items at this location ({rows.length})</h4>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {rows.slice(0, 100).map((r: any, i: number) => (
+                            <div key={i} onClick={() => { openItemById(r.item); setShowLocationDetail(false); setSelectedLocId(null); }} className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 transition-all cursor-pointer group">
+                              <span className="font-mono font-semibold text-slate-800 group-hover:text-indigo-600">{r.item}</span>
+                              <div className="flex gap-4 text-sm tabular-nums">
+                                <span className="text-slate-600"><span className="text-slate-400 text-xs">On hand</span> {r.onHand.toLocaleString()}</span>
+                                <span className="text-slate-600"><span className="text-slate-400 text-xs">WIP</span> {r.wip.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
+                        {rows.length > 100 && <div className="mt-4 px-4 py-2 bg-slate-50 rounded-lg text-xs text-slate-500 text-center">Showing 100 of {rows.length}</div>}
                       </div>
                     );
                   })()}
@@ -5011,12 +5032,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Bin detail drilldown (MIBINQ by locId + binId) */}
+          {/* Bin detail drilldown (MIBINQ by locId + binId) - modern card layout */}
           {showBinDetail && selectedBinLocId && selectedBinId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Bin: {selectedBinLocId} / {selectedBinId}</h3>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors" title="Back">
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h3 className="text-lg font-bold text-slate-800">Bin: {selectedBinLocId} / {selectedBinId}</h3>
+                  </div>
                   <button onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
@@ -5027,17 +5053,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     );
                     return (
                       <div>
-                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Items in this bin ({binRows.length})</h4>
-                        <div className="rounded-xl border border-slate-100 overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Item No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">On Hand</th></tr></thead>
-                            <tbody className="divide-y divide-slate-100">{binRows.map((r: any, i: number) => (
-                              <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { openItemById((r['Item No.'] ?? r['itemId'] ?? '').toString()); setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
-                                <td className="px-4 py-2 font-mono text-blue-600 underline">{r['Item No.'] ?? r['itemId'] ?? '—'}</td>
-                                <td className="px-4 py-2 text-right tabular-nums">{parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0).toLocaleString()}</td>
-                              </tr>
-                            ))}</tbody>
-                          </table>
+                        <h4 className="text-sm font-semibold text-slate-600 mb-4">Items in this bin ({binRows.length})</h4>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {binRows.map((r: any, i: number) => (
+                            <div key={i} onClick={() => { openItemById((r['Item No.'] ?? r['itemId'] ?? '').toString()); setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }} className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 transition-all cursor-pointer group">
+                              <span className="font-mono font-semibold text-slate-800 group-hover:text-indigo-600">{r['Item No.'] ?? r['itemId'] ?? '—'}</span>
+                              <span className="text-sm tabular-nums text-slate-600">{parseStockValue(r['On Hand'] ?? r['qStk'] ?? 0).toLocaleString()} on hand</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
@@ -5049,10 +5072,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
           {/* Work Order detail drilldown (MIWOH, MIWOD) */}
           {showWODetail && selectedWOHId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-                  <h3 className="text-lg font-bold text-slate-800">Work Order: {selectedWOHId}</h3>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors" title="Back">
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h3 className="text-lg font-bold text-slate-800">Work Order: {selectedWOHId}</h3>
+                  </div>
                   <button onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="overflow-y-auto p-6 flex-1">
@@ -8672,6 +8700,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             { id: 'activity', label: 'Activity', icon: <Activity className="w-4 h-4" /> },
           ]},
         ];
+        const allTabIds = navSections.flatMap((s) => s.items.map((i) => i.id));
+        const currentTabIndex = allTabIds.indexOf(itemModalActiveView);
+        const currentTabLabel = navSections.flatMap((s) => s.items).find((i) => i.id === itemModalActiveView)?.label ?? itemModalActiveView;
+        const goPrevTab = () => { const i = currentTabIndex <= 0 ? allTabIds.length - 1 : currentTabIndex - 1; setItemModalActiveView(allTabIds[i]); };
+        const goNextTab = () => { const i = currentTabIndex >= allTabIds.length - 1 ? 0 : currentTabIndex + 1; setItemModalActiveView(allTabIds[i]); };
 
         return (
         <div 
@@ -8777,6 +8810,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Ownership</div>
                       <div className="text-sm font-semibold text-slate-700 mt-0.5">{stockOwnership.canoilStock.toLocaleString()} Canoil{hasCustomerStock ? ` · ${stockOwnership.customerStock.toLocaleString()} Cust.` : ''}</div>
                     </div>
+                  </div>
+
+                  {/* Section navigation - Prev/Next between modules */}
+                  <div className="flex items-center justify-between gap-4 mb-4 py-2 px-3 bg-slate-100/80 rounded-xl border border-slate-200">
+                    <button onClick={goPrevTab} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Previous section">
+                      <ChevronLeft className="w-4 h-4" /> Previous
+                    </button>
+                    <span className="text-sm font-semibold text-slate-700">{currentTabLabel}</span>
+                    <button onClick={goNextTab} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Next section">
+                      Next <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
 
                   {/* Tab content card - border color by stock status */}
