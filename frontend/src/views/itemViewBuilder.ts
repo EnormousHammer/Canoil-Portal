@@ -89,13 +89,14 @@ export type ItemView = {
 export function buildItemView(
   data: FullCompanyData | undefined,
   indexes: DataIndexes,
-  itemNoRaw: string
+  itemNoRaw: string,
+  rawItemOverride?: any
 ): ItemView | null {
   const itemNo = toStr(itemNoRaw);
   const itemNoUpper = toUpper(itemNo);
   if (!itemNo) return null;
 
-  const item = indexes.alertByItemNo.get(itemNoUpper) ?? indexes.itemByNo.get(itemNoUpper);
+  const item = rawItemOverride ?? indexes.alertByItemNo.get(itemNoUpper) ?? indexes.itemByNo.get(itemNoUpper);
   if (!item) return null;
 
   const stock = toNum(item["Stock"] ?? item["totQStk"] ?? item["On Hand"] ?? 0);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getApiUrl } from '../utils/apiConfig';
 
@@ -9,15 +9,28 @@ interface InventoryActionsModalProps {
   onClose: () => void;
   itemNo?: string;
   onSuccess?: () => void;
+  /** Open directly to Adjust or Transfer tab */
+  initialTab?: Tab;
 }
 
-export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess }: InventoryActionsModalProps) {
-  const [tab, setTab] = useState<Tab>('adjust');
+export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess, initialTab = 'adjust' }: InventoryActionsModalProps) {
+  const [tab, setTab] = useState<Tab>(initialTab);
+  useEffect(() => { if (isOpen) setTab(initialTab); }, [isOpen, initialTab]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [adjust, setAdjust] = useState({ location: '', delta: '', reason: '' });
-  const [transfer, setTransfer] = useState({ from_loc: '', to_loc: '', qty: '' });
+  const REASON_CODES = [
+    { value: '', label: '— Select reason (optional) —' },
+    { value: 'Cycle count', label: 'Cycle count' },
+    { value: 'Damage', label: 'Damage' },
+    { value: 'Found', label: 'Found' },
+    { value: 'Correction', label: 'Correction' },
+    { value: 'Physical count', label: 'Physical count' },
+    { value: 'Shrinkage', label: 'Shrinkage' },
+    { value: 'Other', label: 'Other' },
+  ];
+  const [adjust, setAdjust] = useState({ location: '', delta: '', reasonCode: '', note: '' });
+  const [transfer, setTransfer] = useState({ from_loc: '', to_loc: '', from_bin: '', to_bin: '', qty: '' });
   const [reorder, setReorder] = useState({ Minimum: '', Maximum: '', ReorderLevel: '', ReorderQuantity: '' });
 
   if (!isOpen) return null;
@@ -37,6 +50,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
     setLoading(true);
     setMessage(null);
     try {
+      const reason = [adjust.reasonCode, adjust.note].filter(Boolean).join(': ');
       const res = await fetch(getApiUrl('/api/inventory/adjustment'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +58,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
           item_no: currentItemNo,
           location: adjust.location || undefined,
           delta,
-          reason: adjust.reason || undefined,
+          reason: reason || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -53,7 +67,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
         return;
       }
       setMessage({ type: 'success', text: 'Adjustment saved. Refresh to see updated stock.' });
-      setAdjust({ location: '', delta: '', reason: '' });
+      setAdjust({ location: '', delta: '', reasonCode: '', note: '' });
       onSuccess?.();
     } catch (e) {
       setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Request failed.' });
@@ -82,6 +96,8 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
           item_no: currentItemNo,
           from_loc: transfer.from_loc,
           to_loc: transfer.to_loc,
+          from_bin: transfer.from_bin || undefined,
+          to_bin: transfer.to_bin || undefined,
           qty,
         }),
       });
@@ -91,7 +107,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
         return;
       }
       setMessage({ type: 'success', text: 'Transfer recorded. Refresh to see updated quantities.' });
-      setTransfer({ from_loc: '', to_loc: '', qty: '' });
+      setTransfer({ from_loc: '', to_loc: '', from_bin: '', to_bin: '', qty: '' });
       onSuccess?.();
     } catch (e) {
       setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Request failed.' });
@@ -207,13 +223,25 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reason (optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason code (optional)</label>
+                <select
+                  value={adjust.reasonCode}
+                  onChange={(e) => setAdjust((a) => ({ ...a, reasonCode: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                >
+                  {REASON_CODES.map((rc) => (
+                    <option key={rc.value || 'empty'} value={rc.value}>{rc.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Note (optional)</label>
                 <input
                   type="text"
-                  value={adjust.reason}
-                  onChange={(e) => setAdjust((a) => ({ ...a, reason: e.target.value }))}
+                  value={adjust.note}
+                  onChange={(e) => setAdjust((a) => ({ ...a, note: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="e.g. Cycle count"
+                  placeholder="e.g. Bin A-1 count discrepancy"
                 />
               </div>
               <button
@@ -247,6 +275,28 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess 
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                   placeholder="e.g. HOME"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">From bin (optional)</label>
+                  <input
+                    type="text"
+                    value={transfer.from_bin}
+                    onChange={(e) => setTransfer((t) => ({ ...t, from_bin: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    placeholder="e.g. A-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">To bin (optional)</label>
+                  <input
+                    type="text"
+                    value={transfer.to_bin}
+                    onChange={(e) => setTransfer((t) => ({ ...t, to_bin: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    placeholder="e.g. B-2"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>

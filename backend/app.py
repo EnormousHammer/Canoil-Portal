@@ -2904,6 +2904,8 @@ def inventory_transfer():
         to_loc = (body.get('to_loc') or body.get('To Location') or '').strip()
         item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
         qty = body.get('qty') or body.get('quantity')
+        from_bin = (body.get('from_bin') or body.get('From Bin') or '').strip()
+        to_bin = (body.get('to_bin') or body.get('To Bin') or '').strip()
         if not item_no or not from_loc or not to_loc:
             return jsonify({"error": "item_no, from_loc, to_loc are required"}), 400
         try:
@@ -2914,7 +2916,7 @@ def inventory_transfer():
             return jsonify({"error": "qty must be positive"}), 400
         if portal_store is None:
             return jsonify({"error": "Portal store not available"}), 503
-        portal_store.add_location_transfer(from_loc, to_loc, item_no, qty)
+        portal_store.add_location_transfer(from_loc, to_loc, item_no, qty, from_bin=from_bin, to_bin=to_bin)
         _cache_timestamp = None
         _response_cache = None
         return jsonify({"ok": True, "item_no": item_no, "from_loc": from_loc, "to_loc": to_loc, "qty": qty}), 201
@@ -3105,6 +3107,7 @@ def receive_against_po(po_no):
         qty = body.get('qty') or body.get('quantity')
         location = (body.get('location') or body.get('Location No.') or '').strip()
         lot = (body.get('lot') or body.get('Lot No.') or '').strip()
+        user = (body.get('user') or body.get('User') or 'portal').strip() or 'portal'
         if not item_no:
             return jsonify({"error": "item_no (or Item No.) is required"}), 400
         try:
@@ -3115,7 +3118,7 @@ def receive_against_po(po_no):
             return jsonify({"error": "qty must be positive"}), 400
         if portal_store is None:
             return jsonify({"error": "Portal store not available"}), 503
-        portal_store.add_po_receive(po_no, item_no, qty, location, lot)
+        portal_store.add_po_receive(po_no, item_no, qty, location, lot, user)
         portal_store.add_inventory_adjustment(item_no, location, qty, f"PO receive {po_no}")
         _cache_timestamp = None
         _response_cache = None

@@ -108,15 +108,20 @@ def add_inventory_adjustment(item_no, location, delta, reason=""):
 def get_location_transfers():
     return load().get("location_transfers", [])
 
-def add_location_transfer(from_loc, to_loc, item_no, qty):
+def add_location_transfer(from_loc, to_loc, item_no, qty, from_bin="", to_bin=""):
     s = load()
-    s.setdefault("location_transfers", []).append({
+    rec = {
         "from_loc": from_loc,
         "to_loc": to_loc,
         "item_no": item_no,
         "qty": float(qty),
         "at": datetime.utcnow().isoformat() + "Z",
-    })
+    }
+    if from_bin:
+        rec["from_bin"] = from_bin
+    if to_bin:
+        rec["to_bin"] = to_bin
+    s.setdefault("location_transfers", []).append(rec)
     save(s)
 
 def get_item_overrides():
@@ -169,7 +174,7 @@ def add_created_po_detail(detail_record):
 def get_po_receives():
     return load().get("po_receives", [])
 
-def add_po_receive(po_no, item_no, qty, location="", lot=""):
+def add_po_receive(po_no, item_no, qty, location="", lot="", user=""):
     s = load()
     s.setdefault("po_receives", []).append({
         "po_no": po_no,
@@ -177,6 +182,7 @@ def add_po_receive(po_no, item_no, qty, location="", lot=""):
         "qty": float(qty),
         "location": location or "",
         "lot": lot or "",
+        "user": user or "portal",
         "at": datetime.utcnow().isoformat() + "Z",
     })
     save(s)
@@ -387,6 +393,20 @@ def apply_to_data(data):
 
     # MO events: expose for Transactions tab (overlay events from portal actions)
     data["moEvents"] = store.get("mo_events", [])
+
+    # PO receipts: expose for Receiving tab (receipt history per PO)
+    data["poReceipts"] = store.get("po_receives", [])
+
+    # Portal events for Inventory Ledger (all overlay transactions)
+    adjustments = store.get("inventory_adjustments") or []
+    transfers = store.get("location_transfers") or []
+    mo_evts = store.get("mo_events") or []
+    po_rec = store.get("po_receives") or []
+    adj_list = [{"_type": "ADJUST", "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("delta", 0), "reason": a.get("reason", ""), "user": "portal"} for a in adjustments]
+    xfr_list = [{"_type": "TRANSFER", "ts": t.get("at", ""), "itemNo": t.get("item_no", ""), "fromLoc": t.get("from_loc", ""), "toLoc": t.get("to_loc", ""), "qty": t.get("qty", 0), "user": "portal"} for t in transfers]
+    mo_list = [{"_type": e.get("type", "MO_EVENT"), "ts": e.get("ts", ""), "itemNo": e.get("itemNo", ""), "moNo": e.get("moNo", ""), "qty": e.get("qty", 0), "location": e.get("location", ""), "user": e.get("user", ""), "ref": e.get("ref", "")} for e in mo_evts]
+    po_list = [{"_type": "PO_RECEIVE", "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "poNo": r.get("po_no", ""), "qty": r.get("qty", 0), "location": r.get("location", ""), "lot": r.get("lot", ""), "user": r.get("user", "portal")} for r in po_rec]
+    data["portalEvents"] = adj_list + xfr_list + mo_list + po_list
 
     # WO updates (E2/E3): apply release/complete to WorkOrders.json and WorkOrderDetails.json
     wo_updates = store.get("wo_updates") or []

@@ -21,6 +21,9 @@ export type LotMovementRow = {
   detail?: string;
   qty?: number;
   type?: string;
+  poNo?: string;
+  moNo?: string;
+  locId?: string;
   raw: any;
 };
 
@@ -74,6 +77,9 @@ export function buildLotTraceView(
       detail: toStr(r["Detail"] ?? r["detail"] ?? ""),
       qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
       type: toStr(r["Type"] ?? r["type"] ?? ""),
+      poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
+      moNo: toStr(r["Mfg. Order No."] ?? r["xvarMOId"] ?? r["mohId"] ?? ""),
+      locId: toStr(r["Location No."] ?? r["locId"] ?? ""),
       raw: r,
     }))
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));

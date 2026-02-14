@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CompactLoading, DataLoading } from './LoadingComponents';
 import { ToastNotification, useToasts } from './ToastNotification';
 import { AICommandCenter } from './AICommandCenter';
@@ -321,6 +322,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showExportAllCompanyDataModal, setShowExportAllCompanyDataModal] = useState(false);
   // Inventory actions (B4 B5 B6)
   const [showInventoryActionsModal, setShowInventoryActionsModal] = useState(false);
+  const [inventoryActionsInitialTab, setInventoryActionsInitialTab] = useState<'adjust' | 'transfer' | 'reorder'>('adjust');
 
   // Redo PR Modal State
   const [showRedoPRModal, setShowRedoPRModal] = useState(false);
@@ -651,8 +653,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const selectedItemNo = (selectedItem?.['Item No.'] ?? selectedItem?.['itemId'] ?? '').toString().trim();
   const itemView = useMemo(() => {
     if (!selectedItemNo) return null;
-    return buildItemView(data, indexes, selectedItemNo);
-  }, [data, indexes, selectedItemNo]);
+    const fromIndexes = buildItemView(data, indexes, selectedItemNo);
+    if (fromIndexes) return fromIndexes;
+    if (selectedItem && (selectedItem['Item No.'] || selectedItem.itemId)) return buildItemView(data, indexes, selectedItemNo, selectedItem);
+    return null;
+  }, [data, indexes, selectedItemNo, selectedItem]);
 
   const bomView = useMemo(() => {
     if (!selectedItemNo) return null;
@@ -771,7 +776,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const items = data['CustomAlert5.json'] || data['Items.json'] || data['MIITEM.json'] || [];
     const upper = (itemId || '').toString().trim().toUpperCase();
     const item = (items as any[]).find((i: any) => (i['Item No.'] || i['itemId'] || '').toString().trim().toUpperCase() === upper);
-    if (item) { setSelectedItem(item); setShowItemModal(true); }
+    const toOpen = item || { 'Item No.': itemId, itemId, 'Description': 'Item not in master' };
+    setSelectedItem(toOpen);
+    setShowItemModal(true);
   };
   const transactionExplorerRef = React.useRef<HTMLDivElement>(null);
   const openTransactionExplorerWithFilters = (filters: { itemNo?: string; docRef?: string }) => {
@@ -3017,8 +3024,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 {/* Body: sidebar + content */}
                 <div className="flex-1 flex min-h-0 bg-slate-50">
                   {/* Left sidebar nav */}
-                  <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
-                    {[
+                  {(() => {
+                    const moNavSections = [
                       { title: 'Order', items: [
                         { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
                         { id: 'details', label: 'Components & Materials', icon: <Wrench className="w-4 h-4" /> },
@@ -3029,7 +3036,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         { id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> },
                         ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots', icon: <Hash className="w-4 h-4" /> }] : []),
                       ]},
-                    ].map((section) => (
+                    ];
+                    const moAllTabIds = moNavSections.flatMap((s) => s.items.map((i) => i.id));
+                    const moCurrentIdx = moAllTabIds.indexOf(moActiveTab);
+                    const moGoPrev = () => { const i = moCurrentIdx <= 0 ? moAllTabIds.length - 1 : moCurrentIdx - 1; setMoActiveTab(moAllTabIds[i]); };
+                    const moGoNext = () => { const i = moCurrentIdx >= moAllTabIds.length - 1 ? 0 : moCurrentIdx + 1; setMoActiveTab(moAllTabIds[i]); };
+                    const moCurrentLabel = moNavSections.flatMap((s) => s.items).find((i) => i.id === moActiveTab)?.label ?? moActiveTab;
+                    return (
+                  <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
+                    {moNavSections.map((section) => (
                       <div key={section.title} className="py-2">
                         <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
                         {section.items.map(({ id, label, icon }) => (
@@ -3047,10 +3062,41 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                     ))}
                   </aside>
+                    );
+                  })()}
 
                   {/* Main content area */}
                   <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6">
+                      {(() => {
+                        const moNavSections = [
+                          { title: 'Order', items: [
+                            { id: 'overview', label: 'Overview' },
+                            { id: 'details', label: 'Components & Materials' },
+                            { id: 'routings', label: 'Operations & Routing' },
+                          ]},
+                          { title: 'Related', items: [
+                            { id: 'pegged', label: 'Sales Order Related' },
+                            { id: 'transactions', label: 'Transactions' },
+                            ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots' }] : []),
+                          ]},
+                        ];
+                        const moAllTabIds = moNavSections.flatMap((s) => s.items.map((i) => i.id));
+                        const moCurrentIdx = moAllTabIds.indexOf(moActiveTab);
+                        const moGoPrev = () => { const i = moCurrentIdx <= 0 ? moAllTabIds.length - 1 : moCurrentIdx - 1; setMoActiveTab(moAllTabIds[i]); };
+                        const moGoNext = () => { const i = moCurrentIdx >= moAllTabIds.length - 1 ? 0 : moCurrentIdx + 1; setMoActiveTab(moAllTabIds[i]); };
+                        const moCurrentLabel = moNavSections.flatMap((s) => s.items).find((i) => i.id === moActiveTab)?.label ?? moActiveTab;
+                        return (
+                        <>
+                      <div className="flex items-center justify-between gap-4 mb-4 py-2 px-3 bg-slate-100/80 rounded-xl border border-slate-200">
+                        <button onClick={moGoPrev} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Previous section">
+                          <ChevronLeft className="w-4 h-4" /> Previous
+                        </button>
+                        <span className="text-sm font-semibold text-slate-700">{moCurrentLabel}</span>
+                        <button onClick={moGoNext} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Next section">
+                          Next <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                       <div className="bg-white rounded-xl border-2 border-violet-200 shadow-md overflow-hidden">
                         <div className="p-6">
                   {/* MO Overview Tab - MISys-style */}
@@ -4171,6 +4217,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   )}
                         </div>
                       </div>
+                    </>
+                  ); })()}
                     </div>
                   </main>
                 </div>
@@ -4247,6 +4295,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* Main content area */}
                   <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6">
+                      {(() => {
+                        const poNavSections = [{ title: 'Order', items: [
+                          { id: 'overview', label: 'Overview' },
+                          { id: 'lineitems', label: 'Line Items' },
+                          { id: 'costs', label: 'Additional Costs' },
+                          { id: 'costhistory', label: 'Cost History' },
+                        ]}];
+                        const poAllTabIds = poNavSections.flatMap((s) => s.items.map((i) => i.id));
+                        const poCurrentIdx = poAllTabIds.indexOf(poActiveTab);
+                        const poGoPrev = () => { const i = poCurrentIdx <= 0 ? poAllTabIds.length - 1 : poCurrentIdx - 1; setPoActiveTab(poAllTabIds[i]); };
+                        const poGoNext = () => { const i = poCurrentIdx >= poAllTabIds.length - 1 ? 0 : poCurrentIdx + 1; setPoActiveTab(poAllTabIds[i]); };
+                        const poCurrentLabel = poNavSections.flatMap((s) => s.items).find((i) => i.id === poActiveTab)?.label ?? poActiveTab;
+                        return (
+                        <>
+                      <div className="flex items-center justify-between gap-4 mb-4 py-2 px-3 bg-slate-100/80 rounded-xl border border-slate-200">
+                        <button onClick={poGoPrev} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Previous section">
+                          <ChevronLeft className="w-4 h-4" /> Previous
+                        </button>
+                        <span className="text-sm font-semibold text-slate-700">{poCurrentLabel}</span>
+                        <button onClick={poGoNext} className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-white hover:text-slate-900 transition-colors font-medium text-sm" title="Next section">
+                          Next <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                       <div className="bg-white rounded-xl border-2 border-blue-200 shadow-md overflow-hidden">
                         <div className="p-6">
                   {/* PO Overview Tab - MISys-style */}
@@ -4849,6 +4920,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   })()}
                     </div>
                   </div>
+                    </>
+                  ); })()}
                 </div>
               </main>
                 </div>
@@ -4856,9 +4929,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
-          {/* Lot detail drilldown - uses lotTraceView */}
-          {showLotDetail && selectedLotId && (lotTraceView ? (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+          {/* Lot detail drilldown - uses lotTraceView - portal */}
+          {showLotDetail && selectedLotId && createPortal(lotTraceView ? (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -4892,16 +4965,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     )}
                     {lotTraceView.movements.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Movement history</h4>
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Lot ledger · Movement history</h4>
                         <div className="rounded-xl border border-slate-100 overflow-hidden">
                           <table className="w-full text-sm">
-                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th></tr></thead>
+                            <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Date</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">User</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Type</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">PO No.</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">MO No.</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Location</th></tr></thead>
                             <tbody className="divide-y divide-slate-100">{lotTraceView.movements.slice(0, 100).map((r, i) => (
                               <tr key={i} className={'bg-white'}>
                                 <td className="px-4 py-2 text-slate-800">{formatDisplayDate(r.date) || '—'}</td>
                                 <td className="px-4 py-2 font-mono">{r.userId ?? '—'}</td>
+                                <td className="px-4 py-2 text-slate-700">{r.type ?? '—'}</td>
                                 <td className="px-4 py-2 text-right tabular-nums">{(r.qty ?? 0).toLocaleString()}</td>
-                                <td className="px-4 py-2 font-mono">{r.raw?.['Location No.'] ?? r.raw?.['locId'] ?? '—'}</td>
+                                <td className="px-4 py-2 font-mono">{r.poNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openPOById(r.poNo!); }}>{r.poNo}</span> : '—'}</td>
+                                <td className="px-4 py-2 font-mono">{r.moNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(r.moNo!); }}>{r.moNo}</span> : '—'}</td>
+                                <td className="px-4 py-2 font-mono">{r.locId ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(r.locId!); setShowLocationDetail(true); }}>{r.locId}</span> : '—'}</td>
                               </tr>
                             ))}</tbody>
                           </table>
@@ -4914,7 +4990,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
             </div>
           ) : (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLotDetail(false); setSelectedLotId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -4928,11 +5004,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
             </div>
-          ))}
+          ),
+          document.body
+          )}
 
-          {/* Supplier detail drilldown (MISUPL + POs by suplId) */}
-          {showSupplierDetail && selectedSuplId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
+          {/* Supplier detail drilldown (MISUPL + POs by suplId) - portal */}
+          {showSupplierDetail && selectedSuplId && createPortal(
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -4976,12 +5054,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   })()}
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
-          {/* Location detail drilldown (MIILOCQT by locId) - modern card layout */}
-          {showLocationDetail && selectedLocId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }}>
+          {/* Location detail drilldown (MIILOCQT by locId) - modern card layout - portal for reliable stacking */}
+          {showLocationDetail && selectedLocId && createPortal(
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowLocationDetail(false); setSelectedLocId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5029,12 +5108,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   })()}
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
-          {/* Bin detail drilldown (MIBINQ by locId + binId) - modern card layout */}
-          {showBinDetail && selectedBinLocId && selectedBinId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
+          {/* Bin detail drilldown (MIBINQ by locId + binId) - modern card layout - portal */}
+          {showBinDetail && selectedBinLocId && selectedBinId && createPortal(
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowBinDetail(false); setSelectedBinLocId(null); setSelectedBinId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5067,12 +5147,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   })()}
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
-          {/* Work Order detail drilldown (MIWOH, MIWOD) */}
-          {showWODetail && selectedWOHId && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[75] flex items-center justify-center p-4" onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }}>
+          {/* Work Order detail drilldown (MIWOH, MIWOD) - portal */}
+          {showWODetail && selectedWOHId && createPortal(
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-lg z-[80] flex items-center justify-center p-4" onClick={() => { setShowWODetail(false); setSelectedWOHId(null); }}>
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                   <div className="flex items-center gap-3">
@@ -5120,7 +5201,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   })()}
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* Purchase Orders */}
@@ -6600,7 +6682,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <td className="p-2 font-mono text-slate-600">{tx.location || '—'}</td>
                                 <td className="p-2 font-mono text-slate-600">
                                   {tx.reference ? (
-                                    <span className="text-violet-600 cursor-pointer hover:underline" onClick={() => setTxExplorerFilters((f) => ({ ...f, docRef: tx.reference }))}>{tx.reference}</span>
+                                    <span className="text-violet-600 cursor-pointer hover:underline" onClick={() => {
+                                      const r = tx.raw ?? {};
+                                      const poNo = (r['PO No.'] ?? r['xvarPOId'] ?? r['poId'] ?? '').toString().trim();
+                                      const moNo = (r['Mfg. Order No.'] ?? r['xvarMOId'] ?? r['mohId'] ?? '').toString().trim();
+                                      if (poNo) { openPOById(poNo); }
+                                      else if (moNo) { openMOById(moNo); }
+                                      else { setTxExplorerFilters((f) => ({ ...f, docRef: tx.reference })); }
+                                    }}>{tx.reference}</span>
                                   ) : '—'}
                                 </td>
                                 <td className="p-2 text-slate-600">{tx.user || '—'}</td>
@@ -8744,8 +8833,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setShowInventoryActionsModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors">
-                  <Settings className="w-4 h-4" /> Inventory actions
+                <button onClick={() => { setInventoryActionsInitialTab('adjust'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition-colors" title="Adjust stock (add/remove)">
+                  <Edit className="w-4 h-4" /> Adjust
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('transfer'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors" title="Transfer between locations/bins">
+                  <Package2 className="w-4 h-4" /> Transfer
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('reorder'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" title="Min/Max/Reorder settings">
+                  <Settings className="w-4 h-4" /> Reorder
                 </button>
                 <button onClick={() => { setQuickAddItem(item); setQuickAddQty(1); setShowQuickAddPopup(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors">
                   <Plus className="w-4 h-4" /> Add to PR
@@ -9754,7 +9849,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="rounded-lg border border-slate-100 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-600">Merged transaction history · <span className="font-semibold">{historyRows.length}</span> records</div>
                     <div className="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
                       <table className="w-full text-sm">
-                        <thead className="bg-white/95 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Date</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Source</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">User</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Type</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Quantity</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">MO No.</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Location</th></tr></thead>
+                        <thead className="bg-white/95 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Date</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Source</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">User</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Type</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Quantity</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">PO No.</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">MO No.</th><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Location</th></tr></thead>
                         <tbody className="divide-y divide-slate-100 bg-white">{historyRows.slice(0, 200).map((m, i) => (
                           <tr key={i} className={'bg-white'}>
                             <td className="px-4 py-3 text-slate-800">{formatDisplayDate(m.date) || '—'}</td>
@@ -9762,6 +9857,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <td className="px-4 py-3 text-slate-800">{m.userId ?? '—'}</td>
                             <td className="px-4 py-3 text-slate-800">{m.type ?? '—'}</td>
                             <td className="px-4 py-3 text-right font-medium tabular-nums">{(m.qty ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-slate-700">{(m.poNo ?? m.raw?.['PO No.'] ?? m.raw?.['xvarPOId'] ?? m.raw?.['poId'] ?? '') ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openPOById(m.poNo ?? m.raw?.['PO No.'] ?? m.raw?.['xvarPOId'] ?? m.raw?.['poId'] ?? ''); }}>{m.poNo ?? m.raw?.['PO No.'] ?? m.raw?.['xvarPOId'] ?? m.raw?.['poId'] ?? ''}</span> : '—'}</td>
                             <td className="px-4 py-3 font-mono text-slate-700">{m.moNo ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); openMOById(m.moNo!); }}>{m.moNo}</span> : '—'}</td>
                             <td className="px-4 py-3 font-mono text-slate-700">{m.locId ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 px-1 -mx-1 rounded" onClick={(e) => { e.stopPropagation(); setSelectedLocId(m.locId!); setShowLocationDetail(true); }}>{m.locId}</span> : '—'}</td>
                           </tr>
@@ -10170,8 +10266,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       <InventoryActionsModal
         isOpen={showInventoryActionsModal}
         onClose={() => setShowInventoryActionsModal(false)}
-        itemNo={selectedItem?.['Item No.'] || ''}
+        itemNo={selectedItem?.['Item No.'] || selectedItem?.['itemId'] || ''}
         onSuccess={onRefreshData}
+        initialTab={inventoryActionsInitialTab}
       />
 
       {/* Create PO Modal (Phase 4) – full header + supplier picker + costs */}
