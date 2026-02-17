@@ -3998,9 +3998,11 @@ def process_email():
                                         # Same product match: email in SO, SO in email, or word subset
                                         desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
                                                       (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
-                                        # Packaging sizes must match - 4X4L != 12x1L
+                                        # Packaging sizes must match - 4X4L != 12x1L (case-insensitive)
                                         other_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
-                                        sum_size_mismatch = email_sizes and other_sizes and not (email_sizes & other_sizes)
+                                        email_sizes_norm = {s.upper() for s in email_sizes}
+                                        other_sizes_norm = {s.upper() for s in other_sizes}
+                                        sum_size_mismatch = email_sizes and other_sizes and not (email_sizes_norm & other_sizes_norm)
                                         if desc_match and not sum_size_mismatch:
                                             other_qty = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
                                             if isinstance(other_qty, str):
@@ -4073,6 +4075,12 @@ def process_email():
                             # CRITICAL: Skip smart matching entirely for MOV products - they need number matching
                             if 'MOV' in item_desc and 'MOV' in so_desc:
                                 continue  # Skip smart matching for MOV - use exact match or MOV-specific matching only
+                            # CRITICAL: Don't match 4X4L to 12x1L - packaging sizes must match (case-insensitive)
+                            if email_sizes and so_sizes:
+                                email_sizes_norm = {s.upper() for s in email_sizes}
+                                so_sizes_norm = {s.upper() for s in so_sizes}
+                                if not (email_sizes_norm & so_sizes_norm):
+                                    continue  # Different packaging (4X4L vs 12x1L) - skip, find correct SO line
                             
                             matched = True
                             matched_so_item = so_item  # Store the matched item
@@ -4092,6 +4100,12 @@ def process_email():
                                     so_nums = re.findall(r'\d+', so_desc)
                                     if email_nums and so_nums and not any(e_num in so_desc for e_num in email_nums):
                                         continue  # Skip - MOV numbers must match
+                                # CRITICAL: Don't match 4X4L to 12x1L - when BOTH have packaging sizes, they must match
+                                if email_sizes and so_sizes:
+                                    email_sizes_norm = {s.upper() for s in email_sizes}
+                                    so_sizes_norm = {s.upper() for s in so_sizes}
+                                    if not (email_sizes_norm & so_sizes_norm):
+                                        continue  # Different packaging (4X4L vs 12x1L) - skip
                                 
                                 matched = True
                                 matched_so_item = so_item  # Store the matched item
@@ -4168,7 +4182,10 @@ def process_email():
                             other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
                             other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
                             other_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
-                            size_ok = not (email_sizes_check and other_sizes_check) or (email_sizes_check & other_sizes_check)
+                            # Case-insensitive size comparison (4X4L matches 4x4l from PDF)
+                            email_sizes_norm = {s.upper() for s in email_sizes_check}
+                            other_sizes_norm = {s.upper() for s in other_sizes_check}
+                            size_ok = not (email_sizes_check and other_sizes_check) or (email_sizes_norm & other_sizes_norm)
                             if size_ok and (item_desc_clean_check in other_clean or other_clean in item_desc_clean_check or
                                 (email_core_check and len(email_core_check) >= 2 and email_core_check.issubset(other_words))):
                                 oq = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
