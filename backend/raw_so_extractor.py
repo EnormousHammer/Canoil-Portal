@@ -741,7 +741,8 @@ IMPORTANT RULES:
    - DO NOT include special instructions (e.g., "IDENTIFICATION OF BATCH/LOT NUMBER")
    - DO NOT include TAX CODES at the end of descriptions - these are SEPARATE columns:
      * "G" = GST 5%, "H" = HST 13%, "E" = Exempt, "Z" = Zero-rated
-     * CRITICAL PDF FORMAT: ITEM_CODE | QTY | UNIT | DESCRIPTION | TAX | UNIT_PRICE | AMOUNT
+     * CRITICAL PDF FORMAT: ITEM_CODE | ORDERED (or QTY) | UNIT | DESCRIPTION | TAX | UNIT_PRICE | AMOUNT
+     * The "Ordered" column is the quantity - ALWAYS extract as "quantity" (numeric)
      * The single letter (G, H, E, Z) BEFORE the price is ALWAYS the TAX CODE - NEVER part of description!
      * Strip trailing G/H/E/Z from ALL descriptions when followed by a price number
      * Examples for ALL products:
@@ -877,10 +878,13 @@ Return ONLY valid JSON, no explanations or markdown.
         # Parse JSON
         structured_data = json.loads(result_text)
         
-        # POST-PROCESSING: Strip tax codes from item descriptions
-        # GPT sometimes includes the tax code letter (G, H, E, Z) at the end of descriptions
+        # POST-PROCESSING: Normalize items for downstream (logistics_automation expects 'quantity')
+        # PDF column is "Ordered" - GPT may return "ordered", "Ordered", "Ordered Qty" instead of "quantity"
         if 'items' in structured_data:
             for item in structured_data['items']:
+                qty = item.get('quantity') or item.get('ordered') or item.get('Ordered') or item.get('Ordered Qty') or item.get('qty')
+                if qty is not None:
+                    item['quantity'] = qty
                 desc = item.get('description', '')
                 if desc:
                     # Strip trailing single letter tax codes: " G", " H", " E", " Z"

@@ -3938,11 +3938,20 @@ def process_email():
                         so_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', so_desc_normalized))
                         code_match = bool(email_codes & so_codes) if email_codes else False
                         
+                        # CRITICAL: Packaging/size identifiers must match - 4X4L != 12x1L (different products)
+                        size_pattern = r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]'
+                        email_sizes = set(re.findall(size_pattern, item_desc_normalized))
+                        so_sizes = set(re.findall(size_pattern, so_desc_normalized))
+                        size_mismatch = email_sizes and so_sizes and not (email_sizes & so_sizes)
+                        
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
                         print(f"      Check 4 (code match): {code_match} (codes: {email_codes & so_codes if email_codes else 'none'})")
+                        print(f"      Check 5 (size mismatch): {size_mismatch} (email sizes: {email_sizes}, SO sizes: {so_sizes})")
                         
+                        if size_mismatch:
+                            continue  # 4X4L vs 12x1L - different products, skip
                         if exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
@@ -3985,8 +3994,11 @@ def process_email():
                                         # Same product match: email in SO, SO in email, or word subset
                                         desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
                                                       (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
-                                        if desc_match:
-                                            other_qty = other_item.get('quantity', 0)
+                                        # Packaging sizes must match - 4X4L != 12x1L
+                                        other_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
+                                        sum_size_mismatch = email_sizes and other_sizes and not (email_sizes & other_sizes)
+                                        if desc_match and not sum_size_mismatch:
+                                            other_qty = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
                                             if isinstance(other_qty, str):
                                                 om = re.search(r'(\d+\.?\d*)', str(other_qty).replace(',', ''))
                                                 total_so_qty += float(om.group(1)) if om else 0
@@ -4130,14 +4142,17 @@ def process_email():
                         item_desc_check = (email_item.get('description') or '').upper().strip()
                         item_desc_clean_check = ' '.join(item_desc_check.replace('-', ' ').replace('/', ' ').split())
                         email_core_check = set(item_desc_clean_check.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
+                        email_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean_check))
                         so_qty_num = 0.0
                         for j, od in enumerate(so_item_names):
                             other_item = so_items_to_check[j]
                             other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
                             other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
-                            if (item_desc_clean_check in other_clean or other_clean in item_desc_clean_check or
+                            other_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
+                            size_ok = not (email_sizes_check and other_sizes_check) or (email_sizes_check & other_sizes_check)
+                            if size_ok and (item_desc_clean_check in other_clean or other_clean in item_desc_clean_check or
                                 (email_core_check and len(email_core_check) >= 2 and email_core_check.issubset(other_words))):
-                                oq = other_item.get('quantity', 0)
+                                oq = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
                                 if isinstance(oq, str):
                                     m = re.search(r'(\d+\.?\d*)', str(oq).replace(',', ''))
                                     so_qty_num += float(m.group(1)) if m else 0
