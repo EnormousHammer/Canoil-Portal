@@ -441,6 +441,46 @@
                 <td><input type="text" id="ordered_qty_5" data-field="ordered_qty" data-row="5" name="ordered_qty_5" style="text-align: center;"></td>
                 <td><input type="text" id="shipped_qty_5" data-field="shipped_qty" data-row="5" name="shipped_qty_5" style="text-align: center;"></td>
             </tr>
+            <tr class="item-row" id="item_row_6" data-row="6">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">6</td>
+                <td><textarea id="item_description_6" data-field="item_description" data-row="6" name="item_description_6" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_6" data-field="lot_batch" data-row="6" name="lot_batch_6" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_6" data-field="unit" data-row="6" name="unit_6" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_6" data-field="ordered_qty" data-row="6" name="ordered_qty_6" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_6" data-field="shipped_qty" data-row="6" name="shipped_qty_6" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_7" data-row="7">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">7</td>
+                <td><textarea id="item_description_7" data-field="item_description" data-row="7" name="item_description_7" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_7" data-field="lot_batch" data-row="7" name="lot_batch_7" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_7" data-field="unit" data-row="7" name="unit_7" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_7" data-field="ordered_qty" data-row="7" name="ordered_qty_7" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_7" data-field="shipped_qty" data-row="7" name="shipped_qty_7" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_8" data-row="8">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">8</td>
+                <td><textarea id="item_description_8" data-field="item_description" data-row="8" name="item_description_8" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_8" data-field="lot_batch" data-row="8" name="lot_batch_8" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_8" data-field="unit" data-row="8" name="unit_8" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_8" data-field="ordered_qty" data-row="8" name="ordered_qty_8" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_8" data-field="shipped_qty" data-row="8" name="shipped_qty_8" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_9" data-row="9">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">9</td>
+                <td><textarea id="item_description_9" data-field="item_description" data-row="9" name="item_description_9" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_9" data-field="lot_batch" data-row="9" name="lot_batch_9" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_9" data-field="unit" data-row="9" name="unit_9" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_9" data-field="ordered_qty" data-row="9" name="ordered_qty_9" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_9" data-field="shipped_qty" data-row="9" name="shipped_qty_9" style="text-align: center;"></td>
+            </tr>
+            <tr class="item-row" id="item_row_10" data-row="10">
+                <td style="text-align: center; vertical-align: top; padding: 8px;">10</td>
+                <td><textarea id="item_description_10" data-field="item_description" data-row="10" name="item_description_10" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea id="lot_batch_10" data-field="lot_batch" data-row="10" name="lot_batch_10" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" id="unit_10" data-field="unit" data-row="10" name="unit_10" style="text-align: center;"></td>
+                <td><input type="text" id="ordered_qty_10" data-field="ordered_qty" data-row="10" name="ordered_qty_10" style="text-align: center;"></td>
+                <td><input type="text" id="shipped_qty_10" data-field="shipped_qty" data-row="10" name="shipped_qty_10" style="text-align: center;"></td>
+            </tr>
         </table>
         
         <button class="add-row-btn" onclick="addRow()">Add Row</button>
@@ -458,7 +498,7 @@
     </div>
     
     <script>
-        let rowCount = 5;
+        let rowCount = 10;
         
         // Auto-resize textarea fields as content grows
         function autoResizeInput(element) {
@@ -466,9 +506,9 @@
             element.style.height = element.scrollHeight + 'px';
         }
         
-        // Add event listeners to existing description fields
+        // Add event listeners to existing description fields (rows 1-10)
         document.addEventListener('DOMContentLoaded', function() {
-            for (let i = 1; i <= rowCount; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const input = document.getElementById(`item_description_${i}`);
                 if (input) {
                     input.addEventListener('input', function() {

@@ -227,7 +227,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
             print(f"DEBUG: Filtering removed all items, using original items (likely No-SO mode)")
             physical_items = items
         
-        items_to_show = physical_items[:5]  # Max 5 items (template has 5 pre-defined rows)
+        items_to_show = physical_items[:10]  # Max 10 items (matches TSCA, template has 10 pre-defined rows)
         print(f"DEBUG: Using {len(items_to_show)} items for packing slip")
     
     # Populate only the items that exist
@@ -265,14 +265,14 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     
     # HIDE EMPTY ROWS - Only show rows with data
     num_items = len(items_to_show)
-    for row_num in range(num_items + 1, 6):  # Hide rows beyond what we have data for (rows 1-5)
+    for row_num in range(num_items + 1, 11):  # Hide rows beyond what we have data for (rows 1-10)
         row = soup.find(id=f'item_row_{row_num}')
         if row:
             row['style'] = 'display: none;'
             print(f"DEBUG: Hiding empty row {row_num}")
     
     print(f"DEBUG: PACKING SLIP - Populated {populated_count} fields successfully")
-    print(f"DEBUG: PACKING SLIP - Showing {num_items} item rows, hiding {5 - num_items} empty rows")
+    print(f"DEBUG: PACKING SLIP - Showing {num_items} item rows, hiding {10 - num_items} empty rows")
     
     return str(soup)
 
