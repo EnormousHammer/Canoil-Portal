@@ -1,4 +1,12 @@
 # Logistics Automation Module - REAL DATA VERSION with GPT-4o
+"""
+Logistics automation: process-email, document generation, SO parsing.
+
+CODING NOTES (do not remove - prevents recurring bugs):
+- NO EMOJI in print(): Windows cp1252 causes UnicodeEncodeError. Use [OK], [WARN], [FAIL].
+- get_so_data_from_system: uses raw_so_extractor; fallback when GPT drops items (SO 3106 merged tables).
+- Exception handlers: ensure error-handling code is INSIDE the except block (correct indentation).
+"""
 from flask import Blueprint, request, jsonify, send_file
 import re
 import os
@@ -586,10 +594,11 @@ def handle_options(path):
 # Lazy OpenAI client initialization (only when needed)
 client = None
 
-# SO data cache to avoid re-parsing same PDFs (2 min TTL - short to avoid serving stale incomplete data)
+# SO data cache to avoid re-parsing same PDFs (10 minute TTL)
+# NOTE: Cache stores parsed SO data; bad parses (missing items) expire after TTL
 _so_data_cache = {}
 _so_cache_timestamps = {}
-_SO_CACHE_TTL = 120  # 2 minutes - was 10 min; reduced so bad parses (missing items) expire quickly
+_SO_CACHE_TTL = 600  # 10 minutes
 
 def get_openai_client():
     """Initialize OpenAI client only when needed and API key is available"""
@@ -2193,6 +2202,7 @@ def get_so_data_from_system(so_number):
             return {"status": "Not found", "error": f"SO {so_number} PDF not found"}
         
         # Parse SO PDF using raw_so_extractor (GPT-4o based - better for international addresses)
+        # NOTE: raw_so_extractor has fallback for merged tables (SO 3106) - when GPT drops items, raw table wins
         try:
             print(f"LOGISTICS: Parsing SO PDF with GPT-4o based parser (raw_so_extractor)")
             # Import parse_sales_order_pdf with error handling
@@ -2200,9 +2210,9 @@ def get_so_data_from_system(so_number):
             # FALLBACK: Use app.py parser if raw_so_extractor fails
             try:
                 from raw_so_extractor import parse_sales_order_pdf
-                print(f"✅ Using raw_so_extractor (GPT-4o) for better address parsing")
+                print(f"[OK] Using raw_so_extractor (GPT-4o) for better address parsing")
             except ImportError as import_err:
-                print(f"⚠️ Could not import raw_so_extractor: {import_err} - falling back to app.py parser")
+                print(f"[WARN] Could not import raw_so_extractor: {import_err} - falling back to app.py parser")
                 try:
                     from app import parse_sales_order_pdf
                 except ImportError as app_import_err:
@@ -2293,7 +2303,7 @@ def get_so_data_from_system(so_number):
             if isinstance(so_data, dict) and so_data.get('status') not in ['Error', 'Not found']:
                 _so_data_cache[so_number] = so_data
                 _so_cache_timestamps[so_number] = time.time()
-                print(f"💾 Cached SO data for {so_number} (TTL: {_SO_CACHE_TTL}s)")
+                print(f"[OK] Cached SO data for {so_number} (TTL: {_SO_CACHE_TTL}s)")
             
             return so_data
         except Exception as e:
@@ -2312,7 +2322,10 @@ def get_so_data_from_system(so_number):
             print(f"Error Type: {type(e).__name__}")
             print(f"Error Message: {str(e)}")
             print(f"\nFull Traceback:")
-            print(error_trace)
+            try:
+                print(error_trace)
+            except UnicodeEncodeError:
+                print(error_trace.encode('ascii', 'replace').decode('ascii'))
             print(f"{'='*80}\n")
             return {"status": "Error", "error": f"PDF read error: {str(e)}", "traceback": error_trace}
     
@@ -2333,7 +2346,10 @@ def get_so_data_from_system(so_number):
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {str(e)}")
         print(f"\nFull Traceback:")
-        print(error_trace)
+        try:
+            print(error_trace)
+        except UnicodeEncodeError:
+            print(error_trace.encode('ascii', 'replace').decode('ascii'))
         print(f"{'='*80}\n")
         return {"status": "Error", "error": str(e), "traceback": error_trace}
 

@@ -3,6 +3,11 @@
 RAW SALES ORDER EXTRACTOR
 Extract EVERYTHING from PDF AS-IS - no interpretation, no cleaning, no conversion
 Send raw data to OpenAI for structuring
+
+CRITICAL - DO NOT REMOVE (merged table fallback):
+- parse_merged_table_items(): Handles PDFs with merged cells (all items in one row, newline-separated)
+- Example: SO 3106 - GPT returns 5 items, raw table has 6 (4X4L line dropped by GPT)
+- Rule: When len(fallback_items) > len(gpt_items), ALWAYS use raw - GPT drops items from merged rows
 """
 import os
 import re
@@ -1210,8 +1215,9 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
         
-        # CRITICAL: Use fallback when GPT fails OR when GPT returns FEWER items than raw table
-        # GPT often drops items from merged rows (e.g. SO 3106: GPT returns 5, raw has 6 - 4X4L missing)
+        # CRITICAL: Use fallback when GPT fails OR when GPT returns FEWER items than raw table.
+        # GPT often drops items from merged rows (e.g. SO 3106: GPT returns 5, raw has 6 - 4X4L missing).
+        # DO NOT REMOVE - see .cursor/rules/canoil.mdc section 6c.
         gpt_items = structured_data.get('items', []) if structured_data else []
         if len(fallback_items) > len(gpt_items):
             print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - using raw (GPT dropped items)")

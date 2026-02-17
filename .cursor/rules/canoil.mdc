@@ -38,6 +38,18 @@
 - **PRESERVE EXISTING FUNCTIONALITY** - New features must not break existing data display
 - **LOG DATA ISSUES** - Report when expected G Drive data is not available
 
+### 6b. CONSOLE OUTPUT - CROSS-PLATFORM (Windows + Linux)
+- **NO EMOJI IN print()** - Windows cp1252 cannot encode Unicode emoji (✅⚠️❌💾 etc). Use ASCII: [OK], [WARN], [FAIL]
+- **WHY**: Emoji cause UnicodeEncodeError on Windows, crashing the process after successful operations
+- **HISTORICAL**: SO 3106 "5 items" bug was actually an emoji crash in get_so_data_from_system cache print - parsing was fine
+- **SAFE ALTERNATIVES**: [OK], [WARN], [FAIL], [INFO] - never ✅❌⚠️💾📧📋🔀⚡
+
+### 6c. SO PARSER - MERGED TABLE FALLBACK (raw_so_extractor.py)
+- **DO NOT REMOVE** parse_merged_table_items() or the fallback logic in extract_so_data_from_pdf
+- **WHY**: Some SO PDFs (e.g. SO 3106) have merged table cells - all items in one row, newline-separated
+- **GPT DROPS ITEMS**: GPT often returns 5 items when raw table has 6 - the 4X4L line gets dropped
+- **RULE**: When len(fallback_items) > len(gpt_items), ALWAYS use raw fallback - never trust GPT alone for merged tables
+
 ## PROJECT ENVIRONMENT - NEVER CHANGE THESE
 
 ### 7. DEVELOPMENT ENVIRONMENT STABILITY
