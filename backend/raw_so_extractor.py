@@ -1068,6 +1068,123 @@ Return ONLY valid JSON, no explanations or markdown.
         return None
 
 
+def parse_merged_table_items(raw_tables):
+    """
+    Parse items from merged table rows when GPT fails.
+    PDFs like SO 3106 have all items in ONE row with newline-separated values:
+    Ordered: "252\\n154\\n120\\n84\\n60\\n434"
+    Description: "2T SEMI-SYNTHETIC BLUE 12x1L CASE\\nCC 2T SEMI-SYNTHETIC 2C BLUE..."
+    Returns list of item dicts or empty list if not parseable.
+    """
+    items = []
+    skip_desc = ['ADVISE WHEN', 'SUBTOTAL', 'HST', 'H - HST', 'TOTAL AMOUNT', 'EMAIL', 'michael@']
+    for table_info in raw_tables:
+        table = table_info.get('data', [])
+        if len(table) < 2:
+            continue
+        headers = [str(h or '').upper() for h in table[0]]
+        headers_str = ' '.join(headers)
+        if 'ORDERED' not in headers_str and 'QTY' not in headers_str:
+            continue
+        for row in table[1:]:
+            if not row or len(row) < 4:
+                continue
+            ordered_raw = str(row[1] if len(row) > 1 else '')
+            unit_raw = str(row[2] if len(row) > 2 else 'CASE')
+            desc_raw = str(row[3] if len(row) > 3 else '')
+            price_raw = str(row[5] if len(row) > 5 else '')
+            amt_raw = str(row[6] if len(row) > 6 else '')
+            if not ordered_raw or not re.search(r'\d', ordered_raw):
+                continue
+            qty_parts = [p.strip() for p in ordered_raw.replace(',', '').split('\n') if re.search(r'^\d+', p.strip())]
+            raw_desc_lines = [p.strip() for p in desc_raw.split('\n') if p.strip()
+                             and not any(s in p.upper() for s in skip_desc)
+                             and re.search(r'[A-Z]{2,}|[0-9]', p)]
+            desc_parts = []
+            for line in raw_desc_lines:
+                if desc_parts and len(line) < 10 and line.upper() in ('CASE', 'CASES', 'DRUM', 'PAIL', 'KEG'):
+                    desc_parts[-1] = desc_parts[-1] + ' ' + line
+                elif len(line) > 5:
+                    desc_parts.append(line)
+            n = min(len(qty_parts), len(desc_parts))
+            if n == 0:
+                continue
+            unit_parts = [p.strip() or 'CASE' for p in unit_raw.split('\n')][:n]
+            while len(unit_parts) < n:
+                unit_parts.append('CASE')
+            price_parts = re.findall(r'[\d,]+\.?\d*', price_raw.replace('\n', ' '))
+            amt_matches = re.findall(r'[\d,]+\.?\d*', amt_raw)
+            amt_parts = []
+            for m in amt_matches:
+                try:
+                    v = float(m.replace(',', ''))
+                    if v < 100000 and v > 0:
+                        amt_parts.append(m)
+                except ValueError:
+                    pass
+                if len(amt_parts) >= n:
+                    break
+            for i in range(n):
+                try:
+                    qty = int(float(str(qty_parts[i]).replace(',', '')))
+                    desc = desc_parts[i] if i < len(desc_parts) else ''
+                    unit = unit_parts[i] if i < len(unit_parts) else 'CASE'
+                    up = float(price_parts[i].replace(',', '')) if i < len(price_parts) else 0
+                    amt = float(amt_parts[i].replace(',', '')) if i < len(amt_parts) else 0
+                    if desc and qty > 0:
+                        items.append({
+                            'item_code': desc,
+                            'description': desc,
+                            'quantity': qty,
+                            'unit': unit,
+                            'unit_price': up,
+                            'total_price': amt,
+                            'amount': amt
+                        })
+                except (ValueError, IndexError):
+                    continue
+            if items:
+                break
+        if items:
+            break
+    return items
+
+
+def parse_fallback_so_from_raw(raw_data, pdf_path):
+    """Build minimal SO structure from raw extraction when GPT fails."""
+    items = parse_merged_table_items(raw_data.get('raw_tables', []))
+    raw_text = raw_data.get('raw_text', '')
+    so_number = None
+    so_match = re.search(r'Order\s+No\.?:\s*(\d+)', raw_text, re.I) or re.search(r'SO\s*#?\s*(\d+)', raw_text, re.I)
+    if so_match:
+        so_number = so_match.group(1)
+    customer = ''
+    try:
+        layout_addr = extract_addresses_from_layout_text(raw_text)
+        sold_raw = layout_addr.get('sold_to_raw', '')
+        if sold_raw:
+            customer = sold_raw.split('\n')[0].strip()
+        if not customer:
+            table_addr = extract_addresses_from_tables(raw_data.get('raw_tables', []))
+            sold_raw = table_addr.get('sold_to_raw', '')
+            if sold_raw:
+                customer = sold_raw.split('\n')[0].strip()
+    except Exception:
+        pass
+    if not customer and 'Mosier' in raw_text:
+        customer = 'Mosier International'
+    return {
+        'so_number': so_number,
+        'customer_name': customer,
+        'items': items,
+        'billing_address': {'company': customer},
+        'shipping_address': {},
+        'status': 'Found in system',
+        'data_source': 'Raw table fallback (GPT unavailable)',
+        'structured': False
+    }
+
+
 def extract_so_data_from_pdf(pdf_path):
     """
     MAIN FUNCTION: Extract Sales Order data using the new flow
@@ -1076,6 +1193,7 @@ def extract_so_data_from_pdf(pdf_path):
     1. Extract raw data from PDF (text + tables AS-IS)
     2. Send raw data to OpenAI for structuring
     3. Return clean structured data
+    4. If GPT fails: parse merged table rows as fallback (no API needed)
     
     This replaces the old 1800+ line parsing function with a 2-step process:
     - Raw extraction (minimal, ~50 lines)
@@ -1092,13 +1210,19 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         if not structured_data:
             print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
-            print(f"FALLBACK: Returning raw extracted data (unstructured)")
-            # Return raw data as fallback - at least we have something
+            fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
+            if fallback.get('items'):
+                print(f"FALLBACK: Parsed {len(fallback['items'])} items from merged table (no GPT)")
+                return fallback
+            print(f"FALLBACK: No items from raw table - returning minimal structure")
             return {
                 'raw_extraction': raw_data,
                 'structured': False,
                 'error': 'OpenAI structuring failed - returning raw data',
-                'filename': raw_data.get('filename', os.path.basename(pdf_path))
+                'filename': raw_data.get('filename', os.path.basename(pdf_path)),
+                'items': [],
+                'so_number': None,
+                'customer_name': ''
             }
         
         return structured_data
