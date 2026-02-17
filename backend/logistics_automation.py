@@ -586,10 +586,10 @@ def handle_options(path):
 # Lazy OpenAI client initialization (only when needed)
 client = None
 
-# SO data cache to avoid re-parsing same PDFs (10 minute TTL)
+# SO data cache to avoid re-parsing same PDFs (2 min TTL - short to avoid serving stale incomplete data)
 _so_data_cache = {}
 _so_cache_timestamps = {}
-_SO_CACHE_TTL = 600  # 10 minutes
+_SO_CACHE_TTL = 120  # 2 minutes - was 10 min; reduced so bad parses (missing items) expire quickly
 
 def get_openai_client():
     """Initialize OpenAI client only when needed and API key is available"""
