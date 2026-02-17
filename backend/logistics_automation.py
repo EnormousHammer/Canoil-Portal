@@ -1967,9 +1967,10 @@ def get_so_data_from_system(so_number):
         
         # Check if Google Drive API is enabled - handle import errors gracefully
         USE_GOOGLE_DRIVE_API = False
+        IS_CLOUD_ENVIRONMENT = False
         google_drive_service = None
         try:
-            from app import USE_GOOGLE_DRIVE_API, get_google_drive_service
+            from app import USE_GOOGLE_DRIVE_API, get_google_drive_service, IS_CLOUD_ENVIRONMENT
             # CRITICAL: Call the function to get the lazily-initialized service!
             if USE_GOOGLE_DRIVE_API:
                 google_drive_service = get_google_drive_service()
@@ -1982,6 +1983,7 @@ def get_so_data_from_system(so_number):
                 if 'app' in sys.modules:
                     app_module = sys.modules['app']
                     USE_GOOGLE_DRIVE_API = getattr(app_module, 'USE_GOOGLE_DRIVE_API', False)
+                    IS_CLOUD_ENVIRONMENT = getattr(app_module, 'IS_CLOUD_ENVIRONMENT', False)
                     get_google_drive_service = getattr(app_module, 'get_google_drive_service', None)
                     if USE_GOOGLE_DRIVE_API and get_google_drive_service:
                         google_drive_service = get_google_drive_service()
@@ -2138,7 +2140,16 @@ def get_so_data_from_system(so_number):
             except Exception as e:
                 print(f"[WARN] LOGISTICS: Google Drive API search failed: {e}, falling back to local")
         
-        # Fallback to local filesystem search (only if G: drive is accessible)
+        # On cloud (Render/Vercel): NEVER try G: drive - it doesn't exist. Return clear error if API failed.
+        if not so_file_path and IS_CLOUD_ENVIRONMENT:
+            print(f"[ERROR] LOGISTICS: Cloud environment - G: drive not available. Google Drive API must be authenticated.")
+            return {
+                "status": "Error",
+                "error": f"SO {so_number} not accessible on cloud. Google Drive API authentication required.",
+                "hint": "Set GOOGLE_DRIVE_SA_JSON or GOOGLE_DRIVE_TOKEN in Render environment variables. See LOCAL_VS_VERCEL_LOGISTICS_ANALYSIS.md"
+            }
+        
+        # Fallback to local filesystem search (LOCAL ONLY - G: drive)
         if not so_file_path:
             sales_orders_base = r"G:\Shared drives\Sales_CSR\Customer Orders\Sales Orders"
             matching_files = []
