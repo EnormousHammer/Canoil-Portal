@@ -166,7 +166,7 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      const backendResponse = await fetch(`${MPS_BACKEND_URL}/api/mps?${cacheBusterParams}`, {
+      const backendResponse = await fetch(`${MPS_BACKEND_URL}/api/mps?format=csv&${cacheBusterParams}`, {
         method: 'GET',
         // Don't send custom headers - let cache: 'no-store' handle caching
         // This avoids preflight requests and CORS header issues
@@ -218,10 +218,10 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
     
     for (let i = 4; i < rows.length; i++) {
       const row = rows[i];
-      if (!row[0] || !row[0].trim()) continue;
+      if (!row[0] || !String(row[0]).trim()) continue;
       
-      const moNumber = row[2]?.trim() || '';
-      const soNumber = row[1]?.trim() || '';
+      const moNumber = String(row[2] ?? '').trim() || '';
+      const soNumber = String(row[1] ?? '').trim() || '';
       
       if (moNumber) {
         // Add both original and normalized (no leading zeros) for matching
@@ -299,10 +299,10 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
     // Process data rows (starting from index 4)
     for (let i = 4; i < rows.length; i++) {
       const row = rows[i];
-      if (!row[0] || !row[0].trim()) continue;
+      if (!row[0] || !String(row[0]).trim()) continue;
       
-      const moNumber = row[2]?.trim() || '';
-      const soNumber = row[1]?.trim() || '';
+      const moNumber = String(row[2] ?? '').trim() || '';
+      const soNumber = String(row[1] ?? '').trim() || '';
       const normalizedMO = moNumber.replace(/^0+/, '');
       
       // Get MO header from MISys
@@ -373,25 +373,25 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
       }
 
       const order: MPSOrder = {
-        line_number: row[0]?.trim() || '',
+        line_number: String(row[0] ?? '').trim() || '',
         so_number: soNumber,
         mo_number: moNumber,
-        wip: row[3]?.trim() || '',
-        work_center: row[4]?.trim() || 'Unassigned',
-        status: row[5]?.trim() || '',
-        product: row[6]?.trim() || '',
-        customer_code: row[7]?.trim() || '',
-        packaging: row[8]?.trim() || '',
-        required: parseFloat(row[9]?.replace(/[^0-9.]/g, '')) || 0,
-        ready: parseFloat(row[10]?.replace(/[^0-9.]/g, '')) || 0,
-        planned_pct: row[11]?.trim() || '0%',
-        actual_pct: row[12]?.trim() || '0%',
-        promised_date: row[13]?.trim() || '',
-        start_date: row[14]?.trim() || '',
-        end_date: row[15]?.trim() || '',
+        wip: String(row[3] ?? '').trim() || '',
+        work_center: String(row[4] ?? '').trim() || 'Unassigned',
+        status: String(row[5] ?? '').trim() || '',
+        product: String(row[6] ?? '').trim() || '',
+        customer_code: String(row[7] ?? '').trim() || '',
+        packaging: String(row[8] ?? '').trim() || '',
+        required: parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0,
+        ready: parseFloat(String(row[10] ?? '').replace(/[^0-9.]/g, '')) || 0,
+        planned_pct: String(row[11] ?? '').trim() || '0%',
+        actual_pct: String(row[12] ?? '').trim() || '0%',
+        promised_date: String(row[13] ?? '').trim() || '',
+        start_date: String(row[14] ?? '').trim() || '',
+        end_date: String(row[15] ?? '').trim() || '',
         duration: parseFloat(row[16]) || 0,
         dtc: parseFloat(row[17]) || 0,
-        action_items: row[18]?.trim() || '',
+        action_items: String(row[18] ?? '').trim() || '',
         
         // Enriched MO data from MISys
         mo_data: moData ? {

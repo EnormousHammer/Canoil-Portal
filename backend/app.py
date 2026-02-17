@@ -3958,18 +3958,24 @@ def load_mps_data():
 
 @app.route('/api/mps', methods=['GET'])
 def get_mps_data():
-    """Get MPS schedule from Google Sheets - returns RAW CSV for frontend to parse.
-    This matches the reference implementation exactly."""
+    """Get MPS schedule - returns JSON by default (for App.tsx), or CSV if ?format=csv (for mpsDataService)."""
     import requests as req
+    want_csv = request.args.get('format') == 'csv'
     try:
-        # Fetch CSV directly from Google Sheets and return as-is
-        # This lets the frontend parse it with PapaParse (same as reference app)
-        response = req.get(MPS_CSV_URL, timeout=15, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
-        if response.ok:
-            return response.text, 200, {'Content-Type': 'text/csv'}
-        return jsonify({'error': 'Failed to fetch MPS data from Google Sheets'}), 500
+        if want_csv:
+            # Raw CSV for mpsDataService (PapaParse)
+            response = req.get(MPS_CSV_URL, timeout=15, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            if response.ok:
+                return response.text, 200, {'Content-Type': 'text/csv'}
+            return jsonify({'error': 'Failed to fetch MPS data from Google Sheets'}), 500
+        else:
+            # JSON for App.tsx (mps_orders, summary)
+            mps_data = load_mps_data()
+            if mps_data and 'error' not in mps_data:
+                return jsonify(mps_data)
+            return jsonify({'mps_orders': [], 'summary': {'total_orders': 0}})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

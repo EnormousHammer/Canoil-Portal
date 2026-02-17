@@ -1604,14 +1604,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     };
   }, [data]);
 
-  // Helper function to get customer name - always returns a value (from MO or Sales Order)
+  // Helper function to get customer name - always returns a string (from MO or Sales Order)
+  // MISys data may have Customer as numeric ID - always coerce to string before .trim()
   const getCustomerName = useMemo(() => {
     const salesOrders = data['SalesOrderHeaders.json'] || data['SalesOrders.json'] || [];
     
     return (mo: any): string => {
-      // First try MO's Customer field
-      if (mo['Customer'] && mo['Customer'].trim()) {
-        return mo['Customer'];
+      // First try MO's Customer field (may be number or string in MISys)
+      const moCustomer = mo['Customer'];
+      if (moCustomer != null && String(moCustomer).trim()) {
+        return String(moCustomer).trim();
       }
       
       // If no customer in MO, try to find it from Sales Order
@@ -1625,10 +1627,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         );
         
         if (relatedSO) {
-          return relatedSO['Customer'] || 
-                 relatedSO['Customer Name'] || 
-                 relatedSO['customer_name'] || 
-                 'Internal';
+          const c = relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO['customer_name'] || 'Internal';
+          return String(c);
         }
       }
       
@@ -1642,11 +1642,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
     const customers: { [key: string]: any } = {};
 
-    // Smart company name normalization function
-    const normalizeCompanyName = (name: string): string => {
-      if (!name) return '';
-      
-      let normalized = name.trim();
+    // Smart company name normalization function (name may be number from MISys)
+    const normalizeCompanyName = (name: string | number | null | undefined): string => {
+      if (name == null) return '';
+      let normalized = String(name).trim();
       
       // Remove common punctuation variations
       normalized = normalized.replace(/[.,;:!?]+$/, ''); // Remove trailing punctuation
@@ -1704,10 +1703,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       else if (mo["Status"] === 0) customer.pendingOrders++;
       else if (mo["Status"] === 2) customer.completedOrders++;
       
-      // Product diversity
+      // Product diversity (Build Item No. may be numeric in MISys)
       const product = mo["Build Item No."];
-      if (product && product.trim()) {
-        customer.products.add(product.trim());
+      if (product != null) {
+        const p = String(product).trim();
+        if (p) customer.products.add(p);
       }
       
       // Latest order date
