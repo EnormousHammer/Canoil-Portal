@@ -1609,10 +1609,10 @@ app = Flask(__name__)
 MPS_SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw'
 MPS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{MPS_SHEET_ID}/export?format=csv'
 
-# CORS Configuration - Allow all origins for Cloud Run
-# Cloud Run uses different URLs for each deployment
+# CORS Configuration - Allow all origins for Vercel (canoil-portal.vercel.app) + Render backend
+# Must cover ALL routes including /api/logistics/* for cross-origin requests
 CORS(app, resources={
-    r"/api/*": {
+    r"/*": {
         "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
@@ -1621,6 +1621,16 @@ CORS(app, resources={
         "max_age": 3600
     }
 })
+
+# CRITICAL: App-level after_request - ensures CORS headers on EVERY response (including 4xx/5xx)
+# Fixes "No Access-Control-Allow-Origin header" when Vercel frontend calls Render backend
+@app.after_request
+def add_cors_headers_everywhere(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
 
 # Enable GZIP compression - reduces large payloads (e.g. 60–70MB Full Company Data) to ~10MB over the wire
 Compress(app)
@@ -1964,6 +1974,185 @@ def _merge_portal_store(data):
         return data
     return portal_store.apply_to_data(data)
 
+
+# Full Company Data: CSV stem -> (app keys, column map) - no pandas required. Used as PRIMARY source when pandas fails.
+_FULL_COMPANY_CSV_MAPPINGS = {
+    # Core: Items, BOM, MOs, POs (same as full_company_data_converter)
+    "MIITEM": (["CustomAlert5.json", "Items.json"], {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
+         "poUOfM": "Purchasing Units", "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
+         "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity",
+         "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No.", "status": "Status"}),
+    "MIBOMH": (["MIBOMH.json", "BillsOfMaterial.json"], {"bomItem": "Parent Item No.", "bomRev": "Revision No.", "mult": "Build Quantity", "descr": "Description"}),
+    "MIBOMD": (["MIBOMD.json", "BillOfMaterialDetails.json"], {"bomItem": "Parent Item No.", "bomRev": "Revision No.", "partId": "Component Item No.", "qty": "Required Quantity",
+         "lead": "Lead (Days)", "cmnt": "Comment", "opCode": "Operation No.", "srcLoc": "Source Location"}),
+    "MIMOH": (["ManufacturingOrderHeaders.json", "MIMOH.json"], {"mohId": "Mfg. Order No.", "buildItem": "Build Item No.", "bomItem": "BOM Item", "bomRev": "BOM Rev",
+         "moStat": "Status", "ordQty": "Ordered", "ordDt": "Order Date", "endDt": "Completion Date", "releaseDt": "Release Date",
+         "descr": "Description", "wipQty": "WIP", "resQty": "Reserve", "endQty": "Completed", "soId": "Sales Order No.", "jobId": "Job No.", "locId": "Location No."}),
+    "MIMOMD": (["ManufacturingOrderDetails.json", "MIMOMD.json"], {"mohId": "Mfg. Order No.", "partId": "Component Item No.", "reqQty": "Required Quantity", "qty": "Quantity",
+         "endQty": "Completed", "relQty": "Released", "wipQty": "WIP", "resQty": "Reserve"}),
+    "MIPOH": (["PurchaseOrders.json", "MIPOH.json"], {"pohId": "PO No.", "poNo": "PO No.", "suplId": "Supplier No.", "name": "Name", "ordDt": "Order Date",
+         "poStatus": "Status", "totOrdered": "Total Ordered", "totReceived": "Total Received", "closeDt": "Close Date", "locId": "Location No.", "jobId": "Job No."}),
+    "MIPOD": (["PurchaseOrderDetails.json", "MIPOD.json"], {"pohId": "PO No.", "poNo": "PO No.", "itemId": "Item No.", "partId": "Item No.",
+         "ordered": "Ordered", "received": "Received", "price": "Unit Cost", "cost": "Unit Cost", "descr": "Description",
+         "realDueDt": "Required Date", "initDueDt": "Required Date", "mohId": "Manufacturing Order No.", "locId": "Location No.", "jobId": "Job No."}),
+    "MIPOHX": (["PurchaseOrderExtensions.json"], {"pohId": "PO No.", "poNo": "PO No.", "lineNo": "Line No.", "extType": "Extension Type", "extValue": "Extension Value"}),
+    "MIPOC": (["PurchaseOrderExtensions.json", "MIPOC.json"], {"pohId": "PO No.", "poNo": "PO No.", "lineNo": "Line No.", "extType": "Extension Type", "extValue": "Extension Value"}),
+    "MIPOCV": (["PurchaseOrderAdditionalCosts.json", "MIPOCV.json"], {"pohId": "PO No.", "purchaseOrderId": "PO No.", "addlCost": "Cost Type", "Amount": "Amount"}),
+    "MIPODC": (["PurchaseOrderDetailAdditionalCosts.json", "MIPODC.json"], {"pohId": "PO No.", "poLineNo": "PO Line No.", "Additional Cost": "Additional Cost", "Amount": "Amount"}),
+    "MIJOBH": (["Jobs.json", "MIJOBH.json"], {"jobId": "Job No.", "descr": "Description", "status": "Status", "custId": "Customer", "soId": "Sales Order No.", "locId": "Location No."}),
+    "MIJOBD": (["JobDetails.json", "MIJOBD.json"], {"jobId": "Job No.", "partId": "Item No.", "itemId": "Item No.", "qStk": "Stock Quantity", "qWip": "WIP Qty", "qRes": "Reserve Qty", "qOrd": "On Order Qty"}),
+    "MIWOH": (["WorkOrders.json", "MIWOH.json", "WorkOrderHeaders.json"], {"wohId": "Work Order No.", "jobId": "Job No.", "status": "Status", "releaseDt": "Release Date", "descr": "Description", "locId": "Location No."}),
+    "MIWOD": (["WorkOrderDetails.json", "MIWOD.json"], {"wohId": "Work Order No.", "partId": "Item No.", "itemId": "Item No.", "reqQty": "Required Quantity", "mohId": "Manufacturing Order No."}),
+    "MIMORD": (["ManufacturingOrderRoutings.json", "MIMORD.json"], {"mohId": "Mfg. Order No.", "opNo": "Operation No.", "workCtr": "Work Center No.", "runTime": "Run Time", "setupTime": "Setup Time"}),
+    # Item popup / supplementary
+    "MIILOC": (["MIILOC.json"], {"itemId": "Item No.", "locId": "Location No.", "pick": "Pick", "minLvl": "Minimum", "maxLvl": "Maximum",
+         "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "qStk": "qStk", "qWIP": "qWIP", "qRes": "qRes", "qOrd": "qOrd"}),
+    "MIILOCQT": (["MIILOCQT.json"], {"itemId": "Item No.", "locId": "Location No.", "dateISO": "Date ISO", "date": "Date",
+         "qStk": "On Hand", "qWip": "WIP", "qRes": "Reserve", "qOrd": "On Order",
+         "cStd": "Standard Cost", "cLast": "Recent Cost", "cAvg": "Average Cost"}),
+    "MIBINQ": (["MIBINQ.json"], {"itemId": "Item No.", "locId": "Location No.", "binId": "Bin No.", "qStk": "On Hand",
+         "descr": "Description", "status": "Status", "createDt": "Create Date", "lstUseDt": "Last Used Date"}),
+    "MILOGH": (["MILOGH.json"], {"itemId": "Item No.", "tranDate": "Transaction Date", "userId": "User", "entry": "Entry", "type": "Type",
+         "comment": "Comment", "qty": "Quantity", "locId": "Location No.", "binId": "Bin No.", "jobId": "Job No.",
+         "xvarPOId": "PO No.", "xvarMOId": "Mfg. Order No.", "xvarWOId": "Work Order No.", "tranDt": "Transaction Date"}),
+    "MILOGD": (["MILOGD.json"], {"itemId": "Item No.", "tranDate": "Transaction Date", "tranDt": "Transaction Date", "entry": "Entry", "detail": "Detail",
+         "qty": "Quantity", "locId": "Location No.", "uom": "UOM"}),
+    "MILOGB": (["MILOGB.json"], {"itemId": "Item No.", "tranDate": "Transaction Date", "tranDt": "Transaction Date", "entry": "Entry", "detail": "Detail",
+         "locId": "Location No.", "binId": "Bin No.", "lotId": "Lot No.", "qty": "Quantity"}),
+    "MIBINH": (["MIBINH.json"], {"itemId": "Item No.", "tranDate": "Transaction Date", "userId": "User", "entry": "Entry", "detail": "Detail",
+         "locId": "Location No.", "type": "Type", "trnQty": "Quantity", "recQty": "Received Qty",
+         "xvarPOId": "PO No.", "xvarMOId": "Mfg. Order No.", "tranDt": "Transaction Date"}),
+    "MIICST": (["MIICST.json"], {"itemId": "Item No.", "transDate": "Transaction Date", "seqNo": "Seq No.", "locId": "Location No.",
+         "type": "Type", "tranType": "Tran Type", "suplId": "Supplier No.", "poId": "PO No.", "poRev": "PO Rev", "poDtl": "PO Line",
+         "reference": "Reference", "qRecd": "Qty Received", "cost": "Cost", "cLand": "Landed Cost",
+         "qUsed": "Qty Used", "qWip": "WIP", "transDt": "Transaction Date", "extCost": "Extended Cost"}),
+    "MIITEMX": (["MIITEMX.json"], {"itemId": "Item No.", "notes": "Notes", "docPath": "Document Path", "picPath": "Picture Path"}),
+    "MIITEMA": (["MIITEMA.json"], {"itemId": "Item No.", "altItemId": "Alternate Item No.", "uniquifier": "Uniquifier", "lineNbr": "Line No."}),
+    "MIQMFG": (["MIQMFG.json"], {"itemId": "Item No.", "mfgId": "Manufacturer No.", "mfgName": "Manufacturer Name", "mfgProdCode": "Product Code"}),
+    "MISUPL": (["MISUPL.json"], {"suplId": "Supplier No.", "shortName": "Short Name", "name": "Name", "adr1": "Address 1", "adr2": "Address 2",
+         "city": "City", "state": "State", "zip": "Zip", "country": "Country", "phone": "Phone", "contact": "Contact",
+         "cur": "Currency", "terms": "Terms", "email1": "Email", "website": "Website", "notes": "Notes"}),
+    "MIQSUP": (["MIQSUP.json"], {"suplId": "Supplier No.", "itemId": "Item No.", "status": "Status", "leadTime": "Lead Time", "minQty": "Minimum Qty"}),
+    "MIUSER": (["MIUSER.json"], {"userId": "User", "userName": "Name", "displayName": "Display Name", "email": "Email", "isActive": "Active"}),
+    "MISLTH": (["LotSerialHistory.json"], {"tranDate": "Transaction Date", "tranDt": "Transaction Date", "userId": "User", "itemId": "Item No.",
+         "prntItemId": "Parent Item No.", "locId": "Location No.", "jobId": "Job No.", "type": "Type",
+         "xvarMOId": "Mfg. Order No.", "xvarSOId": "Sales Order No.", "trnQty": "Quantity", "recQty": "Received Qty", "rdyQty": "Ready Qty"}),
+    "MISLTD": (["LotSerialDetail.json"], {"prntLotId": "Lot No.", "lotId": "Lot No.", "itemId": "Item No.", "prntItemId": "Parent Item No.",
+         "trnQty": "Quantity", "recQty": "Quantity", "qty": "Quantity", "entry": "Serial No.", "detail": "Serial No."}),
+    "MISLHIST": (["MISLHIST.json"], {"itemId": "Item No.", "prntItemId": "Parent Item No.", "lotId": "Lot No.", "tranDate": "Transaction Date",
+         "userId": "User", "entry": "Entry", "detail": "Detail", "qty": "Quantity", "locId": "Location No.",
+         "tranDt": "Transaction Date", "assignedDt": "Assigned Date"}),
+    "MISLNH": (["MISLNH.json"], {"prntItemId": "Parent Item No.", "lotId": "Lot No.", "itemId": "Item No."}),
+    "MISLND": (["MISLND.json"], {"prntItemId": "Parent Item No.", "lotId": "Lot No.", "itemId": "Item No."}),
+    "MISLBINQ": (["MISLBINQ.json"], {"itemId": "Item No.", "locId": "Location No.", "binId": "Bin No.", "lotId": "Lot No.", "qStk": "On Hand"}),
+}
+
+
+def _load_full_company_data_csv_only(folder_path):
+    """
+    Load Full Company Data from CSV files using only built-in csv module (no pandas).
+    Returns (data_dict, None) on success, (None, error_msg) on failure.
+    Used when pandas-based converter fails (numpy binary mismatch etc).
+    """
+    if not folder_path or not os.path.isdir(folder_path):
+        return None, "Folder not found"
+    try:
+        data = get_empty_app_data_structure()
+        loaded = 0
+        for stem, (app_keys, col_map) in _FULL_COMPANY_CSV_MAPPINGS.items():
+            for ext in (".CSV", ".csv"):
+                fpath = os.path.join(folder_path, stem + ext)
+                if os.path.isfile(fpath):
+                    break
+            else:
+                continue
+            try:
+                rows = []
+                with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        out = {}
+                        for k, v in row.items():
+                            key = (k or "").strip()
+                            app_key = col_map.get(key) or col_map.get(key.replace(" ", ""))
+                            if app_key:
+                                out[app_key] = v
+                            else:
+                                out[k] = v
+                        rows.append(out)
+            except Exception as e:
+                print(f"📂 Full Company Data CSV skip {stem}.CSV: {e}")
+                continue
+            if not rows:
+                continue
+            for app_key in app_keys:
+                if app_key in data and isinstance(data[app_key], list):
+                    data[app_key] = list(rows)
+                    loaded += 1
+                    print(f"📂 Loaded {stem}.CSV -> {app_key}: {len(rows)} records")
+        if loaded > 0:
+            return data, None
+        return None, "No CSV files loaded"
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return None, str(e)
+
+
+def _supplement_from_full_company_data(raw_data):
+    """
+    When loading from API Extractions, supplement empty keys with data from Full Company Data.
+    Uses built-in csv module (no pandas).
+    """
+    try:
+        if not raw_data or IS_CLOUD_ENVIRONMENT:
+            return raw_data
+        if not os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+            return raw_data
+        supplemented = 0
+        for stem, (app_keys, col_map) in _FULL_COMPANY_CSV_MAPPINGS.items():
+            fpath = None
+            for ext in (".CSV", ".csv"):
+                p = os.path.join(GDRIVE_FULL_COMPANY_DATA, stem + ext)
+                if os.path.isfile(p):
+                    fpath = p
+                    break
+            if not fpath:
+                continue
+            try:
+                rows = []
+                with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        out = {}
+                        for k, v in row.items():
+                            key = (k or "").strip()
+                            app_key = col_map.get(key) or col_map.get(key.replace(" ", ""))
+                            if app_key:
+                                out[app_key] = v
+                            else:
+                                out[k] = v
+                        rows.append(out)
+            except Exception as e:
+                print(f"📂 Supplement skip {stem}.CSV: {e}")
+                continue
+            if not rows:
+                continue
+            for app_key in app_keys:
+                current = raw_data.get(app_key)
+                if not isinstance(current, list) or len(current) == 0:
+                    raw_data[app_key] = list(rows)
+                    supplemented += 1
+                    print(f"📂 Supplemented {app_key} from Full Company Data: {len(rows)} records")
+        if supplemented > 0:
+            print(f"✅ Supplemented {supplemented} datasets from Full Company Data")
+    except Exception as e:
+        import traceback
+        print(f"⚠️ Supplement from Full Company Data failed: {e}")
+        traceback.print_exc()
+    return raw_data
+
+
 def get_empty_app_data_structure():
     """Return the exact app data shape the frontend expects (all keys, empty values). Framework for Full Company Data - app is ready to receive once conversion is implemented."""
     return {
@@ -2002,13 +2191,16 @@ def get_all_data():
             err_msg = None
             try:
                 from full_company_data_converter import load_from_folder, load_from_drive_api
-            except ImportError:
+            except (ImportError, ValueError, OSError):
                 try:
                     from .full_company_data_converter import load_from_folder, load_from_drive_api
-                except ImportError:
+                except (ImportError, ValueError, OSError):
                     load_from_folder = load_from_drive_api = None
             if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+                try:
+                    full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+                except Exception as e:
+                    full_data, err_msg = None, str(e)
             if full_data is None and load_from_drive_api:
                 gdrive_service = get_google_drive_service()
                 drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None
@@ -2079,13 +2271,17 @@ def get_all_data():
                 print(f"📂 Full Company Data: trying local path first (exists={os.path.exists(GDRIVE_FULL_COMPANY_DATA)})")
             try:
                 from full_company_data_converter import load_from_folder, load_from_drive_api
-            except ImportError:
+            except (ImportError, ValueError, OSError):
                 try:
                     from .full_company_data_converter import load_from_folder, load_from_drive_api
-                except ImportError:
+                except (ImportError, ValueError, OSError):
                     load_from_folder = load_from_drive_api = None
             if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+                try:
+                    full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
+                except Exception as e:
+                    print(f"📂 Full Company Data load_from_folder exception: {e}")
+                    full_data, err_msg = None, str(e)
                 print(f"📂 Full Company Data load_from_folder: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
                 if full_data:
                     cnt = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
@@ -2129,7 +2325,32 @@ def get_all_data():
                     })
                 else:
                     print("📂 Full Company Data: converter returned data but all lists empty (check file names: need MIITEM.csv, Item.csv, MIBOMD.csv, MIPOH.csv, etc.)")
-            else:
+            if full_data is None and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+                print("📂 Full Company Data: trying CSV-only loader (no pandas)...")
+                full_data, err_msg = _load_full_company_data_csv_only(GDRIVE_FULL_COMPANY_DATA)
+                if full_data:
+                    has_any = any(isinstance(v, list) and len(v) > 0 for v in full_data.values())
+                    if has_any:
+                        full_data = _merge_portal_store(full_data)
+                        file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                        print(f"✅ Using Full Company Data (CSV-only) – {file_count} files with data")
+                        return jsonify({
+                            "data": full_data,
+                            "folderInfo": {
+                                "folderName": "Full Company Data as of 02_10_2026",
+                                "syncDate": datetime.now().isoformat(),
+                                "lastModified": datetime.now().isoformat(),
+                                "folder": FULL_COMPANY_DATA_DRIVE_PATH,
+                                "created": datetime.now().isoformat(),
+                                "size": "N/A",
+                                "fileCount": file_count,
+                            },
+                            "LoadTimestamp": datetime.now().isoformat(),
+                            "cached": False,
+                            "source": "full_company_data",
+                            "fullCompanyDataReady": True,
+                        })
+            if full_data is None:
                 print("📂 Full Company Data: not loaded. Falling back to API Extractions.")
         
         # Check if we have valid cached response (pre-serialized)
@@ -2349,6 +2570,8 @@ def get_all_data():
             raw_data['MPS.json'] = {"mps_orders": [], "summary": {"total_orders": 0}}
         
         print(f"SUCCESS: Successfully loaded data from {latest_folder}")
+        # Supplement empty keys (MIILOCQT, MILOGH, MIICST, MISUPL, etc.) from Full Company Data
+        raw_data = _supplement_from_full_company_data(raw_data)
         raw_data = _merge_portal_store(raw_data)
         
         # SAFE DATA SUMMARY - Only process list data types
@@ -3761,9 +3984,10 @@ def warmup():
 @app.route('/api/data/clear-cache', methods=['POST'])
 def clear_data_cache():
     """Clear the data cache to force fresh reload"""
-    global _data_cache, _cache_timestamp
+    global _data_cache, _cache_timestamp, _response_cache
     _data_cache = None
     _cache_timestamp = None
+    _response_cache = None
     print("Data cache cleared - next request will load fresh data")
     return jsonify({"message": "Cache cleared successfully"})
 
@@ -6326,18 +6550,26 @@ def vision_analyze_so():
 
 if __name__ == '__main__':
     print("Starting Flask backend...")
-    print(f"G: Drive path: {GDRIVE_BASE}")
+    # Primary data source (same as Render/cloud): Full Company Data
+    print(f"Primary data: Full Company Data — {GDRIVE_FULL_COMPANY_DATA}")
+    print(f"Fallback: API Extractions — {GDRIVE_BASE}")
     
-    # Test G: Drive access on startup - OPTIMIZED for speed
-    print("RETRY: Testing G: Drive access on startup...")
+    # Test Full Company Data access on startup (primary source, matches Render)
+    print("RETRY: Testing Full Company Data access on startup...")
     try:
-        latest_folder, error = get_latest_folder()
-        if latest_folder:
-            print(f"SUCCESS: G: Drive accessible. Latest folder: {latest_folder}")
+        if os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+            files = [f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]
+            csv_count = len([f for f in files if f.lower().endswith('.csv')])
+            print(f"SUCCESS: Full Company Data accessible. {len(files)} files ({csv_count} CSV)")
         else:
-            print(f"⚠️ G: Drive issue: {error}")
+            print(f"⚠️ Full Company Data not found: {GDRIVE_FULL_COMPANY_DATA}")
+            latest_folder, error = get_latest_folder()
+            if latest_folder:
+                print(f"Fallback OK: API Extractions — {latest_folder}")
+            else:
+                print(f"⚠️ API Extractions fallback: {error}")
     except Exception as e:
-        print(f"ERROR: G: Drive test failed: {e}")
+        print(f"ERROR: Data path test failed: {e}")
     
     # Run Flask app - bind to 0.0.0.0 to accept connections from localhost and 127.0.0.1
     print("🌐 Starting Flask server on http://0.0.0.0:5002 (accessible via localhost:5002)")

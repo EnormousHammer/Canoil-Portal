@@ -3,7 +3,7 @@ import { getApiUrl } from '../utils/apiConfig';
 import {
   Mail, Search, Star, Archive, Trash2, MoreVertical,
   Send, X, Paperclip, ChevronLeft, RefreshCw, Plus,
-  Inbox, SendIcon, FileText, Sparkles, Brain, AlertCircle
+  Inbox, SendIcon, FileText, Sparkles, Brain, AlertCircle, Truck
 } from 'lucide-react';
 
 interface Email {
@@ -679,6 +679,24 @@ export const GmailCleanEmail: React.FC<GmailCleanEmailProps> = ({ currentUser, s
                                 className="flex-1 py-2 px-4 border rounded-full hover:bg-gray-50 text-sm font-medium"
                               >
                                 Forward
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const emailData = {
+                                    from: email.from,
+                                    subject: email.subject,
+                                    timestamp: email.timestamp,
+                                    body: email.body
+                                  };
+                                  localStorage.setItem('logistics_email_data', JSON.stringify(emailData));
+                                  localStorage.setItem('logistics_auto_analyze', 'true');
+                                  setActiveSection?.('logistics');
+                                }}
+                                className="flex items-center justify-center gap-1.5 py-2 px-4 bg-amber-500 text-white rounded-full hover:bg-amber-600 text-sm font-medium"
+                                title="Send to Logistics for shipping document automation"
+                              >
+                                <Truck className="w-4 h-4" />
+                                Logistics
                               </button>
                               {hasLearnedStyle && (
                                 <button

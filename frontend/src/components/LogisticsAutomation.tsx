@@ -124,12 +124,11 @@ const LogisticsAutomation: React.FC = () => {
         // Clear from localStorage
         localStorage.removeItem('logistics_email_data');
         
-        // Auto-analyze if enabled
+        // Auto-analyze if enabled - pass emailContent directly to avoid stale closure
         if (autoAnalyze === 'true') {
           localStorage.removeItem('logistics_auto_analyze');
-          // Trigger analysis after a brief delay to ensure state is set
           setTimeout(() => {
-            processLogisticsAuto();
+            processLogisticsAuto(emailContent);
           }, 500);
         }
         
@@ -178,8 +177,9 @@ const LogisticsAutomation: React.FC = () => {
     localStorage.setItem('logistics_email_history', JSON.stringify(updatedHistory));
   };
 
-  const processLogisticsAuto = async () => {
-    if (!emailText.trim()) {
+  const processLogisticsAuto = async (overrideEmailContent?: string) => {
+    const contentToProcess = overrideEmailContent ?? emailText;
+    if (!contentToProcess.trim()) {
       setError('Please provide email text');
       return;
     }
@@ -198,7 +198,7 @@ const LogisticsAutomation: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email_content: emailText
+          email_content: contentToProcess
         })
       });
 
