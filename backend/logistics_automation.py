@@ -195,7 +195,8 @@ def extract_all_so_numbers(text: str) -> list:
     # Pattern 2: Individual SO mentions - "Sales Order 3004:", "SO 3004", "s0 3004" (typo)
     # Also handles "SO 3012, SO 3022, and SO 3222" format
     # CRITICAL: Also handles numbered format like "2) PO C092525-2 / SO 3024"
-    individual_pattern = r'(?:sales\s*order|[Ss][Oo0])\s*[#:]?\s*(\d{3,5})'
+    # CRITICAL: Exclude "OS" prefix (PO numbers like OS00066277) - (?<![Oo]) prevents matching S0 in "OS00066277"
+    individual_pattern = r'(?:sales\s*order|(?<![Oo])[Ss][Oo0])\s*[#:]?\s*(\d{3,5})'
     individual_matches = re.findall(individual_pattern, text, re.IGNORECASE)
     so_numbers.extend(individual_matches)
     
