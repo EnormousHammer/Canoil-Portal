@@ -6578,5 +6578,5 @@ if __name__ == '__main__':
         print(f"ERROR: Data path test failed: {e}")
     
     # Run Flask app - bind to 0.0.0.0 to accept connections from localhost and 127.0.0.1
-    print("🌐 Starting Flask server on http://0.0.0.0:5002 (accessible via localhost:5002)")
+    print("Starting Flask server on http://0.0.0.0:5002 (accessible via localhost:5002)")
     app.run(host='0.0.0.0', port=5002, debug=False)

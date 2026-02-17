@@ -26,16 +26,16 @@ if (typeof window !== 'undefined') {
     // Ngrok: use same origin (ngrok forwards to backend)
     apiBaseUrl = window.location.origin;
   }
-  // 4. PRODUCTION/VERCEL (use Render backend - works when computer is off)
+  // 4. PRODUCTION/VERCEL - use SAME ORIGIN so Vercel proxy rewrites /api/* to Render
+  // vercel.json: /api/(.*) -> https://canoil-portal-1.onrender.com/api/$1
+  // Calling same-origin avoids CORS; Vercel forwards server-side to Render
   else {
-    // Production: Use Render backend directly (doesn't need local computer)
-    // This ensures it works on Vercel even when local Docker is off
-    apiBaseUrl = 'https://canoil-portal-1.onrender.com';
+    apiBaseUrl = window.location.origin;
   }
 } else {
   // ===== SSR/BUILD TIME =====
-  // Use Render for production builds, localhost for dev builds
-  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-portal-1.onrender.com' : 'http://localhost:5002');
+  // Production: same-origin (Vercel proxies to Render). Dev: localhost
+  apiBaseUrl = envApiUrl || (import.meta.env.PROD ? 'https://canoil-portal.vercel.app' : 'http://localhost:5002');
 }
 
 export const API_BASE_URL = apiBaseUrl;

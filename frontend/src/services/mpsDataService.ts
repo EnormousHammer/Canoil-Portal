@@ -5,14 +5,10 @@ import { MPSOrder, MODetail } from '../types/mps';
 const SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw';
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
 
-// Backend API - MPS has its OWN backend (separate from Canoil Portal)
-// Local: MPS backend on port 5003
-// Production: Can use Cloud Run or Render
+// Backend API - same as main app; use same-origin on Vercel (proxy to Render)
 const IS_PRODUCTION = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
-// Allow environment variable to override backend URL (useful for Render deployment)
-// Can use canoil-portal-1.onrender.com if it has the MPS endpoints added
 const MPS_BACKEND_URL = import.meta.env.VITE_MPS_BACKEND_URL || (IS_PRODUCTION 
-  ? 'https://canoil-portal-1.onrender.com'  // Render (canoil-portal service)
+  ? window.location.origin   // Vercel proxies /api/* to Render - no CORS
   : 'http://localhost:5003');
 const CANOIL_API = `${MPS_BACKEND_URL}/api/data`;
 
