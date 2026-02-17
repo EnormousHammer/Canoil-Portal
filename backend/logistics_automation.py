@@ -3903,6 +3903,8 @@ def process_email():
                     matched = False
                     match_details = None
                     matched_so_item = None  # Initialize to avoid UnboundLocalError
+                    item_desc_clean = ' '.join((item_desc or '').replace('-', ' ').replace('/', ' ').split())
+                    email_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean))
                     
                     # Try to find matching SO item - SMART MATCHING
                     for i, so_desc in enumerate(so_item_names):
@@ -3913,8 +3915,6 @@ def process_email():
                         # Normalize descriptions for comparison (remove extra spaces, handle variations)
                         item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
                         so_desc_normalized = ' '.join(so_desc.split())
-                        
-                        # Also normalize by removing hyphens and special chars for comparison
                         item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
                         so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
                         
@@ -3938,20 +3938,24 @@ def process_email():
                         so_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', so_desc_normalized))
                         code_match = bool(email_codes & so_codes) if email_codes else False
                         
-                        # CRITICAL: Packaging/size identifiers must match - 4X4L != 12x1L (different products)
+                        # For FUZZY matches only: packaging sizes must match (4X4L != 12x1L)
+                        # For exact/substring matches we trust the match - don't reject
                         size_pattern = r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]'
                         email_sizes = set(re.findall(size_pattern, item_desc_normalized))
                         so_sizes = set(re.findall(size_pattern, so_desc_normalized))
                         size_mismatch = email_sizes and so_sizes and not (email_sizes & so_sizes)
+                        # Only reject on size when using fuzzy match - exact/substring is trustworthy
+                        fuzzy_match_only = word_match or code_match
+                        reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
                         
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
                         print(f"      Check 4 (code match): {code_match} (codes: {email_codes & so_codes if email_codes else 'none'})")
-                        print(f"      Check 5 (size mismatch): {size_mismatch} (email sizes: {email_sizes}, SO sizes: {so_sizes})")
+                        print(f"      Check 5 (reject size): {reject_size} (size_mismatch={size_mismatch}, fuzzy_only)")
                         
-                        if size_mismatch:
-                            continue  # 4X4L vs 12x1L - different products, skip
+                        if reject_size:
+                            continue  # 4X4L vs 12x1L via fuzzy match - different products, skip
                         if exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
@@ -4112,6 +4116,21 @@ def process_email():
                         
                         if matched:
                             break
+                    
+                    # Fallback: match by size identifier when both have same size (4X4L, 12x120g, etc.)
+                    if not matched and email_sizes:
+                        for i, so_desc in enumerate(so_item_names):
+                            so_item = so_items_to_check[i]
+                            so_sizes_fb = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', so_desc))
+                            if email_sizes & so_sizes_fb:
+                                so_clean_fb = ' '.join((so_desc or '').replace('-', ' ').replace('/', ' ').split())
+                                base_words = (set(item_desc_clean.split()) & set(so_clean_fb.split())) - packaging_words
+                                if len(base_words) >= 3:
+                                    matched = True
+                                    matched_so_item = so_item
+                                    match_details = f"Matched by size identifier: {email_sizes & so_sizes_fb}"
+                                    print(f"   ✅ SIZE FALLBACK MATCH: '{item_desc}' = '{so_desc}'")
+                                    break
                     
                     if not matched and so_item_codes and item_code:
                         # Try matching by item code
