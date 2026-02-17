@@ -1208,12 +1208,23 @@ def extract_so_data_from_pdf(pdf_path):
         
         # Step 2: Structure with OpenAI
         structured_data = structure_with_openai(raw_data)
-        if not structured_data:
-            print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
+        fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
+        
+        # CRITICAL: Use fallback when GPT fails OR when GPT returns FEWER items than raw table
+        # GPT often drops items from merged rows (e.g. SO 3106: GPT returns 5, raw has 6 - 4X4L missing)
+        gpt_items = structured_data.get('items', []) if structured_data else []
+        if len(fallback_items) > len(gpt_items):
+            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - using raw (GPT dropped items)")
             fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
             if fallback.get('items'):
-                print(f"FALLBACK: Parsed {len(fallback['items'])} items from merged table (no GPT)")
                 return fallback
+        if not structured_data:
+            print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
+            if fallback_items:
+                fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
+                if fallback.get('items'):
+                    print(f"FALLBACK: Parsed {len(fallback['items'])} items from merged table (no GPT)")
+                    return fallback
             print(f"FALLBACK: No items from raw table - returning minimal structure")
             return {
                 'raw_extraction': raw_data,
