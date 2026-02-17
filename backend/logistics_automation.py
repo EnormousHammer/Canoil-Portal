@@ -3973,24 +3973,32 @@ def process_email():
                                 break
                             
                             # For non-tote orders, check quantity
+                            # CRITICAL: Same product can appear on multiple SO lines (e.g. different MOs) - SUM quantities
                             if item_qty:
                                 try:
                                     email_qty_num = float(str(item_qty).replace(',', '')) if item_qty else 0
-                                    so_qty = so_item.get('quantity', 0)
-                                    if isinstance(so_qty, str):
-                                        import re
-                                        qty_match = re.search(r'(\d+\.?\d*)', str(so_qty).replace(',', ''))
-                                        so_qty_num = float(qty_match.group(1)) if qty_match else float(so_qty)
-                                    else:
-                                        so_qty_num = float(so_qty)
+                                    total_so_qty = 0.0
+                                    for j, other_desc in enumerate(so_item_names):
+                                        other_item = so_items_to_check[j]
+                                        other_clean = ' '.join((other_desc or '').replace('-', ' ').replace('/', ' ').split())
+                                        other_words = set(other_clean.split()) - packaging_words
+                                        # Same product match: email in SO, SO in email, or word subset
+                                        desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
+                                                      (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
+                                        if desc_match:
+                                            other_qty = other_item.get('quantity', 0)
+                                            if isinstance(other_qty, str):
+                                                om = re.search(r'(\d+\.?\d*)', str(other_qty).replace(',', ''))
+                                                total_so_qty += float(om.group(1)) if om else 0
+                                            else:
+                                                total_so_qty += float(other_qty)
                                     
-                                    # Allow email qty <= SO qty (partial shipments are normal)
-                                    # Only reject if email claims MORE than SO has
-                                    if email_qty_num > so_qty_num + 0.01:
-                                        print(f"      ⏭️  DESCRIPTION MATCHES but EMAIL QTY EXCEEDS SO: Email={email_qty_num}, SO={so_qty_num} - skipping")
+                                    # Allow email qty <= total SO qty (partial shipments normal; multi-line same product)
+                                    if email_qty_num > total_so_qty + 0.01:
+                                        print(f"      ⏭️  DESCRIPTION MATCHES but EMAIL QTY EXCEEDS SO: Email={email_qty_num}, SO total={total_so_qty} - skipping")
                                         continue
                                     else:
-                                        print(f"      ✅ DESCRIPTION MATCH: Email={email_qty_num}, SO={so_qty_num} (partial shipment OK)")
+                                        print(f"      ✅ DESCRIPTION MATCH: Email={email_qty_num}, SO total={total_so_qty} (partial shipment OK)")
                                 except Exception as qty_err:
                                     print(f"      ⚠️  QTY CHECK ERROR: {qty_err} - proceeding with description match only")
                             
@@ -4114,26 +4122,30 @@ def process_email():
                                         match_details = f"Fuzzy matched with SO item code: {code} (similarity: {matches}/{len(code)})"
                                         break
                     
-                    # If matched, also check quantity (use the SAME matched SO item, not search again)
+                    # If matched, also check quantity - SUM across all matching SO lines (same product on multiple lines)
                     quantity_match = True
                     quantity_details = ""
                     if matched and item_qty and matched_so_item is not None:
-                        email_qty_num = float(item_qty) if item_qty else 0
-                        
-                        # Use the EXACT matched SO item (no searching again - prevents wrong item match)
-                        so_qty = matched_so_item.get('quantity', 0)
-                        print(f"   📊 QUANTITY CHECK: Email qty='{item_qty}' ({email_qty_num}), SO qty='{so_qty}' (type: {type(so_qty).__name__})")
+                        email_qty_num = float(str(item_qty).replace(',', '')) if item_qty else 0
+                        item_desc_check = (email_item.get('description') or '').upper().strip()
+                        item_desc_clean_check = ' '.join(item_desc_check.replace('-', ' ').replace('/', ' ').split())
+                        email_core_check = set(item_desc_clean_check.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
+                        so_qty_num = 0.0
+                        for j, od in enumerate(so_item_names):
+                            other_item = so_items_to_check[j]
+                            other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
+                            other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
+                            if (item_desc_clean_check in other_clean or other_clean in item_desc_clean_check or
+                                (email_core_check and len(email_core_check) >= 2 and email_core_check.issubset(other_words))):
+                                oq = other_item.get('quantity', 0)
+                                if isinstance(oq, str):
+                                    m = re.search(r'(\d+\.?\d*)', str(oq).replace(',', ''))
+                                    so_qty_num += float(m.group(1)) if m else 0
+                                else:
+                                    so_qty_num += float(oq)
+                        print(f"   📊 QUANTITY CHECK: Email qty='{item_qty}' ({email_qty_num}), SO total qty={so_qty_num}")
                         try:
-                            # Handle different quantity formats from SO
-                            if isinstance(so_qty, str):
-                                # Extract number from string like "3 DRUM" or "3.0"
-                                import re
-                                qty_match = re.search(r'(\d+\.?\d*)', str(so_qty))
-                                so_qty_num = float(qty_match.group(1)) if qty_match else float(so_qty)
-                            else:
-                                so_qty_num = float(so_qty)
-                            
-                            print(f"   📊 QUANTITY COMPARISON: Email={email_qty_num}, SO={so_qty_num}, Diff={abs(email_qty_num - so_qty_num)}")
+                            print(f"   📊 QUANTITY COMPARISON: Email={email_qty_num}, SO total={so_qty_num}, Diff={abs(email_qty_num - so_qty_num)}")
                             
                             # Allow partial shipments (email qty <= SO qty is normal)
                             # Only flag as mismatch if email claims MORE than SO has
@@ -4161,7 +4173,7 @@ def process_email():
                                 quantity_details = f"Quantity matches: {email_qty_num}"
                                 print(f"   ✅ QUANTITY MATCH: {quantity_details}")
                         except Exception as qty_err:
-                            print(f"   ⚠️ QUANTITY PARSE ERROR: {qty_err} - Email qty: {item_qty}, SO qty: {so_qty}")
+                            print(f"   ⚠️ QUANTITY PARSE ERROR: {qty_err} - Email qty: {item_qty}, SO total: {so_qty_num}")
                             pass
                     
                     item_validation = {

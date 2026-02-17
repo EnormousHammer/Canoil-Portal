@@ -59,6 +59,7 @@ const LogisticsAutomation: React.FC = () => {
   const [result, setResult] = useState<any>(null);
   const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSlow, setLoadingSlow] = useState(false);  // Show "waking up" after 3s
   const [error, setError] = useState('');
   
   // Auto-detection state
@@ -190,6 +191,8 @@ const LogisticsAutomation: React.FC = () => {
     setError('');
     setAutoDetection(null);
     setLoading(true);
+    setLoadingSlow(false);
+    const slowTimer = setTimeout(() => setLoadingSlow(true), 3000);
 
     try {
       const response = await fetch(getApiUrl('/api/logistics/process-email'), {
@@ -242,7 +245,9 @@ const LogisticsAutomation: React.FC = () => {
     } catch (err) {
       setError('Network error: ' + (err as Error).message);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setLoadingSlow(false);
     }
   };
 
@@ -260,6 +265,8 @@ const LogisticsAutomation: React.FC = () => {
     setError('');
     setAutoDetection(null);
     setLoading(true);
+    setLoadingSlow(false);
+    const slowTimer = setTimeout(() => setLoadingSlow(true), 3000);
 
     try {
       const response = await fetch(getApiUrl('/api/logistics/process-email'), {
@@ -313,7 +320,9 @@ const LogisticsAutomation: React.FC = () => {
     } catch (err) {
       setError('Network error: ' + (err as Error).message);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setLoadingSlow(false);
     }
   };
 
@@ -1070,6 +1079,8 @@ const LogisticsAutomation: React.FC = () => {
     setError('');
     setAutoDetection(null);
     setLoading(true);
+    setLoadingSlow(false);
+    const slowTimer = setTimeout(() => setLoadingSlow(true), 3000);
 
     try {
       const formData = new FormData();
@@ -1092,7 +1103,9 @@ const LogisticsAutomation: React.FC = () => {
     } catch (err) {
       setError('Network error: ' + (err as Error).message);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setLoadingSlow(false);
     }
   };
 
@@ -1751,54 +1764,50 @@ const LogisticsAutomation: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">Paste Email</h2>
           </div>
           
-          <textarea
-            value={emailText}
-            onChange={(e) => setEmailText(e.target.value)}
-            onKeyDown={(e) => {
-              // Allow Enter to process, but Shift+Enter creates new line
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                // Only process if not loading and email text exists
-                if (!loading && emailText.trim()) {
-                  // For manual mode, also check if SO file exists
-                  if (processingMode === 'manual' && !soFile) {
-                    return; // Don't process if manual mode without file
-                  }
-                  // Trigger the appropriate process function
-                  if (processingMode === 'auto') {
-                    processLogisticsAuto();
-                  } else if (processingMode === 'trust_email') {
-                    processLogisticsTrustEmail();
-                  } else {
-                    processLogistics();
-                  }
-                }
-              }
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (loading || !emailText.trim()) return;
+              if (processingMode === 'manual' && !soFile) return;
+              if (processingMode === 'auto') processLogisticsAuto();
+              else if (processingMode === 'trust_email') processLogisticsTrustEmail();
+              else processLogistics();
             }}
-            placeholder="Paste email here and press Enter to process..."
-            className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all text-gray-700 placeholder-gray-400 text-sm"
-            rows={6}
-            autoFocus
-          />
-          
-          {/* Action Buttons */}
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={processingMode === 'auto' ? processLogisticsAuto : processingMode === 'trust_email' ? processLogisticsTrustEmail : processLogistics}
-                disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
-                className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
-                  loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : processingMode === 'trust_email' 
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
-                }`}
-              >
+            className="relative"
+          >
+            <textarea
+              value={emailText}
+              onChange={(e) => setEmailText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  (e.target as HTMLTextAreaElement).form?.requestSubmit();
+                }
+              }}
+              placeholder="Paste email here and press Enter or click Process..."
+              className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all text-gray-700 placeholder-gray-400 text-sm"
+              rows={6}
+              autoFocus
+            />
+            
+            {/* Action Buttons - form ensures both Enter and click work */}
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={loading || !emailText.trim() || (processingMode === 'manual' && !soFile)}
+                  className={`px-6 py-2.5 min-h-[42px] rounded-lg font-semibold text-sm transition-all flex items-center gap-2 cursor-pointer select-none ${
+                    loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : processingMode === 'trust_email' 
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
+                  }`}
+                >
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    {processingMode === 'trust_email' ? 'Processing (Trust Email)...' : 'Processing...'}
+                    {loadingSlow ? 'Waking up backend...' : (processingMode === 'trust_email' ? 'Processing (Trust Email)...' : 'Processing...')}
                   </>
                 ) : (
                   <>
@@ -1809,8 +1818,9 @@ const LogisticsAutomation: React.FC = () => {
               </button>
               
               <button
+                type="button"
                 onClick={() => setShowHistory(true)}
-                className="px-4 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white shadow-md hover:shadow-lg"
+                className="px-4 py-2.5 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white shadow-md hover:shadow-lg cursor-pointer"
                 title="View email history"
               >
                 <History className="w-4 h-4" />
@@ -1830,6 +1840,7 @@ const LogisticsAutomation: React.FC = () => {
               <span className="text-xs text-amber-600 font-medium">⚠️ Uses email quantities - skips SO quantity validation</span>
             )}
           </div>
+          </form>
         </div>
         )}
                 
