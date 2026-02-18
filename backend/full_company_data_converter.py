@@ -513,18 +513,24 @@ def _load_single_file_drive(drive_service, drive_id, finfo):
     return (mapping_key, keys, rows, fname)
 
 
-def load_from_drive_api(drive_service, drive_id, folder_path):
+def load_from_drive_api(drive_service, drive_id, folder_path=None, folder_id=None):
     """
-    Load Full Company Data via Google Drive API. folder_path is the path string (e.g. MiSys/.../Full Company Data as of 02_10_2026).
+    Load Full Company Data via Google Drive API.
+    Either folder_id (preferred for latest-by-creation) or folder_path can be provided.
     Returns (data_dict, None) or (None, error_message).
     Uses parallel download+parse to reduce load time (1-2 min -> ~10-30 sec).
     """
     if not drive_service or not getattr(drive_service, "authenticated", False):
         return None, "Google Drive not available"
     try:
-        folder_id = drive_service.find_folder_by_path(drive_id, folder_path)
-        if not folder_id:
-            return None, "Full Company Data folder not found"
+        if folder_id:
+            pass  # use folder_id directly
+        elif folder_path:
+            folder_id = drive_service.find_folder_by_path(drive_id, folder_path)
+            if not folder_id:
+                return None, "Full Company Data folder not found"
+        else:
+            return None, "Either folder_id or folder_path required"
         files = drive_service.list_all_files_in_folder(folder_id, drive_id)
         if not files:
             print("[full_company_data_converter] Drive folder has no files")

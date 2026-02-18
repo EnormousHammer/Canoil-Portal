@@ -2,13 +2,22 @@
 
 **Single source of truth:** Your MISys **Full Company Data** export. The app is built to use this. No separate “API extractions” are required for inventory, POs, MOs, BOM, work orders, or lot/serial—everything comes from the export folder.
 
-**Folder:** `G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data as of 02_10_2026`
+**Parent folder:** `G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data From Misys`
 
-Put your MISys **Export All Company Data** CSV or Excel files in that folder. File names are matched case-insensitively (e.g. `MIITEM.CSV` or `miitem.csv` both work).
+**NAMING CONVENTION:** Create one subfolder per export date. Use **YYYY-MM-DD** format (e.g. `2026-02-18`). The app picks the latest folder by name. Put your MISys **Export All Company Data** CSV or Excel files inside that subfolder.
+
+Example structure:
+```
+Full Company Data From Misys/
+  2026-02-10/    ← MIITEM.CSV, MIPOH.CSV, etc.
+  2026-02-18/    ← latest; app uses this one
+```
+
+File names are matched case-insensitively (e.g. `MIITEM.CSV` or `miitem.csv` both work).
 
 ### How to see the data in the portal
 
-1. **Export** from MISys into the folder above (or the same path on your shared Drive). Use **Item.csv**, **Items.csv**, **MIITEM.csv**, or **CustomAlert5.csv** for inventory (any one works).
+1. **Export** from MISys into a new subfolder named **YYYY-MM-DD** (e.g. `2026-02-18`) under the parent above. Use **Item.csv**, **Items.csv**, **MIITEM.csv**, or **CustomAlert5.csv** for inventory (any one works).
 2. **Run the backend** on a machine that can see that folder (or use Google Drive API with the same path). The app loads Full Company Data by default when the folder has files.
 3. **Open the portal** and refresh if needed. Go to **Operations Hub → Inventory** and click an item. The item modal should show Master (type, stocking unit, etc.), Stock (on hand, WIP, reserve, min/max/reorder), Costs, POs, Mfg Orders, and other tabs from your data.
 4. If a tab is empty, check that the corresponding export file is in the folder (e.g. **MISLTH.csv** for Stock Movement, **MISLTD.csv** for SL Numbers). Column headers are matched case-insensitively. The portal loads them and maps columns into the app. This doc is the **roadmap**: which file → which app data, and which export column names → which app field names.

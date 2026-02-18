@@ -56,6 +56,11 @@ SCOPES = [
 SHARED_DRIVE_NAME = os.getenv('GOOGLE_DRIVE_SHARED_DRIVE_NAME', "IT_Automation")  # The shared drive name
 BASE_FOLDER_PATH = os.getenv('GOOGLE_DRIVE_BASE_FOLDER_PATH', "MiSys/Misys Extracted Data/API Extractions")  # Path within shared drive
 SALES_ORDERS_PATH = os.getenv('GOOGLE_DRIVE_SALES_ORDERS_PATH', "Sales_CSR/Customer Orders/Sales Orders")  # Sales orders path
+# Full Company Data parent folder (contains date subfolders; we use latest by creation time)
+FULL_COMPANY_DATA_DRIVE_PATH = os.getenv(
+    "FULL_COMPANY_DATA_DRIVE_PATH",
+    "MiSys/Misys Extracted Data/Full Company Data From Misys"
+)
 
 # Print paths safely - wrap in try/except to prevent import failures
 try:
@@ -423,7 +428,62 @@ class GoogleDriveService:
         except Exception as error:
             print(f"[ERROR] Error finding latest API extractions folder: {error}")
             return None, None, None
-    
+
+    @retry_on_error(max_retries=3, delay=1, backoff=2)
+    def get_latest_folder_by_name(self, parent_folder_id, drive_id=None):
+        """Get the latest subfolder by name (descending). Used for Full Company Data.
+        NAMING CONVENTION: Use YYYY-MM-DD (e.g. 2026-02-18) for subfolders. Sorts correctly.
+        
+        Returns:
+            (folder_id, folder_name, folder_metadata) where folder_metadata contains createdTime, modifiedTime
+        """
+        try:
+            query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            list_params = {
+                'q': query,
+                'orderBy': 'name desc',
+                'pageSize': 10,
+                'fields': "files(id, name, createdTime, modifiedTime)"
+            }
+            if drive_id:
+                list_params['corpora'] = 'drive'
+                list_params['driveId'] = drive_id
+                list_params['includeItemsFromAllDrives'] = True
+                list_params['supportsAllDrives'] = True
+            results = self.service.files().list(**list_params).execute()
+            folders = results.get('files', [])
+            if folders:
+                latest = folders[0]
+                print(f"[OK] Latest Full Company Data folder (by name): {latest['name']} (ID: {latest['id']})")
+                return latest['id'], latest['name'], {
+                    'createdTime': latest.get('createdTime'),
+                    'modifiedTime': latest.get('modifiedTime')
+                }
+            return None, None, None
+        except HttpError as error:
+            print(f"[ERROR] Error getting latest folder by name: {error}")
+            return None, None, None
+
+    def find_latest_full_company_data_folder(self):
+        """Find the latest Full Company Data subfolder by name (descending).
+        NAMING CONVENTION: Use YYYY-MM-DD (e.g. 2026-02-18) for subfolders.
+        Parent path: MiSys/Misys Extracted Data/Full Company Data From Misys
+        Returns (folder_id, folder_name, folder_metadata) or (None, None, None).
+        """
+        try:
+            drive_id = self.find_shared_drive(SHARED_DRIVE_NAME)
+            if not drive_id:
+                print(f"[ERROR] Shared drive '{SHARED_DRIVE_NAME}' not found")
+                return None, None, None
+            parent_id = self.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+            if not parent_id:
+                print(f"[ERROR] Full Company Data parent folder '{FULL_COMPANY_DATA_DRIVE_PATH}' not found")
+                return None, None, None
+            return self.get_latest_folder_by_name(parent_id, drive_id)
+        except Exception as error:
+            print(f"[ERROR] Error finding latest Full Company Data folder: {error}")
+            return None, None, None
+
     @retry_on_error(max_retries=3, delay=1, backoff=2)
     def download_file(self, file_id, file_name):
         """Download a file from Google Drive with retry logic for SSL errors"""

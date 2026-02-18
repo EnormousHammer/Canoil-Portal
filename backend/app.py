@@ -1334,10 +1334,10 @@ def extract_so_data_from_pdf(pdf_path):
         shipping_full = so_data['shipping_address'].get('full_address', '')
         if billing_full and shipping_full and billing_full.strip() == shipping_full.strip():
             # Check if table extraction showed different addresses
-            if table_sold_to and table_ship_to and table_sold_to != table_ship_to:
+            if pre_sold_to and pre_ship_to and pre_sold_to != pre_ship_to:
                 print(f"⚠️ WARNING: Billing and shipping addresses are IDENTICAL but table extraction showed DIFFERENT values!")
-                print(f"   Table Sold To: {table_sold_to[:60]}...")
-                print(f"   Table Ship To: {table_ship_to[:60]}...")
+                print(f"   Table Sold To: {pre_sold_to[:60]}...")
+                print(f"   Table Ship To: {pre_ship_to[:60]}...")
         
         return so_data
         
@@ -1510,14 +1510,37 @@ MPS_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extra
 MPS_EXCEL_PATH = os.path.join(MPS_BASE, "MPS.xlsx")  # Fallback Excel file
 
 # Full Company Data (MISys "Export All Company Data") - for import / direct fetch
-# Local path (when backend runs where G: is mounted):
-# Local path when Google Drive for Desktop is mounted as G: (dev/office only). On Render/cloud this is not used — we use Google Drive API and FULL_COMPANY_DATA_DRIVE_PATH instead.
-GDRIVE_FULL_COMPANY_DATA = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data as of 02_10_2026"
-# Drive-relative path for Google Drive API (Render/cloud); override via env if needed
+# Parent folder containing date subfolders (e.g. Feb 10 2026, Feb 18 2026). We use the latest by creation time.
+GDRIVE_FULL_COMPANY_DATA_BASE = r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data From Misys"
+# Drive-relative path for Google Drive API (Render/cloud); parent folder - override via env if needed
 FULL_COMPANY_DATA_DRIVE_PATH = os.getenv(
     "FULL_COMPANY_DATA_DRIVE_PATH",
-    "MiSys/Misys Extracted Data/Full Company Data as of 02_10_2026"
+    "MiSys/Misys Extracted Data/Full Company Data From Misys"
 )
+
+
+def get_latest_full_company_data_folder():
+    """Resolve the latest Full Company Data subfolder by name (local G: drive only).
+    NAMING CONVENTION: Use YYYY-MM-DD (e.g. 2026-02-18) for subfolders. Sorts correctly.
+    Returns (full_path, folder_name) or (None, error_msg).
+    """
+    try:
+        base = GDRIVE_FULL_COMPANY_DATA_BASE
+        if not os.path.exists(base):
+            return None, f"Full Company Data base folder not found: {base}"
+        subfolders = [f for f in os.listdir(base) if os.path.isdir(os.path.join(base, f))]
+        if not subfolders:
+            return None, "No subfolders in Full Company Data"
+        # Sort by folder name descending (YYYY-MM-DD sorts correctly; latest first)
+        subfolders.sort(reverse=True)
+        latest_name = subfolders[0]
+        latest_path = os.path.join(base, latest_name)
+        print(f"[OK] Latest Full Company Data folder (by name): {latest_name}")
+        return latest_path, latest_name
+    except Exception as e:
+        print(f"[ERROR] get_latest_full_company_data_folder: {e}")
+        return None, str(e)
+
 
 def get_latest_folder():
     """Get the latest folder from G: Drive OR Google Drive API - OPTIMIZED for speed"""
@@ -2102,18 +2125,19 @@ def _load_full_company_data_csv_only(folder_path):
 def _supplement_from_full_company_data(raw_data):
     """
     When loading from API Extractions, supplement empty keys with data from Full Company Data.
-    Uses built-in csv module (no pandas).
+    Uses built-in csv module (no pandas). Resolves latest subfolder by creation time.
     """
     try:
         if not raw_data or IS_CLOUD_ENVIRONMENT:
             return raw_data
-        if not os.path.exists(GDRIVE_FULL_COMPANY_DATA):
+        fcd_path, _ = get_latest_full_company_data_folder()
+        if not fcd_path or not os.path.exists(fcd_path):
             return raw_data
         supplemented = 0
         for stem, (app_keys, col_map) in _FULL_COMPANY_CSV_MAPPINGS.items():
             fpath = None
             for ext in (".CSV", ".csv"):
-                p = os.path.join(GDRIVE_FULL_COMPANY_DATA, stem + ext)
+                p = os.path.join(fcd_path, stem + ext)
                 if os.path.isfile(p):
                     fpath = p
                     break
@@ -2189,6 +2213,7 @@ def get_all_data():
         if data_source_param == 'full_company_data':
             full_data = None
             err_msg = None
+            folder_name_used = "Full Company Data"
             try:
                 from full_company_data_converter import load_from_folder, load_from_drive_api
             except (ImportError, ValueError, OSError):
@@ -2196,23 +2221,31 @@ def get_all_data():
                     from .full_company_data_converter import load_from_folder, load_from_drive_api
                 except (ImportError, ValueError, OSError):
                     load_from_folder = load_from_drive_api = None
-            if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                try:
-                    full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
-                except Exception as e:
-                    full_data, err_msg = None, str(e)
+            if load_from_folder and not IS_CLOUD_ENVIRONMENT:
+                fcd_path, fcd_name = get_latest_full_company_data_folder()
+                if fcd_path and os.path.exists(fcd_path):
+                    try:
+                        full_data, err_msg = load_from_folder(fcd_path)
+                        folder_name_used = fcd_name or folder_name_used
+                    except Exception as e:
+                        full_data, err_msg = None, str(e)
             if full_data is None and load_from_drive_api:
                 gdrive_service = get_google_drive_service()
                 drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None
                 if drive_id and gdrive_service and getattr(gdrive_service, "authenticated", False):
-                    full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+                    folder_id, fcd_name, _ = gdrive_service.find_latest_full_company_data_folder()
+                    if folder_id:
+                        full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, folder_id=folder_id)
+                        folder_name_used = fcd_name or folder_name_used
+                    else:
+                        err_msg = "No Full Company Data subfolder found (check Full Company Data From Misys)"
             if full_data is not None:
                 full_data = _merge_portal_store(full_data)
                 file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
                 return jsonify({
                     "data": full_data,
                     "folderInfo": {
-                        "folderName": "Full Company Data as of 02_10_2026",
+                        "folderName": folder_name_used,
                         "syncDate": datetime.now().isoformat(),
                         "lastModified": datetime.now().isoformat(),
                         "folder": FULL_COMPANY_DATA_DRIVE_PATH,
@@ -2265,10 +2298,12 @@ def get_all_data():
                 })
             full_data = None
             err_msg = None
+            folder_name_used = "Full Company Data"
             if IS_CLOUD_ENVIRONMENT:
                 print("📂 Full Company Data: loading via Google Drive API (cloud — no local path)")
             else:
-                print(f"📂 Full Company Data: trying local path first (exists={os.path.exists(GDRIVE_FULL_COMPANY_DATA)})")
+                fcd_path, fcd_name = get_latest_full_company_data_folder()
+                print(f"📂 Full Company Data: trying local path first (resolved={fcd_path is not None})")
             try:
                 from full_company_data_converter import load_from_folder, load_from_drive_api
             except (ImportError, ValueError, OSError):
@@ -2276,28 +2311,38 @@ def get_all_data():
                     from .full_company_data_converter import load_from_folder, load_from_drive_api
                 except (ImportError, ValueError, OSError):
                     load_from_folder = load_from_drive_api = None
-            if load_from_folder and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                try:
-                    full_data, err_msg = load_from_folder(GDRIVE_FULL_COMPANY_DATA)
-                except Exception as e:
-                    print(f"📂 Full Company Data load_from_folder exception: {e}")
-                    full_data, err_msg = None, str(e)
-                print(f"📂 Full Company Data load_from_folder: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
-                if full_data:
-                    cnt = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
-                    print(f"📂 Full Company Data: {cnt} non-empty lists")
+            if load_from_folder and not IS_CLOUD_ENVIRONMENT:
+                fcd_path, fcd_name = get_latest_full_company_data_folder()
+                if fcd_path and os.path.exists(fcd_path):
+                    try:
+                        full_data, err_msg = load_from_folder(fcd_path)
+                        folder_name_used = fcd_name or folder_name_used
+                    except Exception as e:
+                        print(f"📂 Full Company Data load_from_folder exception: {e}")
+                        full_data, err_msg = None, str(e)
+                    print(f"📂 Full Company Data load_from_folder: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
+                    if full_data:
+                        cnt = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                        print(f"📂 Full Company Data: {cnt} non-empty lists")
             else:
                 if not load_from_folder:
                     print("📂 Full Company Data: skipped (converter import failed)")
                 elif IS_CLOUD_ENVIRONMENT:
                     print("📂 Full Company Data: using Drive API (cloud deployment)")
-                elif not os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                    print(f"📂 Full Company Data: local folder not found, will try Drive API")
+                else:
+                    fcd_path, _ = get_latest_full_company_data_folder()
+                    if not fcd_path or not os.path.exists(fcd_path):
+                        print(f"📂 Full Company Data: local folder not found, will try Drive API")
             if full_data is None and load_from_drive_api:
                 gdrive_service = get_google_drive_service()
                 drive_id = gdrive_service.find_shared_drive("IT_Automation") if gdrive_service else None
                 if drive_id and gdrive_service and getattr(gdrive_service, "authenticated", False):
-                    full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+                    folder_id, fcd_name, _ = gdrive_service.find_latest_full_company_data_folder()
+                    if folder_id:
+                        full_data, err_msg = load_from_drive_api(gdrive_service, drive_id, folder_id=folder_id)
+                        folder_name_used = fcd_name or folder_name_used
+                    else:
+                        err_msg = "No Full Company Data subfolder found"
                     print(f"📂 Full Company Data load_from_drive_api: full_data={'present' if full_data else None}, err_msg={err_msg!r}")
                 else:
                     print("📂 Full Company Data: Drive API not available or not authenticated")
@@ -2310,7 +2355,7 @@ def get_all_data():
                     return jsonify({
                         "data": full_data,
                         "folderInfo": {
-                            "folderName": "Full Company Data as of 02_10_2026",
+                            "folderName": folder_name_used,
                             "syncDate": datetime.now().isoformat(),
                             "lastModified": datetime.now().isoformat(),
                             "folder": FULL_COMPANY_DATA_DRIVE_PATH,
@@ -2325,9 +2370,13 @@ def get_all_data():
                     })
                 else:
                     print("📂 Full Company Data: converter returned data but all lists empty (check file names: need MIITEM.csv, Item.csv, MIBOMD.csv, MIPOH.csv, etc.)")
-            if full_data is None and not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                print("📂 Full Company Data: trying CSV-only loader (no pandas)...")
-                full_data, err_msg = _load_full_company_data_csv_only(GDRIVE_FULL_COMPANY_DATA)
+            if full_data is None and not IS_CLOUD_ENVIRONMENT:
+                fcd_path, fcd_name = get_latest_full_company_data_folder()
+                if fcd_path and os.path.exists(fcd_path):
+                    print("📂 Full Company Data: trying CSV-only loader (no pandas)...")
+                    full_data, err_msg = _load_full_company_data_csv_only(fcd_path)
+                    if full_data:
+                        folder_name_used = fcd_name or folder_name_used
                 if full_data:
                     has_any = any(isinstance(v, list) and len(v) > 0 for v in full_data.values())
                     if has_any:
@@ -2337,7 +2386,7 @@ def get_all_data():
                         return jsonify({
                             "data": full_data,
                             "folderInfo": {
-                                "folderName": "Full Company Data as of 02_10_2026",
+                                "folderName": folder_name_used,
                                 "syncDate": datetime.now().isoformat(),
                                 "lastModified": datetime.now().isoformat(),
                                 "folder": FULL_COMPANY_DATA_DRIVE_PATH,
@@ -2639,14 +2688,16 @@ def get_data_source_status():
         # Check if Full Company Data folder is reachable (list count)
         full_company_available = False
         try:
-            if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-                full_company_available = len([f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]) > 0
-            else:
+            if not IS_CLOUD_ENVIRONMENT:
+                fcd_path, _ = get_latest_full_company_data_folder()
+                if fcd_path and os.path.exists(fcd_path):
+                    full_company_available = len([f for f in os.listdir(fcd_path) if os.path.isfile(os.path.join(fcd_path, f))]) > 0
+            if not full_company_available:
                 service = get_google_drive_service()
                 if service and getattr(service, 'authenticated', False):
                     drive_id = service.find_shared_drive("IT_Automation")
-                    folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH) if drive_id else None
-                    if folder_id:
+                    folder_id, _, _ = service.find_latest_full_company_data_folder()
+                    if folder_id and drive_id:
                         files = service.list_all_files_in_folder(folder_id, drive_id)
                         full_company_available = len(files) > 0
         except Exception:
@@ -4120,31 +4171,33 @@ def force_so_background_refresh():
 
 @app.route('/api/full-company-data/list', methods=['GET'])
 def full_company_data_list():
-    """List files in the Full Company Data folder (core MISys export). Uses existing data path; no conflict with current app data."""
+    """List files in the Full Company Data folder (core MISys export). Uses latest subfolder by creation time."""
     try:
-        # Local path: list from G: drive folder
-        if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-            names = [f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]
-            files = [{"id": "", "name": n, "mimeType": "local"} for n in sorted(names)]
-            return jsonify({
-                "path": GDRIVE_FULL_COMPANY_DATA,
+        # Local path: list from latest Full Company Data subfolder
+        if not IS_CLOUD_ENVIRONMENT:
+            fcd_path, fcd_name = get_latest_full_company_data_folder()
+            if fcd_path and os.path.exists(fcd_path):
+                names = [f for f in os.listdir(fcd_path) if os.path.isfile(os.path.join(fcd_path, f))]
+                files = [{"id": "", "name": n, "mimeType": "local"} for n in sorted(names)]
+                return jsonify({
+                    "path": fcd_path,
                 "source": "local",
                 "files": files,
                 "count": len(files)
             })
-        # Cloud or API: use Google Drive API
+        # Cloud or API: use Google Drive API (latest subfolder by creation time)
         service = get_google_drive_service()
         if not service or not getattr(service, 'authenticated', False):
             return jsonify({"error": "Google Drive not available", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 503
         drive_id = service.find_shared_drive("IT_Automation")
         if not drive_id:
             return jsonify({"error": "Shared drive IT_Automation not found", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 404
-        folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
+        folder_id, folder_name, _ = service.find_latest_full_company_data_folder()
         if not folder_id:
-            return jsonify({"error": "Full Company Data folder not found", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 404
+            return jsonify({"error": "No Full Company Data subfolder found", "path": FULL_COMPANY_DATA_DRIVE_PATH}), 404
         files = service.list_all_files_in_folder(folder_id, drive_id)
         return jsonify({
-            "path": FULL_COMPANY_DATA_DRIVE_PATH,
+            "path": f"{FULL_COMPANY_DATA_DRIVE_PATH}/{folder_name}" if folder_name else FULL_COMPANY_DATA_DRIVE_PATH,
             "source": "google_drive_api",
             "files": files,
             "count": len(files)
@@ -4165,27 +4218,29 @@ def full_company_data_preview():
         return jsonify({"error": "Missing query param: file=YourFile.csv"}), 400
     max_rows = min(int(request.args.get("rows", 20)), 100)
     try:
-        # Local path
-        if not IS_CLOUD_ENVIRONMENT and os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-            file_path = os.path.join(GDRIVE_FULL_COMPANY_DATA, file_name)
-            if not os.path.isfile(file_path):
+        # Local path (latest subfolder by creation time)
+        if not IS_CLOUD_ENVIRONMENT:
+            fcd_path, _ = get_latest_full_company_data_folder()
+            if fcd_path and os.path.exists(fcd_path):
+                file_path = os.path.join(fcd_path, file_name)
+                if os.path.isfile(file_path):
+                    if file_name.lower().endswith('.csv'):
+                        df = pd.read_csv(file_path, encoding='utf-8', on_bad_lines='skip', nrows=max_rows)
+                    elif file_name.lower().endswith(('.xlsx', '.xls')):
+                        df = pd.read_excel(file_path, nrows=max_rows)
+                    else:
+                        return jsonify({"error": "Only .csv and .xlsx supported for preview"}), 400
+                    columns = list(df.columns)
+                    rows = df.fillna("").to_dict(orient="records")
+                    return jsonify({"file": file_name, "columns": columns, "rows": rows, "rowCount": len(rows)})
                 return jsonify({"error": f"File not found: {file_name}"}), 404
-            if file_name.lower().endswith('.csv'):
-                df = pd.read_csv(file_path, encoding='utf-8', on_bad_lines='skip', nrows=max_rows)
-            elif file_name.lower().endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(file_path, nrows=max_rows)
-            else:
-                return jsonify({"error": "Only .csv and .xlsx supported for preview"}), 400
-            columns = list(df.columns)
-            rows = df.fillna("").to_dict(orient="records")
-            return jsonify({"file": file_name, "columns": columns, "rows": rows, "rowCount": len(rows)})
-        # Google Drive API
+        # Google Drive API (cloud or local path not available)
         service = get_google_drive_service()
         if not service or not getattr(service, 'authenticated', False):
             return jsonify({"error": "Google Drive not available"}), 503
         drive_id = service.find_shared_drive("IT_Automation")
-        folder_id = service.find_folder_by_path(drive_id, FULL_COMPANY_DATA_DRIVE_PATH)
-        if not folder_id:
+        folder_id, _, _ = service.find_latest_full_company_data_folder()
+        if not folder_id or not drive_id:
             return jsonify({"error": "Full Company Data folder not found"}), 404
         query = f"name='{file_name}' and '{folder_id}' in parents and trashed=false"
         list_params = {"q": query, "supportsAllDrives": True, "includeItemsFromAllDrives": True, "fields": "files(id, name)", "pageSize": 1}
@@ -6556,19 +6611,20 @@ def vision_analyze_so():
 
 if __name__ == '__main__':
     print("Starting Flask backend...")
-    # Primary data source (same as Render/cloud): Full Company Data
-    print(f"Primary data: Full Company Data — {GDRIVE_FULL_COMPANY_DATA}")
+    # Primary data source (same as Render/cloud): Full Company Data (latest subfolder by creation time)
+    print(f"Primary data: Full Company Data — {GDRIVE_FULL_COMPANY_DATA_BASE}")
     print(f"Fallback: API Extractions — {GDRIVE_BASE}")
     
     # Test Full Company Data access on startup (primary source, matches Render)
     print("RETRY: Testing Full Company Data access on startup...")
     try:
-        if os.path.exists(GDRIVE_FULL_COMPANY_DATA):
-            files = [f for f in os.listdir(GDRIVE_FULL_COMPANY_DATA) if os.path.isfile(os.path.join(GDRIVE_FULL_COMPANY_DATA, f))]
+        fcd_path, fcd_name = get_latest_full_company_data_folder()
+        if fcd_path and os.path.exists(fcd_path):
+            files = [f for f in os.listdir(fcd_path) if os.path.isfile(os.path.join(fcd_path, f))]
             csv_count = len([f for f in files if f.lower().endswith('.csv')])
-            print(f"SUCCESS: Full Company Data accessible. {len(files)} files ({csv_count} CSV)")
+            print(f"SUCCESS: Full Company Data accessible ({fcd_name}). {len(files)} files ({csv_count} CSV)")
         else:
-            print(f"⚠️ Full Company Data not found: {GDRIVE_FULL_COMPANY_DATA}")
+            print(f"⚠️ Full Company Data not found: {GDRIVE_FULL_COMPANY_DATA_BASE}")
             latest_folder, error = get_latest_folder()
             if latest_folder:
                 print(f"Fallback OK: API Extractions — {latest_folder}")
