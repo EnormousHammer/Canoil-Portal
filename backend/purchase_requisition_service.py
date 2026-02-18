@@ -600,7 +600,16 @@ def get_latest_folder():
 
 
 def load_items():
-    """Load items from latest folder - works on BOTH local and Cloud Run"""
+    """
+    Load items (item master with Item Type, etc). PREFERS app data cache
+    (Full Company Data) so formulations (Item Type 2) are correctly identified.
+    """
+    cache = _get_app_data_cache()
+    if cache:
+        items = cache.get('Items.json') or cache.get('CustomAlert5.json') or cache.get('MIITEM.json') or []
+        if items:
+            print(f"[PR] ✅ Using Items from app cache (Full Company Data): {len(items)} items")
+            return items
     return load_json_from_gdrive('Items.json')
 
 
@@ -709,10 +718,15 @@ def load_po_data(po_number):
 def get_inventory_data(item_no):
     """Get current inventory data for an item from CustomAlert5.json
     
-    Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
+    PREFERS app data cache (Full Company Data). Works on BOTH local G: Drive AND Cloud Run.
     """
     try:
-        inventory_data = load_json_from_gdrive('CustomAlert5.json')
+        inventory_data = None
+        cache = _get_app_data_cache()
+        if cache:
+            inventory_data = cache.get('CustomAlert5.json') or cache.get('Items.json') or []
+        if not inventory_data:
+            inventory_data = load_json_from_gdrive('CustomAlert5.json')
         
         if not inventory_data:
             return None
@@ -1011,8 +1025,35 @@ def get_supplier_info(supplier_no):
 # BOM EXPLOSION FUNCTIONS - For Multi-Item, Multi-Supplier PR Generation
 # ============================================================================
 
+def _get_app_data_cache():
+    """
+    Get app data cache if available. The main app loads from Full Company Data
+    (BOM, formulations, items). PR must use the SAME data or formulation
+    components won't be found (API Extractions may have different/empty BOM).
+    """
+    try:
+        import sys
+        if 'app' in sys.modules:
+            app_module = sys.modules['app']
+            cache = getattr(app_module, '_data_cache', None)
+            if cache and isinstance(cache, dict):
+                return cache
+    except Exception:
+        pass
+    return None
+
+
 def load_bom_details():
-    """Load Bill of Materials from latest extraction folder - works on BOTH local and Cloud Run"""
+    """
+    Load Bill of Materials. PREFERS app data cache (Full Company Data) so
+    formulation components are included. Falls back to G Drive if cache empty.
+    """
+    cache = _get_app_data_cache()
+    if cache:
+        bom = cache.get('BillOfMaterialDetails.json') or cache.get('MIBOMD.json') or []
+        if bom:
+            print(f"[PR] ✅ Using BOM from app cache (Full Company Data): {len(bom)} lines")
+            return bom
     return load_json_from_gdrive('BillOfMaterialDetails.json')
 
 
@@ -1026,7 +1067,12 @@ def get_current_bom_revision(item_no):
     Returns: revision number as string (e.g., "0", "1") or None if not found
     """
     try:
-        inventory_data = load_json_from_gdrive('CustomAlert5.json')
+        inventory_data = None
+        cache = _get_app_data_cache()
+        if cache:
+            inventory_data = cache.get('CustomAlert5.json') or cache.get('Items.json') or []
+        if not inventory_data:
+            inventory_data = load_json_from_gdrive('CustomAlert5.json')
         if not inventory_data:
             return None
         
@@ -1497,10 +1543,13 @@ def create_pr_from_bom():
             print(f"❌ Error loading BOM/Items data: {data_err}")
             import traceback
             traceback.print_exc()
+            cache_hint = ""
+            if not _get_app_data_cache():
+                cache_hint = " If using Full Company Data, load the app (refresh data) first so formulation components are available."
             return jsonify({
                 "error": "Failed to load BOM or Items data",
                 "details": str(data_err),
-                "message": "Check if data files are accessible (BillOfMaterialDetails.json, Items.json)"
+                "message": "Check if data files are accessible (BillOfMaterialDetails.json, Items.json)." + cache_hint
             }), 500
         
         all_components = []
@@ -1533,9 +1582,12 @@ def create_pr_from_bom():
         print(f"\n  Total raw components: {len(all_components)}")
         
         if not all_components:
+            cache_hint = ""
+            if not _get_app_data_cache():
+                cache_hint = " Ensure you have loaded the app data (refresh) before generating PRs—formulation components come from Full Company Data."
             return jsonify({
                 "error": "No purchasable components found in BOM",
-                "message": "The selected items may not have BOMs or all components are assembled items"
+                "message": "The selected items may not have BOMs, or formulation components may be missing." + cache_hint
             }), 400
         
         # ========================================
