@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Package, Factory, ShoppingCart, Eye, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { parseMISysDate } from '../utils/dateUtils';
 
 interface StockAllocationTrackerProps {
   data: any;
@@ -39,20 +40,6 @@ interface ConflictAlert {
 export const StockAllocationTracker: React.FC<StockAllocationTrackerProps> = ({ data }) => {
   const [selectedItem, setSelectedItem] = useState<string>('');
   const [showConflictsOnly, setShowConflictsOnly] = useState(false);
-
-  // Parse MISys date format
-  const parseMISysDate = (dateStr: string | null): Date | null => {
-    if (!dateStr) return null;
-    if (typeof dateStr !== 'string') return null;
-    
-    const match = dateStr.match(/\/Date\((\d+)\)\//);
-    if (match) {
-      return new Date(parseInt(match[1]));
-    }
-    
-    const parsed = new Date(dateStr);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  };
 
   // Calculate stock allocations for all items
   const stockAllocations = useMemo(() => {
@@ -148,7 +135,7 @@ export const StockAllocationTracker: React.FC<StockAllocationTrackerProps> = ({ 
         if (po) {
           const allocation = allocationMap.get(itemNo)!;
           const vendor = po["Buyer"] || po["Name"] || po["Supplier No."] || 'Unknown Vendor';
-          const expectedDate = parseMISysDate(po["Order Date"]);
+          const expectedDate = parseMISysDate(po["Order Date"] ?? po["ordDt"]);
           
           allocation.incoming.push({
             poNumber: po["Purchase Order No."],

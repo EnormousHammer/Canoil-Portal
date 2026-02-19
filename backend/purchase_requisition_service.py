@@ -756,6 +756,39 @@ def get_inventory_data(item_no):
                         return float(cleaned) if cleaned else default
                     return default
                 
+                units_conversion_factor = parse_cost(item.get('Units Conversion Factor'), 1)
+                # Fallback: if conversion is 1 but stocking != purchasing (e.g. kg vs drum), try Items/MIITEM
+                if (not units_conversion_factor or float(units_conversion_factor) <= 1) and (
+                    (item.get('Stocking Units') or '').lower() != (item.get('Purchasing Units') or '').lower()
+                ):
+                    found_ucf = None
+                    cache = _get_app_data_cache()
+                    for alt_key in ('Items.json', 'MIITEM.json', 'CustomAlert5.json'):
+                        alt_items = (cache or {}).get(alt_key) or []
+                        for alt in alt_items:
+                            if (alt.get('Item No.') or alt.get('itemId') or '') == item_no:
+                                ucf = parse_cost(alt.get('Units Conversion Factor') or alt.get('uConvFact'), 1)
+                                if ucf and float(ucf) > 1:
+                                    found_ucf = ucf
+                                    break
+                        if found_ucf:
+                            break
+                    if found_ucf:
+                        units_conversion_factor = found_ucf
+                        print(f"[PR] Units Conversion Factor fallback for {item_no}: {found_ucf}")
+                    else:
+                        try:
+                            miitem = load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json') or []
+                            for m in (miitem if isinstance(miitem, list) else []):
+                                if (m.get('Item No.') or m.get('itemId') or '') == item_no:
+                                    ucf = parse_cost(m.get('Units Conversion Factor') or m.get('uConvFact'), 1)
+                                    if ucf and float(ucf) > 1:
+                                        units_conversion_factor = ucf
+                                        print(f"[PR] Units Conversion Factor from G: Drive for {item_no}: {ucf}")
+                                        break
+                        except Exception:
+                            pass
+
                 return {
                     'stock': parse_number(item.get('Stock')),
                     'wip': parse_number(item.get('WIP')),
@@ -770,7 +803,7 @@ def get_inventory_data(item_no):
                     'landed_cost': parse_cost(item.get('Landed Cost')),
                     'stocking_units': item.get('Stocking Units', ''),
                     'purchasing_units': item.get('Purchasing Units', ''),
-                    'units_conversion_factor': parse_cost(item.get('Units Conversion Factor'), 1)
+                    'units_conversion_factor': units_conversion_factor if units_conversion_factor else 1
                 }
         
         return None
@@ -779,17 +812,29 @@ def get_inventory_data(item_no):
         print(f"Error getting inventory data for {item_no}: {e}")
         return None
 
+def _load_po_data_for_pricing():
+    """Load PO headers and details - PREFERS Full Company Data (app cache) when available."""
+    cache = _get_app_data_cache()
+    if cache:
+        pos = cache.get('PurchaseOrders.json') or cache.get('MIPOH.json') or []
+        po_details = cache.get('PurchaseOrderDetails.json') or cache.get('MIPOD.json') or []
+        if pos or po_details:
+            print(f"[PR] ✅ Using PO data from app cache (Full Company Data): {len(pos)} POs, {len(po_details)} lines")
+            return pos, po_details
+    pos = load_json_from_gdrive('PurchaseOrders.json')
+    po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+    return pos, po_details
+
+
 def get_recent_purchase_price(item_no, limit=5):
     """
     Get recent purchase prices for an item from PO details
     Returns list of recent purchases sorted by date (most recent first)
     
-    Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
+    Uses Full Company Data (app cache) when available, else G: Drive / Google Drive API
     """
     try:
-        # Load PO data using the unified loader
-        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
-        pos = load_json_from_gdrive('PurchaseOrders.json')
+        pos, po_details = _load_po_data_for_pricing()
         
         if not po_details or not pos:
             print(f"[PR] PO data not available for pricing lookup")
@@ -1102,6 +1147,13 @@ def get_item_master(item_no):
                     except:
                         conv_factor = 1
                 conv_factor = float(conv_factor) if conv_factor else 1
+                # Fallback: if 1 but stocking != purchasing (e.g. kg vs drum), get from inventory_data
+                if conv_factor <= 1 and (item.get('Stocking Units') or '').lower() != (item.get('Purchasing Units') or '').lower():
+                    inv = get_inventory_data(item_no)
+                    if inv:
+                        ucf = inv.get('units_conversion_factor', 1)
+                        if ucf and float(ucf) > 1:
+                            conv_factor = float(ucf)
                 
                 return {
                     'item_no': item_no,
@@ -1669,8 +1721,16 @@ def create_pr_from_bom():
                     last_po_supplier = recent_prices[0].get('supplier_no', '')  # Capture supplier from PO!
                 else:
                     # Fallback to item master recent cost
+                    # MISys Recent Cost is per STOCKING unit (e.g. per kg). PR needs per PURCHASING unit (e.g. per drum).
+                    # Convert: per_drum = per_kg * conversion_factor (kg per drum)
                     item_data = get_item_master(item_no)
-                    unit_price = item_data.get('recent_cost', 0) if item_data else 0
+                    raw_cost = item_data.get('recent_cost', 0) if item_data else 0
+                    try:
+                        recent_cost = float(raw_cost) if raw_cost is not None else 0
+                    except (TypeError, ValueError):
+                        recent_cost = float(str(raw_cost or '').replace('$', '').replace(',', '')) if raw_cost else 0
+                    conv = conversion_factor if conversion_factor and conversion_factor > 0 else 1
+                    unit_price = recent_cost * float(conv)
                     last_po_date = ''
                 
                 # Use preferred supplier from item master, OR fallback to most recent PO supplier
@@ -2558,29 +2618,27 @@ def generate_requisition():
             last_po_date = ''  # For inventory days calculation
             
             # Get real data - ENHANCED to match BOM Planning
+            # Always prefer backend data: PO price is per drum; frontend may pass Recent Cost (per kg)
             if item_no:
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
+                inventory_data = get_inventory_data(item_no)
                 if recent_prices:
                     item_pricing = recent_prices[0]
-                    if not unit_price or unit_price == 0:
-                        unit_price = item_pricing.get('unit_price', 0)
+                    unit_price = item_pricing.get('unit_price', 0)  # PO price is per purchasing unit
                     if not unit or unit == 'EA':
                         unit = item_pricing.get('purchase_unit', unit)
-                    # Get last PO date for inventory days calculation
                     last_po_date = item_pricing.get('order_date', '')
-                
-                inventory_data = get_inventory_data(item_no)
+                elif inventory_data:
+                    conversion_factor = inventory_data.get('units_conversion_factor', 1)
+                    recent_cost = inventory_data.get('recent_cost', 0)
+                    conv = conversion_factor if conversion_factor and conversion_factor > 0 else 1
+                    unit_price = float(recent_cost or 0) * float(conv)
                 if inventory_data:
                     current_stock = inventory_data.get('stock', 0)
-                    if not unit_price or unit_price == 0:
-                        unit_price = inventory_data.get('recent_cost', 0)
-                    # Get proper purchasing unit from item master
                     if not unit or unit == 'EA':
                         unit = inventory_data.get('purchasing_units', unit)
-                    # Handle unit conversion (stocking → purchasing units)
                     conversion_factor = inventory_data.get('units_conversion_factor', 1)
                     if conversion_factor and conversion_factor > 1 and quantity > 0:
-                        # Convert quantity from stocking units to purchasing units
                         import math
                         quantity = math.ceil(float(quantity) / conversion_factor)
                         print(f"[PR] Unit conversion for {item_no}: {item.get('quantity')} → {quantity} (factor: {conversion_factor})")
@@ -2726,6 +2784,11 @@ def generate_from_po(po_number):
                 unit_price = item.get('Item_Master', {}).get('Cost_History', {}).get('Recent_Cost', 0)
                 if unit_price == 0:
                     unit_price = item['Pricing']['Unit_Cost']
+                else:
+                    # MISys Recent_Cost is per stocking unit - convert to per purchasing unit (per drum)
+                    conv = item.get('Item_Master', {}).get('Inventory', {}).get('Units_Conversion_Factor', 1)
+                    conv = conv if conv and float(conv) > 0 else 1
+                    unit_price = float(unit_price) * float(conv)
                 
                 items_to_add.append({
                     'item_no': item['Item_No'],
@@ -2865,23 +2928,25 @@ def generate_requisition_internal(user_info, items, supplier):
             unit_price = item.get('unit_price', 0)
             
             # Get real pricing and inventory data if item_no is available
+            # Always prefer backend data: PO price is per drum; caller may pass Recent Cost (per kg)
             item_pricing_data = None
             inventory_data = None
             if item_no:
                 recent_prices = get_recent_purchase_price(item_no, limit=1)
+                inventory_data = get_inventory_data(item_no)
                 if recent_prices:
                     item_pricing_data = recent_prices[0]
-                    if not unit_price or unit_price == 0:
-                        unit_price = item_pricing_data.get('unit_price', 0)
+                    unit_price = item_pricing_data.get('unit_price', 0)  # PO price is per purchasing unit
                     if not unit or unit == 'EA':
                         unit = item_pricing_data.get('purchase_unit', unit)
-                
-                inventory_data = get_inventory_data(item_no)
+                elif inventory_data:
+                    print(f"[PR INTERNAL] Using real inventory data (Qty On Hand): Stock = {inventory_data.get('stock', 0)}")
+                    conversion_factor = inventory_data.get('units_conversion_factor', 1)
+                    recent_cost = inventory_data.get('recent_cost', 0)
+                    conv = conversion_factor if conversion_factor and conversion_factor > 0 else 1
+                    unit_price = float(recent_cost or 0) * float(conv)
                 if inventory_data:
                     current_stock = inventory_data.get('stock', 0)
-                    print(f"[PR INTERNAL] Using real inventory data (Qty On Hand): Stock = {current_stock}")
-                    if not unit_price or unit_price == 0:
-                        unit_price = inventory_data.get('recent_cost', 0)
                     if not unit or unit == 'EA':
                         unit = inventory_data.get('purchasing_units', unit)
             

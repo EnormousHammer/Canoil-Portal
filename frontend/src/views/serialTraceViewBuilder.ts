@@ -7,6 +7,7 @@
 import type { FullCompanyData } from "../types/fullCompanyData";
 import { getDataset } from "../data/getDataset";
 import { toStr, toUpper, toNum } from "../data/utils";
+import { parseDateToISO } from "../utils/dateUtils";
 
 export type SerialTimelineRow = {
   date: string;
@@ -59,15 +60,18 @@ export function buildSerialTraceView(
       (r) =>
         toStr(r["Serial No."] ?? r["serialNo"] ?? r["SL No."]).toUpperCase() === serialNo.toUpperCase()
     )
-    .map((r) => ({
-      date: toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? ""),
-      userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
-      type: toStr(r["Type"] ?? r["type"] ?? ""),
-      qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
-      location: toStr(r["Location No."] ?? r["locId"] ?? ""),
-      lot: toStr(r["Lot No."] ?? r["lotId"] ?? ""),
-      raw: r,
-    }))
+    .map((r) => {
+      const rawDate = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? r["transDt"] ?? "");
+      return {
+        date: parseDateToISO(rawDate) || rawDate,
+        userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
+        type: toStr(r["Type"] ?? r["type"] ?? ""),
+        qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
+        location: toStr(r["Location No."] ?? r["locId"] ?? ""),
+        lot: toStr(r["Lot No."] ?? r["lotId"] ?? ""),
+        raw: r,
+      };
+    })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   const mislbinq = getDataset<any>(data, ["MISLBINQ.json"]);

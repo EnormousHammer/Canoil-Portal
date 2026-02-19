@@ -12,6 +12,7 @@ import { getApiUrl } from '../utils/apiConfig';
 import { SOPerformanceMonitor } from './SOPerformanceMonitor';
 import { GmailCleanEmail } from './GmailCleanEmail';
 import { parseStockValue, parseCostValue, formatCAD } from '../utils/unifiedDataAccess';
+import { parseMISysDate, formatDisplayDate } from '../utils/dateUtils';
 import { buildIndexes, buildDataCatalog, buildTransactionIndexes } from '../data';
 import { buildMOView, buildMOExactLines, buildItemView, buildPOView, buildLotTraceView, buildBOMView, buildItemLotSummaryView, buildTransactionSearchView } from '../views';
 import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS } from '../utils/stockUtils';
@@ -448,8 +449,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         status: po['Status']?.toString() || '0',
         buyer: po['Buyer'] || '',
         vendor: po['Name'] || po['Supplier No.'] || '',
-        orderDate: po['Order Date'] || '',
-        requiredDate: po['Required Date'] || '',
+        orderDate: po['Order Date'] ?? po['ordDt'] ?? '',
+        requiredDate: po['Required Date'] ?? po['reqDt'] ?? '',
         terms: po['Terms'] || '',
         fob: po['FOB'] || '',
         shipVia: po['Ship Via'] || '',
@@ -811,69 +812,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [logisticsLoading, setLogisticsLoading] = useState(false);
 
-  // Date conversion function for MISys data
-  const convertMISysDate = (dateValue: any): Date | null => {
-    if (!dateValue) return null;
-    
-    try {
-      // Handle MISys .NET JSON date format: /Date(1234567890)/
-      if (typeof dateValue === 'string' && dateValue.includes('/Date(')) {
-        const match = dateValue.match(/\/Date\((\d+)\)\//);
-        if (match) {
-          const timestamp = parseInt(match[1]);
-          const converted = new Date(timestamp);
-          return converted;
-        }
-      }
-      
-      // Handle ISO date strings (YYYY-MM-DD, YYYY-MM-DDTHH:mm:ss)
-      if (typeof dateValue === 'string') {
-        // Try ISO format first
-        if (dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-          const parsed = new Date(dateValue);
-          if (!isNaN(parsed.getTime())) {
-            return parsed;
-          }
-        }
-        
-        // Try other common formats
-        const parsed = new Date(dateValue);
-        if (!isNaN(parsed.getTime())) {
-          return parsed;
-        }
-      }
-      
-      // Handle Date objects
-      if (dateValue instanceof Date) {
-        return dateValue;
-      }
-      
-      // Handle numeric timestamps (both seconds and milliseconds)
-      if (typeof dateValue === 'number') {
-        // If timestamp is in seconds (< year 2100), convert to milliseconds
-        const timestamp = dateValue < 4102444800 ? dateValue * 1000 : dateValue;
-        return new Date(timestamp);
-      }
-      
-      return null;
-    } catch (error) {
-      console.warn('❌ Date conversion error:', error, 'for value:', dateValue);
-      return null;
-    }
-  };
-
-  // Format date for display
-  const formatDisplayDate = (dateValue: any): string => {
-    const date = convertMISysDate(dateValue);
-    if (!date) return '—';
-    
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   // Sorting functions for interactive tables
   const sortData = (data: any[], field: string, direction: 'asc' | 'desc') => {
     return [...data].sort((a, b) => {
@@ -882,8 +820,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       // Handle dates with proper MISys conversion
       if (field.includes('Date') && (aVal || bVal)) {
-        const aDate = convertMISysDate(aVal);
-        const bDate = convertMISysDate(bVal);
+        const aDate = parseMISysDate(aVal);
+        const bDate = parseMISysDate(bVal);
         
         if (!aDate && !bDate) return 0;
         if (!aDate) return 1;
@@ -9081,12 +9019,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 // Build PO list
                 const allPOData: any[] = [];
-                const seenPOs = new Set();
+                const seenPOs = new Set<string>();
+                const poKey = (id: any) => (id ?? '').toString().trim();
                 
                 const rawPOHeaders = poHeadersSource;
                 processedPOLines.forEach((line: any) => {
-                  if (seenPOs.has(line.poId)) return;
-                  seenPOs.add(line.poId);
+                  const key = poKey(line.poId);
+                  if (!key || seenPOs.has(key)) return;
+                  seenPOs.add(key);
                   const header = processPurchaseOrders.headers.find((h: any) => h.poId === line.poId);
                   const poNoStr = (line.poId ?? '').toString();
                   const rawHeader = rawPOHeaders.find((h: any) => (h['PO No.'] ?? '').toString() === poNoStr);
@@ -9110,19 +9050,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 });
                 
                 rawPODetails.forEach((detail: any) => {
-                  const poNo = detail['PO No.'];
-                  if (seenPOs.has(poNo)) return;
-                  seenPOs.add(poNo);
-                  const header = rawPOHeaders.find((h: any) => h['PO No.'] === poNo);
+                  const poNo = detail['PO No.'] ?? detail['pohId'];
+                  const key = poKey(poNo);
+                  if (!key || seenPOs.has(key)) return;
+                  seenPOs.add(key);
+                  const header = rawPOHeaders.find((h: any) => poKey(h['PO No.'] ?? h['pohId']) === key);
+                  const hdr = header ?? {};
                   allPOData.push({
                     poNumber: poNo || '—',
-                    vendor: header?.['Vendor'] || header?.['Supplier No.'] || header?.['Supplier'] || '—',
-                    orderDate: header?.['Order Date'] || detail['Order Date'],
+                    vendor: hdr['Vendor'] ?? hdr['Name'] ?? hdr['Supplier No.'] ?? hdr['Supplier'] ?? '—',
+                    orderDate: hdr['Order Date'] ?? hdr['ordDt'] ?? detail['Order Date'] ?? detail['ordDt'],
                     orderedQty: parseStockValue(detail['Ordered Qty'] || detail['Ordered'] || detail['Quantity'] || 0),
                     receivedQty: parseStockValue(detail['Received Qty'] || detail['Received'] || 0),
                     unitPrice: parseCostValue(detail['Unit Price'] || detail['Price'] || 0),
-                    status: header?.['Status'] || detail['Status'],
-                    poHeader: header || { 'PO No.': poNo, 'Supplier No.': detail['Vendor'] || detail['Supplier'], 'Order Date': detail['Order Date'], 'Status': detail['Status'] }
+                    status: hdr['Status'] ?? detail['Status'],
+                    poHeader: (Object.keys(hdr).length ? hdr : { 'PO No.': poNo, 'Supplier No.': detail['Vendor'] ?? detail['Supplier'], 'Order Date': detail['Order Date'] ?? detail['ordDt'], 'Status': detail['Status'] }) as any
                   });
                 });
                 
@@ -9238,12 +9180,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   allMOData.push({
                     moNumber: moNo,
                     buildItem: header?.['Build Item No.'] || '—',
-                    orderDate: header?.['Order Date'],
+                    orderDate: header?.['Order Date'] ?? header?.['ordDt'],
                     requiredQty: parseStockValue(detail['Required Qty.'] || 0),
                     completedQty: parseStockValue(detail['Completed'] || 0),
                     status: header?.['Status'],
                     type: 'Component',
-                    moHeader: header || { 'Mfg. Order No.': moNo, 'Build Item No.': header?.['Build Item No.'] || '—', 'Order Date': detail['Order Date'] }
+                    moHeader: header || { 'Mfg. Order No.': moNo, 'Build Item No.': header?.['Build Item No.'] || '—', 'Order Date': detail['Order Date'] ?? detail['ordDt'] ?? header?.['ordDt'] }
                   });
                 });
                 
@@ -9254,7 +9196,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   allMOData.push({
                     moNumber: moNo,
                     buildItem: header['Build Item No.'] || itemNoUpper,
-                    orderDate: header['Order Date'],
+                    orderDate: header['Order Date'] ?? header['ordDt'],
                     requiredQty: parseStockValue(header['Ordered'] || 0),
                     completedQty: parseStockValue(header['Completed'] || 0),
                     status: header['Status'],

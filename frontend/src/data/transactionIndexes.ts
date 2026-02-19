@@ -6,6 +6,7 @@
 import type { FullCompanyData } from "../types/fullCompanyData";
 import { getDataset } from "./getDataset";
 import { toStr, toUpper, toNum } from "./utils";
+import { parseDateToISO } from "../utils/dateUtils";
 
 export type TxView = {
   date: string;
@@ -26,7 +27,8 @@ export type TxView = {
 };
 
 function normTx(r: any, src: "MILOGH" | "MISLTH"): TxView {
-  const date = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? "");
+  const rawDate = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? r["transDt"] ?? "");
+  const date = parseDateToISO(rawDate) || rawDate;
   const type = toStr(r["Type"] ?? r["type"] ?? "");
   const itemNo = toStr(r["Item No."] ?? r["itemId"] ?? r["partId"] ?? r["prntItemId"] ?? "");
   const qty = toNum(r["Quantity"] ?? r["qty"] ?? r["trnQty"] ?? 0);

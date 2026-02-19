@@ -1,6 +1,7 @@
 // @ts-ignore - papaparse types issue, but works at runtime
 import Papa from 'papaparse';
 import { MPSOrder, MODetail } from '../types/mps';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 const SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw';
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
@@ -130,19 +131,6 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
 // Cache clearing function removed - we always fetch fresh data from backend
 export function clearMISysCache() {
   // No-op: cache is handled by backend, frontend always fetches fresh
-}
-
-// Parse MISys date format /Date(timestamp)/
-function parseMISysDate(dateStr: any): string {
-  if (!dateStr) return '';
-  if (typeof dateStr === 'string' && dateStr.includes('/Date(')) {
-    const match = dateStr.match(/\/Date\((\d+)\)\//);
-    if (match) {
-      const date = new Date(parseInt(match[1]));
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-  }
-  return String(dateStr);
 }
 
 export async function fetchMPSData(): Promise<MPSOrder[]> {
@@ -398,11 +386,11 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
           qty_ordered: moData['Ordered'] || 0,
           qty_completed: moData['Completed'] || 0,
           qty_remaining: (moData['Ordered'] || 0) - (moData['Completed'] || 0),
-          start_date: parseMISysDate(moData['Start Date']),
-          order_date: parseMISysDate(moData['Order Date']),
-          release_date: parseMISysDate(moData['Release Date']),
-          close_date: parseMISysDate(moData['Close Date']),
-          due_date: parseMISysDate(moData['Sales Order Ship Date']),
+          start_date: formatDisplayDate(moData['Start Date']),
+          order_date: formatDisplayDate(moData['Order Date']),
+          release_date: formatDisplayDate(moData['Release Date']),
+          close_date: formatDisplayDate(moData['Close Date']),
+          due_date: formatDisplayDate(moData['Sales Order Ship Date']),
           work_center: moData['Location No.'] || '',
           customer: moData['Customer'] || '',
           sales_order_no: moData['Sales Order No.'] || '',
@@ -444,8 +432,8 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
         so_data: soData ? {
           so_no: soData['SO No.'] || '',
           customer: soData['Customer'] || soData['Bill To Name'] || '',
-          order_date: parseMISysDate(soData['Order Date']),
-          ship_date: parseMISysDate(soData['Ship Date']),
+          order_date: formatDisplayDate(soData['Order Date']),
+          ship_date: formatDisplayDate(soData['Ship Date']),
           status: soData['Status'] || ''
         } : undefined
       };

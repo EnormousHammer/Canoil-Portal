@@ -5,6 +5,7 @@
 
 import type { FullCompanyData } from "../types/fullCompanyData";
 import { getDataset } from "../data/getDataset";
+import { parseDateToISO } from "../utils/dateUtils";
 
 function toStr(v: any): string {
   return (v ?? "").toString().trim();
@@ -70,18 +71,21 @@ export function buildLotTraceView(
         toStr(r["Lot No."] ?? r["lotId"] ?? r["SL No."]) === lotNo ||
         toStr(r["Lot No."] ?? r["lotId"] ?? r["SL No."]).toUpperCase() === lotNo.toUpperCase()
     )
-    .map((r) => ({
-      date: toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? ""),
-      userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
-      entry: toStr(r["Entry"] ?? r["entry"] ?? ""),
-      detail: toStr(r["Detail"] ?? r["detail"] ?? ""),
-      qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
-      type: toStr(r["Type"] ?? r["type"] ?? ""),
-      poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
-      moNo: toStr(r["Mfg. Order No."] ?? r["xvarMOId"] ?? r["mohId"] ?? ""),
-      locId: toStr(r["Location No."] ?? r["locId"] ?? ""),
-      raw: r,
-    }))
+    .map((r) => {
+      const rawDate = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? r["transDt"] ?? "");
+      return {
+        date: parseDateToISO(rawDate) || rawDate,
+        userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
+        entry: toStr(r["Entry"] ?? r["entry"] ?? ""),
+        detail: toStr(r["Detail"] ?? r["detail"] ?? ""),
+        qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
+        type: toStr(r["Type"] ?? r["type"] ?? ""),
+        poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
+        moNo: toStr(r["Mfg. Order No."] ?? r["xvarMOId"] ?? r["mohId"] ?? ""),
+        locId: toStr(r["Location No."] ?? r["locId"] ?? ""),
+        raw: r,
+      };
+    })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   const mislbinq = getDataset<any>(data, ["MISLBINQ.json"]);

@@ -58,6 +58,7 @@ FULL_COMPANY_MAPPINGS = {
          "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
          "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "Stocking Unit": "Stocking Units", "UOM": "Stocking Units",
          "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units", "Purchasing Unit": "Purchasing Units",
+         "uConvFact": "Units Conversion Factor", "Units Conversion Factor": "Units Conversion Factor",
          "totQStk": "Stock", "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock",
          "totQWip": "WIP", "WIP": "WIP", "totQRes": "Reserve", "Reserve": "Reserve",
          "totQOrd": "On Order", "On Order": "On Order", "Qty On Order": "On Order",

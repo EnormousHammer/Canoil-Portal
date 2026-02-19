@@ -6,6 +6,7 @@
 import type { FullCompanyData } from "../types/fullCompanyData";
 import type { DataIndexes } from "../data/indexes";
 import { getDataset } from "../data/getDataset";
+import { parseDateToISO } from "../utils/dateUtils";
 
 function toStr(v: any): string {
   return (v ?? "").toString().trim();
@@ -149,30 +150,36 @@ export function buildItemView(
 
   const milogh = indexes.miloghByItemNo.get(itemNoUpper) ?? [];
   const transactions: ItemTransactionRow[] = milogh
-    .map((r) => ({
-      date: toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? ""),
-      userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
-      qty: toNum(r["Quantity"] ?? r["qty"] ?? r["trnQty"] ?? 0),
-      locId: toStr(r["Location No."] ?? r["locId"] ?? ""),
-      type: toStr(r["Type"] ?? r["type"] ?? ""),
-      entry: toStr(r["Entry"] ?? r["entry"] ?? ""),
-      comment: toStr(r["Comment"] ?? r["comment"] ?? ""),
-      poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
-      moNo: toStr(r["Mfg. Order No."] ?? r["xvarMOId"] ?? r["mohId"] ?? ""),
-      raw: r,
-    }))
+    .map((r) => {
+      const rawDate = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? r["transDt"] ?? "");
+      return {
+        date: parseDateToISO(rawDate) || rawDate,
+        userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
+        qty: toNum(r["Quantity"] ?? r["qty"] ?? r["trnQty"] ?? 0),
+        locId: toStr(r["Location No."] ?? r["locId"] ?? ""),
+        type: toStr(r["Type"] ?? r["type"] ?? ""),
+        entry: toStr(r["Entry"] ?? r["entry"] ?? ""),
+        comment: toStr(r["Comment"] ?? r["comment"] ?? ""),
+        poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
+        moNo: toStr(r["Mfg. Order No."] ?? r["xvarMOId"] ?? r["mohId"] ?? ""),
+        raw: r,
+      };
+    })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   const miicst = indexes.miicstByItemNo.get(itemNoUpper) ?? [];
   const costHistory: ItemCostHistoryRow[] = miicst
-    .map((r) => ({
-      date: toStr(r["Transaction Date"] ?? r["transDate"] ?? r["transDt"] ?? ""),
-      location: toStr(r["Location No."] ?? r["locId"] ?? ""),
-      cost: toNum(String(r["Cost"] ?? r["cost"] ?? 0).replace(/[$,]/g, "")),
-      poNo: toStr(r["PO No."] ?? r["poId"] ?? ""),
-      qtyReceived: toNum(r["Qty Received"] ?? r["qRecd"] ?? 0),
-      raw: r,
-    }))
+    .map((r) => {
+      const rawDate = toStr(r["Transaction Date"] ?? r["transDate"] ?? r["transDt"] ?? r["tranDate"] ?? r["tranDt"] ?? "");
+      return {
+        date: parseDateToISO(rawDate) || rawDate,
+        location: toStr(r["Location No."] ?? r["locId"] ?? ""),
+        cost: toNum(String(r["Cost"] ?? r["cost"] ?? 0).replace(/[$,]/g, "")),
+        poNo: toStr(r["PO No."] ?? r["poId"] ?? ""),
+        qtyReceived: toNum(r["Qty Received"] ?? r["qRecd"] ?? 0),
+        raw: r,
+      };
+    })
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   const lotHist = getDataset<any>(data, ["MISLHIST.json", "LotSerialHistory.json"]);
@@ -184,10 +191,14 @@ export function buildItemView(
     (r) => toUpper(r["Item No."] ?? r["itemId"] ?? r["prntItemId"] ?? "") === itemNoUpper
   );
 
-  const mergedHistory = [
-    ...transactions.map((t) => ({ ...t, _src: "MILOGH" as const })),
-    ...lotHistory.map((r) => ({
-      date: toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? ""),
+  // Build merged history: MILOGH + LotSerialHistory, then DEDUPLICATE
+  // Same event can appear in both (e.g. PO receive in MILOGH and LotSerialHistory) - keep one
+  type HistoryRow = { date: string; userId?: string; type?: string; qty?: number; locId?: string; moNo?: string; poNo?: string; _src: string; raw: any };
+  const miloghRows: HistoryRow[] = transactions.map((t) => ({ ...t, _src: "MILOGH" as const }));
+  const lotRows: HistoryRow[] = lotHistory.map((r) => {
+    const rawDate = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["transDate"] ?? r["tranDt"] ?? r["transDt"] ?? "");
+    return {
+      date: parseDateToISO(rawDate) || rawDate,
       userId: toStr(r["User ID"] ?? r["userId"] ?? ""),
       type: toStr(r["Type"] ?? r["type"] ?? ""),
       qty: toNum(r["Quantity"] ?? r["qty"] ?? r["trnQty"] ?? 0),
@@ -196,8 +207,17 @@ export function buildItemView(
       poNo: toStr(r["PO No."] ?? r["xvarPOId"] ?? r["poId"] ?? ""),
       _src: "MISLTH" as const,
       raw: r,
-    })),
-  ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    };
+  });
+  const seen = new Set<string>();
+  const mergedHistory: HistoryRow[] = [];
+  for (const row of [...miloghRows, ...lotRows]) {
+    const key = `${row.date}|${row.type}|${row.poNo}|${row.moNo}|${row.qty}|${row.locId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mergedHistory.push(row);
+  }
+  mergedHistory.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   return {
     itemNo,

@@ -1,6 +1,8 @@
 // Field mappings for MISys data - EXACTLY matching the LATEST folder (2025-08-26)
 // NO FIELDS that don't exist in the actual data
 
+import { formatDisplayDate } from './dateUtils';
+
 // 🔥 SMART ITEM DATA STRATEGY:
 // PRIMARY: CustomAlert5.json = Item info, Stock totals, Pricing, Basic location (Pick Sequence)
 // SECONDARY: MIILOC.json = Enhanced location-specific stock details (when available)
@@ -485,18 +487,8 @@ export function formatValue(value: any): string {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   if (typeof value === 'string') {
-    // Handle MISys date format
-    if (value.startsWith('/Date(')) {
-      const match = value.match(/\/Date\((\d+)\)\//);
-      if (match) {
-        const date = new Date(parseInt(match[1]));
-        return date.toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'short', 
-          day: 'numeric' 
-        });
-      }
-    }
+    const formatted = formatDisplayDate(value);
+    if (formatted !== '—') return formatted;
     return value;
   }
   return String(value);

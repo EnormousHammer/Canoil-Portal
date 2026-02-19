@@ -6,6 +6,7 @@
 import type { FullCompanyData } from "../types/fullCompanyData";
 import { getDataset } from "../data/getDataset";
 import { toStr, toUpper, toNum } from "../data/utils";
+import { parseDateToISO } from "../utils/dateUtils";
 
 export type LotOnHandByLocBin = {
   location: string;
@@ -149,7 +150,7 @@ export function buildItemLotSummaryView(
     .filter((r) => matchLotSerial(r, itemNoUpper))
     .map((r) => ({
       lotNo: toStr(r["Lot No."] ?? r["lotId"] ?? r["SL No."] ?? ""),
-      date: toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["tranDt"] ?? ""),
+      date: (() => { const raw = toStr(r["Transaction Date"] ?? r["tranDate"] ?? r["tranDt"] ?? r["transDate"] ?? r["transDt"] ?? ""); return parseDateToISO(raw) || raw; })(),
       userId: toStr(r["User"] ?? r["User ID"] ?? r["userId"] ?? ""),
       qty: toNum(r["Quantity"] ?? r["qty"] ?? 0),
       location: toStr(r["Location No."] ?? r["locId"] ?? ""),
