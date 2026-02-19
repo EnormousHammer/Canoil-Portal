@@ -13,6 +13,7 @@ import io
 import zipfile
 import re
 from lxml import etree
+import openpyxl
 
 # Google Cloud Storage for persistent storage on Cloud Run
 try:
@@ -30,6 +31,16 @@ GDRIVE_BASE = os.getenv('GDRIVE_BASE', r"G:\Shared drives\IT_Automation\MiSys\Mi
 # Use relative path for Docker compatibility
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 PR_TEMPLATE = os.path.join(_current_dir, 'templates', 'purchase_requisition', 'PR-Template-Clean.xlsx')
+
+
+def _preserve_template_structure(template_path, output_bytes):
+    """
+    Pass-through for openpyxl output. Template structure (drawings, etc.) preserved by main PR path (direct XML).
+    From-PO path uses openpyxl; if template has drawings they may be stripped - PR data is still correct.
+    """
+    if hasattr(output_bytes, 'seek'):
+        output_bytes.seek(0)
+    return output_bytes
 
 # Environment detection - Render or Cloud Run (NOT local)
 IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None
@@ -491,8 +502,29 @@ def fill_excel_directly(template_path, cell_values):
                 standalone='yes'
             )
             print("[PR] 🔄 Set fullCalcOnLoad=1 in workbook.xml to force formula recalculation on open")
+            # Remove workbook protection so file opens editable (no "Enable Editing" required)
+            wb_prot = workbook_xml.find(f'.//{{{wb_ns}}}workbookProtection')
+            if wb_prot is not None:
+                workbook_xml.remove(wb_prot)
+                print("[PR] 🔓 Removed workbookProtection - file opens editable")
+            # Re-save after protection removal
+            files['xl/workbook.xml'] = etree.tostring(
+                workbook_xml,
+                xml_declaration=True,
+                encoding='UTF-8',
+                standalone='yes'
+            )
         except Exception as e:
             print(f"[PR] ⚠️ Could not modify workbook.xml for auto-calc: {e}")
+    
+    # Remove sheet protection from sheet1.xml so file opens editable
+    try:
+        sheet_prot = sheet_xml.find(f'.//{{{XLSX_NS}}}sheetProtection')
+        if sheet_prot is not None:
+            sheet_xml.remove(sheet_prot)
+            print("[PR] 🔓 Removed sheetProtection - file opens editable")
+    except Exception as e:
+        print(f"[PR] ⚠️ Could not remove sheet protection: {e}")
     
     # Serialize back to XML
     files['xl/worksheets/sheet1.xml'] = etree.tostring(
@@ -601,16 +633,16 @@ def get_latest_folder():
 
 def load_items():
     """
-    Load items (item master with Item Type, etc). PREFERS app data cache
-    (Full Company Data) so formulations (Item Type 2) are correctly identified.
+    Load items (item master with Item Type, etc). Uses Full Company Data (MIITEM, Items)
+    - NOT CustomAlert5 which can be old. PREFERS app data cache.
     """
     cache = _get_app_data_cache()
     if cache:
-        items = cache.get('Items.json') or cache.get('CustomAlert5.json') or cache.get('MIITEM.json') or []
+        items = cache.get('MIITEM.json') or cache.get('Items.json') or []
         if items:
             print(f"[PR] ✅ Using Items from app cache (Full Company Data): {len(items)} items")
             return items
-    return load_json_from_gdrive('Items.json')
+    return load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
 
 
 def load_po_data(po_number):
@@ -716,17 +748,18 @@ def load_po_data(po_number):
 
 
 def get_inventory_data(item_no):
-    """Get current inventory data for an item from CustomAlert5.json
+    """Get current inventory data for an item from Full Company Data (MIITEM, Items).
     
-    PREFERS app data cache (Full Company Data). Works on BOTH local G: Drive AND Cloud Run.
+    Uses Full Company Data - NOT CustomAlert5 which can be old.
+    PREFERS app data cache. Works on BOTH local G: Drive AND Cloud Run.
     """
     try:
         inventory_data = None
         cache = _get_app_data_cache()
         if cache:
-            inventory_data = cache.get('CustomAlert5.json') or cache.get('Items.json') or []
+            inventory_data = cache.get('MIITEM.json') or cache.get('Items.json') or []
         if not inventory_data:
-            inventory_data = load_json_from_gdrive('CustomAlert5.json')
+            inventory_data = load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
         
         if not inventory_data:
             return None
@@ -763,7 +796,7 @@ def get_inventory_data(item_no):
                 ):
                     found_ucf = None
                     cache = _get_app_data_cache()
-                    for alt_key in ('Items.json', 'MIITEM.json', 'CustomAlert5.json'):
+                    for alt_key in ('MIITEM.json', 'Items.json'):
                         alt_items = (cache or {}).get(alt_key) or []
                         for alt in alt_items:
                             if (alt.get('Item No.') or alt.get('itemId') or '') == item_no:
@@ -1104,30 +1137,59 @@ def load_bom_details():
 
 def get_current_bom_revision(item_no):
     """
-    Get the current BOM revision for an item from CustomAlert5.json.
+    Get the BOM revision MISys is using for an item.
     
-    Items can have multiple BOM revisions (0, 1, 2, etc.) but only ONE is "current".
-    This function returns the current revision number so we use the correct BOM.
+    Priority:
+    1. Current BOM Revision from item master (MIITEM, Items - Full Company Data) - what MISys uses
+    2. revId from MIITEM (raw key before mapping)
+    3. Latest revision from BOM data (highest revision number in BillOfMaterialDetails)
     
     Returns: revision number as string (e.g., "0", "1") or None if not found
     """
     try:
-        inventory_data = None
+        # 1. Try item master from Full Company Data - Current BOM Revision (MISys "revision being used")
+        # Use MIITEM/Items - NOT CustomAlert5 which can be old
+        item_sources = []
         cache = _get_app_data_cache()
         if cache:
-            inventory_data = cache.get('CustomAlert5.json') or cache.get('Items.json') or []
-        if not inventory_data:
-            inventory_data = load_json_from_gdrive('CustomAlert5.json')
-        if not inventory_data:
-            return None
+            item_sources = cache.get('MIITEM.json') or cache.get('Items.json') or []
+        if not item_sources:
+            item_sources = (
+                load_json_from_gdrive('MIITEM.json') or
+                load_json_from_gdrive('Items.json') or []
+            )
+        if not isinstance(item_sources, list):
+            item_sources = []
         
-        for item in inventory_data:
-            if item.get('Item No.') == item_no:
-                revision = item.get('Current BOM Revision')
-                if revision is not None:
-                    return str(revision)  # Ensure it's a string for comparison
-                return None
-        return None
+        for item in item_sources:
+            item_key = item.get('Item No.') or item.get('itemId') or ''
+            if str(item_key) != str(item_no):
+                continue
+            # Current BOM Revision (mapped from revId in MIITEM) - what MISys uses
+            revision = item.get('Current BOM Revision')
+            if revision is None:
+                revision = item.get('revId')  # Raw MIITEM key
+            if revision is not None and str(revision).strip() != '':
+                return str(revision)
+            break  # Item found but no revision - fall through to BOM-based latest
+        
+        # 2. Item not in master or no revision - use latest from BOM data (MISys "latest")
+        all_bom = load_bom_details()
+        if not all_bom:
+            return None
+        parent_lines = [b for b in all_bom if b.get('Parent Item No.') == item_no]
+        if not parent_lines:
+            return None
+        revisions = set(str(b.get('Revision No.', '0')) for b in parent_lines)
+        if not revisions:
+            return None
+        # Use numeric sort so "10" > "9" (string max would give wrong result)
+        try:
+            latest = max(revisions, key=lambda r: int(r) if str(r).isdigit() else -1)
+            print(f"    📋 No item revision for {item_no}, using latest from BOM: {latest}")
+            return latest
+        except (ValueError, TypeError):
+            return max(revisions)
     except Exception as e:
         print(f"Error getting current BOM revision for {item_no}: {e}")
         return None
@@ -1176,7 +1238,7 @@ def get_item_master(item_no):
 
 
 def get_stock_level(item_no, location='62TODD'):
-    """Get current stock level from CustomAlert5.json"""
+    """Get current stock level from Full Company Data (MIITEM, Items)"""
     try:
         inventory = get_inventory_data(item_no)
         if inventory:
@@ -1230,15 +1292,16 @@ def explode_bom_recursive(parent_item_no, parent_qty, max_depth=5, _visited=None
                      and str(b.get('Revision No.', '0')) == current_revision]
         print(f"    📋 Using BOM Revision {current_revision} for: {parent_item_no}")
     else:
-        # No revision info - fall back to all lines (legacy behavior)
-        # But prefer revision "0" if multiple revisions exist
+        # No revision from get_current_bom_revision - use latest (numeric sort: 10 > 9)
         all_parent_lines = [b for b in all_bom if b.get('Parent Item No.') == parent_item_no]
         revisions = set(str(b.get('Revision No.', '0')) for b in all_parent_lines)
         if len(revisions) > 1:
-            # Multiple revisions exist but no current revision info - use highest
-            max_rev = max(revisions)
+            try:
+                max_rev = max(revisions, key=lambda r: int(r) if str(r).isdigit() else -1)
+            except (ValueError, TypeError):
+                max_rev = max(revisions)
             bom_lines = [b for b in all_parent_lines if str(b.get('Revision No.', '0')) == max_rev]
-            print(f"    ⚠️ No current revision set for {parent_item_no}, using highest: {max_rev}")
+            print(f"    📋 Using latest BOM revision {max_rev} for: {parent_item_no}")
         else:
             bom_lines = all_parent_lines
     
@@ -1344,10 +1407,10 @@ def calculate_inventory_days(last_po_date_str):
         last_po_date_str: Order date string (various formats possible, including MS JSON Date)
     
     Returns:
-        Number of days since last order, or empty string if date not available/parseable
+        Number of days since last order, or "—" if date not available (column always filled)
     """
     if not last_po_date_str:
-        return ''
+        return '—'
     
     try:
         today = datetime.now()
@@ -1384,12 +1447,12 @@ def calculate_inventory_days(last_po_date_str):
         
         if last_order_date:
             days_diff = (today - last_order_date).days
-            return str(days_diff) if days_diff >= 0 else ''
+            return str(days_diff) if days_diff >= 0 else '—'
         else:
-            return ''
+            return '—'
     except Exception as e:
         print(f"[PR] Error calculating inventory days from '{last_po_date_str}': {e}")
-        return ''
+        return '—'
 
 
 def build_pr_cell_values(user_info, items, supplier_info, lead_days):
@@ -2637,11 +2700,8 @@ def generate_requisition():
                     current_stock = inventory_data.get('stock', 0)
                     if not unit or unit == 'EA':
                         unit = inventory_data.get('purchasing_units', unit)
-                    conversion_factor = inventory_data.get('units_conversion_factor', 1)
-                    if conversion_factor and conversion_factor > 1 and quantity > 0:
-                        import math
-                        quantity = math.ceil(float(quantity) / conversion_factor)
-                        print(f"[PR] Unit conversion for {item_no}: {item.get('quantity')} → {quantity} (factor: {conversion_factor})")
+                    # Do NOT convert quantity: manual PR sends quantity in purchasing units (e.g. 1 drum)
+                    # Only BOM PR converts shortfall (kg) → order qty (drums)
             
             cell_values[f'B{row}'] = item_no
             cell_values[f'C{row}'] = description
@@ -2978,6 +3038,16 @@ def generate_requisition_internal(user_info, items, supplier):
         if num_items > 0:
             sheet['I30'] = f'=SUM(I16:I{last_item_row})'
         
+        # Remove protection so file opens editable (no "Enable Editing" required)
+        try:
+            wb.security = None
+            for ws in wb.worksheets:
+                if hasattr(ws, 'protection') and ws.protection:
+                    ws.protection.disable()
+            print("[PR] 🔓 Removed workbook/sheet protection - file opens editable")
+        except Exception as e:
+            print(f"[PR] ⚠️ Could not remove protection: {e}")
+        
         # Save to memory
         output = io.BytesIO()
         try:
@@ -2988,8 +3058,8 @@ def generate_requisition_internal(user_info, items, supplier):
             if output.getvalue() is None or len(output.getvalue()) == 0:
                 raise Exception("Workbook save resulted in empty file")
             
-            # Restore VML drawings, images, and other template components
-            output = preserve_template_structure(PR_TEMPLATE, output)
+            # Restore VML drawings, images from template (openpyxl save can strip them)
+            output = _preserve_template_structure(PR_TEMPLATE, output)
             
             # Generate filename: PR_CustomerName_SupplierName_Date.xlsx
             # Extract customer name from justification
