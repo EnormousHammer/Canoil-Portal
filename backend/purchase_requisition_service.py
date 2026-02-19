@@ -634,13 +634,19 @@ def get_latest_folder():
 def load_items():
     """
     Load items (item master with Item Type, etc). Uses Full Company Data (MIITEM, Items)
-    - NOT CustomAlert5 which can be old. PREFERS app data cache.
+    - NOT CustomAlert5 which can be old. PREFERS app data cache. When cache empty,
+    loads Full Company Data (same as app) - NOT API Extractions.
     """
     cache = _get_app_data_cache()
     if cache:
         items = cache.get('MIITEM.json') or cache.get('Items.json') or []
         if items:
             print(f"[PR] ✅ Using Items from app cache (Full Company Data): {len(items)} items")
+            return items
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        items = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []  # Converter produces all from MIITEM
+        if items:
             return items
     return load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
 
@@ -651,9 +657,8 @@ def load_po_data(po_number):
     # On local: Try merged files first, fall back to raw files
     
     if IS_CLOUD_ENVIRONMENT:
-        # On Render/Cloud Run, build PO data from raw files
-        pos = load_json_from_gdrive('PurchaseOrders.json')
-        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+        # On Render/Cloud Run, build PO data - use Full Company Data (same as pricing)
+        pos, po_details = _load_po_data_for_pricing()
         
         if not pos or not po_details:
             return None
@@ -704,9 +709,8 @@ def load_po_data(po_number):
                     with open(po_file, 'r', encoding='utf-8') as f:
                         return json.load(f)
         
-        # Fall back to building from raw files (same as cloud)
-        pos = load_json_from_gdrive('PurchaseOrders.json')
-        po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
+        # Fall back to building from raw files - use Full Company Data when available
+        pos, po_details = _load_po_data_for_pricing()
         
         if not pos or not po_details:
             return None
@@ -751,13 +755,17 @@ def get_inventory_data(item_no):
     """Get current inventory data for an item from Full Company Data (MIITEM, Items).
     
     Uses Full Company Data - NOT CustomAlert5 which can be old.
-    PREFERS app data cache. Works on BOTH local G: Drive AND Cloud Run.
+    PREFERS app data cache. When cache empty, loads Full Company Data (same as app).
     """
     try:
         inventory_data = None
         cache = _get_app_data_cache()
         if cache:
             inventory_data = cache.get('MIITEM.json') or cache.get('Items.json') or []
+        if not inventory_data:
+            fcd = _load_full_company_data_for_pr()
+            if fcd:
+                inventory_data = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []
         if not inventory_data:
             inventory_data = load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
         
@@ -795,7 +803,7 @@ def get_inventory_data(item_no):
                     (item.get('Stocking Units') or '').lower() != (item.get('Purchasing Units') or '').lower()
                 ):
                     found_ucf = None
-                    cache = _get_app_data_cache()
+                    cache = _get_app_data_cache() or _load_full_company_data_for_pr()
                     for alt_key in ('MIITEM.json', 'Items.json'):
                         alt_items = (cache or {}).get(alt_key) or []
                         for alt in alt_items:
@@ -811,7 +819,7 @@ def get_inventory_data(item_no):
                         print(f"[PR] Units Conversion Factor fallback for {item_no}: {found_ucf}")
                     else:
                         try:
-                            miitem = load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json') or []
+                            miitem = load_items() or []  # Full Company Data (same as app)
                             for m in (miitem if isinstance(miitem, list) else []):
                                 if (m.get('Item No.') or m.get('itemId') or '') == item_no:
                                     ucf = parse_cost(m.get('Units Conversion Factor') or m.get('uConvFact'), 1)
@@ -853,6 +861,12 @@ def _load_po_data_for_pricing():
         po_details = cache.get('PurchaseOrderDetails.json') or cache.get('MIPOD.json') or []
         if pos or po_details:
             print(f"[PR] ✅ Using PO data from app cache (Full Company Data): {len(pos)} POs, {len(po_details)} lines")
+            return pos, po_details
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        pos = fcd.get('PurchaseOrders.json') or fcd.get('MIPOH.json') or []
+        po_details = fcd.get('PurchaseOrderDetails.json') or fcd.get('MIPOD.json') or []
+        if pos or po_details:
             return pos, po_details
     pos = load_json_from_gdrive('PurchaseOrders.json')
     po_details = load_json_from_gdrive('PurchaseOrderDetails.json')
@@ -941,11 +955,11 @@ def get_supplier_info(supplier_no):
     
     Priority Order:
     1. supplier_contacts.json (manually-maintained lookup - highest priority)
-    2. PurchaseOrderAdditionalCostsTaxes.json (extended data from MISys)
-    3. PurchaseOrders.json (basic data from MISys)
+    2. MISUPL (supplier master - Full Company Data) - canonical name, address, phone, email
+    3. PurchaseOrderAdditionalCostsTaxes.json (extended data from MISys)
+    4. PurchaseOrders.json (basic data - fallback when no MISUPL or no POs)
     
-    For each field, use the first source that has data.
-    This allows manual overrides while still using MISys as default.
+    MISUPL allows supplier info even when supplier has never had a PO.
     
     Works on BOTH local G: Drive AND Cloud Run (Google Drive API)
     """
@@ -954,7 +968,6 @@ def get_supplier_info(supplier_no):
         lookup = load_supplier_contacts_lookup()
         manual_override = lookup.get(supplier_no)
         if manual_override:
-            # Check if this entry has real data (not just empty strings)
             has_real_data = any([
                 manual_override.get('email'),
                 manual_override.get('phone'),
@@ -963,52 +976,95 @@ def get_supplier_info(supplier_no):
             if has_real_data:
                 print(f"[PR] 📋 Using manual override for {supplier_no}")
         
-        # Load PO data using the unified loader
-        pos = load_json_from_gdrive('PurchaseOrders.json')
+        # 1. Try MISUPL (supplier master) - works even when supplier has no POs
+        misupl = _load_misupl()
+        supplier_master = None
+        if misupl:
+            supplier_master = next(
+                (s for s in misupl if (s.get('Supplier No.') or s.get('suplId') or '').strip() == str(supplier_no).strip()),
+                None
+            )
         
-        if not pos:
-            print(f"[PR] PurchaseOrders.json not available")
+        # 2. Load PO data for PO-specific fields and fallback
+        pos, _ = _load_po_data_for_pricing()
+        supplier_pos = []
+        most_recent_po = None
+        if pos:
+            supplier_pos = [po for po in pos if po.get('Supplier No.') == supplier_no]
+            if supplier_pos:
+                supplier_pos.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
+                most_recent_po = supplier_pos[0]
+        
+        # Must have either MISUPL or at least one PO
+        if not supplier_master and not most_recent_po:
+            print(f"[PR] No supplier info for {supplier_no} (not in MISUPL, no POs)")
             return None
         
-        # Find most recent PO for this supplier
-        supplier_pos = [po for po in pos if po.get('Supplier No.') == supplier_no]
+        # Build base info: MISUPL first, then PO fallback
+        if supplier_master:
+            addr1 = supplier_master.get('Address 1', '') or ''
+            addr2 = supplier_master.get('Address 2', '') or ''
+            address = addr1
+            if addr2:
+                address = f"{addr1}\n{addr2}".strip() if addr1 else addr2
+            info = {
+                'supplier_no': supplier_no,
+                'name': supplier_master.get('Name', '') or supplier_master.get('Short Name', '') or supplier_no,
+                'contact': supplier_master.get('Contact', ''),
+                'phone': supplier_master.get('Phone', ''),
+                'email': supplier_master.get('Email', '') or supplier_master.get('email1', ''),
+                'address': address,
+                'city': supplier_master.get('City', ''),
+                'province': supplier_master.get('State', '') or supplier_master.get('province', ''),
+                'postal': supplier_master.get('Zip', '') or supplier_master.get('postal', ''),
+                'country': supplier_master.get('Country', ''),
+                'terms': supplier_master.get('Terms', ''),
+                'fax': '',
+                'po_count': len(supplier_pos),
+                'last_order_date': most_recent_po.get('Order Date', '') if most_recent_po else '',
+                'last_po_no': most_recent_po.get('PO No.', '') if most_recent_po else '',
+                'buyer': most_recent_po.get('Buyer', '') if most_recent_po else '',
+                'currency': supplier_master.get('Currency', '') or (most_recent_po.get('Home Currency', '') if most_recent_po else ''),
+                'total_amount': most_recent_po.get('Total Amount', 0) if most_recent_po else 0
+            }
+            print(f"[PR] ✅ Found supplier in MISUPL: {info['name']}" + (f" ({len(supplier_pos)} POs)" if supplier_pos else " (no POs)"))
+        else:
+            # Fallback: PO only
+            info = {
+                'supplier_no': supplier_no,
+                'name': most_recent_po.get('Name', '') or supplier_no,
+                'contact': most_recent_po.get('Contact', ''),
+                'phone': '',
+                'email': '',
+                'address': '',
+                'city': '',
+                'province': '',
+                'postal': '',
+                'country': '',
+                'terms': '',
+                'fax': '',
+                'po_count': len(supplier_pos),
+                'last_order_date': most_recent_po.get('Order Date', ''),
+                'last_po_no': most_recent_po.get('PO No.', ''),
+                'buyer': most_recent_po.get('Buyer', ''),
+                'currency': most_recent_po.get('Home Currency', ''),
+                'total_amount': most_recent_po.get('Total Amount', 0)
+            }
+            print(f"[PR] ✅ Found supplier from PO: {info['name']} ({len(supplier_pos)} POs)")
         
-        if not supplier_pos:
-            print(f"[PR] No POs found for supplier: {supplier_no}")
-            return None
-        
-        # Sort by Order Date (most recent first)
-        supplier_pos.sort(key=lambda x: x.get('Order Date', ''), reverse=True)
-        most_recent_po = supplier_pos[0]
-        
-        print(f"[PR] ✅ Found supplier info: {most_recent_po.get('Name', '')} ({len(supplier_pos)} POs)")
-        
-        # Build base info from PurchaseOrders.json
-        info = {
-            'supplier_no': supplier_no,
-            'name': most_recent_po.get('Name', ''),
-            'contact': most_recent_po.get('Contact', ''),
-            'phone': '',  # Will try to get from extended data
-            'email': '',  # Will try to get from extended data
-            'address': '',
-            'city': '',
-            'province': '',
-            'postal': '',
-            'country': '',
-            'terms': '',
-            'fax': '',
-            'po_count': len(supplier_pos),
-            'last_order_date': most_recent_po.get('Order Date', ''),
-            'last_po_no': most_recent_po.get('PO No.', ''),
-            'buyer': most_recent_po.get('Buyer', ''),
-            'currency': most_recent_po.get('Home Currency', ''),
-            'total_amount': most_recent_po.get('Total Amount', 0)
-        }
-        
-        # Try to get extended info (email, phone, address) from PurchaseOrderAdditionalCostsTaxes.json
-        # This file has complete supplier contact details for some POs
+        # Try to get extended info (email, phone, address) from PurchaseOrderAdditionalCostsTaxes
+        # Prefer Full Company Data, fallback to API Extractions
         try:
-            extended_data = load_json_from_gdrive('PurchaseOrderAdditionalCostsTaxes.json')
+            extended_data = None
+            cache = _get_app_data_cache()
+            if cache:
+                extended_data = cache.get('PurchaseOrderAdditionalCostsTaxes.json') or []
+            if not extended_data:
+                fcd = _load_full_company_data_for_pr()
+                if fcd:
+                    extended_data = fcd.get('PurchaseOrderAdditionalCostsTaxes.json') or []
+            if not extended_data:
+                extended_data = load_json_from_gdrive('PurchaseOrderAdditionalCostsTaxes.json')
             
             if extended_data:
                 # Find records for THIS supplier only (no mixing!)
@@ -1036,14 +1092,22 @@ def get_supplier_info(supplier_no):
                         info['phone'] = phone
                         print(f"[PR]   📞 Phone found: {phone}")
                     
-                    # Also get address info
-                    info['address'] = most_recent_extended.get('Address 1', '')
-                    info['city'] = most_recent_extended.get('City', '')
-                    info['province'] = most_recent_extended.get('State/Province', '')
-                    info['postal'] = most_recent_extended.get('Zip/Postal', '')
-                    info['country'] = most_recent_extended.get('Country', '')
-                    info['fax'] = most_recent_extended.get('Fax', '')
-                    info['terms'] = most_recent_extended.get('Terms', '')
+                    # Overlay address/terms only when extended has data (don't overwrite MISUPL with empty)
+                    ext_addr = most_recent_extended.get('Address 1', '')
+                    if ext_addr:
+                        info['address'] = ext_addr
+                    if most_recent_extended.get('City', ''):
+                        info['city'] = most_recent_extended.get('City', '')
+                    if most_recent_extended.get('State/Province', ''):
+                        info['province'] = most_recent_extended.get('State/Province', '')
+                    if most_recent_extended.get('Zip/Postal', ''):
+                        info['postal'] = most_recent_extended.get('Zip/Postal', '')
+                    if most_recent_extended.get('Country', ''):
+                        info['country'] = most_recent_extended.get('Country', '')
+                    if most_recent_extended.get('Fax', ''):
+                        info['fax'] = most_recent_extended.get('Fax', '')
+                    if most_recent_extended.get('Terms', ''):
+                        info['terms'] = most_recent_extended.get('Terms', '')
                     
                     # Use contact from extended if available (more recent)
                     extended_contact = most_recent_extended.get('Contact', '')
@@ -1103,6 +1167,11 @@ def get_supplier_info(supplier_no):
 # BOM EXPLOSION FUNCTIONS - For Multi-Item, Multi-Supplier PR Generation
 # ============================================================================
 
+# PR-specific cache for Full Company Data when app cache is empty (e.g. direct API call)
+_pr_full_company_cache = None
+_pr_full_company_cache_time = None
+
+
 def _get_app_data_cache():
     """
     Get app data cache if available. The main app loads from Full Company Data
@@ -1121,16 +1190,80 @@ def _get_app_data_cache():
     return None
 
 
+def _load_full_company_data_for_pr():
+    """
+    Load Full Company Data when app cache is empty. PR must use SAME data as app
+    (Full Company Data) - NOT API Extractions which can have different/missing items.
+    Returns dict with Items.json, BillOfMaterialDetails.json, etc. or None.
+    Works on BOTH local (load_from_folder) AND cloud (load_from_drive_api).
+    """
+    global _pr_full_company_cache, _pr_full_company_cache_time
+    if _pr_full_company_cache is not None:
+        if _pr_full_company_cache_time and (datetime.now() - _pr_full_company_cache_time).total_seconds() < _GDRIVE_CACHE_DURATION:
+            return _pr_full_company_cache
+    try:
+        if not IS_CLOUD_ENVIRONMENT:
+            # Local: load Full Company Data from G: drive folder (same as app)
+            try:
+                import sys
+                app_module = sys.modules.get('app') or sys.modules.get('backend.app')
+                if not app_module:
+                    try:
+                        app_module = __import__('app')
+                    except ImportError:
+                        app_module = __import__('backend.app')
+                get_latest_fcd = getattr(app_module, 'get_latest_full_company_data_folder', None)
+                if get_latest_fcd:
+                    fcd_path, fcd_name = get_latest_fcd()
+                    if fcd_path and os.path.exists(fcd_path):
+                        from full_company_data_converter import load_from_folder
+                        full_data, err = load_from_folder(fcd_path)
+                        if full_data and any(isinstance(v, list) and len(v) > 0 for v in full_data.values()):
+                            _pr_full_company_cache = full_data
+                            _pr_full_company_cache_time = datetime.now()
+                            print(f"[PR] ✅ Loaded Full Company Data for PR (local): {fcd_name or 'FCD'}")
+                            return full_data
+            except Exception as local_err:
+                print(f"[PR] ⚠️ Could not load Full Company Data locally: {local_err}")
+            return None
+        service = get_google_drive_service()
+        if not service or not getattr(service, 'authenticated', False):
+            return None
+        from google_drive_service import SHARED_DRIVE_NAME
+        drive_id = service.find_shared_drive(SHARED_DRIVE_NAME)
+        if not drive_id:
+            return None
+        folder_id, fcd_name, _ = service.find_latest_full_company_data_folder()
+        if not folder_id:
+            return None
+        from full_company_data_converter import load_from_drive_api
+        full_data, err = load_from_drive_api(service, drive_id, folder_id=folder_id)
+        if full_data and any(isinstance(v, list) and len(v) > 0 for v in full_data.values()):
+            _pr_full_company_cache = full_data
+            _pr_full_company_cache_time = datetime.now()
+            print(f"[PR] ✅ Loaded Full Company Data for PR ({fcd_name or 'cloud'}): Items, BOM, etc.")
+            return full_data
+    except Exception as e:
+        print(f"[PR] ⚠️ Could not load Full Company Data for PR: {e}")
+    return None
+
+
 def load_bom_details():
     """
     Load Bill of Materials. PREFERS app data cache (Full Company Data) so
-    formulation components are included. Falls back to G Drive if cache empty.
+    formulation components are included. When cache empty, loads Full Company Data
+    (same as app) - NOT API Extractions which can have different/missing BOM.
     """
     cache = _get_app_data_cache()
     if cache:
         bom = cache.get('BillOfMaterialDetails.json') or cache.get('MIBOMD.json') or []
         if bom:
             print(f"[PR] ✅ Using BOM from app cache (Full Company Data): {len(bom)} lines")
+            return bom
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        bom = fcd.get('BillOfMaterialDetails.json') or fcd.get('MIBOMD.json') or []
+        if bom:
             return bom
     return load_json_from_gdrive('BillOfMaterialDetails.json')
 
@@ -1153,6 +1286,10 @@ def get_current_bom_revision(item_no):
         cache = _get_app_data_cache()
         if cache:
             item_sources = cache.get('MIITEM.json') or cache.get('Items.json') or []
+        if not item_sources:
+            fcd = _load_full_company_data_for_pr()
+            if fcd:
+                item_sources = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []
         if not item_sources:
             item_sources = (
                 load_json_from_gdrive('MIITEM.json') or
@@ -1217,11 +1354,20 @@ def get_item_master(item_no):
                         if ucf and float(ucf) > 1:
                             conv_factor = float(ucf)
                 
+                # Preferred supplier: 1) MIITEM (suplId→Supplier No. or Preferred Supplier Number) 2) MIQSUP
+                pref_supp = item.get('Preferred Supplier Number') or item.get('Supplier No.') or item.get('suplId') or ''
+                if not pref_supp:
+                    miqsup = _load_miqsup()
+                    for row in miqsup:
+                        if (row.get('Item No.') or row.get('itemId') or '') == item_no:
+                            pref_supp = row.get('Supplier No.') or row.get('suplId') or ''
+                            if pref_supp:
+                                break
                 return {
                     'item_no': item_no,
                     'description': item.get('Description', ''),
                     'item_type': item.get('Item Type', 0),  # 0=Purchased/Raw, 1=Assembled
-                    'preferred_supplier': item.get('Preferred Supplier Number', ''),
+                    'preferred_supplier': pref_supp,
                     'purchasing_units': item.get('Purchasing Units', 'EA'),
                     'stocking_units': item.get('Stocking Units', 'EA'),
                     'units_conversion_factor': conv_factor,  # Stocking units per purchasing unit
@@ -1237,15 +1383,77 @@ def get_item_master(item_no):
         return None
 
 
+def _load_miiloc():
+    """Load MIILOC (stock by location) - Full Company Data. Returns list of {Item No., Location No., qStk, ...}"""
+    cache = _get_app_data_cache()
+    if cache:
+        miiloc = cache.get('MIILOC.json') or []
+        if miiloc:
+            return miiloc
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        return fcd.get('MIILOC.json') or []
+    return load_json_from_gdrive('MIILOC.json') or []
+
+
+def _load_miqsup():
+    """Load MIQSUP (preferred supplier per item) - Full Company Data."""
+    cache = _get_app_data_cache()
+    if cache:
+        return cache.get('MIQSUP.json') or []
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        return fcd.get('MIQSUP.json') or []
+    return load_json_from_gdrive('MIQSUP.json') or []
+
+
+def _load_misupl():
+    """Load MISUPL (supplier master) - Full Company Data. Returns list of {Supplier No., Name, Address 1, ...}"""
+    cache = _get_app_data_cache()
+    if cache:
+        return cache.get('MISUPL.json') or []
+    fcd = _load_full_company_data_for_pr()
+    if fcd:
+        return fcd.get('MISUPL.json') or []
+    return load_json_from_gdrive('MISUPL.json') or []
+
+
 def get_stock_level(item_no, location='62TODD'):
-    """Get current stock level from Full Company Data (MIITEM, Items)"""
+    """
+    Get current stock level. Uses MIILOC (stock by location) when available for location-specific
+    stock. Falls back to MIITEM totQStk (total stock) when MIILOC has no match.
+    """
     try:
+        def parse_qty(value, default=0):
+            if value is None:
+                return default
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                return float(value.replace(',', '')) if value else default
+            return default
+
+        # 1. Try MIILOC for location-specific stock (item + location)
+        if location:
+            miiloc = _load_miiloc()
+            if miiloc:
+                loc_stock = 0
+                found_at_location = False
+                for row in miiloc:
+                    row_item = (row.get('Item No.') or row.get('itemId') or '').strip()
+                    row_loc = (row.get('Location No.') or row.get('locId') or '').strip()
+                    if str(row_item) == str(item_no) and str(row_loc) == str(location):
+                        loc_stock += parse_qty(row.get('qStk'), 0)
+                        found_at_location = True
+                if found_at_location:
+                    return float(loc_stock)
+
+        # 2. Fallback: MIITEM total stock (totQStk)
         inventory = get_inventory_data(item_no)
         if inventory:
             stock = inventory.get('stock', 0)
-            # Handle string values with commas
             if isinstance(stock, str):
-                stock = float(stock.replace(',', ''))
+                stock = parse_qty(stock, 0)
             return float(stock)
         return 0
     except Exception as e:
@@ -1695,6 +1903,31 @@ def create_pr_from_bom():
                 continue
         
         print(f"\n  Total raw components: {len(all_components)}")
+        
+        # Fallback: if BOM explosion found nothing, check if items are purchased (order directly)
+        if not all_components:
+            for item in selected_items:
+                item_no = item.get('item_no', '')
+                if not item_no:
+                    continue
+                try:
+                    qty = float(item.get('qty', 1))
+                except (ValueError, TypeError):
+                    qty = 1.0
+                item_data = get_item_master(item_no)
+                if item_data and item_data.get('item_type', 0) == 0:
+                    all_components.append({
+                        'item_no': item_no,
+                        'description': item_data.get('description', ''),
+                        'qty_needed': qty,
+                        'item_type': 'Raw Material',
+                        'preferred_supplier': item_data.get('preferred_supplier', ''),
+                        'purchasing_units': item_data.get('purchasing_units', 'EA'),
+                        'stocking_units': item_data.get('stocking_units', 'EA'),
+                        'units_conversion_factor': item_data.get('units_conversion_factor', 1),
+                        'order_lead_days': item_data.get('order_lead_days', 7)
+                    })
+                    print(f"  → Fallback: {item_no} is purchased (no BOM) - order {qty} directly")
         
         if not all_components:
             cache_hint = ""
@@ -2370,7 +2603,7 @@ def search_items():
                     'standard_cost': item.get('Standard Cost', 0),
                     'stocking_units': item.get('Stocking Units', 'EA'),
                     'purchasing_units': item.get('Purchasing Units', 'EA'),
-                    'preferred_supplier': item.get('Preferred Supplier Number', ''),
+                    'preferred_supplier': item.get('Preferred Supplier Number') or item.get('Supplier No.') or item.get('suplId') or '',
                     'reorder_quantity': item.get('Reorder Quantity', 0),
                     'minimum': item.get('Minimum', 0),
                     'reorder_level': item.get('Reorder Level', 0)
@@ -2410,7 +2643,7 @@ def get_item_details(item_no):
             "landed_cost": item.get('Landed Cost', 0),
             "stocking_units": item.get('Stocking Units', 'EA'),
             "purchasing_units": item.get('Purchasing Units', 'EA'),
-            "preferred_supplier": item.get('Preferred Supplier Number', ''),
+            "preferred_supplier": item.get('Preferred Supplier Number') or item.get('Supplier No.') or item.get('suplId') or '',
             "preferred_location": item.get('Preferred Location Number', ''),
             "minimum": item.get('Minimum', 0),
             "maximum": item.get('Maximum', 0),
@@ -2460,7 +2693,7 @@ def get_item_enhanced(item_no):
         
         # Get supplier info if preferred supplier exists
         supplier_info = None
-        preferred_supplier = item.get('Preferred Supplier Number', '')
+        preferred_supplier = item.get('Preferred Supplier Number') or item.get('Supplier No.') or item.get('suplId') or ''
         if preferred_supplier:
             supplier_info = get_supplier_info(preferred_supplier)
         
