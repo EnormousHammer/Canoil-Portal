@@ -491,7 +491,7 @@ const LogisticsAutomation: React.FC = () => {
         body: JSON.stringify({
           so_data: result.so_data,
           email_analysis: result.email_analysis || result.email_data || result.email_shipping,
-          items: result.items
+          items: result.so_data?.items || result.items || []
         })
       });
 
@@ -1207,12 +1207,14 @@ const LogisticsAutomation: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Store parsed information for display
+        // Store parsed information for display + so_data/email_analysis for individual document buttons
         setResult({
           success: true,
           documents: data.documents || [],
           folder_name: data.folder_name,
-          parsed_info: data.parsed_info || {}  // Store parsed shipper, consignee, items, weights, etc.
+          parsed_info: data.parsed_info || {},  // Store parsed shipper, consignee, items, weights, etc.
+          so_data: data.so_data || {},
+          email_analysis: data.email_analysis || {}
         });
         
         // Map backend document format to frontend format

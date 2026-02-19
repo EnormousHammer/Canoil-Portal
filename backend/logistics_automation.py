@@ -904,9 +904,10 @@ def parse_email_deterministic(email_text: str) -> dict:
             batch_numbers.extend(batch_codes)
     
     # Items with batches (scan windowed)
+    # Expanded units: drums, pails, gallons, containers, cases, kegs, liters, totes
     items = []
     for i, ln in enumerate(lines):
-        m = re.search(r'^(\d+)\s+(drums?|pails?|gallons?|containers?)\s+of\s+(.+)$', ln, re.IGNORECASE)
+        m = re.search(r'^(\d+)\s+(drums?|pails?|gallons?|containers?|cases?|kegs?|liters?|totes?)\s+of\s+(.+)$', ln, re.IGNORECASE)
         if not m:
             continue
         qty, unit, desc = m.groups()
@@ -1519,6 +1520,14 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             # If we have packaging_type but no dimensions, still store it
             parsed_data['skid_info'] = ""
         
+        # If GPT returned no items but email has "X units of Y" pattern, try fallback items extraction
+        if not parsed_data.get('items') and re.search(r'\d+\s+(drums?|pails?|gallons?|containers?|cases?|kegs?|liters?|totes?)\s+of\s+', email_text, re.IGNORECASE):
+            print("INFO: GPT returned no items but email has product pattern - trying fallback items extraction")
+            fallback_data = parse_email_fallback(email_text)
+            if fallback_data.get('items'):
+                parsed_data['items'] = fallback_data['items']
+                print(f"   Fallback extracted {len(parsed_data['items'])} items")
+        
         print(f"Successfully parsed email - SO: {parsed_data.get('so_number')}, Company: {parsed_data.get('company_name', 'None')}, Items: {len(parsed_data.get('items', []))}")
         print(f"   Packaging type: {parsed_data.get('packaging_type', 'None')}, Skid info: {parsed_data.get('skid_info', 'None')}")
         return parsed_data
@@ -1778,7 +1787,7 @@ def parse_email_fallback(email_text):
     
     # Extract item description and quantity from the entire email
     item_patterns = [
-        r'(\d+)\s*(drums?|pails?|gallons?|containers?|cases?|kegs?|barrels?|totes?)\s+(?:of\s+)?([A-Za-z0-9\s\-\.&#]+)',
+        r'(\d+)\s*(drums?|pails?|gallons?|containers?|cases?|kegs?|barrels?|totes?|liters?)\s+(?:of\s+)?([A-Za-z0-9\s\-\.&#]+)',
     ]
     
     items_found = []
@@ -5004,7 +5013,7 @@ def download_file(filepath):
             print(f"❌ File not found: {full_path}")
             return jsonify({'error': f'File not found: {filepath}'}), 404
     except Exception as e:
-        print(f"❌ Error serving file {filename}: {e}")
+        print(f"❌ Error serving file {filepath}: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -5283,6 +5292,66 @@ def generate_dangerous_goods_only():
             'error': str(e)
         }), 500
 
+
+def _parse_manual_shipper_consignee_fallback(text):
+    """Regex fallback for Shipper:/Consignee: format when GPT returns empty."""
+    result = {'shipper': {}, 'consignee': {}, 'items': [], 'weights': {}, 'skids': {}}
+    shipper_m = re.search(r'(?:Shipper|Going\s+from|From)\s*:?\s*\n(.+?)(?=\n\s*(?:Consignee|Going\s+to|To)\s*:|\Z)', text, re.DOTALL | re.I)
+    consignee_m = re.search(r'(?:Consignee|Going\s+to|To)\s*:?\s*\n(.+?)(?=\n\s*(?:Shipment|Item|Shipper|$)|\Z)', text, re.DOTALL | re.I)
+
+    def parse_addr(block):
+        if not block:
+            return {}
+        lines = [l.strip() for l in block.strip().split('\n') if l.strip()]
+        if not lines:
+            return {}
+        company, street = lines[0], lines[1] if len(lines) > 1 else ''
+        city = state = postal = ''
+        country = 'Canada'
+        if len(lines) >= 3:
+            p3 = lines[2]
+            can = re.search(r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b', p3.upper())
+            if can:
+                p = can.group(1).replace(' ', '')
+                postal = f"{p[:3]} {p[3:]}" if len(p) == 6 else can.group(1)
+                parts = re.split(r',\s*', p3.replace(can.group(1), '').strip(', '))
+                city, state = (parts[0] if parts else ''), (parts[1] if len(parts) > 1 else '')
+            else:
+                parts = re.split(r',\s*', p3)
+                city, state = (parts[0] if parts else ''), (parts[1] if len(parts) > 1 else '')
+        if len(lines) >= 4:
+            l4 = lines[3]
+            if re.match(r'^[A-Z]\d[A-Z]', l4.upper().strip()) or re.match(r'^\d{5}', l4):
+                postal = l4.strip()
+            else:
+                country = l4
+        return {'company': company, 'address': street, 'city': city, 'state': state, 'postal': postal, 'country': country or 'Canada'}
+
+    if shipper_m:
+        result['shipper'] = parse_addr(shipper_m.group(1))
+    if consignee_m:
+        result['consignee'] = parse_addr(consignee_m.group(1))
+    ship_m = re.search(r'(?:Shipment\s*Details?)\s*:?\s*(\d+)\s*[Ss]kids?\s*[\(\[]?\s*([\d\sx×"]+)\s*[\)\]]?\s*(?:@|,|-)\s*([\d,]+)\s*(kg|lbs?)', text, re.I)
+    if ship_m:
+        result['skids'] = {'count': ship_m.group(1), 'dimensions': ship_m.group(2).strip().replace('"', '') + ' inches'}
+        result['weights'] = {'total_weight': ship_m.group(3).replace(',', ''), 'weight_unit': ship_m.group(4).lower()}
+    else:
+        if re.search(r'(\d+)\s*[Ss]kids?', text):
+            result['skids'] = {'count': re.search(r'(\d+)\s*[Ss]kids?', text).group(1)}
+        if re.search(r'([\d,]+)\s*(kg|lbs?)', text):
+            m = re.search(r'([\d,]+)\s*(kg|lbs?)', text)
+            result['weights'] = {'total_weight': m.group(1).replace(',', ''), 'weight_unit': m.group(2).lower()}
+    item_m = re.search(r'Item\s*:?\s*(.+?)(?=\n\n|\n\s*(?:Shipper|Consignee|Shipment)|$)', text, re.I | re.DOTALL)
+    if item_m:
+        desc = item_m.group(1).strip()
+        qty = result['skids'].get('count', '1') if result['skids'] else '1'
+        unit = 'drum' if 'drum' in desc.lower() else 'pail' if 'pail' in desc.lower() else 'skid'
+        result['items'] = [{'description': desc, 'quantity': qty, 'unit': unit}]
+    if result['shipper'].get('company') and result['consignee'].get('company'):
+        return result
+    return None
+
+
 @logistics_bp.route('/api/logistics/generate-manual', methods=['POST', 'OPTIONS'])
 def generate_manual_documents():
     """Generate logistics documents from text input - AI parses everything (no SO number required)"""
@@ -5350,8 +5419,8 @@ def generate_manual_documents():
                 "contact_person": "contact name if mentioned"
             }},
             "consignee": {{
-                "company": "EXTRACT from 'Going to:' section - the company name receiving the shipment",
-                "address": "full street address from 'Going to:' section",
+                "company": "EXTRACT from Consignee or Going to section - company name",
+                "address": "street address (e.g. 62 Todd Road)",
                 "city": "city name",
                 "state": "province/state abbreviation (e.g., ON, AB, BC)",
                 "postal": "postal code",
@@ -5389,7 +5458,46 @@ def generate_manual_documents():
         
         EXAMPLES:
         
-        Example 1:
+        Example 1 (Shipper/Consignee multi-line format):
+        "Shipper:
+        LANXESS Canada Co/Cie c/o West Hill
+        10 Chemical Court
+        Scarborough, ON M1E 2K3
+        Canada
+
+        Consignee:
+        Canoil Canada Ltd.
+        62 Todd Road
+        Georgetown, Ontario
+        L7G 4R7
+
+        Shipment Details:
+        2 Skids (45 x 45 x 40) @ 1500 kg
+
+        Item: G-2000-2 DRUMS"
+        
+        Result:
+        - shipper.company = "LANXESS Canada Co/Cie c/o West Hill"
+        - shipper.address = "10 Chemical Court"
+        - shipper.city = "Scarborough"
+        - shipper.state = "ON"
+        - shipper.postal = "M1E 2K3"
+        - shipper.country = "Canada"
+        - consignee.company = "Canoil Canada Ltd."
+        - consignee.address = "62 Todd Road"
+        - consignee.city = "Georgetown"
+        - consignee.state = "Ontario"
+        - consignee.postal = "L7G 4R7"
+        - consignee.country = "Canada"
+        - items[0].description = "G-2000-2 DRUMS"
+        - items[0].quantity = "2" (inferred from 2 Skids)
+        - items[0].unit = "drum"
+        - skids.count = "2"
+        - skids.dimensions = "45 x 45 x 40 inches"
+        - weights.total_weight = "1500"
+        - weights.weight_unit = "kg"
+        
+        Example 2 (Going from/to single-line format):
         "Going from: LANXESS Canada Co/Cie c/o West Hill 10 Chemical Court SCARBOROUGH ON M1E 2K3 CANADA
          Going to: Canoil Canada LTD / 62 Todd Road GEORGETOWN-HALTON HILLS ON L7G 4R7 CANADA
          Material G-2015-2: 34 drums, 9 pallets, 6885 kg"
@@ -5412,7 +5520,7 @@ def generate_manual_documents():
         - weights.total_weight = "6885"
         - weights.weight_unit = "kg"
         
-        Example 2 (Multiple items):
+        Example 3 (Multiple items):
         "Material G-2015-2: 34 drums, 9 pallets, 6885 kg
          Material G-2032-0: 8 totes, 8 pallets, 7680 kg"
         
@@ -5425,8 +5533,9 @@ def generate_manual_documents():
         - weights.total_weight = "14565" (6885 + 7680)
         
         CRITICAL EXTRACTION RULES:
-        - Parse addresses carefully - extract street number, street name, city, province, postal code separately
-        - If "Going from:" and "Going to:" are clearly labeled, use those EXACTLY
+        - Parse addresses carefully - extract street, city, province, postal code from multi-line or single-line format
+        - "Shipper:" / "Consignee:" and "Going from:" / "Going to:" are equivalent - extract from whichever is present
+        - For "Item: G-2000-2 DRUMS" with no quantity, use skid count as quantity (2 skids = 2)
         - Sum pallet counts if multiple items have different pallet counts
         - Sum weights if multiple items have different weights
         - Extract ALL items separately - don't combine them
@@ -5440,10 +5549,27 @@ def generate_manual_documents():
         # Parse with GPT
         parsed_data = parse_text_with_gpt4(parse_prompt)
         
-        if not parsed_data:
+        # FALLBACK: If GPT returns empty/incomplete, try regex parsing for "Shipper:" / "Consignee:" format
+        if not parsed_data or not (parsed_data.get('shipper', {}).get('company') and parsed_data.get('consignee', {}).get('company')):
+            print(f"[WARN] GPT parse incomplete, trying regex fallback for Shipper/Consignee format...")
+            fallback_data = _parse_manual_shipper_consignee_fallback(text_input)
+            if fallback_data:
+                parsed_data = fallback_data if not parsed_data else {**parsed_data, **fallback_data}
+                if fallback_data.get('shipper'):
+                    parsed_data['shipper'] = fallback_data['shipper']
+                if fallback_data.get('consignee'):
+                    parsed_data['consignee'] = fallback_data['consignee']
+                if fallback_data.get('items') and not parsed_data.get('items'):
+                    parsed_data['items'] = fallback_data['items']
+                if fallback_data.get('weights'):
+                    parsed_data['weights'] = fallback_data['weights']
+                if fallback_data.get('skids'):
+                    parsed_data['skids'] = fallback_data['skids']
+        
+        if not parsed_data or not (parsed_data.get('shipper', {}).get('company') and parsed_data.get('consignee', {}).get('company')):
             return jsonify({
                 'success': False,
-                'error': 'Failed to parse text input. Please provide clearer information.'
+                'error': 'Could not identify shipper and consignee. Please use "Shipper:" and "Consignee:" sections, or "Going from:" and "Going to:".'
             }), 400
         
         print(f"✅ Parsed data: Shipper={parsed_data.get('shipper', {}).get('company')}, Consignee={parsed_data.get('consignee', {}).get('company')}")
@@ -5483,7 +5609,7 @@ def generate_manual_documents():
         if not shipper.get('company') or not consignee.get('company'):
             return jsonify({
                 'success': False,
-                'error': 'Could not identify shipper (from) and/or consignee (to). Please include "Going from:" and "Going to:" sections.'
+                'error': 'Could not identify shipper and/or consignee. Use "Shipper:" and "Consignee:" sections (or "Going from:" / "Going to:").'
             }), 400
         
         # If multiple items have individual pallet counts, sum them
@@ -5525,11 +5651,18 @@ def generate_manual_documents():
             }), 400
         
         # Format items properly for document generators
+        def _safe_qty(val):
+            if val is None or val == '': return 1
+            if isinstance(val, (int, float)): return max(1, int(val))
+            m = re.search(r'(\d+(?:\.\d+)?)', str(val).strip())
+            return max(1, int(float(m.group(1)))) if m else 1
+        
         formatted_items = []
         for item in items:
+            qty_num = _safe_qty(item.get('quantity', ''))
             formatted_item = {
                 'description': item.get('description', ''),
-                'quantity': str(item.get('quantity', '')),
+                'quantity': qty_num,
                 'unit': item.get('unit', 'drum'),
                 'batch_number': item.get('batch_number', ''),
                 'item_code': item.get('item_code', '') or item.get('description', ''),  # Use description as item_code if not provided
@@ -5547,7 +5680,28 @@ def generate_manual_documents():
         
         # Create minimal so_data structure from manual input
         # Build full addresses properly for document generators
-        # CRITICAL: Build address line by line, ensuring we have SOMETHING
+        # CRITICAL: When GPT returns full address in one field (e.g. "10 Chemical Court, Scarborough, ON M1E 2K3")
+        # with empty city/state/postal, extract postal for document generators
+        def _extract_postal_from_text(text):
+            if not text:
+                return ''
+            can_match = re.search(r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b', str(text).upper())
+            if can_match:
+                p = can_match.group(1).replace(' ', '')
+                return f"{p[:3]} {p[3:]}" if len(p) == 6 else can_match.group(1)
+            us_match = re.search(r'\b(\d{5}(?:-\d{4})?)\b', str(text))
+            return us_match.group(1) if us_match else ''
+        
+        for addr_dict, label in [(shipper, 'shipper'), (consignee, 'consignee')]:
+            if not addr_dict.get('postal') and not addr_dict.get('postal_code'):
+                combined = addr_dict.get('address', '') or addr_dict.get('street', '')
+                if combined:
+                    extracted = _extract_postal_from_text(combined)
+                    if extracted:
+                        addr_dict['postal'] = extracted
+                        addr_dict['postal_code'] = extracted
+                        print(f"   Extracted postal for {label}: {extracted}")
+        
         shipper_addr_parts = []
         if shipper.get('address'):
             shipper_addr_parts.append(shipper.get('address'))
@@ -5661,7 +5815,9 @@ def generate_manual_documents():
             'destination_country': consignee.get('country', 'Canada'),
             'release_numbers': release_numbers,
             'parsed_items': items,  # Store full item details
-            'packaging_type': 'pallet'  # Default to pallet
+            'packaging_type': 'pallet',  # Default to pallet
+            'raw_text': text_input,  # For BOL broker detection (e.g. "Brokerage: Near North")
+            'email_body': text_input
         }
         
         print(f"📋 Email analysis created: {pallet_count} pallets, {weights.get('total_weight', '?')} {weights.get('weight_unit', 'kg')}, {total_pieces} pieces")
@@ -5879,6 +6035,8 @@ def generate_manual_documents():
             'errors': errors,
             'folder_name': folder_structure['folder_name'],
             'parsed_info': parsed_info,  # Include parsed info for display
+            'so_data': so_data,  # For individual document buttons (BOL, Packing Slip, CI)
+            'email_analysis': email_analysis,
             'summary': f"Generated {len(documents)} documents successfully from manual input"
         })
         response.headers['Access-Control-Allow-Origin'] = '*'
