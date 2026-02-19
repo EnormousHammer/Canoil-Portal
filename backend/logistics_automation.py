@@ -4210,6 +4210,14 @@ def process_email():
                                     so_qty_num += float(m.group(1)) if m else 0
                                 else:
                                     so_qty_num += float(oq)
+                        # If loop found nothing but we have matched_so_item (e.g. SIZE FALLBACK), use it - loop's stricter matching may have missed it
+                        if so_qty_num == 0 and matched_so_item is not None:
+                            oq = matched_so_item.get('quantity') or matched_so_item.get('ordered') or matched_so_item.get('Ordered') or matched_so_item.get('Ordered Qty') or 0
+                            if isinstance(oq, str):
+                                m = re.search(r'(\d+\.?\d*)', str(oq).replace(',', ''))
+                                so_qty_num = float(m.group(1)) if m else 0
+                            else:
+                                so_qty_num = float(oq)
                         print(f"   📊 QUANTITY CHECK: Email qty='{item_qty}' ({email_qty_num}), SO total qty={so_qty_num}")
                         try:
                             print(f"   📊 QUANTITY COMPARISON: Email={email_qty_num}, SO total={so_qty_num}, Diff={abs(email_qty_num - so_qty_num)}")
