@@ -5296,8 +5296,8 @@ def generate_dangerous_goods_only():
 def _parse_manual_shipper_consignee_fallback(text):
     """Regex fallback for Shipper:/Consignee: format when GPT returns empty."""
     result = {'shipper': {}, 'consignee': {}, 'items': [], 'weights': {}, 'skids': {}}
-    shipper_m = re.search(r'(?:Shipper|Going\s+from|From)\s*:?\s*\n(.+?)(?=\n\s*(?:Consignee|Going\s+to|To)\s*:|\Z)', text, re.DOTALL | re.I)
-    consignee_m = re.search(r'(?:Consignee|Going\s+to|To)\s*:?\s*\n(.+?)(?=\n\s*(?:Shipment|Item|Shipper|$)|\Z)', text, re.DOTALL | re.I)
+    shipper_m = re.search(r'(?:Shipper|Going\s+from|From|Pickup|Origin|Collect|Ship\s+from)\s*(?:Address)?\s*:?\s*\n?(.+?)(?=\n\s*(?:Consignee|Going\s+to|To|Delivery|Destination|Ship\s+to|Drop\s+off)\s*(?:Address)?\s*:|\Z)', text, re.DOTALL | re.I)
+    consignee_m = re.search(r'(?:Consignee|Going\s+to|To|Delivery|Destination|Ship\s+to|Drop\s+off)\s*(?:Address)?\s*:?\s*\n?(.+?)(?=\n\s*(?:Shipment|Item|Shipper|Pickup|From|Origin|$)|\Z)', text, re.DOTALL | re.I)
 
     def parse_addr(block):
         if not block:
@@ -5305,6 +5305,46 @@ def _parse_manual_shipper_consignee_fallback(text):
         lines = [l.strip() for l in block.strip().split('\n') if l.strip()]
         if not lines:
             return {}
+        # Single-line address (e.g. "Canoil Canada Ltd. 62 Todd Road Georgetown, Ontario L7G 4R7 Canada")
+        if len(lines) == 1:
+            s = lines[0]
+            can_postal = re.search(r'\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b', s.upper())
+            us_zip = re.search(r'\b(\d{5}(?:-\d{4})?)\b', s)
+            if can_postal:
+                postal = can_postal.group(1).replace(' ', '')
+                if len(postal) == 6:
+                    postal = f"{postal[:3]} {postal[3:]}"
+                rest = s[:can_postal.start()].strip().rstrip(',')
+                parts = [p.strip() for p in rest.split(',')]
+                if len(parts) >= 2:
+                    city, state = parts[-2], parts[-1]
+                    addr_rest = ', '.join(parts[:-2])
+                    if ' Ltd' in addr_rest or ' Inc' in addr_rest or ' Co' in addr_rest:
+                        idx = max(addr_rest.find(' Ltd'), addr_rest.find(' Inc'), addr_rest.find(' Co'))
+                        if idx > 0:
+                            company = addr_rest[:idx + 4].strip().rstrip('.')
+                            street = addr_rest[idx + 4:].strip().lstrip(',').strip()
+                        else:
+                            company, street = addr_rest, ''
+                    else:
+                        tok = addr_rest.split(None, 2)
+                        company = tok[0] if tok else addr_rest
+                        street = tok[2] if len(tok) >= 3 else (tok[1] if len(tok) >= 2 else '')
+                else:
+                    company, street, city, state = rest, '', '', ''
+                return {'company': company, 'address': street, 'city': city, 'state': state, 'postal': postal, 'country': 'Canada'}
+            if us_zip:
+                postal = us_zip.group(1)
+                rest = s[:us_zip.start()].strip().rstrip(',')
+                parts = [p.strip() for p in rest.split(',')]
+                if len(parts) >= 2:
+                    city, state = parts[-2], parts[-1]
+                    street = ', '.join(parts[:-2]) if len(parts) > 2 else rest
+                    company = 'Customer'
+                else:
+                    company, street, city, state = 'Customer', rest, '', ''
+                return {'company': company, 'address': street, 'city': city, 'state': state, 'postal': postal, 'country': 'USA'}
+            return {'company': s, 'address': '', 'city': '', 'state': '', 'postal': '', 'country': 'Canada'}
         company, street = lines[0], lines[1] if len(lines) > 1 else ''
         city = state = postal = ''
         country = 'Canada'
@@ -5341,7 +5381,7 @@ def _parse_manual_shipper_consignee_fallback(text):
         if re.search(r'([\d,]+)\s*(kg|lbs?)', text):
             m = re.search(r'([\d,]+)\s*(kg|lbs?)', text)
             result['weights'] = {'total_weight': m.group(1).replace(',', ''), 'weight_unit': m.group(2).lower()}
-    item_m = re.search(r'Item\s*:?\s*(.+?)(?=\n\n|\n\s*(?:Shipper|Consignee|Shipment)|$)', text, re.I | re.DOTALL)
+    item_m = re.search(r'Item\s*:?\s*(.+?)(?=\n\n|\n\s*(?:Shipper|Consignee|Shipment|Pickup|Delivery|Going\s+from|Going\s+to)|$)', text, re.I | re.DOTALL)
     if item_m:
         desc = item_m.group(1).strip()
         qty = result['skids'].get('count', '1') if result['skids'] else '1'
@@ -5390,11 +5430,14 @@ def generate_manual_documents():
         You are a logistics expert parsing shipping information. Extract ALL details accurately.
         
         CRITICAL RULES:
-        1. "Going from" = SHIPPER (who is sending/shipping FROM)
-        2. "Going to" = CONSIGNEE (who is receiving TO)
-        3. If text says "Going from: [Company A]" and "Going to: [Company B]", then:
-           - Shipper = Company A (the FROM address)
-           - Consignee = Company B (the TO address)
+        1. "Going from" / "Pickup Address" / "Pickup" / "Shipper" = SHIPPER (who is sending/shipping FROM)
+        2. "Going to" / "Delivery Address" / "Delivery" / "Drop off" / "Consignee" = CONSIGNEE (who is receiving TO)
+        3. These are ALL equivalent - extract from whichever the user provides:
+           - Shipper: Pickup Address, Going from, From, Shipper
+           - Consignee: Delivery Address, Going to, To, Consignee, Drop off
+        4. If text says "Pickup Address: [Company A]" and "Delivery Address: [Company B]", then:
+           - Shipper = Company A (the pickup/from address)
+           - Consignee = Company B (the delivery/to address)
         4. NEVER assume Canoil is the shipper unless explicitly stated
         5. If multiple orders/materials are mentioned, extract ALL items separately
         6. Match weights, pallets, and quantities to the correct items
@@ -5497,7 +5540,33 @@ def generate_manual_documents():
         - weights.total_weight = "1500"
         - weights.weight_unit = "kg"
         
-        Example 2 (Going from/to single-line format):
+        Example 2 (Pickup Address / Delivery Address format - VERY COMMON):
+        "Item: Amsoil Blue Caps
+         Total Piece Count: 27,174 caps (20 cases x 1300 per case)
+         Total Gross Weight: 164 kg
+         Pallet Count: 1 pallet, 48" x 40" x 63"
+         Pickup Address: Canoil Canada Ltd. 62 Todd Road Georgetown, Ontario L7G 4R7 Canada
+         Delivery Address: 1600 Georgesville Rd, Columbus, OH 43228"
+        Result:
+        - shipper.company = "Canoil Canada Ltd."
+        - shipper.address = "62 Todd Road"
+        - shipper.city = "Georgetown"
+        - shipper.state = "Ontario"
+        - shipper.postal = "L7G 4R7"
+        - shipper.country = "Canada"
+        - consignee.company = "Amsoil" or extract from address - use "1600 Georgesville Rd" as address
+        - consignee.address = "1600 Georgesville Rd"
+        - consignee.city = "Columbus"
+        - consignee.state = "OH"
+        - consignee.postal = "43228"
+        - consignee.country = "USA" or "United States"
+        - items[0].description = "Amsoil Blue Caps"
+        - items[0].quantity = "27174" or "20" (cases)
+        - skids.count = "1"
+        - weights.total_weight = "164"
+        - weights.weight_unit = "kg"
+
+        Example 3 (Going from/to single-line format):
         "Going from: LANXESS Canada Co/Cie c/o West Hill 10 Chemical Court SCARBOROUGH ON M1E 2K3 CANADA
          Going to: Canoil Canada LTD / 62 Todd Road GEORGETOWN-HALTON HILLS ON L7G 4R7 CANADA
          Material G-2015-2: 34 drums, 9 pallets, 6885 kg"
@@ -5534,7 +5603,7 @@ def generate_manual_documents():
         
         CRITICAL EXTRACTION RULES:
         - Parse addresses carefully - extract street, city, province, postal code from multi-line or single-line format
-        - "Shipper:" / "Consignee:" and "Going from:" / "Going to:" are equivalent - extract from whichever is present
+        - "Shipper:" / "Consignee:", "Going from:" / "Going to:", and "Pickup Address:" / "Delivery Address:" are ALL equivalent - extract from whichever is present
         - For "Item: G-2000-2 DRUMS" with no quantity, use skid count as quantity (2 skids = 2)
         - Sum pallet counts if multiple items have different pallet counts
         - Sum weights if multiple items have different weights
@@ -5569,7 +5638,7 @@ def generate_manual_documents():
         if not parsed_data or not (parsed_data.get('shipper', {}).get('company') and parsed_data.get('consignee', {}).get('company')):
             return jsonify({
                 'success': False,
-                'error': 'Could not identify shipper and consignee. Please use "Shipper:" and "Consignee:" sections, or "Going from:" and "Going to:".'
+                'error': 'Could not identify shipper and consignee. Use "Shipper:"/"Consignee:", "Going from:"/"Going to:", or "Pickup Address:"/"Delivery Address:".'
             }), 400
         
         print(f"✅ Parsed data: Shipper={parsed_data.get('shipper', {}).get('company')}, Consignee={parsed_data.get('consignee', {}).get('company')}")
@@ -5609,7 +5678,7 @@ def generate_manual_documents():
         if not shipper.get('company') or not consignee.get('company'):
             return jsonify({
                 'success': False,
-                'error': 'Could not identify shipper and/or consignee. Use "Shipper:" and "Consignee:" sections (or "Going from:" / "Going to:").'
+                'error': 'Could not identify pickup and delivery addresses. Please include both addresses (e.g. "Pickup: ..." and "Delivery: ..." or list them in order).'
             }), 400
         
         # If multiple items have individual pallet counts, sum them
