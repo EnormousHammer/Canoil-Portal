@@ -1,12 +1,13 @@
 """
 TSCA (Toxic Substances Control Act) Certification Generator
-Fills TSCA form with items, batch numbers, and HTS codes
+Fills TSCA form with items, batch numbers, and HTS codes.
+Flattens the PDF so text persists when inserting the page into another document.
 """
 
-import PyPDF2
 from PyPDF2 import PdfReader, PdfWriter
 from datetime import datetime
 import os
+import tempfile
 from typing import Dict, Any, List
 
 # TSCA template path (with correct address: 62 Todd Road, Georgetown)
@@ -150,9 +151,7 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     print(f"\n>> Reading template: {TSCA_TEMPLATE}")
     reader = PdfReader(TSCA_TEMPLATE)
     writer = PdfWriter()
-    
-    # Copy page
-    writer.add_page(reader.pages[0])
+    writer.clone_document_from_reader(reader)  # Preserves AcroForm and form fields
     
     # Prepare form fields to update
     # Set date to current date automatically - try multiple formats
@@ -201,10 +200,7 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     print(f"   Products filled: {len(product_lines)}")
     
     # Update form fields
-    writer.update_page_form_field_values(
-        writer.pages[0],
-        fields_to_update
-    )
+    writer.update_page_form_field_values(writer.pages[0], fields_to_update)
     
     # Generate output filename
     so_number = so_data.get('so_number', 'Unknown')
@@ -223,11 +219,37 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
     
-    # Write output PDF
-    with open(output_filepath, 'wb') as output_file:
-        writer.write(output_file)
+    # Write filled PDF to temp file first
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+        tmp_path = tmp.name
+        writer.write(tmp)
     
-    print(f"\n✅ TSCA Certification generated: {output_filename}")
+    # Flatten: render to image then back to PDF so text persists when inserting page into another document
+    try:
+        from pdf2image import convert_from_path
+        from PIL import Image
+        images = convert_from_path(tmp_path, dpi=300)
+        if images:
+            img_rgb = images[0].convert('RGB')
+            img_rgb.save(output_filepath, 'PDF', resolution=300)
+            print(f"\n>> Flattened PDF (text will persist when copying/inserting page)")
+        else:
+            # Fallback: copy unfilled if render failed
+            import shutil
+            shutil.copy(tmp_path, output_filepath)
+            print(f"\n>> Warning: Could not flatten - text may disappear when inserting into another document")
+    except Exception as e:
+        # Fallback if pdf2image/poppler not available (e.g. some Windows setups)
+        import shutil
+        shutil.copy(tmp_path, output_filepath)
+        print(f"\n>> Flatten skipped ({e}) - text may disappear when inserting into another document")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    
+    print(f"\n[OK] TSCA Certification generated: {output_filename}")
     print("="*80 + "\n")
     
     return (output_filepath, output_filename)
