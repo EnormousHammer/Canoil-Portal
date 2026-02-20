@@ -5,6 +5,7 @@ Flattens the PDF so text persists when inserting the page into another document.
 """
 
 from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2.generic import NameObject, TextStringObject
 from datetime import datetime
 import os
 import tempfile
@@ -34,6 +35,33 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         actual_items.append(item)
     
     return actual_items
+
+
+def _update_form_annotations_direct(page, fields: Dict[str, Any]) -> None:
+    """Directly update PDF form annotations - bypasses PyPDF2's method for compatibility."""
+    if '/Annots' not in page:
+        return
+    annots = page['/Annots']
+    if not annots:
+        return
+    annot_list = annots if isinstance(annots, list) else [annots]
+    for annot_ref in annot_list:
+        annot = annot_ref.get_object() if hasattr(annot_ref, 'get_object') else annot_ref
+        field_name = annot.get('/T')
+        if field_name is None:
+            continue
+        name_str = str(field_name) if hasattr(field_name, '__str__') else field_name
+        if name_str not in fields:
+            continue
+        value = fields[name_str]
+        field_type = annot.get('/FT')
+        if field_type == '/Btn':
+            btn_val = value if isinstance(value, str) and value.startswith('/') else '/Yes'
+            annot[NameObject('/AS')] = NameObject(btn_val)
+            annot[NameObject('/V')] = NameObject(btn_val)
+        else:
+            annot[NameObject('/V')] = TextStringObject(str(value))
+            annot[NameObject('/DV')] = TextStringObject(str(value))
 
 
 def clean_batch_number_for_tsca(batch: str) -> str:
@@ -147,55 +175,54 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
         
         print(f"   Item {idx}: {line}")
     
-    # Read the template PDF
-    print(f"\n>> Reading template: {TSCA_TEMPLATE}")
-    reader = PdfReader(TSCA_TEMPLATE)
-    writer = PdfWriter()
-    writer.clone_document_from_reader(reader)  # Preserves AcroForm and form fields
-    
-    # Prepare form fields to update
-    # Set date to current date automatically - try multiple formats
+    # Prepare form fields (must be before template read)
     now = datetime.now()
-    current_date_iso = now.strftime('%Y-%m-%d')
     current_date_us = now.strftime('%m/%d/%Y')
-    current_date_long = now.strftime('%B %d, %Y')
-    
-    # Use exact field names from TSCA template (from page annotations)
     so_ref = f"SO {so_data.get('so_number', '')}"
     fields_to_update = {
-        # Date fields (template has "Date Field0" and "Date")
         'Date Field0': current_date_us,
         'Date': current_date_us,
-        # Reference
         'reference number': so_ref,
-        # Positive certification checkbox (checked)
         'Check Box5': '/Yes',
-        # Negative certification (unchecked)
         'Check Box4': '/Off',
-        # Certifier info
         'cert name': 'Haron Alhakimi',
         'cert title': 'Logistics Supervisor',
         'phone': '905-820-2022',
         'email': 'haron@canoilcanadaltd.com',
     }
-    
-    # Add product lines (product 1-10, start with actual items)
     for idx, line in enumerate(product_lines, 1):
-        field_name = f'product {idx}'
-        fields_to_update[field_name] = line
-    
-    # Clear any remaining product fields
+        fields_to_update[f'product {idx}'] = line
     for idx in range(len(product_lines) + 1, 11):
-        field_name = f'product {idx}'
-        fields_to_update[field_name] = ''
+        fields_to_update[f'product {idx}'] = ''
     
-    print(f"\n>> Updating fields:")
-    print(f"   Date: {current_date_us} (auto-filled with current date - MM/DD/YYYY format)")
-    print(f"   Reference: SO {so_data.get('so_number', '')}")
-    print(f"   Products filled: {len(product_lines)}")
+    print(f"\n>> Updating fields: Date={current_date_us}, Ref={so_ref}, Products={len(product_lines)}")
     
-    # Update form fields
-    writer.update_page_form_field_values(writer.pages[0], fields_to_update)
+    # Read template - try pypdf first (proper flatten with vector text)
+    print(f"\n>> Reading template: {TSCA_TEMPLATE}")
+    use_pypdf_flatten = False
+    try:
+        from pypdf import PdfReader as PypdfReader, PdfWriter as PypdfWriter
+        pypdf_reader = PypdfReader(TSCA_TEMPLATE)
+        pypdf_writer = PypdfWriter()
+        pypdf_writer.append(pypdf_reader)
+        pypdf_writer.reattach_fields()  # Fix /Fields for annotation-only forms
+        pypdf_writer.update_page_form_field_values(
+            pypdf_writer.pages[0],
+            fields_to_update,
+            auto_regenerate=False,
+            flatten=True,
+        )
+        pypdf_writer.remove_annotations(subtypes="/Widget")
+        use_pypdf_flatten = True
+        writer = pypdf_writer
+        print("   Using pypdf (vector flatten)")
+    except Exception as e:
+        print(f"   pypdf flatten skipped ({e}), using PyPDF2 + image flatten")
+        reader = PdfReader(TSCA_TEMPLATE)
+        writer = PdfWriter()
+        writer.clone_document_from_reader(reader)
+        _update_form_annotations_direct(writer.pages[0], fields_to_update)
+        writer.set_need_appearances_writer()
     
     # Generate output filename
     so_number = so_data.get('so_number', 'Unknown')
@@ -214,31 +241,29 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
     
-    # Write filled PDF to temp file first
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-        tmp_path = tmp.name
-        writer.write(tmp)
-    
-    # Flatten: render to image then back to PDF so text persists when inserting page into another document
-    try:
-        from pdf2image import convert_from_path
-        from PIL import Image
-        images = convert_from_path(tmp_path, dpi=300)
-        if images:
-            img_rgb = images[0].convert('RGB')
-            img_rgb.save(output_filepath, 'PDF', resolution=300)
-            print(f"\n>> Flattened PDF (text will persist when copying/inserting page)")
-        else:
-            # Fallback: copy unfilled if render failed
+    if use_pypdf_flatten:
+        with open(output_filepath, 'wb') as f:
+            writer.write(f)
+        print(f"\n>> Flattened with pypdf (vector text)")
+    else:
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            tmp_path = tmp.name
+            writer.write(tmp)
+        try:
+            from pdf2image import convert_from_path
+            from PIL import Image
+            images = convert_from_path(tmp_path, dpi=300)
+            if images:
+                img_rgb = images[0].convert('RGB')
+                img_rgb.save(output_filepath, 'PDF', resolution=300)
+                print(f"\n>> Flattened PDF (image)")
+            else:
+                import shutil
+                shutil.copy(tmp_path, output_filepath)
+        except Exception as e:
             import shutil
             shutil.copy(tmp_path, output_filepath)
-            print(f"\n>> Warning: Could not flatten - text may disappear when inserting into another document")
-    except Exception as e:
-        # Fallback if pdf2image/poppler not available (e.g. some Windows setups)
-        import shutil
-        shutil.copy(tmp_path, output_filepath)
-        print(f"\n>> Flatten skipped ({e}) - text may disappear when inserting into another document")
-    finally:
+            print(f"\n>> Flatten skipped ({e})")
         try:
             os.unlink(tmp_path)
         except OSError:
