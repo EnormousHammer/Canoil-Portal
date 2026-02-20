@@ -17,8 +17,18 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 TSCA_TEMPLATE = os.path.join(_current_dir, 'templates', 'tsca', 'TSCA CERTIFICATION_UPDATED.pdf')
 
 
+def _is_caps_product(description: str) -> bool:
+    """Caps (bottle caps, closures) are NOT chemicals - TSCA does not apply. Use USMCA instead."""
+    if not description:
+        return False
+    d = description.upper()
+    # Match "Blue Caps", "Amsoil Blue Caps", "CAPS", "bottle caps", "plastic caps"
+    return ' CAPS' in d or d.endswith(' CAPS') or ' CAP ' in d or 'BOTTLE CAP' in d or 'CLOSURE' in d
+
+
 def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Filter out non-product items like freight, pallet charges, prepay, add, etc."""
+    """Filter out non-product items like freight, pallet charges, prepay, add, etc.
+    Also EXCLUDE caps - caps need USMCA, not TSCA (TSCA is for chemical substances)."""
     actual_items = []
     
     for item in items:
@@ -30,6 +40,10 @@ def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             'SURCHARGE', 'HANDLING', 'INSURANCE', 'PREPAY', 
             'PREPAID', 'ADD', 'ADDITIONAL', 'ADJUSTMENT'
         ]):
+            continue
+        
+        # Skip caps - TSCA is for chemicals. Caps need USMCA, not TSCA.
+        if _is_caps_product(str(item.get('description', ''))):
             continue
         
         actual_items.append(item)

@@ -201,6 +201,19 @@
             background: #45a049;
         }
         
+        .remove-row-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            font-size: 9pt;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .remove-row-btn:hover {
+            background: #d32f2f;
+        }
+        
         @media print {
             html, body {
                 overflow: visible !important;
@@ -226,7 +239,10 @@
                 gap: 20px;
             }
             
-            .add-row-btn, button, .btn, [onclick] {
+            .add-row-btn, .remove-row-btn, button, .btn, [onclick] {
+                display: none !important;
+            }
+            .remove-col {
                 display: none !important;
             }
             
@@ -474,7 +490,7 @@
                 <td><input type="text" id="shipped_qty_9" data-field="shipped_qty" data-row="9" name="shipped_qty_9" style="text-align: center;"></td>
             </tr>
             <tr class="item-row" id="item_row_10" data-row="10">
-                <td style="text-align: center; vertical-align: top; padding: 8px;">10</td>
+                <td class="row-num" style="text-align: center; vertical-align: top; padding: 8px;">10</td>
                 <td><textarea id="item_description_10" data-field="item_description" data-row="10" name="item_description_10" oninput="autoResizeInput(this)"></textarea></td>
                 <td><textarea id="lot_batch_10" data-field="lot_batch" data-row="10" name="lot_batch_10" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
                 <td><input type="text" id="unit_10" data-field="unit" data-row="10" name="unit_10" style="text-align: center;"></td>
@@ -518,22 +534,52 @@
             }
         });
         
+        function renumberRows() {
+            const rows = document.querySelectorAll('#itemsTable .item-row');
+            rows.forEach((row, idx) => {
+                const num = idx + 1;
+                const numCell = row.querySelector('.row-num');
+                if (numCell) numCell.textContent = num;
+                row.id = 'item_row_' + num;
+                row.setAttribute('data-row', num);
+                row.querySelectorAll('[data-field]').forEach(c => c.setAttribute('data-row', num));
+                const desc = row.querySelector('[data-field="item_description"]');
+                if (desc) { desc.id = 'item_description_' + num; desc.name = 'item_description_' + num; }
+                const lot = row.querySelector('[data-field="lot_batch"]');
+                if (lot) { lot.id = 'lot_batch_' + num; lot.name = 'lot_batch_' + num; }
+                const unit = row.querySelector('[data-field="unit"]');
+                if (unit) { unit.id = 'unit_' + num; unit.name = 'unit_' + num; }
+                const ord = row.querySelector('[data-field="ordered_qty"]');
+                if (ord) { ord.id = 'ordered_qty_' + num; ord.name = 'ordered_qty_' + num; }
+                const ship = row.querySelector('[data-field="shipped_qty"]');
+                if (ship) { ship.id = 'shipped_qty_' + num; ship.name = 'shipped_qty_' + num; }
+            });
+            rowCount = rows.length;
+        }
+        
+        function removeRow(btn) {
+            const row = btn.closest('tr');
+            if (!row) return;
+            const rows = document.querySelectorAll('#itemsTable .item-row');
+            if (rows.length <= 1) return;
+            row.remove();
+            renumberRows();
+        }
+        
         function addRow() {
-            rowCount++;
             const table = document.getElementById('itemsTable');
             const newRow = table.insertRow(-1);
             newRow.className = 'item-row';
-            newRow.id = 'item_row_' + rowCount;
-            newRow.setAttribute('data-row', rowCount);
-            
             newRow.innerHTML = `
-                <td style="text-align: center; vertical-align: top; padding: 8px;">${rowCount}</td>
-                <td><textarea id="item_description_${rowCount}" data-field="item_description" data-row="${rowCount}" name="item_description_${rowCount}" oninput="autoResizeInput(this)"></textarea></td>
-                <td><textarea id="lot_batch_${rowCount}" data-field="lot_batch" data-row="${rowCount}" name="lot_batch_${rowCount}" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
-                <td><input type="text" id="unit_${rowCount}" data-field="unit" data-row="${rowCount}" name="unit_${rowCount}" style="text-align: center;"></td>
-                <td><input type="text" id="ordered_qty_${rowCount}" data-field="ordered_qty" data-row="${rowCount}" name="ordered_qty_${rowCount}" style="text-align: center;"></td>
-                <td><input type="text" id="shipped_qty_${rowCount}" data-field="shipped_qty" data-row="${rowCount}" name="shipped_qty_${rowCount}" style="text-align: center;"></td>
+                <td class="row-num" style="text-align: center; vertical-align: top; padding: 8px;"></td>
+                <td><textarea data-field="item_description" name="item_desc_new" oninput="autoResizeInput(this)"></textarea></td>
+                <td><textarea data-field="lot_batch" name="lot_batch_new" style="text-align: center;" oninput="autoResizeInput(this)"></textarea></td>
+                <td><input type="text" data-field="unit" name="unit_new" style="text-align: center;"></td>
+                <td><input type="text" data-field="ordered_qty" name="ordered_qty_new" style="text-align: center;"></td>
+                <td><input type="text" data-field="shipped_qty" name="shipped_qty_new" style="text-align: center;"></td>
+                <td class="remove-col" style="text-align: center; vertical-align: middle;"><button type="button" class="remove-row-btn" onclick="removeRow(this)" title="Remove row">Remove</button></td>
             `;
+            renumberRows();
         }
         
         // Automation helper: Fill form from JSON

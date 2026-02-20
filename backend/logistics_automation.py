@@ -5513,6 +5513,7 @@ def generate_manual_documents():
                     "description": "product/material name (e.g., 'Material G-2015-2', 'G-2032-0', product code)",
                     "quantity": "total quantity as string (e.g., '34' for 34 drums)",
                     "unit": "unit type: drum, pail, case, keg, tote, box, or pieces",
+                    "unit_price": "price per unit if mentioned for this item (number only)",
                     "batch_number": "batch number if mentioned",
                     "sales_order": "sales order number if mentioned for this item",
                     "delivery_number": "delivery number if mentioned for this item",
@@ -5532,7 +5533,9 @@ def generate_manual_documents():
             }},
             "carrier": "carrier/shipping company name if mentioned",
             "release_numbers": "release numbers as array if mentioned (e.g., ['4000599546', '4000603468'])",
-            "special_instructions": "all special instructions, shipping hours, gate instructions, check-in procedures, etc."
+            "special_instructions": "all special instructions, shipping hours, gate instructions, check-in procedures, etc.",
+            "total_value": "total declared value in USD if mentioned (e.g. 'value: $1234 USD' or 'Value: 500 USD' - extract the number only, e.g. '1234' or '500')",
+            "value_currency": "USD or CAD if specified (default USD when value given)"
         }}
         
         EXAMPLES:
@@ -5717,6 +5720,22 @@ def generate_manual_documents():
         except Exception as parse_err:
             print(f"WARNING: Manual SO/PO fallback parse failed: {parse_err}")
         
+        # Fallback: extract total_value from raw text if not in parsed_data (for Commercial Invoice)
+        if not parsed_data.get('total_value'):
+            for vp in [
+                r'[Vv]alue\s*:?\s*\$?\s*([\d,]+(?:\.\d+)?)\s*(?:USD|CAD)?',
+                r'[Vv]alue\s*:?\s*\$?\s*([\d,]+(?:\.\d+)?)',
+                r'\$\s*([\d,]+(?:\.\d+)?)\s*(?:USD|CAD)',
+            ]:
+                val_m = re.search(vp, text_input)
+                if val_m:
+                    try:
+                        parsed_data['total_value'] = str(float(val_m.group(1).replace(',', '')))
+                        print(f"   Extracted total_value from text: {parsed_data['total_value']}")
+                        break
+                    except (ValueError, IndexError):
+                        pass
+        
         # Validate that we have shipper and consignee
         if not shipper.get('company') or not consignee.get('company'):
             return jsonify({
@@ -5762,7 +5781,17 @@ def generate_manual_documents():
             m = re.search(r'(\d+(?:\.\d+)?)', str(val).strip())
             return max(1, int(float(m.group(1)))) if m else 1
         
+        # Get total_value for Commercial Invoice (from "value: $1234 USD" etc.)
+        total_value_num = 0.0
+        try:
+            tv = parsed_data.get('total_value', '')
+            if tv:
+                total_value_num = float(str(tv).replace(',', '').strip())
+        except (ValueError, TypeError):
+            pass
+        
         formatted_items = []
+        total_qty_for_value = sum(_safe_qty(it.get('quantity', '')) for it in items) or 1
         for item in items:
             qty_num = _safe_qty(item.get('quantity', ''))
             formatted_item = {
@@ -5777,6 +5806,19 @@ def generate_manual_documents():
                 'delivery_number': item.get('delivery_number', ''),
                 'customer_po': item.get('customer_po', '')
             }
+            # Apply total_value to Commercial Invoice: unit_price so grand total = declared value
+            if total_value_num > 0 and not (item.get('unit_price') or item.get('total_price')):
+                item_share = qty_num / total_qty_for_value if total_qty_for_value else 1
+                item_total = total_value_num * item_share
+                formatted_item['unit_price'] = round(item_total / qty_num, 2) if qty_num else 0
+                formatted_item['total_price'] = round(item_total, 2)
+            elif item.get('unit_price') or item.get('total_price'):
+                try:
+                    up = float(str(item.get('unit_price', 0) or 0).replace('$', '').replace(',', '').strip())
+                    formatted_item['unit_price'] = up
+                    formatted_item['total_price'] = round(qty_num * up, 2)
+                except (ValueError, TypeError):
+                    pass
             formatted_items.append(formatted_item)
         
         print(f"📦 Formatted {len(formatted_items)} items for document generation")

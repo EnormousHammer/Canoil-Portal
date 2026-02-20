@@ -62,6 +62,17 @@ APPROVED_USMCA_HTS_CODES = {
     '3403.19.5000': {
         'description': 'Biodegradable greases',
         'products': ['VSG Biodegradable Canola-Oil Based Grease']
+    },
+    
+    # Plastic Caps and Closures - 3923.50 (stoppers, lids, caps)
+    # Caps need USMCA, NOT TSCA (TSCA is for chemical substances)
+    '3923.50': {
+        'description': 'Plastic caps, stoppers, lids and closures',
+        'products': ['Amsoil Blue Caps', 'Blue Caps', 'Bottle Caps', 'Plastic Caps']
+    },
+    '3923': {
+        'description': 'Plastic articles - caps, closures, stoppers',
+        'products': ['Amsoil Blue Caps', 'Caps', 'Closures']
     }
 }
 
@@ -134,6 +145,14 @@ def get_usmca_info_for_hts(hts_code: str) -> dict:
     }
 
 
+def _is_caps_product(description: str) -> bool:
+    """Caps (bottle caps, closures) need USMCA, not TSCA."""
+    if not description:
+        return False
+    d = str(description).upper()
+    return ' CAPS' in d or d.endswith(' CAPS') or ' CAP ' in d or 'BOTTLE CAP' in d or 'CLOSURE' in d
+
+
 def check_items_for_usmca(items: list, destination: str = None, so_data: dict = None) -> dict:
     """
     Check if any items have HTS codes that qualify for USMCA
@@ -160,6 +179,19 @@ def check_items_for_usmca(items: list, destination: str = None, so_data: dict = 
             }
     
     items_with_hts = [item for item in items if item.get('hts_code')]
+    
+    # CAPS: If items are caps (by description) and no HTS codes, require USMCA for USA (not TSCA)
+    # Common in NO SO mode (Amsoil Blue Caps, etc.)
+    caps_items = [i for i in items if _is_caps_product(i.get('description', '') or i.get('item_code', ''))]
+    if not items_with_hts and caps_items:
+        return {
+            'requires_usmca': True,
+            'reason': f'Caps products require USMCA (not TSCA) - {len(caps_items)} cap item(s)',
+            'matching_items': [{'item_code': i.get('item_code', ''), 'description': i.get('description', ''), 'hts_code': i.get('hts_code', '3923.50'), 'country_of_origin': i.get('country_of_origin', 'Canada'), 'usmca_category': 'Plastic caps/closures'} for i in caps_items],
+            'non_matching_items': [],
+            'blocked_items': [],
+            'total_items_checked': len(caps_items)
+        }
     
     if not items_with_hts:
         return {
@@ -228,8 +260,22 @@ def check_items_for_usmca(items: list, destination: str = None, so_data: dict = 
     
     requires_usmca = len(matching_items) > 0
     
+    # Caps always need USMCA for USA - override if we have caps but HTS check didn't match
+    if caps_items and not requires_usmca:
+        requires_usmca = True
+        for cap in caps_items:
+            if cap not in [m['item_code'] for m in matching_items]:
+                matching_items.append({
+                    'item_code': cap.get('item_code', ''),
+                    'description': cap.get('description', ''),
+                    'hts_code': cap.get('hts_code', '3923.50'),
+                    'country_of_origin': cap.get('country_of_origin', 'Canada'),
+                    'usmca_category': 'Plastic caps/closures'
+                })
+        reason = f'Caps products require USMCA - {len(caps_items)} cap item(s)'
+    
     # Build detailed reason
-    if requires_usmca:
+    if requires_usmca and 'reason' not in dir():
         reason = f'{len(matching_items)} items qualify (HTS + COO + Destination all match)'
     elif blocked_items:
         reason = f'No items qualify: {len(blocked_items)} blocked by COO (not CA/US/MX)'
