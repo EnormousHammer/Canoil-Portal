@@ -160,28 +160,23 @@ def generate_tsca_certification(so_data: Dict[str, Any], items: List[Dict[str, A
     current_date_us = now.strftime('%m/%d/%Y')
     current_date_long = now.strftime('%B %d, %Y')
     
+    # Use exact field names from TSCA template (from page annotations)
+    so_ref = f"SO {so_data.get('so_number', '')}"
     fields_to_update = {
-        # Try multiple date field name variations and formats
-        'date': current_date_us,  # Most PDF forms expect MM/DD/YYYY
+        # Date fields (template has "Date Field0" and "Date")
+        'Date Field0': current_date_us,
         'Date': current_date_us,
-        'DATE': current_date_us,
-        'certification_date': current_date_us,
-        'Certification Date': current_date_us,
-        'date_iso': current_date_iso,  # Also try ISO format
-        'date_long': current_date_long,  # Also try long format
-        'reference number': f"SO {so_data.get('so_number', '')}",
-        # Certifier information - Haron Alhakimi
-        # Try multiple possible field name variations to ensure overwrite
-        'name': 'Haron Alhakimi',
-        'Name': 'Haron Alhakimi',
-        'certifier_name': 'Haron Alhakimi',
-        'Certifier name': 'Haron Alhakimi',
-        'title': 'Logistics Supervisor',
-        'Title': 'Logistics Supervisor',
-        'Certifier title': 'Logistics Supervisor',
+        # Reference
+        'reference number': so_ref,
+        # Positive certification checkbox (checked)
+        'Check Box5': '/Yes',
+        # Negative certification (unchecked)
+        'Check Box4': '/Off',
+        # Certifier info
+        'cert name': 'Haron Alhakimi',
+        'cert title': 'Logistics Supervisor',
+        'phone': '905-820-2022',
         'email': 'haron@canoilcanadaltd.com',
-        'Email': 'haron@canoilcanadaltd.com',
-        'Certifier email address': 'haron@canoilcanadaltd.com',
     }
     
     # Add product lines (product 1-10, start with actual items)
