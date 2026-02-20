@@ -5297,7 +5297,7 @@ def _parse_manual_shipper_consignee_fallback(text):
     """Regex fallback for Shipper:/Consignee: format when GPT returns empty."""
     result = {'shipper': {}, 'consignee': {}, 'items': [], 'weights': {}, 'skids': {}}
     shipper_m = re.search(r'(?:Shipper|Going\s+from|From|Pickup|Origin|Collect|Ship\s+from)\s*(?:Address)?\s*:?\s*\n?(.+?)(?=\n\s*(?:Consignee|Going\s+to|To|Delivery|Destination|Ship\s+to|Drop\s+off)\s*(?:Address)?\s*:|\Z)', text, re.DOTALL | re.I)
-    consignee_m = re.search(r'(?:Consignee|Going\s+to|To|Delivery|Destination|Ship\s+to|Drop\s+off)\s*(?:Address)?\s*:?\s*\n?(.+?)(?=\n\s*(?:Shipment|Item|Shipper|Pickup|From|Origin|$)|\Z)', text, re.DOTALL | re.I)
+    consignee_m = re.search(r'(?:Consignee|Going\s+to|To|Delivery|Destination|Ship\s+to|Drop\s+off)\s*(?:Address)?\s*:?\s*\n?(.+?)(?=\n\s*(?:Shipment|Item|Shipper|Pickup|From|Origin|Carrier|$)|\Z)', text, re.DOTALL | re.I)
 
     def parse_addr(block):
         if not block:
@@ -5376,19 +5376,55 @@ def _parse_manual_shipper_consignee_fallback(text):
         result['skids'] = {'count': ship_m.group(1), 'dimensions': ship_m.group(2).strip().replace('"', '') + ' inches'}
         result['weights'] = {'total_weight': ship_m.group(3).replace(',', ''), 'weight_unit': ship_m.group(4).lower()}
     else:
-        if re.search(r'(\d+)\s*[Ss]kids?', text):
-            result['skids'] = {'count': re.search(r'(\d+)\s*[Ss]kids?', text).group(1)}
-        if re.search(r'([\d,]+)\s*(kg|lbs?)', text):
+        pallet_skid_m = re.search(r'(\d+)\s*(?:[Ss]kids?|[Pp]allets?)', text)
+        if pallet_skid_m:
+            result['skids'] = {'count': pallet_skid_m.group(1)}
+            dim_m = re.search(r'(\d+)\s*["\']?\s*[xX×]\s*(\d+)\s*["\']?\s*[xX×]\s*(\d+)', text)
+            if dim_m:
+                result['skids']['dimensions'] = f"{dim_m.group(1)} x {dim_m.group(2)} x {dim_m.group(3)} inches"
+            piece_m = re.search(r'[Tt]otal\s+[Pp]iece\s+[Cc]ount\s*:?\s*([\d,]+)', text)
+            if piece_m:
+                result['skids']['pieces'] = piece_m.group(1).replace(',', '')
+        gross_w = re.search(r'[Tt]otal\s+[Gg]ross\s+[Ww]eight\s*:?\s*([\d,]+)\s*(kg|lbs?)', text)
+        if gross_w:
+            result['weights'] = {'total_weight': gross_w.group(1).replace(',', ''), 'weight_unit': gross_w.group(2).lower()}
+        elif re.search(r'([\d,]+)\s*(kg|lbs?)', text):
             m = re.search(r'([\d,]+)\s*(kg|lbs?)', text)
             result['weights'] = {'total_weight': m.group(1).replace(',', ''), 'weight_unit': m.group(2).lower()}
-    item_m = re.search(r'Item\s*:?\s*(.+?)(?=\n\n|\n\s*(?:Shipper|Consignee|Shipment|Pickup|Delivery|Going\s+from|Going\s+to)|$)', text, re.I | re.DOTALL)
+    item_m = re.search(r'(?:Item|Product|Material)\s*:?\s*(.+?)(?=\n\n|\n\s*(?:Shipper|Consignee|Shipment|Pickup|Delivery|Going\s+from|Going\s+to)|$)', text, re.I | re.DOTALL)
     if item_m:
-        desc = item_m.group(1).strip()
-        qty = result['skids'].get('count', '1') if result['skids'] else '1'
-        unit = 'drum' if 'drum' in desc.lower() else 'pail' if 'pail' in desc.lower() else 'skid'
+        raw = item_m.group(1).strip()
+        desc = raw.split('\n')[0].strip() if '\n' in raw else raw
+        piece_m = re.search(r'[Tt]otal\s+[Pp]iece\s+[Cc]ount\s*:?\s*([\d,]+)', raw)
+        case_m = re.search(r'(\d+)\s*cases?', raw, re.I)
+        qty = piece_m.group(1).replace(',', '') if piece_m else (case_m.group(1) if case_m else result['skids'].get('count', '1') if result['skids'] else '1')
+        unit = 'case' if 'case' in raw.lower() else 'pieces' if 'cap' in raw.lower() or 'piece' in raw.lower() else 'drum' if 'drum' in raw.lower() else 'pail' if 'pail' in raw.lower() else 'skid'
         result['items'] = [{'description': desc, 'quantity': qty, 'unit': unit}]
-    if result['shipper'].get('company') and result['consignee'].get('company'):
+    carrier_m = re.search(r'[Cc]arrier\s*:?\s*(.+?)(?=\n|$)', text)
+    if carrier_m:
+        result['carrier'] = carrier_m.group(1).strip()
+    def _has_addr(d):
+        return d and (d.get('company') or d.get('address') or d.get('postal'))
+    if _has_addr(result['shipper']) and _has_addr(result['consignee']):
+        if not result['shipper'].get('company') and result['shipper'].get('address'):
+            result['shipper']['company'] = result['shipper'].get('address', 'Shipper').split(',')[0].strip() or 'Shipper'
+        if not result['consignee'].get('company') and result['consignee'].get('address'):
+            result['consignee']['company'] = 'Customer'
         return result
+    if not _has_addr(result['shipper']) or not _has_addr(result['consignee']):
+        can_addrs = list(re.finditer(r'(.{10,80})\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b', text))
+        us_addrs = list(re.finditer(r'(.{10,80})\b(\d{5}(?:-\d{4})?)\b', text))
+        addrs = [(m.group(1).strip().rstrip(','), m.group(2), 'Canada') for m in can_addrs] + [(m.group(1).strip().rstrip(','), m.group(2), 'USA') for m in us_addrs]
+        addrs = [a for a in addrs if not re.search(r'\b(kg|lbs?|cases?|pallets?|skids?|item|total)\b', a[0], re.I)]
+        if len(addrs) >= 2:
+            first, second = addrs[0], addrs[1]
+            result['shipper'] = parse_addr(first[0] + ' ' + first[1])
+            result['consignee'] = parse_addr(second[0] + ' ' + second[1])
+            if not result['shipper'].get('company'):
+                result['shipper']['company'] = result['shipper'].get('address', 'Shipper').split(',')[0].strip() or 'Shipper'
+            if not result['consignee'].get('company'):
+                result['consignee']['company'] = 'Customer'
+            return result
     return None
 
 
@@ -5618,27 +5654,34 @@ def generate_manual_documents():
         # Parse with GPT
         parsed_data = parse_text_with_gpt4(parse_prompt)
         
-        # FALLBACK: If GPT returns empty/incomplete, try regex parsing for "Shipper:" / "Consignee:" format
-        if not parsed_data or not (parsed_data.get('shipper', {}).get('company') and parsed_data.get('consignee', {}).get('company')):
-            print(f"[WARN] GPT parse incomplete, trying regex fallback for Shipper/Consignee format...")
-            fallback_data = _parse_manual_shipper_consignee_fallback(text_input)
-            if fallback_data:
-                parsed_data = fallback_data if not parsed_data else {**parsed_data, **fallback_data}
-                if fallback_data.get('shipper'):
-                    parsed_data['shipper'] = fallback_data['shipper']
-                if fallback_data.get('consignee'):
-                    parsed_data['consignee'] = fallback_data['consignee']
-                if fallback_data.get('items') and not parsed_data.get('items'):
-                    parsed_data['items'] = fallback_data['items']
+        def _has_origin_dest(p):
+            s, c = p.get('shipper', {}), p.get('consignee', {})
+            return (s.get('company') or s.get('address')) and (c.get('company') or c.get('address'))
+        # ALWAYS run fallback - merge to fill any gaps from ANY text format
+        fallback_data = _parse_manual_shipper_consignee_fallback(text_input)
+        if fallback_data:
+            parsed_data = fallback_data if not parsed_data else parsed_data
+            if not parsed_data.get('shipper') or not (parsed_data.get('shipper', {}).get('company') or parsed_data.get('shipper', {}).get('address')):
+                parsed_data['shipper'] = fallback_data['shipper']
+            if not parsed_data.get('consignee') or not (parsed_data.get('consignee', {}).get('company') or parsed_data.get('consignee', {}).get('address')):
+                parsed_data['consignee'] = fallback_data['consignee']
+            if not parsed_data.get('items') or len(parsed_data.get('items', [])) == 0:
+                parsed_data['items'] = fallback_data.get('items', [])
+            if not parsed_data.get('weights', {}).get('total_weight'):
+                parsed_data['weights'] = parsed_data.get('weights') or fallback_data.get('weights') or {}
                 if fallback_data.get('weights'):
-                    parsed_data['weights'] = fallback_data['weights']
+                    parsed_data['weights'].update(fallback_data['weights'])
+            if not parsed_data.get('skids', {}).get('count'):
+                parsed_data['skids'] = parsed_data.get('skids') or fallback_data.get('skids') or {}
                 if fallback_data.get('skids'):
-                    parsed_data['skids'] = fallback_data['skids']
+                    parsed_data['skids'].update(fallback_data['skids'])
+            if fallback_data.get('carrier') and not parsed_data.get('carrier'):
+                parsed_data['carrier'] = fallback_data['carrier']
         
-        if not parsed_data or not (parsed_data.get('shipper', {}).get('company') and parsed_data.get('consignee', {}).get('company')):
+        if not parsed_data or not _has_origin_dest(parsed_data):
             return jsonify({
                 'success': False,
-                'error': 'Could not identify shipper and consignee. Use "Shipper:"/"Consignee:", "Going from:"/"Going to:", or "Pickup Address:"/"Delivery Address:".'
+                'error': 'Could not find both pickup and delivery addresses in the text. Include two addresses in any format.'
             }), 400
         
         print(f"✅ Parsed data: Shipper={parsed_data.get('shipper', {}).get('company')}, Consignee={parsed_data.get('consignee', {}).get('company')}")
@@ -5706,17 +5749,10 @@ def generate_manual_documents():
         
         print(f"📊 Extracted: {len(items)} items, {skids.get('count', '?')} pallets, {weights.get('total_weight', '?')} {weights.get('weight_unit', 'kg')}")
         
-        # Validate required fields
-        if not shipper.get('company') or not consignee.get('company'):
-            return jsonify({
-                'success': False,
-                'error': 'Shipper and Consignee company names are required'
-            }), 400
-        
         if not items or len(items) == 0:
             return jsonify({
                 'success': False,
-                'error': 'At least one item is required'
+                'error': 'Could not find item/product description in the text. Include "Item: ..." or product name.'
             }), 400
         
         # Format items properly for document generators
