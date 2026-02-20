@@ -145,13 +145,27 @@ def test_single_so(so_number):
     # Check item validation
     all_matched = items_check.get('status') == 'passed'
     unmatched = items_check.get('unmatched_items', [])
-    
+    qty_mismatches = items_check.get('quantity_mismatches', [])
+
+    # Build clear error message
+    err_msg = None
+    if not all_matched:
+        if items_check.get('status') == 'warning':
+            err_msg = items_check.get('message', 'No items to validate')
+        elif unmatched:
+            err_msg = f"Unmatched: {[u.get('email_item') for u in unmatched]}"
+        elif qty_mismatches:
+            err_msg = f"Qty mismatch: {[q.get('quantity_details') for q in qty_mismatches]}"
+        else:
+            err_msg = items_check.get('message', str(unmatched or qty_mismatches or 'Unknown'))
+
     return {
         'ok': all_matched and status != 'Error',
         'status': status,
         'items_matched': items_check.get('matched_items', 0),
         'items_total': len(product_items),
         'unmatched': unmatched,
+        'error': err_msg,
         'validation': items_check
     }
 
@@ -184,7 +198,7 @@ def main():
             print(f"  SO {so_num}: PASS ({r.get('items_matched', '?')}/{r.get('items_total', '?')} items)")
         else:
             failed += 1
-            err = r.get('error', r.get('unmatched', 'Unknown'))
+            err = r.get('error') or r.get('unmatched') or 'Unknown'
             print(f"  SO {so_num}: FAIL - {err}")
     
     print()

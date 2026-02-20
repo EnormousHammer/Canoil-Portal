@@ -174,7 +174,7 @@ def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any]
         print("   Estimating weight from items...")
         estimated_kg = 0
         for item in items:
-            qty = int(item.get('quantity', 1))
+            qty = max(1, _safe_quantity(item.get('quantity', 1)))
             desc = item.get('description', '').lower()
             
             # Typical weights in KG
@@ -370,6 +370,17 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
     
     print(f"   ⚠️ WARNING: Unknown pallet_info format - leaving blank")
     return "", 0
+
+
+def _safe_quantity(val) -> int:
+    """Extract numeric quantity from item - handles '2 skid', '2', 2, etc."""
+    if val is None or val == '':
+        return 0
+    if isinstance(val, (int, float)):
+        return max(0, int(val))
+    s = str(val).strip()
+    m = re.search(r'(\d+(?:\.\d+)?)', s)
+    return max(0, int(float(m.group(1)))) if m else 0
 
 
 def filter_actual_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
