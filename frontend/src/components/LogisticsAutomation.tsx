@@ -201,7 +201,8 @@ const LogisticsAutomation: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email_content: contentToProcess
+          email_content: contentToProcess,
+          processing_mode: 'auto'  // Auto mode = ALWAYS single SO, never multi-SO
         })
       });
 
@@ -276,7 +277,8 @@ const LogisticsAutomation: React.FC = () => {
         },
         body: JSON.stringify({
           email_content: emailText,
-          trust_email_quantities: true  // Flag to skip quantity validation and use email quantities
+          trust_email_quantities: true,  // Flag to skip quantity validation and use email quantities
+          processing_mode: 'auto'  // Trust Email = same as Auto, ALWAYS single SO
         })
       });
 
@@ -1710,6 +1712,9 @@ const LogisticsAutomation: React.FC = () => {
                 >
                   🤖 Auto
                 </button>
+                <span className="text-xs text-gray-400 font-medium px-1">|</span>
+                <span className="text-xs text-gray-500 font-medium px-1">Multi SO</span>
+                <span className="text-xs text-gray-400 font-medium px-1">|</span>
                 <button
                   onClick={() => setProcessingMode('manual')}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${

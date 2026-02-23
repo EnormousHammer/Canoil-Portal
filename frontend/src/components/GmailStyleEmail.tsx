@@ -2390,7 +2390,8 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email_content: emailContent
+          email_content: emailContent,
+          processing_mode: 'auto'  // Gmail integration = Auto flow, ALWAYS single SO
         })
       });
 

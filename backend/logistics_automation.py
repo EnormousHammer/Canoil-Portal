@@ -210,7 +210,8 @@ def extract_all_so_numbers(text: str) -> list:
     
     # Pattern 3: Just numbers after commas/and in SO context
     # "SO 3012, 3022, and 3222" → catches 3022 and 3222
-    comma_and_pattern = r'(?:,\s*|\band\s+)(\d{3,5})(?=\s*(?:,|\band\b|\.|$|\s+we|\s+need))'
+    # CRITICAL: \.(?!\d) = period NOT followed by digit - avoids matching "640" from "640.5 kg" (gross weight)
+    comma_and_pattern = r'(?:,\s*|\band\s+)(\d{3,5})(?=\s*(?:,|\band\b|\.(?!\d)|$|\s+we|\s+need))'
     comma_matches = re.findall(comma_and_pattern, text, re.IGNORECASE)
     so_numbers.extend(comma_matches)
     
@@ -3542,6 +3543,7 @@ def process_email():
         
         email_content = data.get('email_content', '') if isinstance(data, dict) else ''
         trust_email_quantities = data.get('trust_email_quantities', False) if isinstance(data, dict) else False
+        processing_mode = data.get('processing_mode', '') if isinstance(data, dict) else ''
         
         if not email_content:
             print("ERROR: LOGISTICS: No email content provided")
@@ -3564,12 +3566,18 @@ def process_email():
         all_so_numbers = extract_all_so_numbers(email_content)
         print(f"📋 SO Detection: Found {len(all_so_numbers)} SO(s): {all_so_numbers}")
         
+        # AUTO MODE: NEVER multi-SO - user pasted email, assume single SO. Use first SO only.
+        if processing_mode == 'auto':
+            if all_so_numbers:
+                all_so_numbers = [all_so_numbers[0]]
+                print(f"🤖 AUTO MODE: Forcing single SO - using first only: {all_so_numbers[0]}")
+        
         # DEBUG: If only 1 SO found but email seems long, warn about potential truncation
-        if len(all_so_numbers) == 1 and len(email_content) < 300:
+        if len(all_so_numbers) == 1 and len(email_content) < 300 and processing_mode != 'auto':
             print(f"⚠️ WARNING: Only 1 SO detected but email is short ({len(email_content)} chars).")
             print(f"   This might indicate email content was truncated. Check if multi-SO content is missing.")
         
-        # If multiple SOs detected, use multi-SO processing path
+        # If multiple SOs detected (and NOT auto mode), use multi-SO processing path
         if len(all_so_numbers) > 1:
             print(f"\n{'='*80}")
             print(f"🔀 MULTI-SO MODE: Processing {len(all_so_numbers)} Sales Orders together")
