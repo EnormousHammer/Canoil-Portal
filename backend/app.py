@@ -2903,6 +2903,185 @@ def export_company_data():
         return jsonify({"error": str(e)}), 500
 
 
+def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
+    """Build month-end inventory report Excel. Uses MIITEM/Items from Full Company Data (NOT CustomAlert5)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    # Item master: MIITEM.json or Items.json (Full Company Data - central source)
+    items = data.get('MIITEM.json') or data.get('Items.json') or []
+    miiloc = data.get('MIILOC.json') or []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Inventory Summary"
+
+    # Header styling
+    header_font = Font(bold=True)
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font_white = Font(bold=True, color="FFFFFF")
+    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    # Report title
+    report_date = datetime.now().strftime('%B %d, %Y')
+    ws.merge_cells('A1:L1')
+    ws['A1'] = f"CANOIL CANADA LTD. - MONTH END INVENTORY REPORT"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A2:L2')
+    ws['A2'] = f"As of {report_date}"
+    ws['A2'].font = Font(italic=True, size=11)
+    ws.row_dimensions[1].height = 24
+    ws.row_dimensions[2].height = 20
+
+    # Column headers
+    headers = [
+        "Item No.", "Description", "Item Type", "Stocking Units",
+        "Stock", "WIP", "Reserve", "On Order",
+        "Recent Cost", "Unit Cost", "Extended Value", "Location"
+    ]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=h)
+        cell.font = header_font_white
+        cell.fill = header_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+
+    def safe_float(v, default=0):
+        try:
+            return float(v) if v is not None and str(v).strip() != '' else default
+        except (TypeError, ValueError):
+            return default
+
+    # Build item->location lookup from MIILOC
+    loc_by_item = {}
+    for row in miiloc:
+        if isinstance(row, dict):
+            item_no = row.get('Item No.') or row.get('itemId') or ''
+            loc = row.get('Location No.') or row.get('locId') or ''
+            if item_no:
+                loc_by_item.setdefault(str(item_no).strip(), []).append(str(loc).strip() or 'Main')
+    for k, v in loc_by_item.items():
+        loc_by_item[k] = ', '.join(sorted(set(v))) if v else ''
+
+    # Data rows
+    total_value = 0
+    row_idx = 5
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_no = item.get('Item No.') or item.get('itemId') or ''
+        desc = item.get('Description') or item.get('descr') or ''
+        item_type = item.get('Item Type') or item.get('type') or ''
+        uom = item.get('Stocking Units') or item.get('uOfM') or ''
+        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand'))
+        wip = safe_float(item.get('WIP') or item.get('totQWip'))
+        reserve = safe_float(item.get('Reserve') or item.get('totQRes'))
+        on_order = safe_float(item.get('On Order') or item.get('totQOrd'))
+        recent_cost = safe_float(item.get('Recent Cost') or item.get('cLast') or item.get('Unit Cost') or item.get('unitCost'))
+        unit_cost = recent_cost  # Use recent cost if unit cost missing
+        if not unit_cost:
+            unit_cost = safe_float(item.get('Unit Cost') or item.get('unitCost') or item.get('Standard Cost') or item.get('cStd'))
+        ext_value = stock * unit_cost if unit_cost else 0
+        total_value += ext_value
+        location = loc_by_item.get(str(item_no).strip(), '') or item.get('Location No.') or item.get('locId') or ''
+
+        row_data = [item_no, desc, item_type, uom, stock, wip, reserve, on_order, recent_cost, unit_cost, ext_value, location]
+        for col, val in enumerate(row_data, 1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.border = thin_border
+            if col in (5, 6, 7, 8):  # numeric qty
+                cell.alignment = Alignment(horizontal='right')
+            elif col in (9, 10, 11):  # currency
+                cell.alignment = Alignment(horizontal='right')
+                if col == 11 and isinstance(val, (int, float)):
+                    cell.number_format = '$#,##0.00'
+        row_idx += 1
+
+    # Totals row
+    if row_idx > 5:
+        ws.cell(row=row_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws.cell(row=row_idx, column=11, value=total_value).font = Font(bold=True)
+        ws.cell(row=row_idx, column=11).number_format = '$#,##0.00'
+        for col in range(1, 13):
+            ws.cell(row=row_idx, column=col).border = thin_border
+        row_idx += 2
+
+    # Freeze panes (logo + title + column headers)
+    ws.freeze_panes = 'A6'
+
+    # Column widths
+    for col, w in enumerate([12, 35, 12, 10, 8, 8, 8, 8, 12, 12, 14, 15], 1):
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    # Sheet 2: Detail by Location (if MIILOC has data)
+    if miiloc and isinstance(miiloc[0], dict):
+        ws2 = wb.create_sheet(title="By Location")
+        loc_headers = ["Item No.", "Location No.", "Description", "qStk", "qWIP", "qRes", "qOrd", "Minimum", "Maximum", "Reorder Level"]
+        for col, h in enumerate(loc_headers, 1):
+            cell = ws2.cell(row=1, column=col, value=h)
+            cell.font = header_font_white
+            cell.fill = header_fill
+            cell.border = thin_border
+        item_lookup = {str(i.get('Item No.') or i.get('itemId') or ''): i for i in items if isinstance(i, dict)}
+        for r_idx, row in enumerate(miiloc, 2):
+            if not isinstance(row, dict):
+                continue
+            item_no = row.get('Item No.') or row.get('itemId') or ''
+            loc = row.get('Location No.') or row.get('locId') or ''
+            desc = (item_lookup.get(str(item_no).strip()) or {}).get('Description') or (item_lookup.get(str(item_no).strip()) or {}).get('descr') or ''
+            ws2.cell(row=r_idx, column=1, value=item_no)
+            ws2.cell(row=r_idx, column=2, value=loc)
+            ws2.cell(row=r_idx, column=3, value=desc)
+            ws2.cell(row=r_idx, column=4, value=safe_float(row.get('qStk')))
+            ws2.cell(row=r_idx, column=5, value=safe_float(row.get('qWIP')))
+            ws2.cell(row=r_idx, column=6, value=safe_float(row.get('qRes')))
+            ws2.cell(row=r_idx, column=7, value=safe_float(row.get('qOrd')))
+            ws2.cell(row=r_idx, column=8, value=safe_float(row.get('Minimum') or row.get('minLvl')))
+            ws2.cell(row=r_idx, column=9, value=safe_float(row.get('Maximum') or row.get('maxLvl')))
+            ws2.cell(row=r_idx, column=10, value=safe_float(row.get('Reorder Level') or row.get('ordLvl')))
+            for c in range(1, 11):
+                cell = ws2.cell(row=r_idx, column=c)
+                cell.border = thin_border
+                if (r_idx - 2) % 2 == 1:
+                    cell.fill = alt_fill
+        for col, w in enumerate([12, 12, 35, 8, 8, 8, 8, 10, 10, 12], 1):
+            ws2.column_dimensions[get_column_letter(col)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@app.route('/api/reports/inventory', methods=['GET'])
+def report_inventory():
+    """Month-end inventory report. Uses Full Company Data (MIITEM, Items, MIILOC) - NOT CustomAlert5."""
+    try:
+        data, err = _get_company_data_for_export()
+        if err:
+            return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        raw = _build_inventory_report_xlsx(data, from_date=from_date, to_date=to_date)
+        fname = f"inventory_report_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(
+            io.BytesIO(raw),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=fname,
+        )
+    except Exception as e:
+        print(f"ERROR report_inventory: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/manufacturing-orders', methods=['POST'])
 def create_manufacturing_order():
     """Create a new manufacturing order. Persisted via portal_store (survives restart)."""

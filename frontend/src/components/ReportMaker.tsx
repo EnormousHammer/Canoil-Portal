@@ -16,6 +16,7 @@ import {
   Layers,
   Activity
 } from 'lucide-react';
+import { getApiUrl } from '../utils/apiConfig';
 
 interface ReportMakerProps {
   data: any;
@@ -41,6 +42,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
   const [selectedMO, setSelectedMO] = useState<string>('');
   const [showSOSelector, setShowSOSelector] = useState(false);
   const [showMOSelector, setShowMOSelector] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const reportTypes: ReportType[] = [
     {
@@ -141,12 +143,37 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
 
   const handleGenerateReport = async () => {
     setIsGenerating(true);
-    // Simulate report generation
-    setTimeout(() => {
+    setReportError(null);
+    try {
+      if (selectedReport === 'inventory') {
+        const url = getApiUrl('/api/reports/inventory');
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.hint || `Report failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const disp = res.headers.get('Content-Disposition');
+        const match = disp && disp.match(/filename="?([^";]+)"?/);
+        const fname = match ? match[1] : `inventory_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } else {
+        // Other reports: placeholder
+        setTimeout(() => {
+          setIsGenerating(false);
+          setReportError('This report type is not yet implemented.');
+        }, 1000);
+        return;
+      }
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : 'Failed to generate report');
+    } finally {
       setIsGenerating(false);
-      // Here you would actually generate the report
-      console.log('Generating report:', selectedReport);
-    }, 2000);
+    }
   };
 
   // If a report is selected, show the report generation interface
@@ -419,8 +446,16 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
               </div>
             )}
 
-            {/* Common date range selector for other reports */}
-            {report.id !== 'lanxess' && (
+            {/* Inventory report - snapshot as of now */}
+            {report.id === 'inventory' && (
+              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-900">
+                <strong>Month-End Inventory Report</strong> — Generates Excel with all items, cost, location, and extended value. 
+                Snapshot as of generation time. Data from Full Company Data (MIITEM, MIILOC).
+              </div>
+            )}
+
+            {/* Common date range selector for other reports (not lanxess, not inventory) */}
+            {report.id !== 'lanxess' && report.id !== 'inventory' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -444,34 +479,41 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
             )}
 
             {/* Generate Button */}
-            <div className="flex justify-end gap-4 mt-6">
-              <button
-                onClick={() => setSelectedReport(null)}
-                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerateReport}
-                disabled={isGenerating}
-                className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                  isGenerating 
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                    : 'bg-gradient-to-r ' + report.color + ' text-white hover:scale-105 hover:shadow-xl'
-                }`}
-              >
-                {isGenerating ? (
-                  <>
-                    <Activity className="w-5 h-5 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-5 h-5" />
-                    Generate Report
-                  </>
-                )}
-              </button>
+            <div className="flex flex-col gap-3 mt-6">
+              {reportError && (
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {reportError}
+                </div>
+              )}
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => { setSelectedReport(null); setReportError(null); }}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={isGenerating}
+                  className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                    isGenerating 
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                      : 'bg-gradient-to-r ' + report.color + ' text-white hover:scale-105 hover:shadow-xl'
+                  }`}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Activity className="w-5 h-5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      Generate Report
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
