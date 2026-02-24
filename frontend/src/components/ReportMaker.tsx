@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ChevronLeft, 
   FileText, 
@@ -43,6 +43,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
   const [showSOSelector, setShowSOSelector] = useState(false);
   const [showMOSelector, setShowMOSelector] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null);
 
   const reportTypes: ReportType[] = [
     {
@@ -144,15 +145,22 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     setReportError(null);
+    setReportSuccess(null);
     try {
       if (selectedReport === 'inventory') {
-        const url = getApiUrl('/api/reports/inventory');
+        const params = new URLSearchParams();
+        if (inventoryFromDate) params.set('from_date', inventoryFromDate);
+        if (inventoryToDate) params.set('to_date', inventoryToDate);
+        const url = getApiUrl('/api/reports/inventory' + (params.toString() ? '?' + params.toString() : ''));
         const res = await fetch(url);
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || err.hint || `Report failed (${res.status})`);
         }
         const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+          throw new Error('Report returned empty file. Load data first (open app and refresh).');
+        }
         const disp = res.headers.get('Content-Disposition');
         const match = disp && disp.match(/filename="?([^";]+)"?/);
         const fname = match ? match[1] : `inventory_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
@@ -161,6 +169,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
         a.download = fname;
         a.click();
         URL.revokeObjectURL(a.href);
+        setReportSuccess(`Report downloaded: ${fname}`);
       } else {
         // Other reports: placeholder
         setTimeout(() => {
@@ -448,9 +457,29 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
 
             {/* Inventory report - snapshot as of now */}
             {report.id === 'inventory' && (
-              <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-900">
-                <strong>Month-End Inventory Report</strong> — Generates Excel with all items, cost, location, and extended value. 
-                Snapshot as of generation time. Data from Full Company Data (MIITEM, MIILOC).
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                    <input type="date" value={inventoryFromDate} onChange={(e) => setInventoryFromDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                    <input type="date" value={inventoryToDate} onChange={(e) => setInventoryToDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-900">
+                  <strong>Month-End Inventory Report</strong> — Excel with all items, cost, location, extended value; <strong>Low Stock Alerts</strong> sheet; <strong>ABC analysis</strong> by value; <strong>Status</strong> (Out of Stock / Low Stock / Below Reorder / OK); <strong>Reorder Qty Needed</strong>. Data from MIITEM, MIILOC (Full Company Data).
+                </div>
+                {inventoryPreview !== null && (
+                  <div className={`rounded-xl p-4 text-sm ${inventoryPreview.count > 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
+                    {inventoryPreview.count > 0 ? (
+                      <>Data ready: <strong>{inventoryPreview.count}</strong> items will be included{inventoryPreview.locations > 0 ? ` (${inventoryPreview.locations} location records)` : ''}.</>
+                    ) : (
+                      <>No data loaded. Open the app and refresh to load Full Company Data first.</>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -485,9 +514,14 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
                   {reportError}
                 </div>
               )}
+              {reportSuccess && (
+                <div className="px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                  {reportSuccess}
+                </div>
+              )}
               <div className="flex justify-end gap-4">
                 <button
-                  onClick={() => { setSelectedReport(null); setReportError(null); }}
+                  onClick={() => { setSelectedReport(null); setReportError(null); setReportSuccess(null); }}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium"
                 >
                   Cancel
@@ -553,6 +587,18 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
             <p className="text-slate-600 text-lg mt-2">Select a report type to generate comprehensive analytics</p>
           </div>
         </div>
+      </div>
+
+      {/* Value proposition */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-sm text-blue-900">
+        <div className="font-bold mb-2">Why better than MISys reporting</div>
+        <ul className="flex flex-wrap gap-x-6 gap-y-1 list-disc list-inside">
+          <li>Same MISys data (Full Company Data)</li>
+          <li>Date range filters</li>
+          <li>Excel exports with branding</li>
+          <li>More report types (inventory, sales, production, PO analysis)</li>
+          <li>Automated workflows (e.g. Lanxess)</li>
+        </ul>
       </div>
 
       {/* Report Types Grid */}

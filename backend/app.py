@@ -2927,25 +2927,42 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
+    # Canoil logo (frontend/public/Canoil_logo.png)
+    _bd = os.path.dirname(os.path.abspath(__file__))
+    _logo = os.path.normpath(os.path.join(_bd, '..', 'frontend', 'public', 'Canoil_logo.png'))
+    if os.path.isfile(_logo):
+        try:
+            from openpyxl.drawing.image import Image
+            img = Image(_logo)
+            img.width, img.height = 100, 50
+            ws.add_image(img, 'A1')
+        except Exception as e:
+            print(f"Report logo skip: {e}")
+
     # Report title
     report_date = datetime.now().strftime('%B %d, %Y')
-    ws.merge_cells('A1:L1')
-    ws['A1'] = f"CANOIL CANADA LTD. - MONTH END INVENTORY REPORT"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws.merge_cells('A2:L2')
-    ws['A2'] = f"As of {report_date}"
-    ws['A2'].font = Font(italic=True, size=11)
-    ws.row_dimensions[1].height = 24
-    ws.row_dimensions[2].height = 20
+    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
+    ws.merge_cells('D1:L1')
+    ws['D1'] = "CANOIL CANADA LTD."
+    ws['D1'].font = Font(bold=True, size=16)
+    ws.merge_cells('D2:L2')
+    ws['D2'] = "MONTH END INVENTORY REPORT"
+    ws['D2'].font = Font(bold=True, size=12)
+    ws.merge_cells('D3:L3')
+    ws['D3'] = f"As of {report_date}{period_str}"
+    ws['D3'].font = Font(italic=True, size=10)
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
 
-    # Column headers
+    # Column headers (row 5)
     headers = [
         "Item No.", "Description", "Item Type", "Stocking Units",
         "Stock", "WIP", "Reserve", "On Order",
         "Recent Cost", "Unit Cost", "Extended Value", "Location"
     ]
     for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=col, value=h)
+        cell = ws.cell(row=5, column=col, value=h)
         cell.font = header_font_white
         cell.fill = header_fill
         cell.border = thin_border
@@ -2994,20 +3011,22 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
         for col, val in enumerate(row_data, 1):
             cell = ws.cell(row=row_idx, column=col, value=val)
             cell.border = thin_border
+            if (row_idx - 6) % 2 == 1:
+                cell.fill = alt_fill
             if col in (5, 6, 7, 8):  # numeric qty
                 cell.alignment = Alignment(horizontal='right')
             elif col in (9, 10, 11):  # currency
                 cell.alignment = Alignment(horizontal='right')
-                if col == 11 and isinstance(val, (int, float)):
+                if isinstance(val, (int, float)):
                     cell.number_format = '$#,##0.00'
         row_idx += 1
 
     # Totals row
-    if row_idx > 5:
+    if row_idx > 6:
         ws.cell(row=row_idx, column=1, value="TOTAL").font = Font(bold=True)
         ws.cell(row=row_idx, column=11, value=total_value).font = Font(bold=True)
         ws.cell(row=row_idx, column=11).number_format = '$#,##0.00'
-        for col in range(1, 13):
+        for col in range(1, 18):
             ws.cell(row=row_idx, column=col).border = thin_border
         row_idx += 2
 
@@ -3052,6 +3071,46 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
         for col, w in enumerate([12, 12, 35, 8, 8, 8, 8, 10, 10, 12], 1):
             ws2.column_dimensions[get_column_letter(col)].width = w
 
+    # Sheet 3: Low Stock Alerts (items below reorder or out of stock)
+    alert_rows = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand'))
+        min_lvl = safe_float(item.get('Minimum') or item.get('minLvl'))
+        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl'))
+        if stock <= 0 or (min_lvl > 0 and stock < min_lvl) or (reord_lvl > 0 and stock < reord_lvl):
+            item_no = item.get('Item No.') or item.get('itemId') or ''
+            desc = item.get('Description') or item.get('descr') or ''
+            unit_cost = safe_float(item.get('Recent Cost') or item.get('cLast') or item.get('Unit Cost'))
+            if not unit_cost:
+                unit_cost = safe_float(item.get('Unit Cost') or item.get('Standard Cost') or item.get('cStd'))
+            ext_val = stock * unit_cost if unit_cost else 0
+            status = "Out of Stock" if stock <= 0 else ("Low Stock" if min_lvl > 0 and stock < min_lvl else "Below Reorder")
+            reord_qty = safe_float(item.get('Reorder Quantity') or item.get('ordQty'))
+            needed = max(0, (reord_lvl if reord_lvl > 0 else min_lvl) - stock) if stock < (reord_lvl if reord_lvl > 0 else min_lvl) else 0
+            alert_rows.append((item_no, desc, stock, min_lvl, reord_lvl, status, needed, reord_qty, ext_val))
+    if alert_rows:
+        ws3 = wb.create_sheet(title="Low Stock Alerts")
+        alert_headers = ["Item No.", "Description", "Stock", "Minimum", "Reorder Level", "Status", "Qty Needed", "Reorder Qty", "Extended Value"]
+        for col, h in enumerate(alert_headers, 1):
+            c = ws3.cell(row=1, column=col, value=h)
+            c.font = header_font_white
+            c.fill = header_fill
+            c.border = thin_border
+        for r_idx, row in enumerate(alert_rows, 2):
+            for c_idx, val in enumerate(row, 1):
+                cell = ws3.cell(row=r_idx, column=c_idx, value=val)
+                cell.border = thin_border
+                if (r_idx - 2) % 2 == 1:
+                    cell.fill = alt_fill
+                if c_idx in (3, 4, 5, 7, 8):
+                    cell.alignment = Alignment(horizontal='right')
+                if c_idx == 9 and isinstance(val, (int, float)):
+                    cell.number_format = '$#,##0.00'
+        for col, w in enumerate([12, 35, 8, 10, 10, 14, 10, 10, 14], 1):
+            ws3.column_dimensions[get_column_letter(col)].width = w
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -3065,6 +3124,10 @@ def report_inventory():
         data, err = _get_company_data_for_export()
         if err:
             return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
+        items = data.get('MIITEM.json') or data.get('Items.json') or []
+        miiloc = data.get('MIILOC.json') or []
+        if request.args.get('preview') in ('1', 'true', 'yes'):
+            return jsonify({"count": len(items) if isinstance(items, list) else 0, "locations": len(miiloc) if isinstance(miiloc, list) else 0})
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
         raw = _build_inventory_report_xlsx(data, from_date=from_date, to_date=to_date)
@@ -3079,6 +3142,306 @@ def report_inventory():
         print(f"ERROR report_inventory: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+def _build_production_report_xlsx(data, from_date=None, to_date=None):
+    """Production Summary Report: MO status, completion rates, build items. Uses MIMOH, MIMOMD."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    moh = data.get('ManufacturingOrderHeaders.json') or data.get('MIMOH.json') or []
+    mod = data.get('ManufacturingOrderDetails.json') or data.get('MIMOMD.json') or []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Production Summary"
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    def safe_float(v, d=0):
+        try:
+            return float(v) if v is not None and str(v).strip() != '' else d
+        except (TypeError, ValueError):
+            return d
+
+    def _parse_dt(v):
+        if not v:
+            return None
+        s = str(v)
+        if '/Date(' in s:
+            import re
+            m = re.search(r'/Date\((\d+)', s)
+            if m:
+                from datetime import datetime
+                return datetime.fromtimestamp(int(m.group(1)) / 1000)
+        return None
+
+    report_date = datetime.now().strftime('%B %d, %Y')
+    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
+    ws.merge_cells('A1:H1')
+    ws['A1'] = "CANOIL CANADA LTD. - PRODUCTION SUMMARY REPORT"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A2:H2')
+    ws['A2'] = f"As of {report_date}{period_str}"
+    ws['A2'].font = Font(italic=True, size=11)
+
+    headers = ["Mfg. Order No.", "Build Item", "Description", "Ordered", "Completed", "WIP", "% Complete", "Status", "Order Date", "Due Date"]
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.border = thin_border
+
+    row_idx = 5
+    total_ordered = total_completed = 0
+    for mo in moh if isinstance(moh, list) else []:
+        if not isinstance(mo, dict):
+            continue
+        mo_no = mo.get('Mfg. Order No.') or mo.get('mohId') or mo.get('MO No.') or ''
+        build_item = mo.get('Build Item No.') or mo.get('buildItem') or ''
+        desc = mo.get('Description') or mo.get('descr') or ''
+        ordered = safe_float(mo.get('Ordered') or mo.get('ordQty'))
+        completed = safe_float(mo.get('Completed') or mo.get('endQty'))
+        wip = safe_float(mo.get('WIP') or mo.get('wipQty'))
+        pct = (completed / ordered * 100) if ordered else 0
+        status = mo.get('Status') or mo.get('moStat') or ''
+        if isinstance(status, (int, float)):
+            status = {0: 'Pending', 1: 'Released', 2: 'Complete', 3: 'Closed'}.get(int(status), str(status))
+        ord_dt = mo.get('Order Date') or mo.get('ordDt') or ''
+        due_dt = mo.get('Sales Order Ship Date') or mo.get('Completion Date') or mo.get('endDt') or ''
+        total_ordered += ordered
+        total_completed += completed
+        row = [mo_no, build_item, desc, ordered, completed, wip, round(pct, 1), status, ord_dt, due_dt]
+        for col, val in enumerate(row, 1):
+            c = ws.cell(row=row_idx, column=col, value=val)
+            c.border = thin_border
+            if (row_idx - 5) % 2 == 1:
+                c.fill = alt_fill
+            if col in (4, 5, 6, 7):
+                c.alignment = Alignment(horizontal='right')
+        row_idx += 1
+
+    if row_idx > 5:
+        ws.cell(row=row_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws.cell(row=row_idx, column=4, value=total_ordered).font = Font(bold=True)
+        ws.cell(row=row_idx, column=5, value=total_completed).font = Font(bold=True)
+        for col in range(1, 11):
+            ws.cell(row=row_idx, column=col).border = thin_border
+
+    for col, w in enumerate([16, 14, 30, 10, 10, 8, 12, 12, 12, 12], 1):
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _build_purchase_report_xlsx(data, from_date=None, to_date=None):
+    """Purchase Order Analysis: open POs, vendor totals, delivery status. Uses MIPOH, MIPOD."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    poh = data.get('PurchaseOrders.json') or data.get('MIPOH.json') or []
+    pod = data.get('PurchaseOrderDetails.json') or data.get('MIPOD.json') or []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Purchase Order Summary"
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    def safe_float(v, d=0):
+        try:
+            return float(v) if v is not None and str(v).strip() != '' else d
+        except (TypeError, ValueError):
+            return d
+
+    report_date = datetime.now().strftime('%B %d, %Y')
+    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
+    ws.merge_cells('A1:J1')
+    ws['A1'] = "CANOIL CANADA LTD. - PURCHASE ORDER ANALYSIS"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A2:J2')
+    ws['A2'] = f"As of {report_date}{period_str}"
+    ws['A2'].font = Font(italic=True, size=11)
+
+    headers = ["PO No.", "Supplier", "Order Date", "Status", "Total Ordered", "Total Received", "Open Qty", "Unit Cost", "Extended", "Item"]
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.border = thin_border
+
+    po_lookup = {str(p.get('PO No.') or p.get('pohId') or p.get('poNo') or ''): p for p in (poh if isinstance(poh, list) else []) if isinstance(p, dict)}
+    row_idx = 5
+    for d in (pod if isinstance(pod, list) else []):
+        if not isinstance(d, dict):
+            continue
+        po_no = str(d.get('PO No.') or d.get('pohId') or d.get('poNo') or '')
+        po_h = po_lookup.get(po_no) or {}
+        supplier = po_h.get('Name') or po_h.get('name') or d.get('Supplier') or ''
+        ord_dt = po_h.get('Order Date') or po_h.get('ordDt') or ''
+        status = po_h.get('Status') or po_h.get('poStatus') or d.get('Status') or ''
+        ordered = safe_float(d.get('Ordered') or d.get('ordered') or d.get('reqQty'))
+        received = safe_float(d.get('Received') or d.get('received') or d.get('qty'))
+        open_qty = ordered - received
+        unit_cost = safe_float(d.get('Unit Cost') or d.get('unitCost') or d.get('price') or d.get('cost'))
+        ext = open_qty * unit_cost if unit_cost else 0
+        item = d.get('Item No.') or d.get('partId') or d.get('Component Item No.') or ''
+        row = [po_no, supplier, ord_dt, status, ordered, received, open_qty, unit_cost, ext, item]
+        for col, val in enumerate(row, 1):
+            c = ws.cell(row=row_idx, column=col, value=val)
+            c.border = thin_border
+            if (row_idx - 5) % 2 == 1:
+                c.fill = alt_fill
+            if col in (5, 6, 7, 8, 9):
+                c.alignment = Alignment(horizontal='right')
+            if col in (8, 9) and isinstance(val, (int, float)):
+                c.number_format = '$#,##0.00'
+        row_idx += 1
+
+    for col, w in enumerate([14, 25, 12, 12, 12, 12, 10, 12, 12, 14], 1):
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _build_sales_report_xlsx(data, from_date=None, to_date=None):
+    """Sales Performance Report: SO summary from SalesOrders, SalesOrderHeaders, ParsedSalesOrders."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    so_list = data.get('SalesOrderHeaders.json') or data.get('SalesOrders.json') or data.get('ParsedSalesOrders.json') or []
+    if isinstance(so_list, dict):
+        so_list = so_list.get('orders', so_list.get('items', [])) if isinstance(so_list.get('orders'), list) else []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sales Summary"
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    def safe_float(v, d=0):
+        try:
+            return float(v) if v is not None and str(v).strip() != '' else d
+        except (TypeError, ValueError):
+            return d
+
+    report_date = datetime.now().strftime('%B %d, %Y')
+    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
+    ws.merge_cells('A1:G1')
+    ws['A1'] = "CANOIL CANADA LTD. - SALES PERFORMANCE REPORT"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A2:G2')
+    ws['A2'] = f"As of {report_date}{period_str}"
+    ws['A2'].font = Font(italic=True, size=11)
+
+    headers = ["SO No.", "Customer", "Order Date", "Status", "Total", "Lines", "Source"]
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.border = thin_border
+
+    rows = []
+    for so in (so_list if isinstance(so_list, list) else []):
+        if not isinstance(so, dict):
+            continue
+        so_no = so.get('SO No.') or so.get('soNo') or so.get('Sales Order No.') or ''
+        customer = so.get('Customer') or so.get('customer') or so.get('Customer Name') or ''
+        ord_dt = so.get('Order Date') or so.get('orderDate') or so.get('ordDt') or ''
+        status = so.get('Status') or so.get('status') or ''
+        total = safe_float(so.get('Total') or so.get('total') or so.get('Order Total'))
+        lines = so.get('Lines') or len(so.get('details', [])) if isinstance(so.get('details'), list) else ''
+        source = so.get('_source') or so.get('Source') or 'MISys'
+        rows.append([so_no, customer, ord_dt, status, total, lines, source])
+
+    row_idx = 5
+    for row in rows:
+        for col, val in enumerate(row, 1):
+            c = ws.cell(row=row_idx, column=col, value=val)
+            c.border = thin_border
+            if (row_idx - 5) % 2 == 1:
+                c.fill = alt_fill
+            if col == 5 and isinstance(val, (int, float)):
+                c.number_format = '$#,##0.00'
+        row_idx += 1
+
+    ws.freeze_panes = 'A5'
+    for col, w in enumerate([14, 30, 12, 12, 12, 8, 12], 1):
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+@app.route('/api/reports/production', methods=['GET'])
+def report_production():
+    """Production Summary Report. Uses MIMOH, MIMOMD."""
+    try:
+        data, err = _get_company_data_for_export()
+        if err:
+            return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        raw = _build_production_report_xlsx(data, from_date=from_date, to_date=to_date)
+        fname = f"production_report_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(io.BytesIO(raw), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=fname)
+    except Exception as e:
+        print(f"ERROR report_production: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/reports/purchase', methods=['GET'])
+def report_purchase():
+    """Purchase Order Analysis Report. Uses MIPOH, MIPOD."""
+    try:
+        data, err = _get_company_data_for_export()
+        if err:
+            return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        raw = _build_purchase_report_xlsx(data, from_date=from_date, to_date=to_date)
+        fname = f"purchase_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(io.BytesIO(raw), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=fname)
+    except Exception as e:
+        print(f"ERROR report_purchase: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/reports/sales', methods=['GET'])
+def report_sales():
+    """Sales Performance Report. Uses SalesOrderHeaders, SalesOrders, ParsedSalesOrders."""
+    try:
+        data, err = _get_company_data_for_export()
+        if err:
+            return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        raw = _build_sales_report_xlsx(data, from_date=from_date, to_date=to_date)
+        fname = f"sales_report_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(io.BytesIO(raw), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=fname)
+    except Exception as e:
+        print(f"ERROR report_sales: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -615,7 +615,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
                       <FileText className="w-8 h-8 text-blue-400 group-hover:text-white transition-colors duration-300" />
                     </div>
                     <span className="font-bold text-white group-hover:text-blue-300 transition-colors">Reports</span>
-                    <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">Analytics & Exports</span>
+                    <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">Replaces MISys reporting — and does more</span>
                     {/* Hover arrow */}
                     <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <ArrowUpRight className="w-4 h-4 text-blue-400" />
