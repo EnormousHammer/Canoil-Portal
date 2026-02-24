@@ -2904,69 +2904,16 @@ def export_company_data():
 
 
 def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
-    """Build month-end inventory report Excel. Uses MIITEM/Items from Full Company Data (NOT CustomAlert5)."""
+    """Build month-end inventory report Excel. Uses MIITEM/Items from Full Company Data (NOT CustomAlert5).
+    Structure: Executive Summary first, then Inventory Detail with totals, By Location, Low Stock Alerts."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     from openpyxl.utils import get_column_letter
 
-    # Item master: MIITEM.json or Items.json (Full Company Data - central source)
     items = data.get('MIITEM.json') or data.get('Items.json') or []
     miiloc = data.get('MIILOC.json') or []
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Inventory Summary"
-
-    # Header styling
-    header_font = Font(bold=True)
-    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-    header_font_white = Font(bold=True, color="FFFFFF")
-    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-    thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
-    )
-
-    # Canoil logo (frontend/public/Canoil_logo.png)
-    _bd = os.path.dirname(os.path.abspath(__file__))
-    _logo = os.path.normpath(os.path.join(_bd, '..', 'frontend', 'public', 'Canoil_logo.png'))
-    if os.path.isfile(_logo):
-        try:
-            from openpyxl.drawing.image import Image
-            img = Image(_logo)
-            img.width, img.height = 100, 50
-            ws.add_image(img, 'A1')
-        except Exception as e:
-            print(f"Report logo skip: {e}")
-
-    # Report title
-    report_date = datetime.now().strftime('%B %d, %Y')
-    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
-    ws.merge_cells('D1:L1')
-    ws['D1'] = "CANOIL CANADA LTD."
-    ws['D1'].font = Font(bold=True, size=16)
-    ws.merge_cells('D2:L2')
-    ws['D2'] = "MONTH END INVENTORY REPORT"
-    ws['D2'].font = Font(bold=True, size=12)
-    ws.merge_cells('D3:L3')
-    ws['D3'] = f"As of {report_date}{period_str}"
-    ws['D3'].font = Font(italic=True, size=10)
-    ws.row_dimensions[1].height = 28
-    ws.row_dimensions[2].height = 22
-    ws.row_dimensions[3].height = 18
-
-    # Column headers (row 5)
-    headers = [
-        "Item No.", "Description", "Item Type", "Stocking Units",
-        "Stock", "WIP", "Reserve", "On Order",
-        "Recent Cost", "Unit Cost", "Extended Value", "Location"
-    ]
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=5, column=col, value=h)
-        cell.font = header_font_white
-        cell.fill = header_fill
-        cell.border = thin_border
-        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+    if not isinstance(items, list):
+        items = []
 
     def safe_float(v, default=0):
         try:
@@ -2974,9 +2921,12 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
         except (TypeError, ValueError):
             return default
 
-    # Build item->location lookup from MIILOC
+    # Pre-compute all item data and totals
+    rows_data = []
+    total_value = total_stock = total_wip = total_reserve = total_on_order = 0
+    low_stock_count = out_of_stock_count = 0
     loc_by_item = {}
-    for row in miiloc:
+    for row in (miiloc if isinstance(miiloc, list) else []):
         if isinstance(row, dict):
             item_no = row.get('Item No.') or row.get('itemId') or ''
             loc = row.get('Location No.') or row.get('locId') or ''
@@ -2985,61 +2935,197 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
     for k, v in loc_by_item.items():
         loc_by_item[k] = ', '.join(sorted(set(v))) if v else ''
 
-    # Data rows
-    total_value = 0
-    row_idx = 5
     for item in items:
         if not isinstance(item, dict):
             continue
         item_no = item.get('Item No.') or item.get('itemId') or ''
-        desc = item.get('Description') or item.get('descr') or ''
-        item_type = item.get('Item Type') or item.get('type') or ''
-        uom = item.get('Stocking Units') or item.get('uOfM') or ''
+        unit_cost = safe_float(item.get('Recent Cost') or item.get('cLast') or item.get('Unit Cost') or item.get('unitCost'))
+        if not unit_cost:
+            unit_cost = safe_float(item.get('Unit Cost') or item.get('unitCost') or item.get('Standard Cost') or item.get('cStd'))
         stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand'))
         wip = safe_float(item.get('WIP') or item.get('totQWip'))
         reserve = safe_float(item.get('Reserve') or item.get('totQRes'))
         on_order = safe_float(item.get('On Order') or item.get('totQOrd'))
-        recent_cost = safe_float(item.get('Recent Cost') or item.get('cLast') or item.get('Unit Cost') or item.get('unitCost'))
-        unit_cost = recent_cost  # Use recent cost if unit cost missing
-        if not unit_cost:
-            unit_cost = safe_float(item.get('Unit Cost') or item.get('unitCost') or item.get('Standard Cost') or item.get('cStd'))
         ext_value = stock * unit_cost if unit_cost else 0
+        min_lvl = safe_float(item.get('Minimum') or item.get('minLvl'))
+        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl'))
+        if stock <= 0:
+            out_of_stock_count += 1
+        elif (min_lvl > 0 and stock < min_lvl) or (reord_lvl > 0 and stock < reord_lvl):
+            low_stock_count += 1
         total_value += ext_value
-        location = loc_by_item.get(str(item_no).strip(), '') or item.get('Location No.') or item.get('locId') or ''
+        total_stock += stock
+        total_wip += wip
+        total_reserve += reserve
+        total_on_order += on_order
+        rows_data.append((item, stock, wip, reserve, on_order, unit_cost, ext_value))
 
-        row_data = [item_no, desc, item_type, uom, stock, wip, reserve, on_order, recent_cost, unit_cost, ext_value, location]
+    # ABC: sort by value desc, assign A (top 80%), B (next 15%), C (rest)
+    rows_data.sort(key=lambda x: -x[6])
+    cum = 0
+    abc_map = {}
+    for (item, _, _, _, _, _, ev) in rows_data:
+        item_key = str((item.get('Item No.') or item.get('itemId') or '')).strip()
+        cum += ev
+        pct = (cum / total_value * 100) if total_value else 0
+        abc_map[item_key] = 'A' if pct <= 80 else ('B' if pct <= 95 else 'C')
+    abc_a = sum(1 for v in abc_map.values() if v == 'A')
+    abc_b = sum(1 for v in abc_map.values() if v == 'B')
+    abc_c = sum(1 for v in abc_map.values() if v == 'C')
+
+    wb = Workbook()
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font_white = Font(bold=True, color="FFFFFF")
+    alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    def _add_logo(ws):
+        """Add Canoil logo to worksheet at A1 if file exists."""
+        _bd = os.path.dirname(os.path.abspath(__file__))
+        for _path in [
+            os.path.normpath(os.path.join(_bd, '..', 'frontend', 'public', 'Canoil_logo.png')),
+            os.path.normpath(os.path.join(_bd, '..', 'Canoil_logo.png')),
+        ]:
+            if os.path.isfile(_path):
+                try:
+                    from openpyxl.drawing.image import Image
+                    img = Image(_path)
+                    img.width, img.height = 100, 50
+                    ws.add_image(img, 'A1')
+                except Exception:
+                    pass
+                break
+
+    report_date = datetime.now().strftime('%B %d, %Y')
+    period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
+
+    # --- Sheet 1: Executive Summary ---
+    ws0 = wb.active
+    ws0.title = "Executive Summary"
+    _add_logo(ws0)
+    ws0.merge_cells('D1:F1')
+    ws0['D1'] = "CANOIL CANADA LTD."
+    ws0['D1'].font = Font(bold=True, size=16)
+    ws0.merge_cells('D2:F2')
+    ws0['D2'] = "MONTH END INVENTORY REPORT"
+    ws0['D2'].font = Font(bold=True, size=12)
+    ws0.merge_cells('D3:F3')
+    ws0['D3'] = f"As of {report_date}{period_str}"
+    ws0['D3'].font = Font(italic=True, size=10)
+
+    r = 6
+    ws0.cell(row=r, column=1, value="TOTAL INVENTORY VALUE").font = Font(bold=True)
+    ws0.cell(row=r, column=2, value=total_value).number_format = '$#,##0.00'
+    r += 1
+    ws0.cell(row=r, column=1, value="Total Items").font = Font(bold=True)
+    ws0.cell(row=r, column=2, value=len(rows_data))
+    r += 2
+    ws0.cell(row=r, column=1, value="Quantity Totals").font = Font(bold=True, size=12)
+    r += 1
+    ws0.cell(row=r, column=1, value="Stock (On Hand)")
+    ws0.cell(row=r, column=2, value=total_stock)
+    r += 1
+    ws0.cell(row=r, column=1, value="WIP")
+    ws0.cell(row=r, column=2, value=total_wip)
+    r += 1
+    ws0.cell(row=r, column=1, value="Reserve")
+    ws0.cell(row=r, column=2, value=total_reserve)
+    r += 1
+    ws0.cell(row=r, column=1, value="On Order")
+    ws0.cell(row=r, column=2, value=total_on_order)
+    r += 2
+    ws0.cell(row=r, column=1, value="Items Requiring Attention").font = Font(bold=True, size=12)
+    r += 1
+    ws0.cell(row=r, column=1, value="Out of Stock")
+    ws0.cell(row=r, column=2, value=out_of_stock_count)
+    r += 1
+    ws0.cell(row=r, column=1, value="Low Stock / Below Reorder")
+    ws0.cell(row=r, column=2, value=low_stock_count)
+    r += 2
+    ws0.cell(row=r, column=1, value="ABC Analysis").font = Font(bold=True, size=12)
+    r += 1
+    ws0.cell(row=r, column=1, value="A (top 80% value)")
+    ws0.cell(row=r, column=2, value=abc_a)
+    r += 1
+    ws0.cell(row=r, column=1, value="B (next 15% value)")
+    ws0.cell(row=r, column=2, value=abc_b)
+    r += 1
+    ws0.cell(row=r, column=1, value="C (remaining 5% value)")
+    ws0.cell(row=r, column=2, value=abc_c)
+    ws0.column_dimensions['A'].width = 28
+    ws0.column_dimensions['B'].width = 18
+
+    # --- Sheet 2: Inventory Detail ---
+    ws = wb.create_sheet(title="Inventory Detail")
+    _add_logo(ws)
+    ws.row_dimensions[1].height = 24
+    ws.row_dimensions[2].height = 18
+    ws.merge_cells('A1:L1')
+    ws['A1'] = "CANOIL CANADA LTD. - INVENTORY DETAIL"
+    ws['A1'].font = Font(bold=True, size=14, color="FFFFFF")
+    ws['A1'].fill = header_fill
+    ws.merge_cells('A2:L2')
+    ws['A2'] = f"As of {report_date}{period_str}"
+    ws['A2'].font = Font(italic=True, size=10, color="1F4E79")
+
+    headers = ["Item No.", "Description", "Item Type", "Stocking Units", "Stock", "WIP", "Reserve", "On Order",
+               "Unit Cost", "Extended Value", "% of Total", "Location"]
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=h)
+        c.font = header_font_white
+        c.fill = header_fill
+        c.border = thin_border
+        c.alignment = Alignment(horizontal='center', wrap_text=True)
+
+    row_idx = 5
+    for (item, stock, wip, reserve, on_order, unit_cost, ext_value) in rows_data:
+        item_no = item.get('Item No.') or item.get('itemId') or ''
+        desc = item.get('Description') or item.get('descr') or ''
+        item_type = item.get('Item Type') or item.get('type') or ''
+        uom = item.get('Stocking Units') or item.get('uOfM') or ''
+        location = loc_by_item.get(str(item_no).strip(), '') or item.get('Location No.') or item.get('locId') or ''
+        pct = (ext_value / total_value * 100) if total_value else 0
+        row_data = [item_no, desc, item_type, uom, stock, wip, reserve, on_order, unit_cost, ext_value, round(pct, 1), location]
         for col, val in enumerate(row_data, 1):
             cell = ws.cell(row=row_idx, column=col, value=val)
             cell.border = thin_border
-            if (row_idx - 6) % 2 == 1:
+            if (row_idx - 5) % 2 == 1:
                 cell.fill = alt_fill
-            if col in (5, 6, 7, 8):  # numeric qty
+            if col in (5, 6, 7, 8):
                 cell.alignment = Alignment(horizontal='right')
-            elif col in (9, 10, 11):  # currency
+            elif col in (9, 10):
                 cell.alignment = Alignment(horizontal='right')
                 if isinstance(val, (int, float)):
                     cell.number_format = '$#,##0.00'
+            elif col == 11:
+                cell.alignment = Alignment(horizontal='right')
+                if isinstance(val, (int, float)):
+                    cell.number_format = '0.1%'
         row_idx += 1
 
     # Totals row
-    if row_idx > 6:
-        ws.cell(row=row_idx, column=1, value="TOTAL").font = Font(bold=True)
-        ws.cell(row=row_idx, column=11, value=total_value).font = Font(bold=True)
-        ws.cell(row=row_idx, column=11).number_format = '$#,##0.00'
-        for col in range(1, 18):
-            ws.cell(row=row_idx, column=col).border = thin_border
-        row_idx += 2
+    ws.cell(row=row_idx, column=1, value="TOTAL").font = Font(bold=True)
+    ws.cell(row=row_idx, column=5, value=total_stock).font = Font(bold=True)
+    ws.cell(row=row_idx, column=6, value=total_wip).font = Font(bold=True)
+    ws.cell(row=row_idx, column=7, value=total_reserve).font = Font(bold=True)
+    ws.cell(row=row_idx, column=8, value=total_on_order).font = Font(bold=True)
+    ws.cell(row=row_idx, column=10, value=total_value).font = Font(bold=True)
+    ws.cell(row=row_idx, column=10).number_format = '$#,##0.00'
+    ws.cell(row=row_idx, column=11, value=100).font = Font(bold=True)
+    ws.cell(row=row_idx, column=11).number_format = '0.0%'
+    for col in range(1, 13):
+        ws.cell(row=row_idx, column=col).border = thin_border
+        if col in (5, 6, 7, 8):
+            ws.cell(row=row_idx, column=col).alignment = Alignment(horizontal='right')
 
-    # Freeze panes (logo + title + column headers)
-    ws.freeze_panes = 'A6'
-
-    # Column widths
-    for col, w in enumerate([12, 35, 12, 10, 8, 8, 8, 8, 12, 12, 14, 15], 1):
+    ws.freeze_panes = 'A5'
+    for col, w in enumerate([12, 35, 12, 10, 10, 8, 8, 10, 12, 14, 10, 15], 1):
         ws.column_dimensions[get_column_letter(col)].width = w
 
-    # Sheet 2: Detail by Location (if MIILOC has data)
-    if miiloc and isinstance(miiloc[0], dict):
+    # Sheet 3: Detail by Location (if MIILOC has data)
+    if miiloc and isinstance(miiloc, list) and miiloc and isinstance(miiloc[0], dict):
         ws2 = wb.create_sheet(title="By Location")
+        _add_logo(ws2)
         loc_headers = ["Item No.", "Location No.", "Description", "qStk", "qWIP", "qRes", "qOrd", "Minimum", "Maximum", "Reorder Level"]
         for col, h in enumerate(loc_headers, 1):
             cell = ws2.cell(row=1, column=col, value=h)
@@ -3092,12 +3178,14 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
             alert_rows.append((item_no, desc, stock, min_lvl, reord_lvl, status, needed, reord_qty, ext_val))
     if alert_rows:
         ws3 = wb.create_sheet(title="Low Stock Alerts")
+        _add_logo(ws3)
         alert_headers = ["Item No.", "Description", "Stock", "Minimum", "Reorder Level", "Status", "Qty Needed", "Reorder Qty", "Extended Value"]
         for col, h in enumerate(alert_headers, 1):
             c = ws3.cell(row=1, column=col, value=h)
             c.font = header_font_white
             c.fill = header_fill
             c.border = thin_border
+        alert_tot_val = 0
         for r_idx, row in enumerate(alert_rows, 2):
             for c_idx, val in enumerate(row, 1):
                 cell = ws3.cell(row=r_idx, column=c_idx, value=val)
@@ -3108,6 +3196,14 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
                     cell.alignment = Alignment(horizontal='right')
                 if c_idx == 9 and isinstance(val, (int, float)):
                     cell.number_format = '$#,##0.00'
+                    alert_tot_val += val
+        r_idx = len(alert_rows) + 3
+        ws3.cell(row=r_idx, column=1, value="TOTAL").font = Font(bold=True)
+        ws3.cell(row=r_idx, column=9, value=alert_tot_val).font = Font(bold=True)
+        ws3.cell(row=r_idx, column=9).number_format = '$#,##0.00'
+        for c in range(1, 10):
+            ws3.cell(row=r_idx, column=c).border = thin_border
+        ws3.freeze_panes = 'A3'
         for col, w in enumerate([12, 35, 8, 10, 10, 14, 10, 10, 14], 1):
             ws3.column_dimensions[get_column_letter(col)].width = w
 
