@@ -1554,62 +1554,62 @@ const LogisticsAutomation: React.FC = () => {
 
       {/* INTERNATIONAL SHIPMENT - Payment Warning Popup */}
       {showInternationalPaymentWarning && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl mx-4 border-4 border-red-500">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="bg-red-100 p-4 rounded-full animate-pulse">
-                <DollarSign className="w-12 h-12 text-red-600" />
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-4 max-w-md w-full max-h-[90vh] overflow-y-auto border-2 border-red-500">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="bg-red-100 p-2 rounded-full animate-pulse shrink-0">
+                <DollarSign className="w-8 h-8 text-red-600" />
               </div>
-              <div>
-                <h3 className="text-2xl font-black text-red-700">🚨 INTERNATIONAL SHIPMENT WARNING</h3>
-                <p className="text-red-600 font-semibold text-lg">Payment Verification Required</p>
+              <div className="min-w-0">
+                <h3 className="text-base font-black text-red-700">🚨 INTERNATIONAL SHIPMENT WARNING</h3>
+                <p className="text-red-600 font-semibold text-sm">Payment Verification Required</p>
               </div>
             </div>
             
-            <div className="bg-red-50 border-2 border-red-400 rounded-xl p-6 mb-6">
-              <p className="text-red-900 text-xl font-black mb-4 text-center">
+            <div className="bg-red-50 border-2 border-red-400 rounded-lg p-3 mb-3">
+              <p className="text-red-900 text-sm font-black mb-2 text-center">
                 ⛔ DO NOT SHIP BEFORE PAYMENT IS RECEIVED ⛔
               </p>
-              <div className="bg-white rounded-lg p-4 border border-red-200 mb-4">
-                <p className="text-gray-800 font-semibold mb-2">
-                  <strong>Why Canoil Canada Ltd. requires payment BEFORE shipping internationally:</strong>
+              <div className="bg-white rounded-lg p-3 border border-red-200 mb-2">
+                <p className="text-gray-800 font-semibold text-xs mb-1">
+                  <strong>Why Canoil requires payment BEFORE shipping internationally:</strong>
                 </p>
-                <ul className="text-gray-700 space-y-2 ml-4">
-                  <li>• <strong>No legal recourse</strong> - Once goods leave Canada, it's extremely difficult and costly to recover payment through international courts</li>
-                  <li>• <strong>Collection is nearly impossible</strong> - International debt collection is expensive and rarely successful</li>
-                  <li>• <strong>Currency & banking risks</strong> - Wire transfer issues, currency fluctuations, and bank holds can delay or prevent payment</li>
-                  <li>• <strong>Customs complications</strong> - Goods can be held, returned, or abandoned, leaving Canoil with losses</li>
-                  <li>• <strong>Company policy</strong> - Canoil does not extend credit terms for international shipments</li>
+                <ul className="text-gray-700 text-xs space-y-1 ml-3">
+                  <li>• <strong>No legal recourse</strong> - Difficult to recover payment internationally</li>
+                  <li>• <strong>Collection nearly impossible</strong> - International debt collection rarely successful</li>
+                  <li>• <strong>Currency & banking risks</strong> - Wire issues, currency fluctuations</li>
+                  <li>• <strong>Customs complications</strong> - Goods can be held, returned, or abandoned</li>
+                  <li>• <strong>Company policy</strong> - No credit terms for international shipments</li>
                 </ul>
               </div>
-              <p className="text-red-800 font-bold text-lg text-center bg-yellow-100 py-3 px-4 rounded-lg border-2 border-yellow-500">
+              <p className="text-red-800 font-bold text-xs text-center bg-yellow-100 py-2 px-3 rounded-lg border border-yellow-500">
                 💰 CONFIRM WITH ACCOUNTING THAT PAYMENT HAS BEEN RECEIVED 💰
               </p>
             </div>
             
-            <div className="bg-blue-50 border border-blue-400 rounded-lg p-4 mb-4">
-              <p className="text-blue-900 font-semibold mb-2">📋 <strong>Payment Methods by Customer:</strong></p>
-              <ul className="text-blue-800 text-sm space-y-1 ml-4">
-                <li>• <strong>Pengxin, China customers:</strong> Proforma Invoice - check if PI has been paid</li>
-                <li>• <strong>Axel France, European customers:</strong> Wire transfer - confirm funds received</li>
-                <li>• <strong>Other international:</strong> Check with accounting for payment terms</li>
+            <div className="bg-blue-50 border border-blue-400 rounded-lg p-3 mb-3">
+              <p className="text-blue-900 font-semibold text-xs mb-1">📋 <strong>Payment Methods by Customer:</strong></p>
+              <ul className="text-blue-800 text-xs space-y-0.5 ml-3">
+                <li>• <strong>Pengxin, China:</strong> Proforma Invoice - check if PI paid</li>
+                <li>• <strong>Axel France, Europe:</strong> Wire transfer - confirm funds received</li>
+                <li>• <strong>Other international:</strong> Check with accounting</li>
               </ul>
             </div>
             
-            <div className="bg-amber-50 border border-amber-400 rounded-lg p-4 mb-6">
-              <p className="text-amber-900 font-bold text-center">
-                ✅ Only proceed if you have CONFIRMED payment has cleared in Canoil's bank account
+            <div className="bg-amber-50 border border-amber-400 rounded-lg p-2 mb-3">
+              <p className="text-amber-900 font-bold text-xs text-center">
+                ✅ Only proceed if payment has cleared in Canoil's bank account
               </p>
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   setShowInternationalPaymentWarning(false);
                 }}
-                className="flex-1 px-6 py-4 border-2 border-gray-400 rounded-xl text-gray-700 hover:bg-gray-100 font-bold text-lg"
+                className="flex-1 px-3 py-2 border border-gray-400 rounded-lg text-gray-700 hover:bg-gray-100 font-semibold text-sm"
               >
-                ← Cancel - Check Payment First
+                ← Cancel
               </button>
               <button
                 onClick={() => {
@@ -1621,9 +1621,9 @@ const LogisticsAutomation: React.FC = () => {
                     actualGenerateAllDocuments();
                   }
                 }}
-                className="flex-1 px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg shadow-lg"
+                className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-sm shadow-lg"
               >
-                ✓ Payment Received & Confirmed - Proceed
+                ✓ Proceed
               </button>
             </div>
           </div>

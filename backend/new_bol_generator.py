@@ -773,10 +773,10 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         unit = (item.get('unit') or '').upper()
         is_tote_item = (unit in ['LITER', 'LITRE', 'TOTE', 'IBC'] and item_qty == 1) or is_tote_shipment
         
-        # CRITICAL: Use actual gross_weight from item if available (multi-SO or email data)
-        # Don't calculate proportionally - each item has its own weight from the email
-        if item.get('gross_weight'):
-            weight_str = str(item['gross_weight'])
+        # CRITICAL: Use actual gross_weight or net_weight from item if available (from email parsing)
+        # Don't calculate proportionally - each item has its own weight when user specifies it
+        weight_str = item.get('gross_weight') or item.get('net_weight') or ''
+        if weight_str and str(weight_str).strip().lower() not in ('n/a', 'na', ''):
             # Parse weight value (e.g. "7,610 kg" or "6267.3 kg")
             import re
             weight_match = re.search(r'([\d,]+(?:\.\d+)?)', weight_str)

@@ -1270,7 +1270,8 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                     "description": "[CRITICAL] Extract ONLY the product name, stop at first comma or weight/batch keywords. Example: '3 drums of MOV Extra 0, 540 kg total net weight' → extract 'MOV Extra 0' (NOT 'MOV Extra 0, 540 kg...'). Stop at comma, 'kg', 'lbs', 'total', 'batch', etc.",
                     "quantity": "numeric quantity only (e.g. 2)",
                     "unit": "container type only (drum, pail, etc.)",
-                    "batch_number": "[CRITICAL] Extract batch number for THIS SPECIFIC ITEM ONLY. If email says 'Line 1: product A, batch WH5H01G002' and 'Line 2: product B, batch NT4J28T025', then item 1 gets WH5H01G002 and item 2 gets NT4J28T025. ALWAYS include batch_number field for each item, even if same batch used for all items."
+                    "batch_number": "[CRITICAL] Extract batch number(s) for THIS SPECIFIC ITEM ONLY. If multiple batches with quantities: 'CCL-26035 (1) + CCL-26049 (6)' → use exactly 'CCL-26035 (1) + CCL-26049 (6)'. Single batch: 'WH5B25G049'. Match each item to its batch.",
+                    "gross_weight": "[CRITICAL] When email gives per-item weight, extract it. Example: '7 drums... 1260 kg total net weight' → '1260 kg'. '2 drums... 360 kg total net weight' → '360 kg'. Use net weight if that's what user said, gross if specified. Format: '1260 kg' or '360 kg'. REQUIRED when weight is stated for that specific item."
                 }}
             ],
             "total_weight": "[CRITICAL] If GROSS WEIGHT is mentioned, use GROSS weight (it's the total including packaging). If only NET WEIGHT is mentioned, use net weight. Example: '180 kg net weight, 380 kg gross weight' → use '380 kg'. If multiple line weights, sum them all.",
@@ -1341,6 +1342,14 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         WEIGHT EXTRACTION (CRITICAL):
         If email says "Line 1: 1,200 kg... Line 2: 1,020 kg... Line 3: 1,760 kg", you MUST add them: 1200+1020+1760 = 3,980 kg total
         Extract total_weight by ADDING all individual line weights.
+        
+        PER-ITEM WEIGHT (CRITICAL - USE FOR BOL):
+        When email gives weight FOR EACH ITEM, put it in items[].gross_weight:
+        - "7 drums of Canoil Multipurpose, 1260 kg total net weight, Batch CCL-26035 (1) + CCL-26049 (6)" → item has gross_weight: "1260 kg"
+        - "2 drums of Heavy Duty EP2, 360 kg total net weight, Batch WH5B25G049" → item has gross_weight: "360 kg"
+        - "1 drum of Heavy Duty EP0, 180 kg total net weight, Batch CCL-26051" → item has gross_weight: "180 kg"
+        - "1981 kg total gross weight" → total_weight: "1981 kg"
+        ALWAYS extract per-item weight when user specifies it - BOL needs correct weight per line.
         
         MULTI-ITEM EMAILS (CRITICAL):
         When email has "Line 1: item A\nLine 2: item B\nLine 3: item C", this means 3 SEPARATE ITEMS.
@@ -2625,6 +2634,13 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
     unmatched_items = []
     
     for so_item in so_items:
+        def _apply_match(match_info):
+            """Apply batch and weight from matched email item to SO item"""
+            if match_info.get('batch_number'):
+                so_item['batch_number'] = match_info['batch_number']
+            if match_info.get('gross_weight'):
+                so_item['gross_weight'] = match_info['gross_weight']
+        
         matched = False
         so_desc = so_item.get('description', '').upper().strip()
         so_code = so_item.get('item_code', '').upper().strip()
@@ -2636,7 +2652,7 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
         # Method 1: Exact description match
         if so_desc in email_items_by_desc:
             match_info = email_items_by_desc[so_desc]
-            so_item['batch_number'] = match_info['batch_number']
+            _apply_match(match_info)
             matched = True
             matched_count += 1
         
@@ -2644,7 +2660,7 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
         if not matched:
             for email_desc, match_info in email_items_by_desc.items():
                 if email_desc in so_desc or so_desc in email_desc:
-                    so_item['batch_number'] = match_info['batch_number']
+                    _apply_match(match_info)
                     matched = True
                     matched_count += 1
                     break
@@ -2656,7 +2672,7 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
                 email_core = extract_core_product_name(email_desc)
                 if email_core and so_core and len(email_core) >= 5:
                     if email_core in so_core or so_core in email_core:
-                        so_item['batch_number'] = match_info['batch_number']
+                        _apply_match(match_info)
                         matched = True
                         matched_count += 1
                         break
@@ -2672,7 +2688,7 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
                     code_clean in email_clean or
                     (len(email_clean) >= 5 and len(code_clean) >= 5 and 
                      (email_clean[:5] == code_clean[:5] or email_clean[-5:] == code_clean[-5:]))):
-                    so_item['batch_number'] = match_info['batch_number']
+                    _apply_match(match_info)
                     matched = True
                     matched_count += 1
                     break
@@ -2693,14 +2709,14 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
                     if abbrev in so_desc or abbrev in so_code:
                         for full_name in full_names:
                             if full_name in email_upper:
-                                so_item['batch_number'] = match_info['batch_number']
+                                _apply_match(match_info)
                                 matched = True
                                 matched_count += 1
                                 break
                     if abbrev in email_upper:
                         for full_name in full_names:
                             if full_name in so_desc:
-                                so_item['batch_number'] = match_info['batch_number']
+                                _apply_match(match_info)
                                 matched = True
                                 matched_count += 1
                                 break
