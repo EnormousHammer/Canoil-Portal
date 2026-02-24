@@ -44,6 +44,23 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
   const [showMOSelector, setShowMOSelector] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportSuccess, setReportSuccess] = useState<string | null>(null);
+  const [inventoryFromDate, setInventoryFromDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [inventoryToDate, setInventoryToDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
+  const [inventoryPreview, setInventoryPreview] = useState<{ count: number; locations: number } | null>(null);
+  const [reportFromDate, setReportFromDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [reportToDate, setReportToDate] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
 
   const reportTypes: ReportType[] = [
     {
