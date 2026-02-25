@@ -581,9 +581,11 @@ def parse_multi_so_fallback(email_text: str) -> dict:
         }
         print(f"   📦 Fallback: Parsed totes: {data['totes_return']}")
     
-    new_weight_m = re.search(r'NEW\s+TOTAL\s+GROSS\s+WEIGHT\s*[:\s]*([\d,]+(?:\.\d+)?)\s*KG', email_text, re.IGNORECASE)
+    new_weight_m = re.search(r'NEW\s+TOTAL\s+GROSS\s+WEIGHT\s*[:\s]*([\d,\s]+(?:\.\d+)?)\s*KG', email_text, re.IGNORECASE)
     if new_weight_m:
-        data['new_total_gross_weight'] = f"{new_weight_m.group(1)} kg"
+        # Normalize "4, 441.85" -> "4,441.85" (remove spaces in number)
+        weight_val = new_weight_m.group(1).replace(' ', '').strip()
+        data['new_total_gross_weight'] = f"{weight_val} kg"
         data.setdefault('combined_totals', {})['total_gross_weight'] = data['new_total_gross_weight']
         print(f"   📦 Fallback: Parsed new total weight: {data['new_total_gross_weight']}")
     
