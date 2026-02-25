@@ -492,6 +492,19 @@ def extract_consignee_address(so_data: Dict[str, Any], email_analysis: Dict[str,
         'postal': ''
     }
     
+    # Big Red Oil: ALWAYS use their full address (not "pick up at Canoil" - that goes in Notes)
+    customer_name = (so_data.get('customer_name') or '').upper()
+    company_from_email = (email_analysis or {}).get('company_name') or ''
+    if 'BIG RED' in customer_name or 'BIG RED' in (company_from_email or '').upper():
+        consignee = {
+            'name': 'Big Red Oil Products Inc',
+            'street': '1915 Clements Road, Unit 7',
+            'city_state': 'Pickering, ON',
+            'postal': 'L1W 3V1'
+        }
+        print(f"   📦 Big Red Oil: Using full address (pick up at Canoil will be in Notes)")
+        return consignee
+    
     # Helper function to extract postal code from ANY string
     def extract_postal_code(text: str) -> str:
         """Extract postal code from text - handles all formats"""
@@ -973,11 +986,20 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
     # Calculations
     total_pieces = sum(int(item.get('quantity', 0)) for item in items)
     total_weight_kg = extract_weight_in_kg(email_analysis, so_data, items)
+    # When user provides new_total_gross_weight, use EXACT value for display (no rounding)
+    new_total_str = (email_analysis or {}).get('new_total_gross_weight', '')
+    if new_total_str:
+        # Normalize "4, 441.85 KG" -> "4,441.85 kg" for display (remove spaces, preserve decimals)
+        weight_display = new_total_str.replace(' ', '').strip().lower()
+        if 'kg' not in weight_display:
+            weight_display = weight_display + ' kg'
+    else:
+        weight_display = f"{total_weight_kg:.2f} kg"
     batch_numbers = extract_batch_numbers(email_analysis, so_data)
     skid_info, total_skids = extract_skid_info(email_analysis)  # Now returns tuple
     
     print(f"   Total pieces: {total_pieces}")
-    print(f"   Total weight: {total_weight_kg:.1f} kg")
+    print(f"   Total weight: {weight_display}")
     print(f"   Batch numbers: {batch_numbers} (count: {len(batch_numbers)})")
     print(f"   Skid info: {skid_info}")
     print(f"   Total skids: {total_skids}")
@@ -1142,6 +1164,12 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
             print(f"   Brokerage for notes: {brokerage_value}")
         else:
             print(f"   Brokerage: None")
+    
+    # Big Red Oil: Always add "Pick up at Canoil" to Notes (goods picked up at Canoil)
+    if 'BIG RED' in customer_name:
+        pickup_note = "Pick up at Canoil"
+        brokerage_value = f"{brokerage_value} | {pickup_note}" if brokerage_value else pickup_note
+        print(f"   📦 Big Red: Added '{pickup_note}' to Notes")
     
     # Date - ALWAYS use current date for shipper section
     shipment_date = datetime.now().strftime('%Y-%m-%d')
@@ -1562,10 +1590,10 @@ def populate_new_bol_html(so_data: Dict[str, Any], email_analysis: Dict[str, Any
                 if pieces_input:
                     pieces_input['value'] = str(total_pieces)
                 
-                # Total weight
+                # Total weight (use exact value when user provides new_total_gross_weight - no rounding)
                 weight_input = cells[2].find('input')
                 if weight_input:
-                    weight_input['value'] = f"{total_weight_kg:.1f} kg"
+                    weight_input['value'] = weight_display
     
     # Populate Notes section with BROKERAGE info (not carrier - carrier goes in Carrier field)
     if brokerage_value:
