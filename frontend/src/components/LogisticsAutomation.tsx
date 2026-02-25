@@ -64,7 +64,7 @@ const LogisticsAutomation: React.FC = () => {
   
   // Auto-detection state
   const [autoDetection, setAutoDetection] = useState<any>(null);
-  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so' | 'trust_email'>('auto');
+  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so' | 'trust_email' | 'multi_so'>('auto');
   
   // Manual text input state - just a simple text field
   const [manualText, setManualText] = useState('');
@@ -202,7 +202,7 @@ const LogisticsAutomation: React.FC = () => {
         },
         body: JSON.stringify({
           email_content: contentToProcess,
-          processing_mode: 'auto'  // Auto mode = ALWAYS single SO, never multi-SO
+          processing_mode: 'auto'
         })
       });
 
@@ -242,6 +242,62 @@ const LogisticsAutomation: React.FC = () => {
         if (data.auto_detection) {
           setAutoDetection(data.auto_detection);
         }
+      }
+    } catch (err) {
+      setError('Network error: ' + (err as Error).message);
+    } finally {
+      clearTimeout(slowTimer);
+      setLoading(false);
+      setLoadingSlow(false);
+    }
+  };
+
+  // Process with Multi-SO mode - forces multi-SO path (2+ SOs in email)
+  const processLogisticsMultiSO = async () => {
+    const contentToProcess = emailText;
+    if (!contentToProcess.trim()) {
+      setError('Please provide email text');
+      return;
+    }
+    setResult(null);
+    setDocuments([]);
+    setError('');
+    setAutoDetection(null);
+    setLoading(true);
+    setLoadingSlow(false);
+    const slowTimer = setTimeout(() => setLoadingSlow(true), 3000);
+    try {
+      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email_content: contentToProcess,
+          processing_mode: 'multi_so'  // Force multi-SO processing
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setResult(data);
+        setAutoDetection(data.auto_detection);
+      } else {
+        if (data.validation_errors || data.validation_details) {
+          const errorMessage = data.validation_summary || `❌ ${data.error}\n\nValidation Issues:\n${(data.validation_errors || []).map((err: string) => `• ${err}`).join('\n')}`;
+          setError(errorMessage);
+          if (data.email_data || data.so_data) {
+            setResult({
+              email_data: data.email_data,
+              email_analysis: data.email_analysis || data.email_data,
+              so_data: data.so_data,
+              validation_failed: true,
+              validation_errors: data.validation_errors,
+              validation_details: data.validation_details,
+              validation_summary: data.validation_summary
+            });
+          }
+        } else {
+          setError(data.error || 'Failed to process logistics');
+        }
+        if (data.auto_detection) setAutoDetection(data.auto_detection);
       }
     } catch (err) {
       setError('Network error: ' + (err as Error).message);
@@ -1713,7 +1769,17 @@ const LogisticsAutomation: React.FC = () => {
                   🤖 Auto
                 </button>
                 <span className="text-xs text-gray-400 font-medium px-1">|</span>
-                <span className="text-xs text-gray-500 font-medium px-1">Multi SO</span>
+                <button
+                  onClick={() => setProcessingMode('multi_so')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    processingMode === 'multi_so'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Force multi-SO processing (2+ Sales Orders)"
+                >
+                  📦 Multi SO
+                </button>
                 <span className="text-xs text-gray-400 font-medium px-1">|</span>
                 <button
                   onClick={() => setProcessingMode('manual')}
@@ -1764,7 +1830,7 @@ const LogisticsAutomation: React.FC = () => {
         </div>
 
         {/* Compact Email Input - Prominently at Top - Hide in no_so mode */}
-        {(processingMode === 'auto' || processingMode === 'manual' || processingMode === 'trust_email') && (
+        {(processingMode === 'auto' || processingMode === 'manual' || processingMode === 'trust_email' || processingMode === 'multi_so') && (
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Mail className="w-5 h-5 text-blue-600" />
@@ -1777,6 +1843,7 @@ const LogisticsAutomation: React.FC = () => {
               if (loading || !emailText.trim()) return;
               if (processingMode === 'manual' && !soFile) return;
               if (processingMode === 'auto') processLogisticsAuto();
+              else if (processingMode === 'multi_so') processLogisticsMultiSO();
               else if (processingMode === 'trust_email') processLogisticsTrustEmail();
               else processLogistics();
             }}
@@ -1808,18 +1875,20 @@ const LogisticsAutomation: React.FC = () => {
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : processingMode === 'trust_email' 
                         ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
+                        : processingMode === 'multi_so'
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
                   }`}
                 >
-                {loading ? (
+                  {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    {loadingSlow ? 'Waking up backend...' : (processingMode === 'trust_email' ? 'Processing (Trust Email)...' : 'Processing...')}
+                    {loadingSlow ? 'Waking up backend...' : (processingMode === 'trust_email' ? 'Processing (Trust Email)...' : processingMode === 'multi_so' ? 'Processing (Multi-SO)...' : 'Processing...')}
                   </>
                 ) : (
                   <>
                     <Truck className="w-4 h-4" />
-                    {processingMode === 'auto' ? '🤖 Auto Process' : processingMode === 'trust_email' ? '✏️ Process (SO Revision)' : 'Process'}
+                    {processingMode === 'auto' ? '🤖 Auto Process' : processingMode === 'multi_so' ? '📦 Process (Multi-SO)' : processingMode === 'trust_email' ? '✏️ Process (SO Revision)' : 'Process'}
                   </>
                 )}
               </button>

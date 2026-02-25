@@ -351,10 +351,16 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
             ]
         }},
         "combined_totals": {{
-            "total_gross_weight": "Sum ALL weights from ALL SOs (e.g., if SO 3024 has 4,506 kg and SO 3064 has 1,512 kg, return '6,018 kg')",
+            "total_gross_weight": "Sum ALL weights from ALL SOs. If email says 'NEW TOTAL GROSS WEIGHT' use that value instead (Big Red tote returns).",
             "total_pallet_count": 0  // Sum ALL pallets from ALL SOs (e.g., 6 + 2 = 8)
         }},
-        "totes_info": "Combined totes information from all SOs if mentioned"
+        "totes_info": "Combined totes information if mentioned",
+        "totes_return": {{
+            "empty_count": 0,
+            "partial_count": 0,
+            "partial_by_product": [{{"product": "SAE 5W-40", "kg": 635.5}}, {{"product": "0W-16", "kg": 214.35}}]
+        }},
+        "new_total_gross_weight": "Use when email says 'NEW TOTAL GROSS WEIGHT' (e.g. '4,441.85 KG') - overrides sum for Big Red tote returns"
     }}
     
     CRITICAL: Extract the EXACT weight values from the email. Do NOT invent or use default values.
@@ -379,6 +385,9 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
        - Each numbered section is a COMPLETE SO with its own items, batch, weight, pallets
     6. The SO number in items_by_so keys MUST match exactly the SO numbers in so_numbers array (as strings: "3024", "3064")
     7. MANDATORY: If you find 2 SOs, you MUST create items_by_so entries for BOTH. Do NOT skip any SO.
+    8. BIG RED TOTE RETURNS: When email has "TOTES:" section (e.g. "3 EMPTY", "2 PARTIAL", "SAE 5W-40 - 635.5 KG", "0W-16 - 214.35 KG"):
+       - Parse totes_return: empty_count, partial_count, partial_by_product (product name + kg)
+       - Use "NEW TOTAL GROSS WEIGHT" when provided - put in new_total_gross_weight AND combined_totals.total_gross_weight
     
     SPECIAL INSTRUCTIONS (CRITICAL):
     Look for instructions at the end of the email like:
@@ -555,6 +564,28 @@ def parse_multi_so_fallback(email_text: str) -> dict:
             print(f"   ✅ Fallback: Added {len(items)} items for SO {so_num}")
         else:
             print(f"   ⚠️ Fallback: No items extracted for SO {so_num}")
+    
+    # Big Red tote returns: Parse TOTES and NEW TOTAL GROSS WEIGHT from email
+    totes_section = re.search(r'TOTES:\s*(.+?)(?=NEW TOTAL|$)', email_text, re.IGNORECASE | re.DOTALL)
+    if totes_section:
+        totes_text = totes_section.group(1).strip()
+        empty_m = re.search(r'(\d+)\s*EMPTY', totes_text, re.IGNORECASE)
+        partial_m = re.search(r'(\d+)\s*PARTIAL', totes_text, re.IGNORECASE)
+        partial_by_product = []
+        for m in re.finditer(r'([A-Za-z0-9\s\-\.]+)\s*-\s*([\d,]+(?:\.\d+)?)\s*KG', totes_text):
+            partial_by_product.append({'product': m.group(1).strip(), 'kg': float(m.group(2).replace(',', ''))})
+        data['totes_return'] = {
+            'empty_count': int(empty_m.group(1)) if empty_m else 0,
+            'partial_count': int(partial_m.group(1)) if partial_m else 0,
+            'partial_by_product': partial_by_product
+        }
+        print(f"   📦 Fallback: Parsed totes: {data['totes_return']}")
+    
+    new_weight_m = re.search(r'NEW\s+TOTAL\s+GROSS\s+WEIGHT\s*[:\s]*([\d,]+(?:\.\d+)?)\s*KG', email_text, re.IGNORECASE)
+    if new_weight_m:
+        data['new_total_gross_weight'] = f"{new_weight_m.group(1)} kg"
+        data.setdefault('combined_totals', {})['total_gross_weight'] = data['new_total_gross_weight']
+        print(f"   📦 Fallback: Parsed new total weight: {data['new_total_gross_weight']}")
     
     return data
 
@@ -2964,8 +2995,13 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     combined_totals = multi_so_email_data.get('combined_totals', {})
     
     # CRITICAL: Ensure weights and pallets are properly summed
-    # If GPT didn't sum them correctly, calculate from items_by_so
-    total_weight_str = combined_totals.get('total_gross_weight', '')
+    # Big Red tote returns: Use new_total_gross_weight when provided (includes partial tote amounts)
+    new_total = multi_so_email_data.get('new_total_gross_weight', '')
+    if new_total:
+        total_weight_str = str(new_total).strip()
+        print(f"   📦 Using NEW TOTAL GROSS WEIGHT (Big Red totes): {total_weight_str}")
+    else:
+        total_weight_str = combined_totals.get('total_gross_weight', '')
     total_pallets = combined_totals.get('total_pallet_count', 0)
     
     # If totals are missing or zero, calculate from individual SO items
@@ -3012,7 +3048,9 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'total_weight': total_weight_str,
         'pallet_count': total_pallets,
         'items_by_so': items_by_so,
-        'totes_info': multi_so_email_data.get('totes_info', ''),  # Include totes information
+        'totes_info': multi_so_email_data.get('totes_info', ''),
+        'totes_return': multi_so_email_data.get('totes_return', {}),  # Big Red: empty/partial totes
+        'new_total_gross_weight': multi_so_email_data.get('new_total_gross_weight', ''),
         # Preserve original email text so downstream generators (BOL/CI)
         # can run broker/exporter detection exactly like single-SO flow.
         'raw_text': email_content,
@@ -3582,18 +3620,24 @@ def process_email():
         all_so_numbers = extract_all_so_numbers(email_content)
         print(f"📋 SO Detection: Found {len(all_so_numbers)} SO(s): {all_so_numbers}")
         
-        # AUTO MODE: NEVER multi-SO - user pasted email, assume single SO. Use first SO only.
-        if processing_mode == 'auto':
+        # MULTI-SO MODE (explicit): User clicked "Multi SO" - force multi-SO path
+        if processing_mode == 'multi_so':
             if all_so_numbers:
-                all_so_numbers = [all_so_numbers[0]]
-                print(f"🤖 AUTO MODE: Forcing single SO - using first only: {all_so_numbers[0]}")
+                print(f"\n{'='*80}")
+                print(f"🔀 MULTI-SO MODE (user selected): Processing {len(all_so_numbers)} Sales Order(s)")
+                print(f"{'='*80}")
+                return process_multi_so_email(email_content, all_so_numbers)
+            else:
+                print("⚠️ MULTI-SO MODE: No SO numbers found in email")
+                return jsonify({'error': 'Multi-SO mode selected but no Sales Order numbers found in email. Please paste an email containing SO numbers (e.g. SO 3100, SO 3098).'}), 400
         
+        # When 2+ SOs detected: use multi-SO (regardless of processing_mode)
         # DEBUG: If only 1 SO found but email seems long, warn about potential truncation
         if len(all_so_numbers) == 1 and len(email_content) < 300 and processing_mode != 'auto':
             print(f"⚠️ WARNING: Only 1 SO detected but email is short ({len(email_content)} chars).")
             print(f"   This might indicate email content was truncated. Check if multi-SO content is missing.")
         
-        # If multiple SOs detected (and NOT auto mode), use multi-SO processing path
+        # If multiple SOs detected, use multi-SO processing path
         if len(all_so_numbers) > 1:
             print(f"\n{'='*80}")
             print(f"🔀 MULTI-SO MODE: Processing {len(all_so_numbers)} Sales Orders together")

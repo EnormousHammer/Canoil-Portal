@@ -121,9 +121,12 @@ def extract_weight_in_kg(email_analysis: Dict[str, Any], so_data: Dict[str, Any]
     total_weight_kg = 0.0
     
     # Priority 1: Email analysis
+    # Big Red tote returns: new_total_gross_weight overrides (includes partial tote amounts)
     email_weight = None
     if email_analysis:
-        if email_analysis.get('extracted_details', {}).get('total_weight'):
+        if email_analysis.get('new_total_gross_weight'):
+            email_weight = email_analysis['new_total_gross_weight']
+        elif email_analysis.get('extracted_details', {}).get('total_weight'):
             email_weight = email_analysis['extracted_details']['total_weight']
         elif email_analysis.get('total_weight'):
             email_weight = email_analysis['total_weight']
@@ -891,6 +894,34 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         print(f"   ✅ Added total skids to BOL: {skid_text}")
     else:
         print(f"   ⚠️  No skid info available (skid_info='{skid_info}', total_skids={total_skids})")
+    
+    # Big Red tote returns: Add totes section (empty + partial with product/kg)
+    totes_return = (email_analysis or {}).get('totes_return', {}) if email_analysis else {}
+    empty_c = totes_return.get('empty_count', 0) or 0
+    partial_c = totes_return.get('partial_count', 0) or 0
+    try:
+        empty_c = int(empty_c) if empty_c else 0
+        partial_c = int(partial_c) if partial_c else 0
+    except (ValueError, TypeError):
+        empty_c, partial_c = 0, 0
+    if totes_return and (empty_c or partial_c):
+        partial_list = totes_return.get('partial_by_product', [])
+        tote_parts = []
+        if empty_c:
+            tote_parts.append(f"{empty_c} Empty")
+        if partial_c:
+            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+            if partial_strs:
+                tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs))
+            else:
+                tote_parts.append(f"{partial_c} Partial")
+        if tote_parts:
+            rows.append({
+                'pieces': '',
+                'description': f"TOTES RETURNED: {', '.join(tote_parts)}",
+                'weight': ''
+            })
+            print(f"   📦 Added totes to BOL: {', '.join(tote_parts)}")
     
     # Add PO# and SO# on next available row
     ref_parts = []

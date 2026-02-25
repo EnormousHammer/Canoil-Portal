@@ -99,13 +99,33 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     # PO NUMBER - Extract from parsed SO data ONLY - NO FAKE DATA
     po_number = so_data.get('order_details', {}).get('po_number', '') or so_data.get('po_number', '')
     # Add PO# prefix if PO number exists and doesn't already have it
+    comment_parts = []
     if po_number:
         if not po_number.upper().startswith('PO'):
-            field_values['comments'] = f"PO#{po_number}"
+            comment_parts.append(f"PO#{po_number}")
         else:
-            field_values['comments'] = po_number
-    else:
-        field_values['comments'] = ''  # Leave empty if not in SO
+            comment_parts.append(po_number)
+    
+    # Big Red tote returns: Add totes to comments
+    totes_return = email_shipping.get('totes_return', {}) if email_shipping else {}
+    if totes_return and (totes_return.get('empty_count', 0) or totes_return.get('partial_count', 0)):
+        empty_c = totes_return.get('empty_count', 0)
+        partial_c = totes_return.get('partial_count', 0)
+        partial_list = totes_return.get('partial_by_product', [])
+        tote_parts = []
+        if empty_c:
+            tote_parts.append(f"{empty_c} Empty")
+        if partial_c:
+            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+            if partial_strs:
+                tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs))
+            else:
+                tote_parts.append(f"{partial_c} Partial")
+        if tote_parts:
+            comment_parts.append(f"TOTES RETURNED: {', '.join(tote_parts)}")
+            print(f"DEBUG: Added totes to packing slip comments: {', '.join(tote_parts)}")
+    
+    field_values['comments'] = ' | '.join(comment_parts) if comment_parts else ''
     
     # DO NOT FILL SOLD BY - leave empty for manual filling
     
