@@ -2095,25 +2095,36 @@ def get_so_data_from_system(so_number):
                                     list_params['corpora'] = 'drive'
                                     list_params['driveId'] = sales_csr_drive_id
                                 
-                                try:
-                                    results = google_drive_service.service.files().list(**list_params).execute()
-                                    files = results.get('files', [])
-                                    
-                                    for file_info in files:
-                                        file_name = file_info.get('name', '')
-                                        # Double-check the file name contains SO number and is in Sales Orders
-                                        if (so_number in file_name or f"SO_{so_number}" in file_name or f"salesorder_{so_number}" in file_name):
-                                            matching_files.append({
-                                                'file_id': file_info.get('id'),
-                                                'file_name': file_name,
-                                                'modified_time': file_info.get('modifiedTime', '')
-                                            })
-                                    
-                                    if matching_files:
-                                        break  # Found files, no need to try other patterns
-                                except Exception as search_error:
-                                    print(f"[WARN] LOGISTICS: Direct search failed for pattern '{pattern}': {search_error}")
-                                    continue
+                                # Retry search on SSL/network errors (transient failures)
+                                search_success = False
+                                for search_attempt in range(3):
+                                    try:
+                                        results = google_drive_service.service.files().list(**list_params).execute()
+                                        files = results.get('files', [])
+                                        
+                                        for file_info in files:
+                                            file_name = file_info.get('name', '')
+                                            # Double-check the file name contains SO number and is in Sales Orders
+                                            if (so_number in file_name or f"SO_{so_number}" in file_name or f"salesorder_{so_number}" in file_name):
+                                                matching_files.append({
+                                                    'file_id': file_info.get('id'),
+                                                    'file_name': file_name,
+                                                    'modified_time': file_info.get('modifiedTime', '')
+                                                })
+                                        
+                                        search_success = True
+                                        break  # Success
+                                    except Exception as search_error:
+                                        err_str = str(search_error)
+                                        is_retryable = 'SSL' in err_str or 'record layer' in err_str or 'timeout' in err_str.lower() or 'connection' in err_str.lower()
+                                        print(f"[WARN] LOGISTICS: Direct search failed for pattern '{pattern}' (attempt {search_attempt + 1}/3): {search_error}")
+                                        if is_retryable and search_attempt < 2:
+                                            time.sleep(2 * (search_attempt + 1))  # 2s, 4s backoff
+                                        else:
+                                            break  # Give up on this pattern
+                                
+                                if matching_files:
+                                    break  # Found files, no need to try other patterns
                             
                             # If direct search found nothing, fall back to recursive scan (slower but more thorough)
                             if not matching_files:
@@ -2841,27 +2852,48 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     
     # Fetch SO data for ALL SOs in parallel
     # CRITICAL: Increase timeout for multi-SO (SSL retries can take longer)
-    # 4 SOs × 60s each = 240s max, but with retries we need more headroom
     so_data_list = []
     timeout_per_so = 120  # 2 minutes per SO to handle SSL retries
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(so_numbers)) as executor:
-        # Start all fetches
-        future_to_so = {executor.submit(get_so_data_from_system, so_num): so_num for so_num in so_numbers}
-        
-        # Collect results
-        for future in concurrent.futures.as_completed(future_to_so):
-            so_num = future_to_so[future]
+    fetched_so_nums = set()
+    
+    def _fetch_all_sos():
+        nonlocal so_data_list, fetched_so_nums
+        so_data_list = []
+        fetched_so_nums = set()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(so_numbers)) as executor:
+            future_to_so = {executor.submit(get_so_data_from_system, so_num): so_num for so_num in so_numbers}
+            for future in concurrent.futures.as_completed(future_to_so):
+                so_num = future_to_so[future]
+                try:
+                    so_data = future.result(timeout=timeout_per_so)
+                    if so_data and isinstance(so_data, dict) and so_data.get('status') != 'Error':
+                        so_data_list.append(so_data)
+                        fetched_so_nums.add(str(so_num))
+                        print(f"✅ Fetched SO {so_num}: {len(so_data.get('items', []))} items")
+                    else:
+                        print(f"❌ Failed to fetch SO {so_num}: {so_data.get('error', 'Unknown error') if isinstance(so_data, dict) else 'Unknown error'}")
+                except concurrent.futures.TimeoutError:
+                    print(f"⏱️ Timeout fetching SO {so_num} after {timeout_per_so}s - SSL retries may be taking too long")
+                except Exception as e:
+                    print(f"❌ Exception fetching SO {so_num}: {e}")
+    
+    _fetch_all_sos()
+    
+    # If we're missing SOs (e.g. transient SSL), retry failed ones once
+    missing = [sn for sn in so_numbers if str(sn) not in fetched_so_nums]
+    if missing and so_data_list:
+        print(f"🔄 Retrying {len(missing)} failed SO(s): {missing} (transient SSL/network errors)")
+        import time
+        time.sleep(3)  # Brief pause before retry
+        for so_num in missing:
             try:
-                so_data = future.result(timeout=timeout_per_so)
+                so_data = get_so_data_from_system(so_num)
                 if so_data and isinstance(so_data, dict) and so_data.get('status') != 'Error':
                     so_data_list.append(so_data)
-                    print(f"✅ Fetched SO {so_num}: {len(so_data.get('items', []))} items")
-                else:
-                    print(f"❌ Failed to fetch SO {so_num}: {so_data.get('error', 'Unknown error')}")
-            except concurrent.futures.TimeoutError:
-                print(f"⏱️ Timeout fetching SO {so_num} after {timeout_per_so}s - SSL retries may be taking too long")
+                    fetched_so_nums.add(str(so_num))
+                    print(f"✅ Retry succeeded for SO {so_num}: {len(so_data.get('items', []))} items")
             except Exception as e:
-                print(f"❌ Exception fetching SO {so_num}: {e}")
+                print(f"❌ Retry failed for SO {so_num}: {e}")
     
     if not so_data_list:
         return jsonify({'error': f"Could not fetch any SO data for: {so_numbers}"}), 500
