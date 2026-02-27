@@ -963,6 +963,7 @@ const LogisticsAutomation: React.FC = () => {
       
       const requestData = {
         so_data: soData,
+        so_data_list: result.so_data_list || null,  // For Big Red multi-SO: separate BOL per SO
         email_shipping: result.email_shipping || {},
         email_analysis: emailAnalysis,
         items: result.so_data?.items || result.items || [],

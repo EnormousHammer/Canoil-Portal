@@ -2426,6 +2426,7 @@ export const GmailStyleEmail: React.FC<EmailAssistantProps> = ({ currentUser, se
         },
         body: JSON.stringify({
           so_data: result.so_data,
+          so_data_list: result.so_data_list || null,
           email_shipping: result.email_shipping,
           email_analysis: result.email_analysis,
           items: result.so_data?.items || result.items || []

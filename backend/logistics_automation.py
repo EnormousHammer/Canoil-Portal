@@ -3072,11 +3072,13 @@ def process_multi_so_email(email_content: str, so_numbers: list):
             print(f"   ✅ Calculated total pallets: {total_pallets}")
     
     # Build email_data structure for frontend compatibility
+    po_numbers_list = multi_so_email_data.get('po_numbers', []) or []
     email_data = {
         'so_number': ' & '.join(so_numbers),  # "3004 & 3020" (Windows-safe)
         'so_numbers': so_numbers,
+        'po_numbers': po_numbers_list,  # For Big Red: separate BOL per SO needs PO mapping
         'is_multi_so': True,
-        'po_number': ' & '.join(multi_so_email_data.get('po_numbers', [])) if multi_so_email_data.get('po_numbers') else '',
+        'po_number': ' & '.join(po_numbers_list) if po_numbers_list else '',
         'company_name': multi_so_email_data.get('company_name', ''),
         'items': [],  # Combined items
         'total_weight': total_weight_str,
@@ -6460,40 +6462,197 @@ def generate_all_documents():
         # Create timestamp ONCE for all documents
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
+        # Big Red multi-SO: separate BOL and Packing Slip per SO/PO (computed once for both)
+        # Big Red totes: when totes_return present, create separate paperwork for totes too
+        so_data_list = data.get('so_data_list') or []
+        customer_name_upper = (so_data.get('customer_name') or '').upper()
+        is_big_red_multi_so = ('BIG RED' in customer_name_upper and 
+                               so_data.get('is_multi_so') and 
+                               len(so_data_list) >= 2)
+        totes_return = email_analysis.get('totes_return', {}) or {}
+        has_totes = bool(totes_return and (totes_return.get('empty_count', 0) or totes_return.get('partial_count', 0)))
+        # Big Red only: create separate totes paperwork when totes are involved
+        has_totes_separate = has_totes and 'BIG RED' in customer_name_upper
+        
         # Generate BOL (NEW professional format) - only if requested
+        # Big Red multi-SO: Customer requires SEPARATE BOL per SO/PO (one per order)
         if requested_docs.get('bol', True):
             try:
                 from new_bol_generator import populate_new_bol_html
+                import copy
                 
-                print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
-                # Use email_analysis instead of email_shipping to ensure skid_info is included
-                # email_analysis has skid_info, pallet_count, pallet_dimensions from email parsing
-                bol_email_data = email_analysis or email_shipping
-                print(f"DEBUG BOL: Using email data with keys: {list(bol_email_data.keys())}")
-                print(f"DEBUG BOL: skid_info = {bol_email_data.get('skid_info')}")
-                print(f"DEBUG BOL: pallet_count = {bol_email_data.get('pallet_count')}")
-                print(f"DEBUG BOL: pallet_dimensions = {bol_email_data.get('pallet_dimensions')}")
-                bol_html = populate_new_bol_html(so_data, bol_email_data)
-                bol_filename = generate_document_filename("BOL", so_data, '.html')
-                
-                # Save HTML version in HTML Format folder
-                bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
-                with open(bol_html_filepath, 'w', encoding='utf-8') as f:
-                    f.write(bol_html)
-                print(f"DEBUG: BOL HTML file created: {bol_html_filepath}")
-                
-                # HTML only - no PDF conversion
-                results['bol'] = {
-                    'success': True,
-                    'filename': bol_filename,
-                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                    'file_type': 'html'
-                }
-                print(f"✅ BOL generated: {bol_filename} (HTML)")
+                if is_big_red_multi_so:
+                    # Big Red: Generate one BOL per SO/PO
+                    print(f"📦 Big Red multi-SO: Generating {len(so_data_list)} separate BOLs (one per SO/PO)")
+                    po_numbers = email_analysis.get('po_numbers') or []
+                    so_numbers = so_data.get('so_numbers') or [s.get('so_number') for s in so_data_list]
+                    combined_items = so_data.get('items', [])
+                    total_weight_str = email_analysis.get('new_total_gross_weight', '')
+                    
+                    results['bols'] = []
+                    for idx, single_so_data in enumerate(so_data_list):
+                        so_num = str(single_so_data.get('so_number', '')).strip()
+                        po_num = po_numbers[idx] if idx < len(po_numbers) else (single_so_data.get('po_number') or '')
+                        
+                        # Build per-SO so_data (single SO, single PO, that SO's items only)
+                        per_so_data = copy.deepcopy(single_so_data)
+                        per_so_data['so_number'] = so_num
+                        per_so_data['po_number'] = po_num
+                        per_so_data['is_multi_so'] = False  # Each BOL is single-SO
+                        per_so_items = [i for i in combined_items if str(i.get('source_so', '')).strip() == so_num]
+                        if not per_so_items:
+                            # Fallback: use SO PDF items (exclude freight/charges)
+                            per_so_items = [i for i in single_so_data.get('items', []) 
+                                            if not any(skip in str(i.get('description', '')).upper() 
+                                                       for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE'])]
+                        per_so_data['items'] = per_so_items
+                        
+                        # Per-SO email data: skid info from items_by_so, proportional weight
+                        items_by_so = email_analysis.get('items_by_so', {}) or {}
+                        so_email_items = items_by_so.get(so_num) or items_by_so.get(str(so_num)) or []
+                        pallet_count = sum(int(i.get('pallet_count', 0)) for i in so_email_items) or single_so_data.get('pallet_count', 0)
+                        pallet_dims = (so_email_items[0].get('pallet_dimensions', '') if so_email_items else '') or email_analysis.get('pallet_dimensions', '')
+                        
+                        per_so_email = copy.deepcopy(email_analysis)
+                        per_so_email['skid_info'] = f"{pallet_count} pallets {pallet_dims}".strip() if pallet_count else email_analysis.get('skid_info', '')
+                        per_so_email['pallet_count'] = pallet_count
+                        per_so_email['po_number'] = po_num
+                        per_so_email['so_number'] = so_num
+                        # Proportional weight when we have total
+                        if total_weight_str and combined_items:
+                            total_pieces = sum(int(i.get('quantity', 0)) for i in combined_items)
+                            so_pieces = sum(int(i.get('quantity', 0)) for i in per_so_items)
+                            if total_pieces > 0 and so_pieces > 0:
+                                import re
+                                m = re.search(r'([\d,\s]+(?:\.\d+)?)', str(total_weight_str))
+                                if m:
+                                    try:
+                                        total_kg = float(m.group(1).replace(',', '').replace(' ', ''))
+                                        so_kg = (so_pieces / total_pieces) * total_kg
+                                        per_so_email['new_total_gross_weight'] = f"{so_kg:.2f} kg"
+                                    except:
+                                        per_so_email['new_total_gross_weight'] = total_weight_str
+                                else:
+                                    per_so_email['new_total_gross_weight'] = total_weight_str
+                            else:
+                                per_so_email['new_total_gross_weight'] = total_weight_str
+                        else:
+                            per_so_email['new_total_gross_weight'] = total_weight_str
+                        # Only add totes to case BOLs when NOT creating separate totes paperwork
+                        per_so_email['totes_return'] = {} if has_totes_separate else email_analysis.get('totes_return', {})
+                        
+                        bol_html = populate_new_bol_html(per_so_data, per_so_email)
+                        bol_filename = generate_document_filename("BOL", per_so_data, '.html')
+                        bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
+                        with open(bol_html_filepath, 'w', encoding='utf-8') as f:
+                            f.write(bol_html)
+                        results['bols'].append({
+                            'success': True,
+                            'filename': bol_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
+                            'file_type': 'html',
+                            'so_number': so_num,
+                            'po_number': po_num
+                        })
+                        print(f"   ✅ BOL {idx+1}/{len(so_data_list)}: {bol_filename} (SO {so_num}, PO {po_num})")
+                    # Totes: separate BOL when Big Red + totes
+                    if has_totes_separate:
+                        empty_c = int(totes_return.get('empty_count', 0) or 0)
+                        partial_c = int(totes_return.get('partial_count', 0) or 0)
+                        partial_list = totes_return.get('partial_by_product', [])
+                        tote_parts = []
+                        if empty_c:
+                            tote_parts.append(f"{empty_c} Empty")
+                        if partial_c:
+                            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+                            tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs) if partial_strs else f"{partial_c} Partial")
+                        tote_desc = f"TOTES RETURNED: {', '.join(tote_parts)}"
+                        tote_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
+                        tote_so_data = copy.deepcopy(so_data_list[0])
+                        tote_so_data['so_number'] = 'TOTES-RETURN'
+                        tote_so_data['po_number'] = 'TOTES-RETURN'
+                        tote_so_data['is_multi_so'] = False
+                        tote_so_data['items'] = [{'description': tote_desc, 'quantity': 1, 'gross_weight': f"{tote_weight_kg:.2f} kg", 'source_so': 'TOTES'}]
+                        tote_email = copy.deepcopy(email_analysis)
+                        tote_email['totes_return'] = {}  # Don't add duplicate row - we have it in the item
+                        tote_email['new_total_gross_weight'] = f"{tote_weight_kg:.2f} kg"
+                        tote_email['skid_info'] = ''
+                        tote_email['po_number'] = 'TOTES-RETURN'
+                        tote_email['so_number'] = 'TOTES-RETURN'
+                        bol_html = populate_new_bol_html(tote_so_data, tote_email)
+                        bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
+                        with open(os.path.join(folder_structure['html_folder'], bol_filename), 'w', encoding='utf-8') as f:
+                            f.write(bol_html)
+                        results['bols'].append({
+                            'success': True,
+                            'filename': bol_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
+                            'file_type': 'html',
+                            'so_number': 'TOTES-RETURN',
+                            'po_number': 'TOTES-RETURN'
+                        })
+                        print(f"   ✅ BOL Totes: {bol_filename}")
+                    results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}  # First for backward compat
+                else:
+                    # Standard: one combined BOL (or one BOL + separate totes BOL when has_totes)
+                    print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
+                    bol_email_data = copy.deepcopy(email_analysis or email_shipping)
+                    if has_totes_separate:
+                        bol_email_data['totes_return'] = {}  # Separate totes BOL will be created
+                    bol_html = populate_new_bol_html(so_data, bol_email_data)
+                    bol_filename = generate_document_filename("BOL", so_data, '.html')
+                    bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
+                    with open(bol_html_filepath, 'w', encoding='utf-8') as f:
+                        f.write(bol_html)
+                    results['bols'] = [{
+                        'success': True,
+                        'filename': bol_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
+                        'file_type': 'html',
+                        'so_number': so_data.get('so_number', ''),
+                        'po_number': so_data.get('po_number', '')
+                    }]
+                    if has_totes_separate:
+                        empty_c = int(totes_return.get('empty_count', 0) or 0)
+                        partial_c = int(totes_return.get('partial_count', 0) or 0)
+                        partial_list = totes_return.get('partial_by_product', [])
+                        tote_parts = []
+                        if empty_c:
+                            tote_parts.append(f"{empty_c} Empty")
+                        if partial_c:
+                            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+                            tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs) if partial_strs else f"{partial_c} Partial")
+                        tote_desc = f"TOTES RETURNED: {', '.join(tote_parts)}"
+                        tote_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
+                        tote_so_data = copy.deepcopy(so_data)
+                        tote_so_data['so_number'] = 'TOTES-RETURN'
+                        tote_so_data['po_number'] = 'TOTES-RETURN'
+                        tote_so_data['items'] = [{'description': tote_desc, 'quantity': 1, 'gross_weight': f"{tote_weight_kg:.2f} kg", 'source_so': 'TOTES'}]
+                        tote_email = copy.deepcopy(email_analysis or email_shipping)
+                        tote_email['totes_return'] = {}
+                        tote_email['new_total_gross_weight'] = f"{tote_weight_kg:.2f} kg"
+                        tote_email['skid_info'] = ''
+                        tote_email['po_number'] = 'TOTES-RETURN'
+                        tote_email['so_number'] = 'TOTES-RETURN'
+                        bol_html = populate_new_bol_html(tote_so_data, tote_email)
+                        bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
+                        with open(os.path.join(folder_structure['html_folder'], bol_filename), 'w', encoding='utf-8') as f:
+                            f.write(bol_html)
+                        results['bols'].append({
+                            'success': True,
+                            'filename': bol_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
+                            'file_type': 'html',
+                            'so_number': 'TOTES-RETURN',
+                            'po_number': 'TOTES-RETURN'
+                        })
+                        print(f"   ✅ BOL Totes: {bol_filename}")
+                    results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}
+                    print(f"✅ BOL generated: {bol_filename} (HTML)")
                 
             except Exception as e:
                 print(f"❌ BOL generation error: {e}")
-                traceback.print_exc()  # Use module-level traceback
+                traceback.print_exc()
                 errors.append(f"BOL generation failed: {str(e)}")
                 results['bol'] = {'success': False, 'error': str(e)}
         else:
@@ -6501,30 +6660,138 @@ def generate_all_documents():
             results['bol'] = {'success': False, 'skipped': True, 'message': 'Not requested'}
         
         # Generate Packing Slip - only if requested
+        # Big Red multi-SO: separate Packing Slip per SO/PO (same as BOL)
         if requested_docs.get('packing_slip', True):
             try:
                 from packing_slip_html_generator import generate_packing_slip_html
+                import copy
                 
-                ps_html = generate_packing_slip_html(so_data, email_shipping, items)
-                ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
-                
-                # Save HTML version in HTML Format folder
-                ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
-                with open(ps_html_filepath, 'w', encoding='utf-8') as f:
-                    f.write(ps_html)
-                
-                # HTML only - no PDF conversion
-                results['packing_slip'] = {
-                    'success': True,
-                    'filename': ps_filename,
-                    'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                    'file_type': 'html'
-                }
-                print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
+                if is_big_red_multi_so:
+                    # Big Red: Generate one Packing Slip per SO/PO
+                    print(f"📦 Big Red multi-SO: Generating {len(so_data_list)} separate Packing Slips (one per SO/PO)")
+                    po_numbers = email_analysis.get('po_numbers') or []
+                    combined_items = so_data.get('items', [])
+                    
+                    results['packing_slips'] = []
+                    for idx, single_so_data in enumerate(so_data_list):
+                        so_num = str(single_so_data.get('so_number', '')).strip()
+                        po_num = po_numbers[idx] if idx < len(po_numbers) else (single_so_data.get('po_number') or '')
+                        
+                        per_so_data = copy.deepcopy(single_so_data)
+                        per_so_data['so_number'] = so_num
+                        per_so_data['po_number'] = po_num
+                        per_so_data['is_multi_so'] = False
+                        per_so_items = [i for i in combined_items if str(i.get('source_so', '')).strip() == so_num]
+                        if not per_so_items:
+                            per_so_items = [i for i in single_so_data.get('items', []) 
+                                            if not any(skip in str(i.get('description', '')).upper() 
+                                                       for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE'])]
+                        per_so_data['items'] = per_so_items
+                        
+                        # Don't add totes to case packing slips when we have separate totes paperwork
+                        per_so_email_ps = copy.deepcopy(email_analysis)
+                        if has_totes_separate:
+                            per_so_email_ps['totes_return'] = {}
+                        ps_html = generate_packing_slip_html(per_so_data, per_so_email_ps, per_so_items)
+                        ps_filename = generate_document_filename("PackingSlip", per_so_data, '.html')
+                        ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
+                        with open(ps_html_filepath, 'w', encoding='utf-8') as f:
+                            f.write(ps_html)
+                        results['packing_slips'].append({
+                            'success': True,
+                            'filename': ps_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
+                            'file_type': 'html',
+                            'so_number': so_num,
+                            'po_number': po_num
+                        })
+                        print(f"   ✅ Packing Slip {idx+1}/{len(so_data_list)}: {ps_filename} (SO {so_num}, PO {po_num})")
+                    # Totes: separate Packing Slip when Big Red + totes
+                    if has_totes_separate:
+                        empty_c = int(totes_return.get('empty_count', 0) or 0)
+                        partial_c = int(totes_return.get('partial_count', 0) or 0)
+                        partial_list = totes_return.get('partial_by_product', [])
+                        tote_parts = []
+                        if empty_c:
+                            tote_parts.append(f"{empty_c} Empty")
+                        if partial_c:
+                            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+                            tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs) if partial_strs else f"{partial_c} Partial")
+                        tote_desc = f"TOTES RETURNED: {', '.join(tote_parts)}"
+                        tote_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
+                        tote_so_data = copy.deepcopy(so_data_list[0])
+                        tote_so_data['so_number'] = 'TOTES-RETURN'
+                        tote_so_data['po_number'] = 'TOTES-RETURN'
+                        tote_so_data['items'] = [{'description': tote_desc, 'quantity': 1, 'unit': 'EA'}]
+                        tote_email_ps = copy.deepcopy(email_analysis)
+                        tote_email_ps['totes_return'] = {}  # Item has full description, no duplicate in comments
+                        ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
+                        ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
+                        with open(os.path.join(folder_structure['html_folder'], ps_filename), 'w', encoding='utf-8') as f:
+                            f.write(ps_html)
+                        results['packing_slips'].append({
+                            'success': True,
+                            'filename': ps_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
+                            'file_type': 'html',
+                            'so_number': 'TOTES-RETURN',
+                            'po_number': 'TOTES-RETURN'
+                        })
+                        print(f"   ✅ Packing Slip Totes: {ps_filename}")
+                    results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
+                else:
+                    ps_email = copy.deepcopy(email_shipping or email_analysis)
+                    if has_totes_separate:
+                        ps_email['totes_return'] = {}
+                    ps_html = generate_packing_slip_html(so_data, ps_email, items)
+                    ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
+                    ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
+                    with open(ps_html_filepath, 'w', encoding='utf-8') as f:
+                        f.write(ps_html)
+                    results['packing_slips'] = [{
+                        'success': True,
+                        'filename': ps_filename,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
+                        'file_type': 'html',
+                        'so_number': so_data.get('so_number', ''),
+                        'po_number': so_data.get('po_number', '')
+                    }]
+                    if has_totes_separate:
+                        empty_c = int(totes_return.get('empty_count', 0) or 0)
+                        partial_c = int(totes_return.get('partial_count', 0) or 0)
+                        partial_list = totes_return.get('partial_by_product', [])
+                        tote_parts = []
+                        if empty_c:
+                            tote_parts.append(f"{empty_c} Empty")
+                        if partial_c:
+                            partial_strs = [f"{p.get('product', '')} - {p.get('kg', 0)} KG" for p in partial_list if p.get('product') or p.get('kg')]
+                            tote_parts.append(f"{partial_c} Partial: " + ", ".join(partial_strs) if partial_strs else f"{partial_c} Partial")
+                        tote_desc = f"TOTES RETURNED: {', '.join(tote_parts)}"
+                        tote_so_data = copy.deepcopy(so_data)
+                        tote_so_data['so_number'] = 'TOTES-RETURN'
+                        tote_so_data['po_number'] = 'TOTES-RETURN'
+                        tote_so_data['items'] = [{'description': tote_desc, 'quantity': 1, 'unit': 'EA'}]
+                        tote_email_ps = copy.deepcopy(email_analysis or email_shipping)
+                        tote_email_ps['totes_return'] = {}
+                        ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
+                        ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
+                        with open(os.path.join(folder_structure['html_folder'], ps_filename), 'w', encoding='utf-8') as f:
+                            f.write(ps_html)
+                        results['packing_slips'].append({
+                            'success': True,
+                            'filename': ps_filename,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
+                            'file_type': 'html',
+                            'so_number': 'TOTES-RETURN',
+                            'po_number': 'TOTES-RETURN'
+                        })
+                        print(f"   ✅ Packing Slip Totes: {ps_filename}")
+                    results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
+                    print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
                 
             except Exception as e:
                 print(f"❌ Packing Slip generation error: {e}")
-                traceback.print_exc()  # Use module-level traceback
+                traceback.print_exc()
                 errors.append(f"Packing Slip generation failed: {str(e)}")
                 results['packing_slip'] = {'success': False, 'error': str(e)}
         else:
@@ -7111,16 +7378,32 @@ def generate_all_documents():
         # Build documents array for frontend
         documents = []
         
-        # Add BOL
-        if results.get('bol', {}).get('success'):
+        # Add BOL(s) - Big Red multi-SO has multiple BOLs (one per SO/PO)
+        if results.get('bols'):
+            for bol in results['bols']:
+                if bol.get('success'):
+                    documents.append({
+                        'document_type': f"Bill of Lading (BOL) - SO{bol.get('so_number', '')}",
+                        'filename': bol['filename'],
+                        'download_url': bol['download_url']
+                    })
+        elif results.get('bol', {}).get('success'):
             documents.append({
                 'document_type': 'Bill of Lading (BOL)',
                 'filename': results['bol']['filename'],
                 'download_url': results['bol']['download_url']
             })
         
-        # Add Packing Slip
-        if results.get('packing_slip', {}).get('success'):
+        # Add Packing Slip(s) - Big Red multi-SO has multiple (one per SO/PO)
+        if results.get('packing_slips'):
+            for ps in results['packing_slips']:
+                if ps.get('success'):
+                    documents.append({
+                        'document_type': f"Packing Slip - SO{ps.get('so_number', '')}",
+                        'filename': ps['filename'],
+                        'download_url': ps['download_url']
+                    })
+        elif results.get('packing_slip', {}).get('success'):
             documents.append({
                 'document_type': 'Packing Slip',
                 'filename': results['packing_slip']['filename'],
