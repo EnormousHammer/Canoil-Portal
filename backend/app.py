@@ -3617,6 +3617,99 @@ def report_sales():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/proforma-invoice/search-so', methods=['GET'])
+def search_so_for_proforma():
+    """Real-time SO search for proforma invoice. Returns matching SO numbers from the Sales Orders folder.
+
+    Query params: q (search string, e.g. '312' or '3125')
+    Works locally (G: Drive) and on cloud (Google Drive API).
+    """
+    try:
+        query = (request.args.get('q') or '').strip()
+        if not query:
+            return jsonify({"results": []})
+
+        import re as _re
+        results = []
+        seen = set()
+
+        is_cloud = os.getenv('RENDER') is not None or os.getenv('K_SERVICE') is not None
+        use_gdrive_api = is_cloud or not os.path.exists(SALES_ORDERS_BASE)
+
+        if not use_gdrive_api:
+            # LOCAL: fast os.walk scan
+            for root, dirs, files in os.walk(SALES_ORDERS_BASE):
+                for f in files:
+                    if not f.lower().endswith('.pdf'):
+                        continue
+                    # Extract SO number from filename
+                    m = _re.search(r'(?:salesorder|so)[_\s-]*(\d+)', f, _re.IGNORECASE)
+                    if not m:
+                        m = _re.search(r'(\d{3,5})', f)
+                    if not m:
+                        continue
+                    so_num = m.group(1)
+                    if query not in so_num:
+                        continue
+                    if so_num in seen:
+                        # Keep latest revision
+                        continue
+                    seen.add(so_num)
+                    # Determine status folder from path
+                    rel = os.path.relpath(root, SALES_ORDERS_BASE).replace('\\', '/')
+                    status = rel.split('/')[0] if rel != '.' else 'Root'
+                    results.append({
+                        "so_number": so_num,
+                        "file": f,
+                        "status": status,
+                    })
+                    if len(results) >= 25:
+                        break
+                if len(results) >= 25:
+                    break
+        else:
+            # CLOUD: Google Drive API search
+            gdrive_service = get_google_drive_service()
+            if gdrive_service and gdrive_service.authenticated:
+                sales_csr_drive_id = gdrive_service.find_shared_drive("Sales_CSR")
+                if sales_csr_drive_id:
+                    gquery = f"name contains '{query}' and mimeType='application/pdf' and trashed=false"
+                    try:
+                        resp = gdrive_service.service.files().list(
+                            q=gquery,
+                            supportsAllDrives=True,
+                            includeItemsFromAllDrives=True,
+                            corpora='drive',
+                            driveId=sales_csr_drive_id,
+                            fields="files(id, name)",
+                            pageSize=25,
+                        ).execute()
+                        for fi in resp.get('files', []):
+                            fname = fi.get('name', '')
+                            m = _re.search(r'(?:salesorder|so)[_\s-]*(\d+)', fname, _re.IGNORECASE)
+                            if not m:
+                                m = _re.search(r'(\d{3,5})', fname)
+                            if m:
+                                so_num = m.group(1)
+                                if so_num not in seen:
+                                    seen.add(so_num)
+                                    results.append({
+                                        "so_number": so_num,
+                                        "file": fname,
+                                        "status": "Google Drive",
+                                    })
+                    except Exception as e:
+                        print(f"PROFORMA SEARCH: Drive API error: {e}")
+
+        # Sort numerically descending
+        results.sort(key=lambda r: int(r['so_number']) if r['so_number'].isdigit() else 0, reverse=True)
+        return jsonify({"results": results[:25]})
+
+    except Exception as e:
+        print(f"ERROR search_so_for_proforma: {e}")
+        return jsonify({"results": [], "error": str(e)})
+
+
 @app.route('/api/proforma-invoice/parse-so/<so_number>', methods=['GET'])
 def parse_so_for_proforma(so_number):
     """Find an SO PDF by number, parse it, and return structured data for the Proforma Invoice form.
