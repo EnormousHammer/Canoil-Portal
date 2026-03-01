@@ -3619,37 +3619,110 @@ def report_sales():
 
 @app.route('/api/proforma-invoice/parse-so/<so_number>', methods=['GET'])
 def parse_so_for_proforma(so_number):
-    """Find an SO PDF by number, parse it, and return structured data for the Proforma Invoice form."""
+    """Find an SO PDF by number, parse it, and return structured data for the Proforma Invoice form.
+
+    Works on both:
+    - Local development: walks G: Drive Sales Orders folder
+    - Cloud (Render/Cloud Run): uses Google Drive API to search, download, then parse
+    """
     try:
         print(f"PROFORMA: Parsing SO {so_number} for proforma invoice")
-        base_path = SALES_ORDERS_BASE
-
-        if not os.path.exists(base_path):
-            return jsonify({"error": "Sales Orders folder not accessible"}), 404
-
-        # Walk the SO folder tree looking for matching PDFs
-        matching_files = []
-        for root, dirs, files in os.walk(base_path):
-            for f in files:
-                if f.lower().endswith('.pdf') and (so_number in f):
-                    matching_files.append(os.path.join(root, f))
-
-        if not matching_files:
-            return jsonify({"error": f"SO {so_number} PDF not found in Sales Orders folder"}), 404
-
-        # Pick latest revision
         import re as _re
-        def _rev_priority(fp):
+
+        def _rev_priority_path(fp):
             m = _re.search(r'_[rR](\d+)', os.path.basename(fp))
             return (1000 + int(m.group(1))) if m else 1
-        matching_files.sort(key=_rev_priority, reverse=True)
-        so_file_path = matching_files[0]
-        print(f"PROFORMA: Using file {os.path.basename(so_file_path)}")
 
-        # Parse the PDF using the existing parser
+        def _rev_priority_dict(info):
+            m = _re.search(r'_[rR](\d+)', info.get('file_name', '').lower())
+            return (1000 + int(m.group(1))) if m else 1
+
+        so_file_path = None
+        is_cloud = os.getenv('RENDER') is not None or os.getenv('K_SERVICE') is not None
+        use_gdrive_api = is_cloud or not os.path.exists(SALES_ORDERS_BASE)
+
+        if not use_gdrive_api:
+            # --- LOCAL: Walk the G: Drive folder ---
+            print(f"PROFORMA: Searching local G: Drive: {SALES_ORDERS_BASE}")
+            matching_files = []
+            for root, dirs, files in os.walk(SALES_ORDERS_BASE):
+                for f in files:
+                    if f.lower().endswith('.pdf') and (so_number in f):
+                        matching_files.append(os.path.join(root, f))
+
+            if matching_files:
+                matching_files.sort(key=_rev_priority_path, reverse=True)
+                so_file_path = matching_files[0]
+                print(f"PROFORMA: Local file: {os.path.basename(so_file_path)}")
+            else:
+                print(f"PROFORMA: SO {so_number} not found locally, trying Google Drive API...")
+                use_gdrive_api = True
+
+        if use_gdrive_api and so_file_path is None:
+            # --- CLOUD / FALLBACK: Use Google Drive API ---
+            print(f"PROFORMA: Searching via Google Drive API for SO {so_number}")
+            gdrive_service = get_google_drive_service()
+            if not gdrive_service or not gdrive_service.authenticated:
+                return jsonify({"error": "Google Drive API not available. Cannot find SO file."}), 503
+
+            sales_csr_drive_id = gdrive_service.find_shared_drive("Sales_CSR")
+            if not sales_csr_drive_id:
+                return jsonify({"error": "Sales_CSR shared drive not found"}), 404
+
+            matching_drive_files = []
+            for pattern in [f"salesorder_{so_number}", f"SO_{so_number}", so_number]:
+                query = f"name contains '{pattern}' and mimeType='application/pdf' and trashed=false"
+                try:
+                    results = gdrive_service.service.files().list(
+                        q=query,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
+                        corpora='drive',
+                        driveId=sales_csr_drive_id,
+                        fields="files(id, name, modifiedTime)",
+                        pageSize=50,
+                    ).execute()
+                    for fi in results.get('files', []):
+                        if so_number in fi.get('name', ''):
+                            matching_drive_files.append({
+                                'file_id': fi['id'],
+                                'file_name': fi.get('name', ''),
+                            })
+                except Exception as search_err:
+                    print(f"PROFORMA: Drive search error for '{pattern}': {search_err}")
+                if matching_drive_files:
+                    break
+
+            if not matching_drive_files:
+                return jsonify({"error": f"SO {so_number} PDF not found in Google Drive"}), 404
+
+            matching_drive_files.sort(key=_rev_priority_dict, reverse=True)
+            selected = matching_drive_files[0]
+            print(f"PROFORMA: Downloading {selected['file_name']} from Google Drive")
+
+            file_content = gdrive_service.download_file_content(selected['file_id'])
+            if not file_content:
+                return jsonify({"error": f"Failed to download SO {so_number} from Google Drive"}), 500
+
+            # Save to temp cache so parser can read it
+            cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'so_pdfs')
+            os.makedirs(cache_dir, exist_ok=True)
+            safe_name = "".join(c for c in selected['file_name'] if c.isalnum() or c in (' ', '.', '_', '-')).strip()
+            if not safe_name.endswith('.pdf'):
+                safe_name += '.pdf'
+            so_file_path = os.path.join(cache_dir, safe_name)
+            with open(so_file_path, 'wb') as f:
+                f.write(file_content)
+            print(f"PROFORMA: Cached to {so_file_path}")
+
+        if not so_file_path:
+            return jsonify({"error": f"SO {so_number} PDF not found"}), 404
+
+        # Parse the PDF
         so_data = parse_sales_order_pdf(so_file_path)
         if not so_data or (isinstance(so_data, dict) and so_data.get('status') == 'Error'):
-            return jsonify({"error": f"Failed to parse SO {so_number} PDF"}), 500
+            err_msg = so_data.get('error', 'Unknown parse error') if isinstance(so_data, dict) else 'Parser returned nothing'
+            return jsonify({"error": f"Failed to parse SO {so_number}: {err_msg}"}), 500
 
         return jsonify({"success": True, "so_data": so_data})
 
