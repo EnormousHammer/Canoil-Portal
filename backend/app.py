@@ -3617,6 +3617,49 @@ def report_sales():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/proforma-invoice/parse-so/<so_number>', methods=['GET'])
+def parse_so_for_proforma(so_number):
+    """Find an SO PDF by number, parse it, and return structured data for the Proforma Invoice form."""
+    try:
+        print(f"PROFORMA: Parsing SO {so_number} for proforma invoice")
+        base_path = SALES_ORDERS_BASE
+
+        if not os.path.exists(base_path):
+            return jsonify({"error": "Sales Orders folder not accessible"}), 404
+
+        # Walk the SO folder tree looking for matching PDFs
+        matching_files = []
+        for root, dirs, files in os.walk(base_path):
+            for f in files:
+                if f.lower().endswith('.pdf') and (so_number in f):
+                    matching_files.append(os.path.join(root, f))
+
+        if not matching_files:
+            return jsonify({"error": f"SO {so_number} PDF not found in Sales Orders folder"}), 404
+
+        # Pick latest revision
+        import re as _re
+        def _rev_priority(fp):
+            m = _re.search(r'_[rR](\d+)', os.path.basename(fp))
+            return (1000 + int(m.group(1))) if m else 1
+        matching_files.sort(key=_rev_priority, reverse=True)
+        so_file_path = matching_files[0]
+        print(f"PROFORMA: Using file {os.path.basename(so_file_path)}")
+
+        # Parse the PDF using the existing parser
+        so_data = parse_sales_order_pdf(so_file_path)
+        if not so_data or (isinstance(so_data, dict) and so_data.get('status') == 'Error'):
+            return jsonify({"error": f"Failed to parse SO {so_number} PDF"}), 500
+
+        return jsonify({"success": True, "so_data": so_data})
+
+    except Exception as e:
+        print(f"ERROR parse_so_for_proforma: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/proforma-invoice/generate', methods=['POST'])
 def generate_proforma_invoice_endpoint():
     """Generate a Proforma Invoice xlsx from sales order data."""

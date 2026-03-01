@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
 import {
-  Search, FileText, Download, ChevronDown, ChevronUp, Edit, Check, X,
-  Package, User, MapPin, Phone, Mail, Calendar, Truck, DollarSign, Plus, Trash2, AlertTriangle
+  Search, FileText, Download, ChevronDown, ChevronUp, Check, X,
+  Package, User, Truck, Plus, Trash2, AlertTriangle, Loader2
 } from 'lucide-react';
 
 interface ProformaItem {
@@ -27,16 +27,10 @@ interface ProformaData {
   items: ProformaItem[];
 }
 
-interface SOOption {
+interface SOListEntry {
   so_number: string;
-  customer_name: string;
-  po_number: string;
-  order_date: string;
-  ship_date: string;
-  items: any[];
-  sold_to: any;
-  ship_to: any;
-  source: string;
+  status: string;
+  file: string;
 }
 
 interface Props {
@@ -54,7 +48,7 @@ function safeParseCurrency(val: any): number {
 
 export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSO, setSelectedSO] = useState<SOOption | null>(null);
+  const [selectedSONumber, setSelectedSONumber] = useState('');
   const [formData, setFormData] = useState<ProformaData>({
     customer_name: '',
     po_number: '',
@@ -70,70 +64,45 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
     items: [],
   });
   const [generating, setGenerating] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [step, setStep] = useState<'select' | 'edit'>('select');
-  const [expandedSO, setExpandedSO] = useState<string | null>(null);
 
-  const allSalesOrders = useMemo((): SOOption[] => {
-    const result: SOOption[] = [];
+  // Build SO list from SalesOrdersByStatus (the real G Drive folder data)
+  const allSalesOrders = useMemo((): SOListEntry[] => {
+    const result: SOListEntry[] = [];
     const seen = new Set<string>();
 
-    const parsedSOs: any[] = data['ParsedSalesOrders.json'] || [];
-    parsedSOs.forEach((so: any) => {
-      const soNo = so.so_number || so.order_number || '';
-      if (!soNo || seen.has(soNo)) return;
-      seen.add(soNo);
-
-      const soldTo = so.sold_to || so.billing_address || {};
-      result.push({
-        so_number: soNo,
-        customer_name: so.customer_name || soldTo.company_name || soldTo.company || '',
-        po_number: so.po_number || '',
-        order_date: so.order_date || '',
-        ship_date: so.ship_date || '',
-        items: (so.items || []).map((it: any) => ({
-          item_code: it.item_code || it.product_code || '',
-          description: it.description || '',
-          quantity: safeParseCurrency(it.quantity || it.ordered),
-          unit_price: safeParseCurrency(it.unit_price || it.price),
-          unit: it.unit || '',
-        })),
-        sold_to: soldTo,
-        ship_to: so.ship_to || so.shipping_address || {},
-        source: 'Parsed',
-      });
-    });
-
     const salesOrdersByStatus: Record<string, any[]> = data['SalesOrdersByStatus'] || {};
-    Object.values(salesOrdersByStatus).forEach((statusSOs: any) => {
-      if (!Array.isArray(statusSOs)) return;
-      statusSOs.forEach((so: any) => {
-        const soNo = so.so_number || so.order_number || so['Sales Order No.'] || so['SO No.'] || '';
+    Object.entries(salesOrdersByStatus).forEach(([status, orders]) => {
+      if (!Array.isArray(orders)) return;
+      orders.forEach((so: any) => {
+        const soNo = so['Order No.'] || so.so_number || so.order_number || '';
         if (!soNo || seen.has(soNo)) return;
         seen.add(soNo);
-
-        const soldTo = so.sold_to || so.billing_address || {};
         result.push({
           so_number: soNo,
-          customer_name: so.customer_name || soldTo.company_name || soldTo.company || so['Customer Name'] || '',
-          po_number: so.po_number || so['PO No.'] || '',
-          order_date: so.order_date || so['Order Date'] || '',
-          ship_date: so.ship_date || so['Ship Date'] || '',
-          items: (so.items || []).map((it: any) => ({
-            item_code: it.item_code || it.product_code || it['Item No.'] || '',
-            description: it.description || it['Description'] || '',
-            quantity: safeParseCurrency(it.quantity || it.ordered || it['Quantity']),
-            unit_price: safeParseCurrency(it.unit_price || it.price || it['Unit Price']),
-            unit: it.unit || '',
-          })),
-          sold_to: soldTo,
-          ship_to: so.ship_to || so.shipping_address || {},
-          source: 'GDrive',
+          status: so['Status'] || status,
+          file: so['File'] || '',
         });
       });
     });
 
+    // Also pull from SalesOrders.json if available
+    const salesOrders: any[] = data['SalesOrders.json'] || [];
+    salesOrders.forEach((so: any) => {
+      const soNo = so['Order No.'] || so['Sales Order No.'] || so.so_number || '';
+      if (!soNo || seen.has(soNo)) return;
+      seen.add(soNo);
+      result.push({
+        so_number: soNo,
+        status: so['Status'] || 'Unknown',
+        file: so['File'] || '',
+      });
+    });
+
+    // Sort numerically descending (newest first)
     result.sort((a, b) => {
       const numA = parseInt(a.so_number.replace(/\D/g, ''));
       const numB = parseInt(b.so_number.replace(/\D/g, ''));
@@ -150,8 +119,8 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
     return allSalesOrders.filter(
       (so) =>
         so.so_number.toLowerCase().includes(q) ||
-        so.customer_name.toLowerCase().includes(q) ||
-        so.po_number.toLowerCase().includes(q)
+        so.status.toLowerCase().includes(q) ||
+        so.file.toLowerCase().includes(q)
     );
   }, [allSalesOrders, searchQuery]);
 
@@ -187,14 +156,37 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
     return { address, city_state_zip: cityStateZip, country, phone, email };
   }, []);
 
-  const handleSelectSO = useCallback(
-    (so: SOOption) => {
-      setSelectedSO(so);
-      const addr = parseAddress(so.sold_to);
+  // Fetch and parse an SO PDF from the backend, then fill the form
+  const handleSelectSO = useCallback(async (soNumber: string) => {
+    setParsing(true);
+    setError('');
+    setSuccess('');
+    setSelectedSONumber(soNumber);
+
+    try {
+      const response = await fetch(getApiUrl(`/api/proforma-invoice/parse-so/${soNumber}`));
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to parse SO ${soNumber}`);
+      }
+
+      const result = await response.json();
+      const so = result.so_data;
+      if (!so) throw new Error('No data returned from parser');
+
+      const soldTo = so.sold_to || so.billing_address || {};
+      const addr = parseAddress(soldTo);
+
+      const items: ProformaItem[] = (so.items || []).map((it: any) => ({
+        product_code: it.item_code || it.product_code || '',
+        description: it.description || '',
+        quantity: safeParseCurrency(it.quantity || it.ordered),
+        unit_price: safeParseCurrency(it.unit_price || it.price),
+      }));
 
       setFormData({
-        customer_name: so.customer_name,
-        po_number: so.po_number,
+        customer_name: so.customer_name || soldTo.company_name || soldTo.company || '',
+        po_number: so.po_number || '',
         address: addr.address,
         city_state_zip: addr.city_state_zip,
         country: addr.country,
@@ -204,19 +196,15 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
         ship_by_date: so.ship_date || '',
         invoice_date: new Date().toISOString().split('T')[0],
         trade_terms: 'EXW',
-        items: so.items.map((it) => ({
-          product_code: it.item_code || it.product_code || '',
-          description: it.description || '',
-          quantity: it.quantity || 0,
-          unit_price: it.unit_price || 0,
-        })),
+        items,
       });
       setStep('edit');
-      setError('');
-      setSuccess('');
-    },
-    [parseAddress]
-  );
+    } catch (err: any) {
+      setError(err.message || 'Failed to load SO data');
+    } finally {
+      setParsing(false);
+    }
+  }, [parseAddress]);
 
   const updateField = (field: keyof ProformaData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -298,6 +286,15 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
     }
   };
 
+  // Status color helper
+  const statusColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('new') || s.includes('revised')) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (s.includes('production') || s.includes('scheduled')) return 'bg-orange-100 text-orange-700 border-orange-200';
+    if (s.includes('complete') || s.includes('shipped')) return 'bg-blue-100 text-blue-700 border-blue-200';
+    return 'bg-slate-100 text-slate-600 border-slate-200';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -318,7 +315,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
             <div className="flex items-center gap-3">
               {step === 'edit' && (
                 <button
-                  onClick={() => { setStep('select'); setSelectedSO(null); setError(''); setSuccess(''); }}
+                  onClick={() => { setStep('select'); setSelectedSONumber(''); setError(''); setSuccess(''); }}
                   className="px-4 py-2 bg-white text-slate-700 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold text-sm transition-all flex items-center gap-2"
                 >
                   <ChevronDown className="w-4 h-4 rotate-90" />
@@ -366,14 +363,23 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
           </div>
         )}
 
+        {/* Parsing overlay */}
+        {parsing && (
+          <div className="mx-6 mt-4 px-4 py-6 bg-violet-50 text-violet-700 rounded-xl border border-violet-200 flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+            <div className="font-semibold">Parsing SO {selectedSONumber} from PDF...</div>
+            <div className="text-xs text-violet-500">Extracting customer, items, prices, and addresses</div>
+          </div>
+        )}
+
         {/* STEP 1: SO Selection */}
-        {step === 'select' && (
+        {step === 'select' && !parsing && (
           <div className="p-6">
             {/* Search */}
             <div className="relative mb-6">
               <input
                 type="text"
-                placeholder="Search by SO number, customer name, or PO..."
+                placeholder="Search by SO number (e.g. 2961, 3039)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-5 py-3.5 pl-12 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm shadow-sm"
@@ -387,93 +393,46 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
             </div>
 
             <div className="text-xs text-slate-500 mb-3 font-medium">
-              {filteredSOs.length} sales order{filteredSOs.length !== 1 ? 's' : ''} available
+              {filteredSOs.length} of {allSalesOrders.length} sales orders
+              {allSalesOrders.length === 0 && (
+                <span className="ml-2 text-amber-600">(Sales orders not loaded yet - make sure data is synced)</span>
+              )}
             </div>
 
             {/* SO list */}
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
               {filteredSOs.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   <FileText className="w-12 h-12 mx-auto mb-3 opacity-40" />
                   <p className="font-semibold">No sales orders found</p>
-                  <p className="text-xs mt-1">Try a different search term or check if data is loaded</p>
+                  <p className="text-xs mt-1">
+                    {allSalesOrders.length === 0
+                      ? 'Sales orders data has not been loaded. Go back to the Sales section and let the data sync.'
+                      : 'Try a different search term'}
+                  </p>
                 </div>
               ) : (
                 filteredSOs.map((so) => (
-                  <div key={so.so_number} className="bg-white rounded-xl border border-slate-200 hover:border-violet-300 transition-all overflow-hidden">
-                    <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition-colors"
-                      onClick={() => setExpandedSO(expandedSO === so.so_number ? null : so.so_number)}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md">
-                          SO
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900">SO {so.so_number}</div>
-                          <div className="text-sm text-slate-500 flex items-center gap-2">
-                            <User className="w-3 h-3" /> {so.customer_name || 'Unknown Customer'}
-                          </div>
-                        </div>
+                  <div
+                    key={so.so_number}
+                    onClick={() => handleSelectSO(so.so_number)}
+                    className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50/30 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-md flex-shrink-0">
+                        SO
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right hidden sm:block">
-                          {so.po_number && (
-                            <div className="text-xs text-slate-500">PO: {so.po_number}</div>
-                          )}
-                          <div className="text-xs text-slate-400">{so.order_date || 'No date'}</div>
-                        </div>
-                        <div className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded-lg">{so.items.length} item{so.items.length !== 1 ? 's' : ''}</div>
-                        {expandedSO === so.so_number ? (
-                          <ChevronUp className="w-4 h-4 text-slate-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-400" />
-                        )}
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm">SO {so.so_number}</div>
+                        <div className="text-xs text-slate-400 truncate max-w-[250px]">{so.file || 'PDF'}</div>
                       </div>
                     </div>
-
-                    {expandedSO === so.so_number && (
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-4">
-                        {so.items.length > 0 ? (
-                          <div className="mb-4">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="text-xs text-slate-500 uppercase tracking-wider">
-                                  <th className="text-left py-1 px-2">Code</th>
-                                  <th className="text-left py-1 px-2">Description</th>
-                                  <th className="text-right py-1 px-2">Qty</th>
-                                  <th className="text-right py-1 px-2">Price</th>
-                                  <th className="text-right py-1 px-2">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {so.items.slice(0, 8).map((item: any, idx: number) => (
-                                  <tr key={idx} className="border-t border-slate-100">
-                                    <td className="py-1.5 px-2 font-mono text-xs text-slate-700">{item.item_code || '—'}</td>
-                                    <td className="py-1.5 px-2 text-slate-600 max-w-[250px] truncate">{item.description || '—'}</td>
-                                    <td className="py-1.5 px-2 text-right text-slate-700">{item.quantity || 0}</td>
-                                    <td className="py-1.5 px-2 text-right text-slate-700">${(item.unit_price || 0).toFixed(2)}</td>
-                                    <td className="py-1.5 px-2 text-right font-semibold text-slate-800">
-                                      ${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <div className="text-sm text-slate-500 mb-4">No item details available for this SO.</div>
-                        )}
-
-                        <button
-                          onClick={() => handleSelectSO(so)}
-                          className="w-full px-4 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-500 hover:to-purple-500 transition-all shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2"
-                        >
-                          <FileText className="w-4 h-4" />
-                          Use this SO for Proforma Invoice
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${statusColor(so.status)}`}>
+                        {so.status}
+                      </span>
+                      <FileText className="w-4 h-4 text-slate-400 group-hover:text-violet-500 transition-colors" />
+                    </div>
                   </div>
                 ))
               )}
@@ -482,16 +441,16 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
         )}
 
         {/* STEP 2: Edit & Generate */}
-        {step === 'edit' && selectedSO && (
+        {step === 'edit' && !parsing && (
           <div className="p-6 space-y-6">
             {/* SO Reference banner */}
             <div className="flex items-center gap-3 px-4 py-3 bg-violet-50 rounded-xl border border-violet-200">
               <FileText className="w-5 h-5 text-violet-600 flex-shrink-0" />
               <span className="text-sm font-semibold text-violet-800">
-                Based on SO {selectedSO.so_number}
+                Based on SO {selectedSONumber}
               </span>
-              {selectedSO.po_number && (
-                <span className="text-xs px-2 py-0.5 bg-violet-200 text-violet-800 rounded-md ml-1">PO: {selectedSO.po_number}</span>
+              {formData.po_number && (
+                <span className="text-xs px-2 py-0.5 bg-violet-200 text-violet-800 rounded-md ml-1">PO: {formData.po_number}</span>
               )}
             </div>
 
@@ -694,10 +653,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
               >
                 {generating ? (
                   <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     Generating...
                   </>
                 ) : (
