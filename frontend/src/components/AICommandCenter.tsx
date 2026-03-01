@@ -190,7 +190,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                            data['SalesOrders.json'] ||
                            [];
       
-      const inventoryItems = data['CustomAlert5.json'] || [];
+      const inventoryItems = data['Items.json'] || [];
       const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
       const poOrders = data['PurchaseOrders.json'] || [];
       
@@ -334,7 +334,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     console.log('🔍 AI Chat Item clicked:', item);
     
     // Find the full item data from the app data
-    const inventory = data?.['CustomAlert5.json'] || [];
+    const inventory = data?.['Items.json'] || [];
     console.log('📊 Searching in inventory with', inventory.length, 'items');
     
     // Try multiple matching strategies
@@ -445,7 +445,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     allSalesOrders = uniqueSalesOrders;
     
     const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
-    const items = data['CustomAlert5.json'] || [];
+    const items = data['Items.json'] || [];
     
     // Calculate unique customers from MO headers
     const uniqueCustomers = new Set(moHeaders.map((mo: any) => mo.Customer).filter(Boolean)).size;
@@ -613,9 +613,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     // Build data sources summary - tell AI what data is available
     const dataSourcesSummary = {
       inventory: {
-        available: !!(data['CustomAlert5.json'] && data['CustomAlert5.json'].length > 0),
-        count: data['CustomAlert5.json']?.length || 0,
-        sources: ['CustomAlert5.json', 'Items.json', 'MIITEM.json', 'MIILOC.json'].filter(key => data[key]?.length > 0)
+        available: !!(data['Items.json'] && data['Items.json'].length > 0),
+        count: data['Items.json']?.length || 0,
+        sources: ['Items.json', 'MIITEM.json', 'MIILOC.json'].filter(key => data[key]?.length > 0)
       },
       salesOrders: {
         available: !!(data['SalesOrderHeaders.json']?.length > 0 || data['SalesOrderDetails.json']?.length > 0 || 
@@ -1090,7 +1090,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                     <div className="text-gray-600">Sales Orders</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-green-200">
-                                    <div className="font-bold text-green-600">{(data['CustomAlert5.json'] || []).length.toLocaleString()}</div>
+                                    <div className="font-bold text-green-600">{(data['Items.json'] || []).length.toLocaleString()}</div>
                                     <div className="text-gray-600">Inventory Items</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-purple-200">

@@ -43,14 +43,14 @@ export const StockAllocationTracker: React.FC<StockAllocationTrackerProps> = ({ 
 
   // Calculate stock allocations for all items
   const stockAllocations = useMemo(() => {
-    if (!data['CustomAlert5.json'] || !data['ManufacturingOrderHeaders.json']) return [];
+    if (!data['Items.json'] || !data['ManufacturingOrderHeaders.json']) return [];
 
     const allocationMap = new Map<string, StockAllocation>();
 
     // Initialize all items
-    data['CustomAlert5.json'].forEach((item: any) => {
+    (data['Items.json'] || []).forEach((item: any) => {
       const itemNo = item["Item No."];
-      const currentStock = parseFloat(item["Stock"] || 0);  // CustomAlert5 exact field
+      const currentStock = parseFloat(item["Stock"] || 0);  // Items.json field
       
       allocationMap.set(itemNo, {
         itemNo,

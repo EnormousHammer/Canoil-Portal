@@ -15,8 +15,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # File stem -> (app keys to fill, column rename map export_name -> app_name)
 FULL_COMPANY_MAPPINGS = {
     # MIITEM: exact columns from MISys Full Company Data export (MIITEM.CSV) – all export columns that map to app fields
+    # Single output: Items.json (Full Company Data canonical item source)
     "MIITEM": (
-        ["CustomAlert5.json", "Items.json"],
+        ["Items.json"],
         {"itemId": "Item No.", "descr": "Description", "xdesc": "Extended Description", "ref": "Part No.", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision", "lead": "Lead (Days)",
          "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
@@ -28,13 +29,13 @@ FULL_COMPANY_MAPPINGS = {
          "pick": "Pick", "sales": "Sales", "track": "Track", "cycle": "Cycle", "lstUseDt": "Last Used Date", "lstPIDt": "Last PO Date"},
     ),
     "Item": (
-        ["CustomAlert5.json", "Items.json"],
+        ["Items.json"],
         {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order"},
     ),
     # Alternate file names so export works whether you have Item.csv, Items.csv, MIITEM.csv, or CustomAlert5.csv
     "Items": (
-        ["CustomAlert5.json", "Items.json"],
+        ["Items.json"],
         {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
          "descr": "Description", "Description": "Description", "Desc": "Description",
          "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
@@ -52,7 +53,7 @@ FULL_COMPANY_MAPPINGS = {
          "landedCost": "Landed Cost", "Landed Cost": "Landed Cost", "status": "Status", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No."},
     ),
     "CustomAlert5": (
-        ["CustomAlert5.json", "Items.json"],
+        ["Items.json"],
         {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
          "descr": "Description", "Description": "Description", "Desc": "Description",
          "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
@@ -460,7 +461,7 @@ def load_from_folder(folder_path):
 def _get_skeleton():
     """Same keys as app get_empty_app_data_structure()."""
     return {
-        "CustomAlert5.json": [], "Items.json": [], "MIITEM.json": [], "MIILOC.json": [],
+        "Items.json": [], "MIITEM.json": [], "MIILOC.json": [],
         "BillsOfMaterial.json": [], "BillOfMaterialDetails.json": [], "MIBOMH.json": [], "MIBOMD.json": [],
         "ManufacturingOrderHeaders.json": [], "ManufacturingOrderDetails.json": [], "ManufacturingOrderRoutings.json": [],
         "MIMOH.json": [], "MIMOMD.json": [], "MIMORD.json": [], "Jobs.json": [], "JobDetails.json": [],

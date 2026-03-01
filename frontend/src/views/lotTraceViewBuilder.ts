@@ -103,7 +103,7 @@ export function buildLotTraceView(
 
   const totalQty = qtyByBin.reduce((s, b) => s + b.qty, 0);
 
-  const items = getDataset<any>(data, ["CustomAlert5.json", "Items.json", "MIITEM.json"]);
+  const items = getDataset<any>(data, ["Items.json", "MIITEM.json"]);
   const parentItem = items.find((i) => {
     const k = toStr(i["Item No."] ?? i["itemId"] ?? "").toUpperCase();
     return k === parentItemNo.toUpperCase();

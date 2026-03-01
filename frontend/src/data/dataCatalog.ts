@@ -33,7 +33,6 @@ export type DataCatalog = {
 };
 
 const KNOWN_KEYS = [
-  "CustomAlert5.json",
   "Items.json",
   "MIITEM.json",
   "MIILOCQT.json",
@@ -105,7 +104,6 @@ export function buildDataCatalog(data: FullCompanyData | undefined): DataCatalog
     (byKey.get("MISLHIST.json") ?? 0) > 0 ||
     (byKey.get("MISLBINQ.json") ?? 0) > 0;
   const hasItems =
-    (byKey.get("CustomAlert5.json") ?? 0) > 0 ||
     (byKey.get("Items.json") ?? 0) > 0 ||
     (byKey.get("MIITEM.json") ?? 0) > 0;
   const hasTransactions =

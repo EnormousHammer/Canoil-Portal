@@ -391,7 +391,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const usage = bomData
       .filter((bom: any) => bom["Component Item No."] === componentItemNo)
       .map((bom: any) => {
-        const parentItem = (data['CustomAlert5.json'] || [])
+        const parentItem = (data['Items.json'] || [])
           .find((item: any) => item["Item No."] === bom["Parent Item No."]);
         return {
           parentItemNo: bom["Parent Item No."],
@@ -406,7 +406,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Enterprise-level metrics calculation
   const inventoryMetrics = useMemo(() => {
-    const items = data['CustomAlert5.json'] || [];
+    const items = data['Items.json'] || [];
     const totalItems = items.length;
     
     const totalValue = items.reduce((sum: number, item: any) => {
@@ -473,7 +473,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Filtered inventory with sorting and filtering
   const filteredInventory = useMemo(() => {
-    let items = data['CustomAlert5.json'] || [];
+    let items = data['Items.json'] || [];
     
     // Apply inventory filter (low-stock, out-of-stock, etc.)
     if (inventoryFilter === 'low-stock') {
@@ -1476,7 +1476,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const statusInfo = getStatusInfo(mo['Status']);
                             
                             // Get item cost data from CustomAlert5.json
-                            const itemData = (data['CustomAlert5.json'] || []).find((item: any) => 
+                            const itemData = (data['Items.json'] || []).find((item: any) => 
                               item['Item No.'] === mo['Build Item No.']
                             );
                             
@@ -2966,7 +2966,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className={`text-3xl font-black ${
                         inventoryFilter === 'all' ? 'text-white' : 'text-blue-600'
                       }`}>
-                        {(data['CustomAlert5.json'] || []).length.toLocaleString()}
+                        {(data['Items.json'] || []).length.toLocaleString()}
                       </div>
                       <div className={`text-xs font-medium uppercase tracking-wider ${
                         inventoryFilter === 'all' ? 'text-white/80' : 'text-blue-500'
@@ -3108,7 +3108,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </button>
                   <div className="text-sm text-slate-600">
                     {(() => {
-                      const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
+                      const assembledItems = (data['Items.json'] || []).filter((item: any) => 
                         (data['BillOfMaterialDetails.json'] || []).some((bom: any) => 
                           bom["Parent Item No."] === item["Item No."]
                         )
@@ -3168,7 +3168,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <div className="text-sm font-medium text-gray-700 mb-2">Matching Items:</div>
                           <div className="max-h-32 overflow-y-auto space-y-1">
                             {(() => {
-                              const items = data['CustomAlert5.json'] || [];
+                              const items = data['Items.json'] || [];
                               const bomDetails = data['BillOfMaterialDetails.json'] || [];
                               
                               // Filter for assembled items that match search
@@ -3228,7 +3228,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <tbody className="bg-white divide-y divide-gray-200">
                               {(() => {
                                 const bomDetails = data['BillOfMaterialDetails.json'] || [];
-                                const items = data['CustomAlert5.json'] || [];
+                                const items = data['Items.json'] || [];
                                 
                                 // Get BOM components for selected item
                                 const components = bomDetails.filter((bom: any) => 

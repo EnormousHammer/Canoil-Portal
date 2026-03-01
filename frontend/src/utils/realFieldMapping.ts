@@ -13,7 +13,7 @@ export const REAL_FIELD_MAPPING: FieldMapping = {
   // FILES WITH DATA (20 FILES)
   
   // PRIMARY ITEM DATA SOURCE (32 fields) - MOST COMPLETE
-  "CustomAlert5.json": [
+  "Items.json": [
     "Current BOM Revision",
     "Sales Item No.",
     "Item No.",
@@ -585,7 +585,7 @@ export const REAL_FIELD_MAPPING: FieldMapping = {
 
 // PRIMARY DATA SOURCES - PREFER THESE OVER ALTERNATIVES
 export const PRIMARY_DATA_SOURCES = {
-  ITEMS: "CustomAlert5.json",           // 37 fields - MOST COMPLETE
+  ITEMS: "Items.json",           // 37 fields - MOST COMPLETE
   BOM_DETAILS: "MIBOMD.json",          // 12 fields - ABBREVIATED BUT COMPLETE
   BOM_HEADERS: "MIBOMH.json",          // 26 fields - ABBREVIATED BUT COMPLETE  
   JOBS: "Jobs.json",                   // 16 fields - FULL FIELD NAMES

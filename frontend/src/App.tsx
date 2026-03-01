@@ -25,7 +25,7 @@ function App() {
   // Start with empty data structure - EXACT G: Drive .json file names
   const [data, setData] = useState<any>({
     // EXACT file names from G: Drive - ALL 34+ files
-    'CustomAlert5.json': [],  // PRIMARY: Complete item data
+    'Items.json': [],  // Full Company Data: item master from MIITEM.CSV
     'Items.json': [],
     'MIITEM.json': [],
     'BillsOfMaterial.json': [],
@@ -424,7 +424,7 @@ function App() {
           });
           result = { 
             data: {
-              'CustomAlert5.json': [],
+              'Items.json': [],
               'SalesOrderHeaders.json': [],
               'ManufacturingOrderHeaders.json': [],
               'PurchaseOrders.json': []
@@ -457,7 +457,7 @@ function App() {
             });
             result = { 
               data: {
-                'CustomAlert5.json': [],
+                'Items.json': [],
                 'SalesOrderHeaders.json': [],
                 'ManufacturingOrderHeaders.json': [],
                 'PurchaseOrders.json': []

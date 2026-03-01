@@ -4,8 +4,7 @@ import { SmartDataTable } from './SmartDataTable';
 
 // Map actual G: Drive file names to display names
 const MISYS_TABLE_MAP = {
-  'Items': { title: 'Inventory Items', fileName: 'CustomAlert5.json', keyField: 'Item No.' },  // Use CustomAlert5
-  'BillsOfMaterial': { title: 'BOM Headers', fileName: 'BillsOfMaterial.json', keyField: 'Item No.' },
+  'Items': { title: 'Inventory Items', fileName: 'Items.json', keyField: 'Item No.' },    'BillsOfMaterial': { title: 'BOM Headers', fileName: 'BillsOfMaterial.json', keyField: 'Item No.' },
   'BillOfMaterialDetails': { title: 'BOM Details', fileName: 'BillOfMaterialDetails.json', keyField: 'BOM Entry' },
   'ManufacturingOrderHeaders': { title: 'Manufacturing Orders', fileName: 'ManufacturingOrderHeaders.json', keyField: 'Mfg. Order No.' },
   'ManufacturingOrderDetails': { title: 'Manufacturing Order Details', fileName: 'ManufacturingOrderDetails.json', keyField: 'Mfg. Order No.' },

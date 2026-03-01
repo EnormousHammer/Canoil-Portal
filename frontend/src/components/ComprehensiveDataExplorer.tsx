@@ -174,8 +174,8 @@ const ComprehensiveDataExplorer: React.FC<ComprehensiveDataExplorerProps> = ({ d
     purchaseOrderAdditionalCostsTaxes: data['PurchaseOrderAdditionalCostsTaxes.json'] || [],
     purchaseOrderDetailAdditionalCosts: data['PurchaseOrderDetailAdditionalCosts.json'] || [],
     // Use real data from G: Drive
-    items: data['CustomAlert5.json'] || [],  // Use CustomAlert5 - complete item data
-    itemsTechnical: data['CustomAlert5.json'] || [],  // Use CustomAlert5 for complete item data
+    items: data['Items.json'] || [],
+    itemsTechnical: data['Items.json'] || [],
     manufacturingOrders: data['ManufacturingOrderHeaders.json'] || [],
     bomHeaders: data['BillsOfMaterial.json'] || [],
     bomDetails: data['BillOfMaterialDetails.json'] || [],

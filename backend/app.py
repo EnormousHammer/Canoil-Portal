@@ -2001,7 +2001,7 @@ def _merge_portal_store(data):
 # Full Company Data: CSV stem -> (app keys, column map) - no pandas required. Used as PRIMARY source when pandas fails.
 _FULL_COMPANY_CSV_MAPPINGS = {
     # Core: Items, BOM, MOs, POs (same as full_company_data_converter)
-    "MIITEM": (["CustomAlert5.json", "Items.json"], {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
+    "MIITEM": (["Items.json"], {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
          "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity",
          "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No.", "status": "Status"}),
@@ -2180,7 +2180,7 @@ def _supplement_from_full_company_data(raw_data):
 def get_empty_app_data_structure():
     """Return the exact app data shape the frontend expects (all keys, empty values). Framework for Full Company Data - app is ready to receive once conversion is implemented."""
     return {
-        'CustomAlert5.json': [], 'Items.json': [], 'MIITEM.json': [], 'MIILOC.json': [],
+        'Items.json': [], 'MIITEM.json': [], 'MIILOC.json': [],
         'BillsOfMaterial.json': [], 'BillOfMaterialDetails.json': [], 'MIBOMH.json': [], 'MIBOMD.json': [],
         'ManufacturingOrderHeaders.json': [], 'ManufacturingOrderDetails.json': [], 'ManufacturingOrderRoutings.json': [],
         'MIMOH.json': [], 'MIMOMD.json': [], 'MIMORD.json': [], 'Jobs.json': [], 'JobDetails.json': [],
@@ -2485,7 +2485,7 @@ def get_all_data():
         
         # Essential files for proper data loading - 10 critical files
         essential_files = [
-            "CustomAlert5.json",  # PRIMARY: Complete item data
+            "Items.json",  # Full Company Data: item master from MIITEM.CSV
             "MIILOC.json",        # Inventory location data
             "SalesOrderHeaders.json",  # Sales orders
             "SalesOrderDetails.json",  # Sales order details
@@ -2764,8 +2764,8 @@ def _export_company_data_xlsx(data):
 
 
 def _export_company_data_csv_single(data):
-    """Export first substantial list (e.g. CustomAlert5) as single CSV. Returns bytes."""
-    for key in ["CustomAlert5.json", "ManufacturingOrderHeaders.json", "MIILOC.json", "Items.json"]:
+    """Export first substantial list (e.g. Items) as single CSV. Returns bytes."""
+    for key in ["Items.json", "ManufacturingOrderHeaders.json", "MIILOC.json"]:
         val = data.get(key)
         if isinstance(val, list) and val and isinstance(val[0], dict):
             buf = io.StringIO()
@@ -2904,20 +2904,30 @@ def export_company_data():
 
 
 def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
-    """Build month-end inventory report Excel. Uses MIITEM/Items from Full Company Data (NOT CustomAlert5).
+    """Build month-end inventory report Excel. Uses Full Company Data (Items.json from MIITEM.CSV, MIILOC).
     Structure: Executive Summary first, then Inventory Detail with totals, By Location, Low Stock Alerts."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     from openpyxl.utils import get_column_letter
 
-    items = data.get('MIITEM.json') or data.get('Items.json') or []
+    # Full Company Data: Items.json from MIITEM.CSV
+    items = data.get('Items.json') or data.get('MIITEM.json') or []
     miiloc = data.get('MIILOC.json') or []
     if not isinstance(items, list):
         items = []
 
     def safe_float(v, default=0):
+        """Parse numeric/currency values - strips $ and commas (e.g. '$1,234.56' -> 1234.56)."""
+        if v is None:
+            return default
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        if s == '' or s == 'None':
+            return default
         try:
-            return float(v) if v is not None and str(v).strip() != '' else default
+            cleaned = s.replace(',', '').replace('$', '').strip()
+            return float(cleaned) if cleaned else default
         except (TypeError, ValueError):
             return default
 
@@ -2942,13 +2952,13 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
         unit_cost = safe_float(item.get('Recent Cost') or item.get('cLast') or item.get('Unit Cost') or item.get('unitCost'))
         if not unit_cost:
             unit_cost = safe_float(item.get('Unit Cost') or item.get('unitCost') or item.get('Standard Cost') or item.get('cStd'))
-        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand'))
+        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand') or item.get('Quantity on Hand'))
         wip = safe_float(item.get('WIP') or item.get('totQWip'))
         reserve = safe_float(item.get('Reserve') or item.get('totQRes'))
         on_order = safe_float(item.get('On Order') or item.get('totQOrd'))
         ext_value = stock * unit_cost if unit_cost else 0
         min_lvl = safe_float(item.get('Minimum') or item.get('minLvl'))
-        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl'))
+        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl') or item.get('Reorder Point') or item.get('reordPoint'))
         if stock <= 0:
             out_of_stock_count += 1
         elif (min_lvl > 0 and stock < min_lvl) or (reord_lvl > 0 and stock < reord_lvl):
@@ -3162,9 +3172,9 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
     for item in items:
         if not isinstance(item, dict):
             continue
-        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand'))
+        stock = safe_float(item.get('Stock') or item.get('totQStk') or item.get('On Hand') or item.get('Quantity on Hand'))
         min_lvl = safe_float(item.get('Minimum') or item.get('minLvl'))
-        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl'))
+        reord_lvl = safe_float(item.get('Reorder Level') or item.get('ordLvl') or item.get('Reorder Point') or item.get('reordPoint'))
         if stock <= 0 or (min_lvl > 0 and stock < min_lvl) or (reord_lvl > 0 and stock < reord_lvl):
             item_no = item.get('Item No.') or item.get('itemId') or ''
             desc = item.get('Description') or item.get('descr') or ''
@@ -3215,12 +3225,12 @@ def _build_inventory_report_xlsx(data, from_date=None, to_date=None):
 
 @app.route('/api/reports/inventory', methods=['GET'])
 def report_inventory():
-    """Month-end inventory report. Uses Full Company Data (MIITEM, Items, MIILOC) - NOT CustomAlert5."""
+    """Month-end inventory report. Uses Full Company Data (Items.json from MIITEM.CSV, MIILOC)."""
     try:
         data, err = _get_company_data_for_export()
         if err:
             return jsonify({"error": err, "hint": "Load data first (open app and refresh)"}), 503
-        items = data.get('MIITEM.json') or data.get('Items.json') or []
+        items = data.get('Items.json') or data.get('MIITEM.json') or []
         miiloc = data.get('MIILOC.json') or []
         if request.args.get('preview') in ('1', 'true', 'yes'):
             return jsonify({"count": len(items) if isinstance(items, list) else 0, "locations": len(miiloc) if isinstance(miiloc, list) else 0})
@@ -3241,8 +3251,56 @@ def report_inventory():
         return jsonify({"error": str(e)}), 500
 
 
+def _parse_date_for_filter(val):
+    """Parse date string to comparable date. Returns date object or None. Handles ISO, /Date(...)/, MM/DD/YYYY."""
+    if not val:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    # /Date(1739577600000)/ - MS JSON
+    if '/Date(' in s:
+        m = re.search(r'/Date\((\d+)', s)
+        if m:
+            try:
+                return datetime.fromtimestamp(int(m.group(1)) / 1000).date()
+            except (ValueError, OSError):
+                pass
+    # ISO: 2025-02-15 or 2025-02-15T00:00:00
+    iso = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', s)
+    if iso:
+        try:
+            return datetime(int(iso.group(1)), int(iso.group(2)), int(iso.group(3))).date()
+        except (ValueError, IndexError):
+            pass
+    # MM/DD/YYYY or YYYY/MM/DD (use first 10 chars)
+    part = s[:10] if len(s) >= 10 else s
+    for fmt in ('%Y/%m/%d', '%m/%d/%Y', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(part, fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _date_in_range(record_date, from_date, to_date):
+    """True if record_date is within [from_date, to_date] (inclusive). If either bound is None, that bound is ignored."""
+    if not from_date and not to_date:
+        return True
+    rec = _parse_date_for_filter(record_date)
+    if rec is None:
+        return False  # Exclude records with unparseable dates when date filter is active
+    fd = _parse_date_for_filter(from_date) if from_date else None
+    td = _parse_date_for_filter(to_date) if to_date else None
+    if fd and rec < fd:
+        return False
+    if td and rec > td:
+        return False
+    return True
+
+
 def _build_production_report_xlsx(data, from_date=None, to_date=None):
-    """Production Summary Report: MO status, completion rates, build items. Uses MIMOH, MIMOMD."""
+    """Production Summary Report: MO status, completion rates, build items. Uses MIMOH, MIMOMD. Filters by Order Date when from_date/to_date provided."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     from openpyxl.utils import get_column_letter
@@ -3260,10 +3318,13 @@ def _build_production_report_xlsx(data, from_date=None, to_date=None):
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     def safe_float(v, d=0):
-        try:
-            return float(v) if v is not None and str(v).strip() != '' else d
-        except (TypeError, ValueError):
-            return d
+        """Parse numeric - strips commas (e.g. '1,234.56')."""
+        if v is None: return d
+        if isinstance(v, (int, float)): return float(v)
+        s = str(v).strip().replace(',', '')
+        if not s: return d
+        try: return float(s)
+        except (TypeError, ValueError): return d
 
     def _parse_dt(v):
         if not v:
@@ -3297,6 +3358,9 @@ def _build_production_report_xlsx(data, from_date=None, to_date=None):
     total_ordered = total_completed = 0
     for mo in moh if isinstance(moh, list) else []:
         if not isinstance(mo, dict):
+            continue
+        ord_dt_raw = mo.get('Order Date') or mo.get('ordDt') or ''
+        if not _date_in_range(ord_dt_raw, from_date, to_date):
             continue
         mo_no = mo.get('Mfg. Order No.') or mo.get('mohId') or mo.get('MO No.') or ''
         build_item = mo.get('Build Item No.') or mo.get('buildItem') or ''
@@ -3357,10 +3421,13 @@ def _build_purchase_report_xlsx(data, from_date=None, to_date=None):
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     def safe_float(v, d=0):
-        try:
-            return float(v) if v is not None and str(v).strip() != '' else d
-        except (TypeError, ValueError):
-            return d
+        """Parse numeric/currency - strips $ and commas."""
+        if v is None: return d
+        if isinstance(v, (int, float)): return float(v)
+        s = str(v).strip().replace(',', '').replace('$', '')
+        if not s: return d
+        try: return float(s)
+        except (TypeError, ValueError): return d
 
     report_date = datetime.now().strftime('%B %d, %Y')
     period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
@@ -3385,8 +3452,11 @@ def _build_purchase_report_xlsx(data, from_date=None, to_date=None):
             continue
         po_no = str(d.get('PO No.') or d.get('pohId') or d.get('poNo') or '')
         po_h = po_lookup.get(po_no) or {}
+        ord_dt_val = po_h.get('Order Date') or po_h.get('ordDt') or ''
+        if not _date_in_range(ord_dt_val, from_date, to_date):
+            continue
         supplier = po_h.get('Name') or po_h.get('name') or d.get('Supplier') or ''
-        ord_dt = po_h.get('Order Date') or po_h.get('ordDt') or ''
+        ord_dt = ord_dt_val
         status = po_h.get('Status') or po_h.get('poStatus') or d.get('Status') or ''
         ordered = safe_float(d.get('Ordered') or d.get('ordered') or d.get('reqQty'))
         received = safe_float(d.get('Received') or d.get('received') or d.get('qty'))
@@ -3435,10 +3505,13 @@ def _build_sales_report_xlsx(data, from_date=None, to_date=None):
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
     def safe_float(v, d=0):
-        try:
-            return float(v) if v is not None and str(v).strip() != '' else d
-        except (TypeError, ValueError):
-            return d
+        """Parse numeric/currency - strips $ and commas."""
+        if v is None: return d
+        if isinstance(v, (int, float)): return float(v)
+        s = str(v).strip().replace(',', '').replace('$', '')
+        if not s: return d
+        try: return float(s)
+        except (TypeError, ValueError): return d
 
     report_date = datetime.now().strftime('%B %d, %Y')
     period_str = f" | Period: {from_date} to {to_date}" if (from_date and to_date) else ""
@@ -3460,11 +3533,14 @@ def _build_sales_report_xlsx(data, from_date=None, to_date=None):
     for so in (so_list if isinstance(so_list, list) else []):
         if not isinstance(so, dict):
             continue
+        ord_dt_so = so.get('Order Date') or so.get('orderDate') or so.get('ordDt') or ''
+        if not _date_in_range(ord_dt_so, from_date, to_date):
+            continue
         so_no = so.get('SO No.') or so.get('soNo') or so.get('Sales Order No.') or ''
         customer = so.get('Customer') or so.get('customer') or so.get('Customer Name') or ''
-        ord_dt = so.get('Order Date') or so.get('orderDate') or so.get('ordDt') or ''
+        ord_dt = ord_dt_so
         status = so.get('Status') or so.get('status') or ''
-        total = safe_float(so.get('Total') or so.get('total') or so.get('Order Total'))
+        total = safe_float(so.get('Total') or so.get('total') or so.get('Order Total') or so.get('Total Amount') or so.get('total_amount'))
         lines = so.get('Lines') or len(so.get('details', [])) if isinstance(so.get('details'), list) else ''
         source = so.get('_source') or so.get('Source') or 'MISys'
         rows.append([so_no, customer, ord_dt, status, total, lines, source])
@@ -3538,6 +3614,33 @@ def report_sales():
         return send_file(io.BytesIO(raw), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=fname)
     except Exception as e:
         print(f"ERROR report_sales: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/proforma-invoice/generate', methods=['POST'])
+def generate_proforma_invoice_endpoint():
+    """Generate a Proforma Invoice xlsx from sales order data."""
+    try:
+        so_data = request.get_json()
+        if not so_data:
+            return jsonify({"error": "No data provided"}), 400
+
+        from proforma_invoice_generator import generate_proforma_invoice
+        output_path, filename = generate_proforma_invoice(so_data)
+
+        return send_file(
+            output_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except FileNotFoundError as e:
+        print(f"ERROR proforma invoice template missing: {e}")
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        print(f"ERROR generate_proforma_invoice: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -4095,7 +4198,7 @@ def _compute_shortage(data):
     """J1/J2: Time-phased shortage – reorder_level - (stock + open_po). Returns list of { item_no, shortage_qty, on_hand, open_po, reorder_level }."""
     if not data or not isinstance(data, dict):
         return []
-    items = data.get("CustomAlert5.json") or data.get("Items.json") or []
+    items = data.get("Items.json") or []
     details = data.get("PurchaseOrderDetails.json") or []
     open_po_by_item = {}
     for line in details:
@@ -5322,8 +5425,8 @@ def check_changes():
 def analyze_inventory_data(data, query):
     """Analyze inventory data to answer user queries"""
     try:
-        # Extract relevant data structures - ONLY using CustomAlert5 for item data
-        customalert5_items = data.get('CustomAlert5.json', [])
+        # Extract relevant data structures - Items.json from Full Company Data (MIITEM.CSV)
+        customalert5_items = data.get('Items.json', [])
         bom_headers = data.get('BillsOfMaterial.json', [])
         bom_details = data.get('BillOfMaterialDetails.json', [])
         mo_headers = data.get('ManufacturingOrderHeaders.json', [])
@@ -5359,8 +5462,8 @@ def analyze_inventory_data(data, query):
 def find_item_usage_and_availability(data, item_description_or_no, quantity_needed=None):
     """Find detailed information about item usage and availability"""
     try:
-        # Use ONLY CustomAlert5.json for item data - it has everything
-        customalert5_items = data.get('CustomAlert5.json', [])
+        # Use Items.json from Full Company Data for item data
+        customalert5_items = data.get('Items.json', [])
         bom_details = data.get('BillOfMaterialDetails.json', [])
         mo_headers = data.get('ManufacturingOrderHeaders.json', [])
         mo_details = data.get('ManufacturingOrderDetails.json', [])
@@ -5456,8 +5559,8 @@ def get_product_analytics_data(data, query):
             "summary": {}
         }
         
-        # Extract data sources
-        items = data.get('CustomAlert5.json', [])
+        # Extract data sources - Items.json from Full Company Data
+        items = data.get('Items.json', [])
         so_headers = data.get('SalesOrderHeaders.json', [])
         so_details = data.get('SalesOrderDetails.json', [])
         real_sos = data.get('RealSalesOrders', [])
@@ -5847,7 +5950,7 @@ You can assist with ANY business question, scenario, or challenge including:
 - Cross-reference everything: items, locations, suppliers, costs, alternatives
 - Understand partial names, codes, descriptions - be intelligent about matching
 - Calculate complex requirements, availability, and feasibility instantly
-- Real-time inventory analysis from CustomAlert5.json with {analysis['data_summary']['total_items']} items
+- Real-time inventory analysis from Items.json (Full Company Data) with {analysis['data_summary']['total_items']} items
 
 **TOTAL SALES ORDER (SO) EXPERTISE:**
 - Analyze any SO by number, customer, item, or scenario
@@ -5948,7 +6051,7 @@ Use this format for ANY SO query - whether asking about specific SO numbers, cus
 You have FULL ACCESS to ALL business data including:
 
 **INVENTORY & ITEMS:**
-- {analysis['data_summary']['total_items']} inventory items with complete details (CustomAlert5.json, Items.json, MIITEM.json)
+- {analysis['data_summary']['total_items']} inventory items with complete details (Items.json from MIITEM.CSV)
 - Stock levels, costs, locations, and availability (MIILOC.json)
 - Item descriptions, part numbers, and specifications
 
@@ -6330,7 +6433,7 @@ Sales Orders exist as PDF files in Google Drive folders:
 
 **OTHER DATA TOTALS:**
 - Total Manufacturing Orders: {len(raw_data.get('ManufacturingOrderHeaders.json', []))}
-- Total Inventory Items: {len(raw_data.get('CustomAlert5.json', []))}
+- Total Inventory Items: {len(raw_data.get('Items.json', []))}
 - Total BOM Records: {len(raw_data.get('BillOfMaterialDetails.json', []))}
 - Available Data Files: {list(raw_data.keys())}
 
@@ -6726,7 +6829,7 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
             if len(fallback_term) >= 2:
                 print(f"RETRY: Fallback search with: '{fallback_term}'")
                 matching_items = []
-                for item in raw_data.get('CustomAlert5.json', []):
+                for item in raw_data.get('Items.json', []):
                     item_no = item.get('Item No.', '')
                     item_desc = item.get('Description', '')
                     if (fallback_term in item_no.lower() or fallback_term in item_desc.lower()):
@@ -6748,12 +6851,12 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
         else:
             print(f"⚠️ No search results found - adding fallback data")
             # Add some sample data to confirm AI has access
-            sample_items = raw_data.get('CustomAlert5.json', [])[:5]
+            sample_items = raw_data.get('Items.json', [])[:5]
             if sample_items:
                 system_prompt += f"\n\nSAMPLE DATA (confirming access):\n{json.dumps(sample_items, indent=2)}"
         
         # Add data summary to confirm AI has access
-        system_prompt += f"\n\nDATA ACCESS CONFIRMATION:\n- Total Items: {len(raw_data.get('CustomAlert5.json', []))}\n- Available Files: {list(raw_data.keys())}\n- Search Term Used: '{search_term if search_term else 'NONE'}'"
+        system_prompt += f"\n\nDATA ACCESS CONFIRMATION:\n- Total Items: {len(raw_data.get('Items.json', []))}\n- Available Files: {list(raw_data.keys())}\n- Search Term Used: '{search_term if search_term else 'NONE'}'"
         
         print(f"📝 Final system prompt length: {len(system_prompt)} characters")
         print(f"SEARCH: Search results: {search_results}")
@@ -6913,7 +7016,7 @@ def test_data_access():
         
         return jsonify({
             "data_access": True,
-            "total_items": len(raw_data.get('CustomAlert5.json', [])),
+            "total_items": len(raw_data.get('Items.json', [])),
             "available_files": list(raw_data.keys()),
             "sae_search_test": {
                 "search_term": "sae",
@@ -7056,7 +7159,7 @@ def enterprise_analytics_ai():
         
         # Add GPT-4o insights
         sales_data = raw_data.get('RealSalesOrders', [])
-        inventory_data = raw_data.get('CustomAlert5.json', [])
+        inventory_data = raw_data.get('Items.json', [])
         gpt_insights = analytics_engine.generate_gpt4o_insights(sales_data, inventory_data)
         
         dashboard['ai_enhanced_insights'] = gpt_insights

@@ -92,7 +92,7 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     
     let result: MISysData = {
       // CustomAlert5.json has the REAL stock data (Stock, WIP, Reserve, On Order)
-      items: data['CustomAlert5.json'] || data['Items.json'] || [],
+      items: data['Items.json'] || [],
       moHeaders: data['ManufacturingOrderHeaders.json'] || [],
       moDetails: data['ManufacturingOrderDetails.json'] || [],
       salesOrders: data['SalesOrders.json'] || []

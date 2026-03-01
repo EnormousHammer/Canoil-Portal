@@ -8,7 +8,7 @@ export function testMIILOCIntegration(data: any) {
   console.log('🧪 Testing MIILOC Integration...');
   
   const milocData = data['MIILOC.json'] || [];
-  const itemsData = data['CustomAlert5.json'] || [];  // Use CustomAlert5 - has all item data
+  const itemsData = data['Items.json'] || [];  // Use CustomAlert5 - has all item data
   
   console.log(`📊 MIILOC Records: ${milocData.length}`);
   console.log(`📦 Items Records: ${itemsData.length}`);

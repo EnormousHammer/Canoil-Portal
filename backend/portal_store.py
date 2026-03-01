@@ -253,7 +253,7 @@ def apply_to_data(data):
 
     # Item overrides (B4: min/max/reorder)
     overrides = store.get("item_overrides") or {}
-    for item in (data.get("CustomAlert5.json") or []):
+    for item in (data.get("Items.json") or []):
         if not isinstance(item, dict):
             continue
         ino = item.get("Item No.") or item.get("item_no")
@@ -269,8 +269,8 @@ def apply_to_data(data):
         delta = float(adj.get("delta", 0))
         if not ino:
             continue
-        # Apply to CustomAlert5 (aggregate Stock)
-        for item in (data.get("CustomAlert5.json") or []):
+        # Apply to Items (aggregate Stock)
+        for item in (data.get("Items.json") or []):
             if not isinstance(item, dict):
                 continue
             if (item.get("Item No.") or item.get("item_no")) == ino:

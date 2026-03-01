@@ -296,7 +296,7 @@ class EnterpriseAnalytics:
                 if sales_data:
                     print(f"📊 ENTERPRISE ANALYTICS: Fallback to SalesOrders.json - {len(sales_data)} orders")
             
-            inventory_data = all_data.get('CustomAlert5.json', [])
+            inventory_data = all_data.get('Items.json', [])
             mo_data = all_data.get('ManufacturingOrderHeaders.json', [])
             po_data = all_data.get('PurchaseOrders.json', [])
             

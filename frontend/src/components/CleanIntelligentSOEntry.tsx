@@ -146,9 +146,9 @@ export const CleanIntelligentSOEntry: React.FC<CleanIntelligentSOEntryProps> = (
 
   // Get available products (only assembled items with BOMs)
   const availableProducts = useMemo(() => {
-    if (!data['CustomAlert5.json'] || !data['BillOfMaterialDetails.json']) return [];
+    if (!data['Items.json'] || !data['BillOfMaterialDetails.json']) return [];
     
-    return data['CustomAlert5.json'].filter((item: any) => {
+    return data['Items.json'].filter((item: any) => {
       return data['BillOfMaterialDetails.json'].some((bom: any) => 
         bom["Parent Item No."] === item["Item No."]
       );
@@ -194,7 +194,7 @@ export const CleanIntelligentSOEntry: React.FC<CleanIntelligentSOEntryProps> = (
       }
 
       // Get component details
-      const componentDetails = data['CustomAlert5.json']?.find((item: any) => 
+      const componentDetails = data['Items.json']?.find((item: any) => 
         item["Item No."] === componentItemNo
       );
 

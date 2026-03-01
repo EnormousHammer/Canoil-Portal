@@ -83,11 +83,7 @@ export function buildSerialTraceView(
   const currentBin = toStr(binRow?.["Bin No."] ?? binRow?.["binId"] ?? "");
   const lotNo = toStr(master?.["Lot No."] ?? master?.["lotId"] ?? binRow?.["Lot No."] ?? "");
 
-  const items = getDataset<any>(data, [
-    "CustomAlert5.json",
-    "Items.json",
-    "MIITEM.json",
-  ]);
+  const items = getDataset<any>(data, ["Items.json", "MIITEM.json"]);
   const item = items.find(
     (i) => toUpper(i["Item No."] ?? i["itemId"] ?? "") === itemNo.toUpperCase()
   );

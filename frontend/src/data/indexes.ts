@@ -47,11 +47,10 @@ export type DataIndexes = {
 
 export function buildIndexes(data: FullCompanyData | undefined): DataIndexes {
   const items = getDataset<any>(data, [
-    "CustomAlert5.json",
     "Items.json",
     "MIITEM.json",
   ]);
-  const alerts = getDataset<any>(data, ["CustomAlert5.json"]);
+  const alerts = getDataset<any>(data, ["Items.json", "MIITEM.json"]);
 
   const moHeaders = getDataset<any>(data, [
     "ManufacturingOrderHeaders.json",

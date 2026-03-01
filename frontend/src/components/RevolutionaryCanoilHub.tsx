@@ -19,6 +19,7 @@ import { getStockByOwnership, getCanoilStock, isCanoilLocation, CANOIL_LOCATIONS
 import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import ExportAllCompanyDataModal from './ExportAllCompanyDataModal';
 import InventoryActionsModal from './InventoryActionsModal';
+import { ProformaInvoiceMaker } from './ProformaInvoiceMaker';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
   BarChart3, 
@@ -285,6 +286,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Sales Orders search state
   const [soSearchQuery, setSoSearchQuery] = useState('');
   
+  // Proforma Invoice maker state
+  const [showProformaInvoice, setShowProformaInvoice] = useState(false);
+  
   // BOM Planning search state
   const [bomSearchQuery, setBomSearchQuery] = useState('');
   const [bomQuantity, setBomQuantity] = useState(0);
@@ -391,7 +395,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       // Calculate weighted average unit cost from line items (use Item Recent Cost when PO line has no price)
       const recentUnitCost = (() => {
         if (poLines.length > 0) {
-          const items = (data?.['CustomAlert5.json'] ?? data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
+          const items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
           const itemByNo: Record<string, any> = {};
           items.forEach((r: any) => {
             const k = (r['Item No.'] ?? r['Item'] ?? r['ItemNo'] ?? '').toString().trim().toUpperCase();
@@ -774,7 +778,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   };
   const openItemById = (itemId: string) => {
     if (!itemId || !data) return;
-    const items = data['CustomAlert5.json'] || data['Items.json'] || data['MIITEM.json'] || [];
+    const items = data['Items.json'] || data['MIITEM.json'] || [];
     const upper = (itemId || '').toString().trim().toUpperCase();
     const item = (items as any[]).find((i: any) => (i['Item No.'] || i['itemId'] || '').toString().trim().toUpperCase() === upper);
     const toOpen = item || { 'Item No.': itemId, itemId, 'Description': 'Item not in master' };
@@ -1251,7 +1255,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     const usage = bomData
       .filter((bom: any) => bom["Component Item No."] === componentItemNo)
       .map((bom: any) => {
-        const parentItem = (data['CustomAlert5.json'] || [])
+        const parentItem = (data['Items.json'] || [])
           .find((item: any) => item["Item No."] === bom["Parent Item No."]);
         return {
           parentItemNo: bom["Parent Item No."],
@@ -1266,7 +1270,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Enterprise-level metrics calculation - CANOIL STOCK ONLY (excludes customer stock)
   const inventoryMetrics = useMemo(() => {
-    const items = data['CustomAlert5.json'] || [];
+    const items = data['Items.json'] || [];
     const totalItems = items.length;
     
     // Calculate total value using CANOIL stock only
@@ -1345,7 +1349,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   // Filtered inventory with sorting and filtering - Uses CANOIL STOCK ONLY
   const filteredInventory = useMemo(() => {
-    let items = data['CustomAlert5.json'] || [];
+    let items = data['Items.json'] || [];
     
     // Apply inventory filter (low-stock, out-of-stock, raw/assembled/formula) - CANOIL STOCK ONLY
     if (inventoryFilter === 'low-stock') {
@@ -2529,8 +2533,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             
                             const statusInfo = getStatusInfo(mo['Status']);
                             
-                            // Get item cost data from CustomAlert5.json
-                            const itemData = (data['CustomAlert5.json'] || []).find((item: any) => 
+                            // Get item cost data from Items.json
+                            const itemData = (data['Items.json'] || []).find((item: any) => 
                               item['Item No.'] === mo['Build Item No.']
                             );
                             
@@ -6330,7 +6334,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                         }`}
                       >
-                        All: {(data['CustomAlert5.json'] || []).length.toLocaleString()}
+                        All: {(data['Items.json'] || []).length.toLocaleString()}
                       </button>
                       <button 
                         onClick={() => setInventoryFilter('low-stock')}
@@ -6359,7 +6363,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         }`}
                         title="Raw / purchased (Item Type 0)"
                       >
-                        Raw: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
+                        Raw: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
                       </button>
                       <button 
                         onClick={() => setInventoryFilter('assembled')}
@@ -6368,7 +6372,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         }`}
                         title="Assembled (Item Type 1)"
                       >
-                        Assembled: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
+                        Assembled: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
                       </button>
                       <button 
                         onClick={() => setInventoryFilter('formula')}
@@ -6377,7 +6381,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         }`}
                         title="Formula / blend (Item Type 2)"
                       >
-                        Formula: {(data['CustomAlert5.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
+                        Formula: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
                       </button>
                     </div>
                   </div>
@@ -6669,7 +6673,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-slate-500">
                       {(() => {
-                        const assembledItems = (data['CustomAlert5.json'] || []).filter((item: any) => 
+                        const assembledItems = (data['Items.json'] || []).filter((item: any) => 
                           (data['BillOfMaterialDetails.json'] || []).some((bom: any) => 
                             bom["Parent Item No."] === item["Item No."]
                           )
@@ -7369,7 +7373,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           <div className="text-sm font-medium text-gray-700 mb-2">Matching Items:</div>
                           <div className="max-h-32 overflow-y-auto space-y-1">
                             {(() => {
-                              const items = data['CustomAlert5.json'] || [];
+                              const items = data['Items.json'] || [];
                               const bomDetails = data['BillOfMaterialDetails.json'] || [];
                               
                               // Filter for assembled items that match search
@@ -7594,7 +7598,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <tbody className="bg-white divide-y divide-gray-200">
                               {(() => {
                                 const bomDetails = data['BillOfMaterialDetails.json'] || [];
-                                const items = data['CustomAlert5.json'] || [];
+                                const items = data['Items.json'] || [];
                                 
                                 // Get BOM components for selected item
                                 const components = bomDetails.filter((bom: any) => 
@@ -8161,6 +8165,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="px-4 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm border border-emerald-200 shadow-sm">
                         {salesOrderAnalytics.total.toLocaleString()} Total Orders
                       </div>
+                      <button
+                        onClick={() => setShowProformaInvoice(!showProformaInvoice)}
+                        className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 shadow-lg ${
+                          showProformaInvoice
+                            ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-violet-500/25'
+                            : 'bg-gradient-to-r from-violet-500 to-purple-500 text-white hover:from-violet-400 hover:to-purple-400 shadow-violet-500/25'
+                        }`}
+                        title="Create Proforma Invoice from a Sales Order"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Proforma Invoice
+                      </button>
                       {onRefreshData && (
                         <button
                           onClick={async () => {
@@ -8179,6 +8195,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                 </div>
+
+                {/* Proforma Invoice Maker */}
+                {showProformaInvoice && (
+                  <div className="p-6 border-b border-slate-100">
+                    <ProformaInvoiceMaker data={data} onClose={() => setShowProformaInvoice(false)} />
+                  </div>
+                )}
                 
                 {/* Content Section - Enhanced Light Theme */}
                 <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
@@ -9450,7 +9473,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               {/* ===== BOM WHERE USED TAB (item as component in parent BOMs) - uses indexes ===== */}
               {itemModalActiveView === 'bom-where-used' && (() => {
                 const bomWhereUsedRows = indexes.bomWhereUsedByComponent.get(itemNoUpper) ?? [];
-                const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const itemsData = data['Items.json'] || [];
                 const getParentDescription = (parentItemNo: string) => {
                   const item = itemsData.find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (parentItemNo || '').toString().trim().toUpperCase());
                   return item?.['Description'] || '—';
@@ -9504,7 +9527,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   );
                 }
                 const components = bomView?.components ?? [];
-                const itemsDataForBom = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const itemsDataForBom = data['Items.json'] || [];
                 const getComponentDescription = (componentItemNo: string) => {
                   const fromItems = (itemsDataForBom as any[]).find((i: any) => (i['Item No.'] || '').toString().trim().toUpperCase() === (componentItemNo || '').toString().trim().toUpperCase());
                   return fromItems?.['Description'] || '—';
@@ -9727,7 +9750,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   );
                 }
-                const itemsData = data['CustomAlert5.json'] || data['Items.json'] || [];
+                const itemsData = data['Items.json'] || [];
                 return (
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Alternate items</h3>
@@ -10435,7 +10458,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   required
                 >
                   <option value="">Select item...</option>
-                  {((data?.['CustomAlert5.json'] || data?.['Items.json']) || []).map((item: any) => {
+                  {((data?.['Items.json'] || [])).map((item: any) => {
                     const no = item['Item No.'] || item['Item_No'];
                     const desc = item['Description'] || '';
                     if (!no) return null;

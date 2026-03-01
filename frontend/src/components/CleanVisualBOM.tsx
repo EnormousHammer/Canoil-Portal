@@ -49,12 +49,12 @@ export const CleanVisualBOM: React.FC<CleanVisualBOMProps> = ({
   // Clean BOM Analysis - Following Enterprise BOM Master Plan Phase 3
   const cleanBOMAnalysis = useMemo(() => {
     try {
-      if (!selectedItem || !data['BillOfMaterialDetails.json'] || !data['CustomAlert5.json']) {
+      if (!selectedItem || !data['BillOfMaterialDetails.json'] || !data['Items.json']) {
         return { components: [], mainProduct: null, canBuild: false, totalCost: 0 };
       }
 
     const bomDetails = data['BillOfMaterialDetails.json'] || [];
-    const items = data['CustomAlert5.json'] || [];
+    const items = data['Items.json'] || [];
     
     // Get main product info
     const mainProduct = items.find((item: any) => item['Item No.'] === selectedItem);

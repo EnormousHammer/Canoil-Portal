@@ -1472,19 +1472,19 @@ Be precise with item numbers and quantities. If unsure, include it in special_in
     def check_stock_for_po(self, po_data: Dict, inventory_data: Dict) -> Dict[str, Any]:
         """Check if we have enough stock for customer PO items
         
-        PRIMARY SOURCE: CustomAlert5.json - Complete item master with stock levels
+        PRIMARY SOURCE: Items.json (Full Company Data from MIITEM.CSV) - Complete item master with stock levels
         
-        CustomAlert5.json fields:
+        Items.json fields:
         - Item No.: Item number
         - Stock: Available stock quantity
         - Description: Item description
         """
         try:
             items = po_data.get('items', [])
-            customalert5_data = inventory_data.get('CustomAlert5.json', [])
+            customalert5_data = inventory_data.get('Items.json', [])
             
             print(f"\n📊 === STOCK CHECK: {len(items)} items ===")
-            print(f"   CustomAlert5 records: {len(customalert5_data)}")
+            print(f"   Items records: {len(customalert5_data)}")
             
             stock_analysis = []
             insufficient_items = []
@@ -1496,14 +1496,14 @@ Be precise with item numbers and quantities. If unsure, include it in special_in
                 print(f"\n   Item {idx}: {item_no}")
                 print(f"   └─ Need: {qty_needed}")
                 
-                # PRIMARY: Check CustomAlert5.json
+                # Check Items.json
                 ca5_item = next((i for i in customalert5_data if i.get('Item No.', '').strip().upper() == item_no), None)
                 
                 if ca5_item:
-                    print(f"   └─ ✅ Found in CustomAlert5")
-                    data_source = 'CustomAlert5.json'
+                    print(f"   └─ ✅ Found in Items")
+                    data_source = 'Items.json'
                     
-                    # Get stock from CustomAlert5
+                    # Get stock from Items
                     total_stock = float(str(ca5_item.get('Stock', 0)).replace(',', ''))
                     available = total_stock
                     
@@ -1511,10 +1511,10 @@ Be precise with item numbers and quantities. If unsure, include it in special_in
                     print(f"   └─ Available: {available}")
                     
                     # Optional: Get additional info if available
-                    total_reserved = 0  # CustomAlert5 doesn't track this
+                    total_reserved = 0  # Items doesn't track this
                     total_on_order = 0
                 else:
-                    print(f"   └─ ❌ NOT FOUND in CustomAlert5!")
+                    print(f"   └─ ❌ NOT FOUND in Items!")
                     data_source = 'NOT FOUND'
                     total_stock = 0
                     total_reserved = 0

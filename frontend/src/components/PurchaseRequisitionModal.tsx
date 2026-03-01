@@ -157,7 +157,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     
     // Check if data is actually loaded (not just empty arrays from initial state)
     const dataLoaded = allData.loaded === true || 
-      (allData['CustomAlert5.json'] && Array.isArray(allData['CustomAlert5.json']) && allData['CustomAlert5.json'].length > 0) ||
+      (allData['Items.json'] && Array.isArray(allData['Items.json']) && allData['Items.json'].length > 0) ||
       (allData['MIITEM.json'] && Array.isArray(allData['MIITEM.json']) && allData['MIITEM.json'].length > 0) ||
       (allData['Items.json'] && Array.isArray(allData['Items.json']) && allData['Items.json'].length > 0);
     
@@ -167,12 +167,10 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
       return [];
     }
     
-    // Prioritize CustomAlert5.json (same as BOM) - PRIMARY SOURCE
-    // Then try other sources as fallback
+    // Full Company Data: Items.json from MIITEM.CSV - PRIMARY
     const sources = [
-      'CustomAlert5.json',  // PRIMARY - Same as BOM/Items
+      'Items.json',  // Full Company Data
       'MIITEM.json',
-      'Items.json', 
       'Items_with_stock.json',
       'Items_default_keys.json',
       'Items_union_keys.json'
@@ -256,7 +254,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             0).replace(/[$,]/g, '')
           );
           
-          // Get Stock - prioritize CustomAlert5.json field names
+          // Get Stock - Items.json field names
           const stock = parseFloat(
             String(item['Stock'] || 
             item['Quantity On Hand'] || 
@@ -265,7 +263,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             0).replace(/,/g, '')
           );
           
-          // Get WIP - from CustomAlert5.json
+          // Get WIP - from Items.json
           const wip = parseFloat(
             String(item['WIP'] || 
             item['WIP Qty'] || 

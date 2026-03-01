@@ -8,7 +8,7 @@ import { PRIMARY_DATA_SOURCES, ITEM_FIELDS, BOM_FIELDS, JOB_FIELDS, hasDataField
 import { SMART_PRIMARY_SOURCES, getSmartFieldValue, isDuplicateSource, isEmptyFile } from './smartDataMapping';
 
 /**
- * SMART ITEM DATA ACCESS - Uses CustomAlert5.json (NO DUPLICATES)
+ * SMART ITEM DATA ACCESS - Uses Items.json (Full Company Data)
  */
 export function getRealItemData(data: any, itemNo: string) {
   const itemsData = data[SMART_PRIMARY_SOURCES.ITEMS] || [];
@@ -134,7 +134,7 @@ export function getRealWorkOrderData(data: any, workOrderNo?: string) {
 }
 
 /**
- * SMART LOW STOCK ANALYSIS - Uses CustomAlert5.json (NO DUPLICATES)
+ * SMART LOW STOCK ANALYSIS - Uses Items.json
  */
 export function getRealLowStockItems(data: any) {
   const itemsData = data[SMART_PRIMARY_SOURCES.ITEMS] || [];
@@ -160,7 +160,7 @@ export function getRealLowStockItems(data: any) {
 }
 
 /**
- * SMART INVENTORY ANALYSIS - Uses CustomAlert5.json (NO DUPLICATES)
+ * SMART INVENTORY ANALYSIS - Uses Items.json
  */
 export function getRealInventoryItems(data: any) {
   const itemsData = data[SMART_PRIMARY_SOURCES.ITEMS] || [];

@@ -42,15 +42,15 @@ def load_data_from_gdrive():
     
     data = {}
     
-    # Load CustomAlert5.json (products)
-    custom_alert5_path = os.path.join(folder_path, 'CustomAlert5.json')
-    if os.path.exists(custom_alert5_path):
-        with open(custom_alert5_path, 'r', encoding='utf-8') as f:
-            data['CustomAlert5.json'] = json.load(f)
-        print(f"✅ Loaded {len(data['CustomAlert5.json'])} products from CustomAlert5.json")
+    # Load Items.json (Full Company Data - products)
+    items_path = os.path.join(folder_path, 'Items.json')
+    if os.path.exists(items_path):
+        with open(items_path, 'r', encoding='utf-8') as f:
+            data['Items.json'] = json.load(f)
+        print(f"✅ Loaded {len(data['Items.json'])} products from Items.json")
     else:
-        print("⚠️  CustomAlert5.json not found")
-        data['CustomAlert5.json'] = []
+        print("⚠️  Items.json not found")
+        data['Items.json'] = []
     
     # Load ManufacturingOrderHeaders.json (customers)
     moh_path = os.path.join(folder_path, 'ManufacturingOrderHeaders.json')
@@ -156,7 +156,7 @@ def extract_customers(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 def extract_products_with_packaging(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Extract all products with packaging information"""
     products = []
-    items = data.get('CustomAlert5.json', [])
+    items = data.get('Items.json', [])
     
     for item in items:
         item_no = item.get('Item No.', '') or ''
@@ -330,7 +330,7 @@ def generate_json_report(products: List[Dict], customers: List[Dict], output_fil
             'generated': timestamp,
             'total_products': len(products),
             'total_customers': len(customers),
-            'data_source': 'G: Drive - CustomAlert5.json & ManufacturingOrderHeaders.json'
+            'data_source': 'G: Drive - Items.json & ManufacturingOrderHeaders.json'
         },
         'products': {
             'all': products,

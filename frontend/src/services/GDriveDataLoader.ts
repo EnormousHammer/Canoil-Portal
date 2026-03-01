@@ -3,11 +3,7 @@
 import { getApiUrl, checkBackendHealth } from '../utils/apiConfig';
 
 export interface LoadedData {
-  // PRIMARY: CustomAlert5.json contains ALL item data (stock, price, location)
-  // ⚠️ PRODUCTION: Uses EXACT field names validated against live data
-  'CustomAlert5.json': any[];
-  
-  // LEGACY: Other item files (now redundant since CustomAlert5 has everything)
+  // PRIMARY: Items.json (Full Company Data from MIITEM.CSV) - single source for item data
   'Items.json': any[];
   'MIITEM.json': any[];
   'MIILOC.json': any[];  // NEW: Inventory location data with stock quantities
@@ -54,7 +50,7 @@ export class GDriveDataLoader {
   private static instance: GDriveDataLoader;
   private loadedData: LoadedData = {
     // Initialize all 35+ G: Drive files as empty arrays
-    'CustomAlert5.json': [],  // PRIMARY: Complete item data with stock, price, location
+    'Items.json': [],  // Full Company Data: item master from MIITEM.CSV
     'Items.json': [],
     'MIITEM.json': [],
     'MIILOC.json': [],  // NEW: Inventory location data with stock quantities
@@ -338,7 +334,6 @@ export class GDriveDataLoader {
         return {
           data: {
             // Return empty structure matching expected format
-            'CustomAlert5.json': [],
             'Items.json': [],
             'MIITEM.json': [],
             'MIILOC.json': [],

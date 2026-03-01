@@ -6,7 +6,6 @@
 export type FullCompanyData = Record<string, any[]>;
 
 export type DataKey =
-  | "CustomAlert5.json"
   | "Items.json"
   | "MIITEM.json"
   | "MIITEMX.json"

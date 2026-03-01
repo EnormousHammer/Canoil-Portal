@@ -136,7 +136,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
         'Delivery performance',
         'Spend analytics'
       ],
-      status: 'coming-soon'
+      status: 'available'
     },
     {
       id: 'custom-report',
@@ -187,8 +187,33 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
         a.click();
         URL.revokeObjectURL(a.href);
         setReportSuccess(`Report downloaded: ${fname}`);
+      } else if (['sales-performance', 'production-summary', 'purchase-analysis'].includes(selectedReport || '')) {
+        const params = new URLSearchParams();
+        if (reportFromDate) params.set('from_date', reportFromDate);
+        if (reportToDate) params.set('to_date', reportToDate);
+        const endpoint = selectedReport === 'sales-performance' ? '/api/reports/sales'
+          : selectedReport === 'production-summary' ? '/api/reports/production'
+          : '/api/reports/purchase';
+        const url = getApiUrl(endpoint + (params.toString() ? '?' + params.toString() : ''));
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || err.hint || `Report failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        if (!blob || blob.size === 0) {
+          throw new Error('Report returned empty file. Load data first (open app and refresh).');
+        }
+        const disp = res.headers.get('Content-Disposition');
+        const match = disp && disp.match(/filename="?([^";]+)"?/);
+        const fname = match ? match[1] : `${selectedReport}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setReportSuccess(`Report downloaded: ${fname}`);
       } else {
-        // Other reports: placeholder
         setTimeout(() => {
           setIsGenerating(false);
           setReportError('This report type is not yet implemented.');
@@ -486,7 +511,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
                   </div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-900">
-                  <strong>Month-End Inventory Report</strong> — Excel with all items, cost, location, extended value; <strong>Low Stock Alerts</strong> sheet; <strong>ABC analysis</strong> by value; <strong>Status</strong> (Out of Stock / Low Stock / Below Reorder / OK); <strong>Reorder Qty Needed</strong>. Data from MIITEM, MIILOC (Full Company Data).
+                  <strong>Month-End Inventory Report</strong> — Excel with all items, cost, location, extended value; <strong>Low Stock Alerts</strong> sheet; <strong>ABC analysis</strong> by value; <strong>Status</strong> (Out of Stock / Low Stock / Below Reorder / OK); <strong>Reorder Qty Needed</strong>. Data from Items (MIITEM.CSV), MIILOC (Full Company Data).
                 </div>
                 {inventoryPreview !== null && (
                   <div className={`rounded-xl p-4 text-sm ${inventoryPreview.count > 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
@@ -509,6 +534,8 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
                   </label>
                   <input
                     type="date"
+                    value={reportFromDate}
+                    onChange={(e) => setReportFromDate(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -518,8 +545,15 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
                   </label>
                   <input
                     type="date"
+                    value={reportToDate}
+                    onChange={(e) => setReportToDate(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                </div>
+                <div className="col-span-2 text-sm text-slate-600">
+                  {['sales-performance', 'production-summary', 'purchase-analysis'].includes(report.id) && (
+                    <>Only records with Order Date in this range will be included.</>
+                  )}
                 </div>
               </div>
             )}
@@ -677,7 +711,7 @@ export const ReportMaker: React.FC<ReportMakerProps> = ({ data, onBack }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="text-center">
             <div className="text-3xl font-bold text-blue-600">
-              {data['CustomAlert5.json']?.length || 0}
+              {data['Items.json']?.length || 0}
             </div>
             <div className="text-sm text-gray-600 mt-1">Inventory Items</div>
           </div>

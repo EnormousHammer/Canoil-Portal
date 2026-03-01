@@ -85,7 +85,7 @@ def load_staging(conn, data: dict, source_file_default: str = "export") -> None:
     cur = conn.cursor()
 
     # MIITEM / Items
-    for key in ("MIITEM.json", "Items.json", "CustomAlert5.json"):
+    for key in ("Items.json", "MIITEM.json"):
         rows = data.get(key) or []
         if not rows:
             continue

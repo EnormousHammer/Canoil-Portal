@@ -27,15 +27,15 @@ def load_data_from_gdrive():
     folder_path = os.path.join(GDRIVE_BASE, latest_folder)
     print(f"📁 Using folder: {latest_folder}")
     
-    # Load CustomAlert5.json (products)
-    custom_alert5_path = os.path.join(folder_path, 'CustomAlert5.json')
-    if os.path.exists(custom_alert5_path):
-        with open(custom_alert5_path, 'r', encoding='utf-8') as f:
+    # Load Items.json (Full Company Data - products)
+    items_path = os.path.join(folder_path, 'Items.json')
+    if os.path.exists(items_path):
+        with open(items_path, 'r', encoding='utf-8') as f:
             items = json.load(f)
-        print(f"✅ Loaded {len(items)} products from CustomAlert5.json")
+        print(f"✅ Loaded {len(items)} products from Items.json")
         return items
     else:
-        print("⚠️  CustomAlert5.json not found")
+        print("⚠️  Items.json not found")
         return []
 
 def extract_descriptions(items):

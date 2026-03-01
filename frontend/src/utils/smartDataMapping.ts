@@ -18,9 +18,9 @@ export interface DataDuplication {
 // SMART DUPLICATE ANALYSIS - SAME DATA, DIFFERENT FIELD NAMES
 export const DATA_DUPLICATIONS: DataDuplication[] = [
   {
-    primarySource: "CustomAlert5.json",
+    primarySource: "Items.json",
     duplicateSources: [],
-    description: "PRIMARY ITEM DATA - NO DUPLICATES (Most complete with 32 fields)",
+    description: "Full Company Data: item master from MIITEM.CSV",
     fieldMapping: {}
   },
   
@@ -348,7 +348,7 @@ export const DATA_DUPLICATIONS: DataDuplication[] = [
 // SMART PRIMARY SOURCE SELECTION - AVOID DUPLICATES
 export const SMART_PRIMARY_SOURCES = {
   // ITEMS - NO DUPLICATES
-  ITEMS: "CustomAlert5.json",                           // 32 fields - UNIQUE, MOST COMPLETE
+  ITEMS: "Items.json",                                   // Full Company Data from MIITEM.CSV
   
   // JOB DATA - PREFER FULL FIELD NAMES
   JOBS: "Jobs.json",                                   // 12 fields - vs MIJOBH.json (abbreviated)

@@ -645,7 +645,7 @@ def load_items():
             return items
     fcd = _load_full_company_data_for_pr()
     if fcd:
-        items = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []  # Converter produces all from MIITEM
+        items = fcd.get('Items.json') or fcd.get('MIITEM.json') or []  # Converter produces all from MIITEM
         if items:
             return items
     return load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
@@ -765,7 +765,7 @@ def get_inventory_data(item_no):
         if not inventory_data:
             fcd = _load_full_company_data_for_pr()
             if fcd:
-                inventory_data = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []
+                inventory_data = fcd.get('Items.json') or fcd.get('MIITEM.json') or []
         if not inventory_data:
             inventory_data = load_json_from_gdrive('MIITEM.json') or load_json_from_gdrive('Items.json')
         
@@ -1289,7 +1289,7 @@ def get_current_bom_revision(item_no):
         if not item_sources:
             fcd = _load_full_company_data_for_pr()
             if fcd:
-                item_sources = fcd.get('MIITEM.json') or fcd.get('Items.json') or fcd.get('CustomAlert5.json') or []
+                item_sources = fcd.get('Items.json') or fcd.get('MIITEM.json') or []
         if not item_sources:
             item_sources = (
                 load_json_from_gdrive('MIITEM.json') or

@@ -4,14 +4,13 @@
 import { formatDisplayDate } from './dateUtils';
 
 // 🔥 SMART ITEM DATA STRATEGY:
-// PRIMARY: CustomAlert5.json = Item info, Stock totals, Pricing, Basic location (Pick Sequence)
+// PRIMARY: Items.json (Full Company Data from MIITEM.CSV) = Item info, Stock totals, Pricing, Basic location (Pick Sequence)
 // SECONDARY: MIILOC.json = Enhanced location-specific stock details (when available)
 // This replaces: Items.json, MIITEM.json (redundant now)
 
 export const fieldMappings: Record<string, Record<string, string>> = {
-  // 🎯 PRIMARY: CustomAlert5 (CustomAlert5.json) - EXACT PRODUCTION FIELD NAMES
-  // ⚠️ CRITICAL: These are the EXACT field names from CustomAlert5.json - DO NOT MODIFY
-  customAlert5: {
+  // 🎯 PRIMARY: Items.json (Full Company Data from MIITEM.CSV) - EXACT PRODUCTION FIELD NAMES
+  customAlert5: {  // Key kept for compatibility; data from Items.json
     "Average Cost": "Average Cost",
     "Cumulative Variance": "Cumulative Variance", 
     "Current BOM Revision": "Current BOM Revision",
@@ -436,7 +435,7 @@ export const fieldMappings: Record<string, Record<string, string>> = {
   },
 
   // 🔧 SECONDARY: MIILOC (Inventory Location) - Enhanced location-specific data
-  // Used WITH CustomAlert5 for detailed location breakdowns
+  // Used WITH Items for detailed location breakdowns
   miiloc: {
     "itemId": 'itemId',           // Item identifier
     "locId": 'locId',             // Location identifier  
