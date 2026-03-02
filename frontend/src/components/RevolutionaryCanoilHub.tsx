@@ -118,6 +118,7 @@ import {
   Shield,
   Clock,
   CheckCircle,
+  CheckCircle2,
   AlertTriangle,
   XCircle,
   Eye,
@@ -2466,44 +2467,71 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                   
                   {/* Enterprise KPI Bar - Clickable to filter */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-700/50">
-                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-violet-400/40 transition-colors text-left">
+                  {(() => {
+                    const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
+                    const totalCount = allMOs.length;
+                    const releasedCount = allMOs.filter((mo: any) => mo.Status === 1).length;
+                    const plannedCount = allMOs.filter((mo: any) => mo.Status === 0).length;
+                    const completedCount = allMOs.filter((mo: any) => mo.Status === 3 || mo.Status === 4).length;
+                    const now = new Date();
+                    const pastDueCount = allMOs.filter((mo: any) => {
+                      if (mo.Status !== 1 && mo.Status !== 2) return false;
+                      const compDate = mo['Completion Date'] || mo['Close Date'];
+                      if (!compDate) return false;
+                      try { return new Date(compDate) < now; } catch { return false; }
+                    }).length;
+                    return (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-6 border-t border-slate-700/50">
+                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }} className={`flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${moStatusFilter === 'all' && !moSearchQuery ? 'bg-violet-500/20 border-violet-400/40' : 'bg-white/10 border-white/10 hover:border-violet-400/40'}`}>
                       <div className="w-11 h-11 rounded-xl bg-violet-500/30 flex items-center justify-center">
                         <Factory className="w-5 h-5 text-violet-300" />
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.length || 0).toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-white">{totalCount.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Total Orders</div>
                       </div>
                     </button>
-                    <button type="button" onClick={() => { setMoStatusFilter('1'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-emerald-400/40 transition-colors text-left">
+                    <button type="button" onClick={() => { setMoStatusFilter('1'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className={`flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${moStatusFilter === '1' ? 'bg-emerald-500/20 border-emerald-400/40' : 'bg-white/10 border-white/10 hover:border-emerald-400/40'}`}>
                       <div className="w-11 h-11 rounded-xl bg-emerald-500/30 flex items-center justify-center">
                         <Activity className="w-5 h-5 text-emerald-300" />
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 1).length || 0).toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-white">{releasedCount.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">In Production</div>
                       </div>
                     </button>
-                    <button type="button" onClick={() => { setMoStatusFilter('0'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-amber-400/40 transition-colors text-left">
+                    <button type="button" onClick={() => { setMoStatusFilter('0'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className={`flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${moStatusFilter === '0' ? 'bg-amber-500/20 border-amber-400/40' : 'bg-white/10 border-white/10 hover:border-amber-400/40'}`}>
                       <div className="w-11 h-11 rounded-xl bg-amber-500/30 flex items-center justify-center">
                         <Calendar className="w-5 h-5 text-amber-300" />
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderHeaders.json']?.filter((mo: any) => mo.Status === 0).length || 0).toLocaleString()}</div>
+                        <div className="text-2xl font-bold text-white">{plannedCount.toLocaleString()}</div>
                         <div className="text-slate-300 text-xs font-semibold">Awaiting Release</div>
                       </div>
                     </button>
-                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery(''); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/40 transition-colors text-left">
+                    <button type="button" onClick={() => { setMoStatusFilter('3'); setMoCustomerFilter('all'); setMoCurrentPage(1); }} className={`flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${moStatusFilter === '3' || moStatusFilter === '4' ? 'bg-blue-500/20 border-blue-400/40' : 'bg-white/10 border-white/10 hover:border-blue-400/40'}`}>
                       <div className="w-11 h-11 rounded-xl bg-blue-500/30 flex items-center justify-center">
-                        <Package2 className="w-5 h-5 text-blue-300" />
+                        <CheckCircle2 className="w-5 h-5 text-blue-300" />
                       </div>
                       <div>
-                        <div className="text-2xl font-bold text-white">{(data?.['ManufacturingOrderDetails.json']?.length || 0).toLocaleString()}</div>
-                        <div className="text-slate-300 text-xs font-semibold">Total Components</div>
+                        <div className="text-2xl font-bold text-white">{completedCount.toLocaleString()}</div>
+                        <div className="text-slate-300 text-xs font-semibold">Completed</div>
                       </div>
                     </button>
+                    {pastDueCount > 0 && (
+                    <button type="button" onClick={() => { setMoStatusFilter('all'); setMoCustomerFilter('all'); setMoSearchQuery('overdue'); setMoCurrentPage(1); }} className="flex items-center gap-4 p-4 rounded-xl bg-red-500/15 border border-red-400/30 hover:border-red-400/50 transition-colors text-left">
+                      <div className="w-11 h-11 rounded-xl bg-red-500/30 flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-red-300" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-red-300">{pastDueCount}</div>
+                        <div className="text-red-300/80 text-xs font-semibold">Past Due</div>
+                      </div>
+                    </button>
+                    )}
                   </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2528,12 +2556,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             onChange={(e) => setMoStatusFilter(e.target.value)}
                             className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white font-medium text-slate-700 focus:ring-2 focus:ring-violet-500/20"
                           >
-                            <option value="all">All Status</option>
-                            <option value="0">Planned</option>
-                            <option value="1">Released</option>
-                            <option value="2">Started</option>
-                            <option value="3">Finished</option>
-                            <option value="4">Closed</option>
+                            {(() => {
+                              const allMOs = data?.['ManufacturingOrderHeaders.json'] || [];
+                              const counts = { all: allMOs.length, '0': 0, '1': 0, '2': 0, '3': 0, '4': 0 } as Record<string, number>;
+                              allMOs.forEach((mo: any) => { const s = String(mo.Status ?? ''); if (counts[s] !== undefined) counts[s]++; });
+                              return (
+                                <>
+                                  <option value="all">All Status ({counts.all})</option>
+                                  <option value="0">Planned ({counts['0']})</option>
+                                  <option value="1">Released ({counts['1']})</option>
+                                  <option value="2">Started ({counts['2']})</option>
+                                  <option value="3">Finished ({counts['3']})</option>
+                                  <option value="4">Closed ({counts['4']})</option>
+                                </>
+                              );
+                            })()}
                           </select>
                           <select
                             value={moCustomerFilter}
@@ -2607,17 +2644,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                       </div>
                   </div>
-                  <div className="overflow-x-auto max-h-[700px] px-6 pb-6 bg-slate-50/30 rounded-b-2xl">
-                      <div className="data-list data-list-mo">
-                      <div className="data-list-header sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-100 -mx-5 px-5">
-                            <span className="w-[72px] shrink-0">MO #</span>
-                            <span className="flex-1 min-w-0">Order</span>
-                            <span className="w-24 shrink-0">Status</span>
-                            <span className="w-20 shrink-0 text-right">Progress</span>
-                            <span className="w-28 shrink-0">Date</span>
-                            <span className="w-24 shrink-0 text-right">Total</span>
-                            <span className="w-28 shrink-0 text-right">Actions</span>
-                      </div>
+                  <div className="px-6 pb-6 bg-slate-50/30 rounded-b-2xl">
+                      <div className="space-y-2">
                           {(() => {
                             // Start with smart search results
                             let filteredMOs = searchManufacturingOrders.filter((mo: any) => 
@@ -2692,96 +2720,72 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const completed = mo['Completed'] || 0;
                             const ordered = mo['Ordered'] || 0;
 
+                            const progressPct = ordered > 0 ? Math.round((completed / ordered) * 100) : 0;
+                            const isOverdue = (() => {
+                              if (mo['Status'] !== 1 && mo['Status'] !== 2) return false;
+                              const cd = mo['Completion Date'] || mo['Close Date'];
+                              if (!cd) return false;
+                              try { return new Date(cd) < new Date(); } catch { return false; }
+                            })();
+                            const progressBarColor = isOverdue ? 'bg-red-500' : progressPct >= 100 ? 'bg-emerald-500' : progressPct > 50 ? 'bg-blue-500' : 'bg-amber-500';
+                            const isClosed = mo['Status'] === 3 || mo['Status'] === 4;
+
                             return (
                               <div 
                                 key={index} 
-                                className="data-list-card group"
+                                className={`group rounded-xl border bg-white hover:shadow-lg hover:border-violet-300 transition-all duration-200 cursor-pointer ${isClosed ? 'opacity-60 hover:opacity-100' : ''} ${isOverdue ? 'border-l-4 border-l-red-400 border-red-200' : 'border-slate-200'}`}
                                 onClick={() => {
                                   setSelectedMO(mo);
                                   setShowMODetails(true);
                                   setMoActiveTab('overview');
                                 }}
                               >
-                                <div className="mo-id shrink-0">{mo['Mfg. Order No.']}</div>
-                                <div className="mo-primary min-w-0">
-                                  <div className="font-semibold text-slate-900 truncate">{customerName}</div>
-                                  <div className="text-sm text-slate-500 truncate">
-                                    {mo['Build Item No.']}
+                                <div className="px-4 py-3">
+                                  {/* Line 1: MO#, Status, Customer, Date, Cost */}
+                                  <div className="flex items-center gap-3 mb-1.5">
+                                    <span className="font-mono text-sm font-bold text-violet-700 shrink-0">#{mo['Mfg. Order No.']}</span>
+                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 ${statusInfo.color}`}>
+                                      {statusInfo.text}
+                                    </span>
+                                    <span className="font-semibold text-slate-900 text-sm truncate">{customerName}</span>
+                                    <div className="ml-auto flex items-center gap-4 shrink-0">
+                                      <span className="text-xs text-slate-500 tabular-nums">{formatDisplayDate(orderDate)}</span>
+                                      {totalCost > 0 && (
+                                        <span className="font-mono text-sm font-bold text-emerald-600 tabular-nums">${totalCost.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {/* Line 2: Item, Description, SO, Batch, Location */}
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-mono font-semibold text-slate-700">{mo['Build Item No.']}</span>
                                     {(mo['Non-Stocked Build Item Description'] || mo['Description']) && (
-                                      <span className="text-slate-400"> · {(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().slice(0, 40)}{(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().length > 40 ? '…' : ''}</span>
+                                      <span className="text-slate-400 truncate max-w-[240px]">{(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().slice(0, 50)}</span>
                                     )}
+                                    <div className="flex items-center gap-2 ml-auto shrink-0">
+                                      {(mo['Sales Order No.'] || mo['SO No.']) && (
+                                        <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
+                                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold group-hover/so:bg-blue-100 transition-colors">SO {mo['Sales Order No.'] || mo['SO No.']}</span>
+                                        </span>
+                                      )}
+                                      {(mo['Batch No.'] || mo['Batch Number']) && (
+                                        <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-mono font-semibold">{mo['Batch No.'] || mo['Batch Number']}</span>
+                                      )}
+                                      {location && (
+                                        <span className="text-slate-500">{location}</span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-600">
-                                    {(mo['Batch No.'] || mo['Batch Number']) && (
-                                      <span className="font-mono font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">Batch: {mo['Batch No.'] || mo['Batch Number']}</span>
-                                    )}
-                                    {(mo['Sales Order No.'] || mo['SO No.']) && (
-                                      <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
-                                        SO: <span className="font-medium text-blue-600 group-hover/so:underline group-hover/so:text-blue-700">{mo['Sales Order No.'] || mo['SO No.']}</span>
-                                        <ExternalLink className="w-3 h-3 text-blue-400 opacity-0 group-hover/so:opacity-100 transition-opacity" />
-                                      </span>
-                                    )}
-                                    {(mo['Location No.'] || mo['Sales Location'] || mo['Work Center']) && (
-                                      <span>Loc: {mo['Location No.'] || mo['Sales Location'] || mo['Work Center']}</span>
-                                    )}
-                                    {mo['Job No.'] && (
-                                      <span>Job: {mo['Job No.']}</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="mo-meta">
-                                  <span className={`px-2.5 py-1 rounded-md text-xs font-semibold w-24 text-center ${statusInfo.color}`}>
-                                    {statusInfo.text}
-                                  </span>
-                                  <div className="w-20 text-right">
-                                    <span className="font-mono text-sm font-semibold text-slate-700 tabular-nums">{completed.toLocaleString()}</span>
-                                    <span className="text-slate-400">/</span>
-                                    <span className="font-mono text-sm font-medium text-slate-600 tabular-nums">{ordered.toLocaleString()}</span>
-                                  </div>
-                                  <div className="w-28 text-sm text-slate-600 tabular-nums">
-                                    {formatDisplayDate(orderDate)}
-                                  </div>
-                                  <div className="w-24 text-right font-mono text-sm font-semibold text-emerald-600 tabular-nums">
-                                    {totalCost > 0 ? `$${totalCost.toLocaleString(undefined, {maximumFractionDigits: 0})}` : '—'}
-                                  </div>
-                                  <div className="w-28 flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                                  {mo['Status'] === 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        try {
-                                          const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(mo['Mfg. Order No.'])}/release`), { method: 'POST' });
-                                          if (res.ok) onRefreshData?.();
-                                        } catch (_) {}
-                                      }}
-                                      className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium hover:bg-emerald-200"
-                                    >
-                                      Release
-                                    </button>
-                                  )}
-                                  {(mo['Status'] === 1 || mo['Status'] === 0) && (
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        const qty = prompt('Completed quantity?', String(mo['Ordered'] || ''));
-                                        if (qty == null) return;
-                                        const n = parseFloat(qty);
-                                        if (isNaN(n) || n <= 0) return;
-                                        const lot = prompt('Lot/Batch (optional)', mo['Batch No.'] || mo['Batch Number'] || '') || '';
-                                        try {
-                                          const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(mo['Mfg. Order No.'])}/complete`), {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ completed_qty: n, lot: lot || undefined }),
-                                          });
-                                          if (res.ok) onRefreshData?.();
-                                        } catch (_) {}
-                                      }}
-                                      className="ml-1 px-2 py-1 bg-violet-100 text-violet-700 rounded text-xs font-medium hover:bg-violet-200"
-                                    >
-                                      Complete
-                                    </button>
-                                  )}
+                                  {/* Line 3: Progress bar */}
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all duration-500 ${progressBarColor}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 text-xs tabular-nums">
+                                      <span className="font-bold text-slate-700">{completed.toLocaleString()}</span>
+                                      <span className="text-slate-400">/</span>
+                                      <span className="font-medium text-slate-500">{ordered.toLocaleString()}</span>
+                                      <span className={`font-bold ml-1 ${progressPct >= 100 ? 'text-emerald-600' : isOverdue ? 'text-red-600' : 'text-slate-600'}`}>{progressPct}%</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -2970,6 +2974,33 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     const moCurrentLabel = moNavSections.flatMap((s) => s.items).find((i) => i.id === moActiveTab)?.label ?? moActiveTab;
                     return (
                   <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
+                    {/* MO Summary - persistent context */}
+                    <div className="p-4 border-b border-slate-200 bg-gradient-to-b from-violet-50 to-white">
+                      <div className="font-mono text-xs font-bold text-violet-600 mb-1">MO #{moView.moNo}</div>
+                      <div className="text-sm font-semibold text-slate-900 truncate">{moView.customer || '—'}</div>
+                      <div className="text-xs text-slate-500 truncate mt-0.5">{moView.buildItemNo}{moView.buildItemDesc ? ` · ${moView.buildItemDesc}` : ''}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                          moView.status === 0 ? 'bg-amber-100 text-amber-800' :
+                          moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
+                          moView.status === 2 ? 'bg-blue-100 text-blue-800' :
+                          moView.status === 3 ? 'bg-violet-100 text-violet-800' :
+                          'bg-slate-200 text-slate-700'
+                        }`}>
+                          {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : '?'}
+                        </span>
+                        {moView.orderedQty > 0 && (
+                          <span className="text-[10px] font-bold text-slate-500">{Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100)}%</span>
+                        )}
+                      </div>
+                      {moView.orderedQty > 0 && (
+                        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-2">
+                          <div className={`h-full rounded-full ${
+                            (moView.completedQty || 0) >= moView.orderedQty ? 'bg-emerald-500' : 'bg-violet-500'
+                          }`} style={{ width: `${Math.min(Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100), 100)}%` }}></div>
+                        </div>
+                      )}
+                    </div>
                     {moNavSections.map((section) => (
                       <div key={section.title} className="py-2">
                         <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
@@ -3025,326 +3056,191 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                       <div className="bg-white rounded-xl border-2 border-violet-200 shadow-md overflow-hidden">
                         <div className="p-6">
-                  {/* MO Overview Tab - MISys-style */}
+                  {/* MO Overview Tab - 3-Card Layout */}
                   {moActiveTab === 'overview' && (
-                    <div className="space-y-6">
-                      {/* KPI strip - compact */}
-                      <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-slate-500">Status</span>
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-md ${
-                            moView.status === 0 ? 'bg-amber-100 text-amber-800' :
-                            moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
-                            moView.status === 2 ? 'bg-blue-100 text-blue-800' :
-                            moView.status === 3 ? 'bg-violet-100 text-violet-800' :
-                            moView.status === 4 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
-                          </span>
-                          {moView.onHold && <span className="px-2 py-1 text-xs font-semibold rounded-md bg-red-100 text-red-700">On Hold</span>}
-                        </div>
-                        <div className="flex items-center gap-6 text-sm tabular-nums">
-                          <span><span className="text-slate-500">Ordered</span> <span className="font-semibold text-slate-900">{moView.orderedQty?.toLocaleString() ?? '—'}</span></span>
-                          <span><span className="text-slate-500">Open Qty</span> <span className="font-semibold text-amber-600">{((moView.orderedQty || 0) - (moView.completedQty || 0) - (parseFloat(moView.rawHeader?.['Scrap'] ?? moView.rawHeader?.['Scrap Qty'] ?? 0) || 0)).toLocaleString()}</span></span>
-                          <span><span className="text-slate-500">WIP</span> <span className="font-semibold text-blue-600">{moView.wipQty?.toLocaleString() ?? '—'}</span></span>
-                          <span><span className="text-slate-500">Completed</span> <span className="font-semibold text-emerald-600">{moView.completedQty?.toLocaleString() ?? '—'}</span></span>
-                          <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-slate-900">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</span></span>
-                          {moView.orderedQty > 0 && (
-                            <span><span className="text-slate-500">Progress</span> <span className="font-semibold text-purple-600">{Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100)}%</span></span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* MIMOH Header - structured table */}
-                      <div className="overflow-hidden rounded-xl border border-slate-200">
-                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100">
-                          <h4 className="font-semibold text-slate-800 text-sm">MIMOH · Manufacturing Order Header</h4>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-white/95 border-b border-slate-200">
-                              <tr>
-                                <th className="text-left p-3 font-medium text-slate-600">Field</th>
-                                <th className="text-left p-3 font-medium text-slate-600">Value</th>
-                                <th className="text-left p-3 font-medium text-slate-600">Field</th>
-                                <th className="text-left p-3 font-medium text-slate-600">Value</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Mfg. Order No.</td>
-                                <td className="p-3 font-mono font-medium">{moView.moNo || '—'}</td>
-                                <td className="p-3 text-slate-600">Batch No.</td>
-                                <td className="p-3 font-mono font-semibold text-violet-700">{(moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']) || '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Build Item</td>
-                                <td className="p-3">{moView.buildItemNo ? <span className="font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span> : '—'}</td>
-                                <td className="p-3 text-slate-600">Location</td>
-                                <td className="p-3">{moView.locationNo ? <span className="underline cursor-pointer hover:bg-slate-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span> : '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Sales Order</td>
-                                <td className="p-3 font-mono">{moView.salesOrderNo ? (
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <span className="text-blue-600 underline cursor-pointer hover:text-blue-800 hover:bg-blue-50 rounded px-0.5 font-semibold" onClick={() => setMoActiveTab('pegged')}>{moView.salesOrderNo}</span>
-                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(moView.salesOrderNo!); setShowMODetails(false); }} className="p-0.5 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Go to Sales Orders"><ExternalLink className="w-3.5 h-3.5" /></button>
-                                  </span>
-                                ) : '—'}</td>
-                                <td className="p-3 text-slate-600">Job No.</td>
-                                <td className="p-3 font-mono">{moView.jobNo || '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Customer</td>
-                                <td className="p-3" colSpan={3}>{moView.customer || '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Release Qty</td>
-                                <td className="p-3 tabular-nums font-medium">{moView.releaseOrderQty?.toLocaleString() ?? moView.orderedQty?.toLocaleString() ?? '—'}</td>
-                                <td className="p-3 text-slate-600">Allocated</td>
-                                <td className="p-3 tabular-nums">{moView.rawHeader?.['Allocated']?.toLocaleString() ?? '—'}</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3 text-slate-600">Reserved</td>
-                                <td className="p-3 tabular-nums">{moView.rawHeader?.['Reserved']?.toLocaleString() ?? '—'}</td>
-                                <td className="p-3 text-slate-600">Priority</td>
-                                <td className="p-3">{moView.rawHeader?.['Priority'] || '—'}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Dates */}
-                      <div className="overflow-hidden rounded-xl border border-slate-200">
-                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-slate-600" />
-                          <h4 className="font-semibold text-slate-800 text-sm">Dates</h4>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4">
-                          {moView.dates.order && <div><span className="text-xs text-slate-500 block">Order</span><span className="text-sm font-medium tabular-nums">{moView.dates.order}</span></div>}
-                          {moView.dates.release && <div><span className="text-xs text-slate-500 block">Release</span><span className="text-sm font-medium tabular-nums">{moView.dates.release}</span></div>}
-                          {moView.dates.start && <div><span className="text-xs text-slate-500 block">Start</span><span className="text-sm font-medium tabular-nums">{moView.dates.start}</span></div>}
-                          {moView.dates.completion && <div><span className="text-xs text-slate-500 block">Completion</span><span className="text-sm font-medium tabular-nums">{moView.dates.completion}</span></div>}
-                          {moView.dates.close && <div><span className="text-xs text-slate-500 block">Close</span><span className="text-sm font-medium tabular-nums">{moView.dates.close}</span></div>}
-                          {moView.rawHeader?.['Sales Order Ship Date'] && <div><span className="text-xs text-slate-500 block">SO Ship</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Sales Order Ship Date']}</span></div>}
-                        </div>
-                      </div>
-
-                      {/* Costs - MIMOH cost fields */}
-                      <div className="overflow-hidden rounded-xl border border-slate-200">
-                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-slate-600" />
-                          <h4 className="font-semibold text-slate-800 text-sm">Costs (MIMOH)</h4>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-white/95 border-b border-slate-200">
-                              <tr>
-                                <th className="text-left p-3 font-medium text-slate-600">Material</th>
-                                <th className="text-right p-3 font-medium text-slate-600">Labor</th>
-                                <th className="text-right p-3 font-medium text-slate-600">Overhead</th>
-                                <th className="text-right p-3 font-medium text-slate-600">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr className="border-b border-slate-100">
-                                <td className="p-3">
-                                  <span className="text-slate-500 text-xs block">Projected</span>
-                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right">
-                                  <span className="text-slate-500 text-xs block">Projected</span>
-                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right">
-                                  <span className="text-slate-500 text-xs block">Projected</span>
-                                  <span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right font-semibold text-slate-900">—</td>
-                              </tr>
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="p-3">
-                                  <span className="text-slate-500 text-xs block">Actual</span>
-                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right">
-                                  <span className="text-slate-500 text-xs block">Actual</span>
-                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right">
-                                  <span className="text-slate-500 text-xs block">Actual</span>
-                                  <span className="font-mono text-emerald-600">${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}</span>
-                                </td>
-                                <td className="p-3 text-right font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Cost Tie-Out - Header vs Line totals */}
-                      {(() => {
-                        const sumPlannedMat = moView.components.reduce((s, c) => s + (c.plannedExt ?? c.totalCost ?? 0), 0);
-                        const sumActualMat = moView.components.reduce((s, c) => s + (c.actualExt ?? 0), 0);
-                        const headerPlanned = parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0);
-                        const headerActual = parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0);
-                        const deltaPlanned = Math.abs(headerPlanned - sumPlannedMat);
-                        const deltaActual = Math.abs(headerActual - sumActualMat);
-                        const hasMismatch = deltaPlanned > 0.01 || deltaActual > 0.01;
-                        return (
-                          <div className={`overflow-hidden rounded-xl border ${hasMismatch ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'}`}>
-                            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                              <Calculator className="w-4 h-4 text-slate-600" />
-                              <h4 className="font-semibold text-slate-800 text-sm">Cost Tie-Out</h4>
-                              {hasMismatch && (
-                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-md bg-amber-200 text-amber-800">Cost mismatch vs lines</span>
+                    <div className="space-y-5">
+                      {/* CARD 1: Header — At a glance */}
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="p-5">
+                          <div className="flex items-start justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-3">
+                              <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${
+                                moView.status === 0 ? 'bg-amber-100 text-amber-800' :
+                                moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
+                                moView.status === 2 ? 'bg-blue-100 text-blue-800' :
+                                moView.status === 3 ? 'bg-violet-100 text-violet-800' :
+                                moView.status === 4 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
+                              </span>
+                              {moView.onHold && <span className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-700">On Hold</span>}
+                              {(moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']) && (
+                                <span className="px-2 py-1 text-xs font-mono font-bold rounded bg-violet-50 text-violet-700">Batch: {moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']}</span>
                               )}
                             </div>
-                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                              <div className="space-y-2">
-                                <div className="font-medium text-slate-600">Planned Material</div>
-                                <div className="flex items-baseline gap-2">
-                                  <span className="text-slate-500">Header:</span>
-                                  <span className="font-mono">${headerPlanned.toFixed(2)}</span>
-                                  <span className="text-slate-400">vs</span>
-                                  <span className="text-slate-500">Lines:</span>
-                                  <span className="font-mono">${sumPlannedMat.toFixed(2)}</span>
-                                  {deltaPlanned > 0.01 && <span className="text-amber-600 font-medium">Δ ${deltaPlanned.toFixed(2)}</span>}
+                            {moView.rawHeader?.['Priority'] && (
+                              <span className="text-xs font-medium text-slate-500">Priority: {moView.rawHeader['Priority']}</span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                              <span className="text-xs text-slate-500 block mb-0.5">Build Item</span>
+                              {moView.buildItemNo ? <span className="font-mono text-sm font-semibold text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span> : <span className="text-sm text-slate-400">—</span>}
+                              {moView.buildItemDesc && <div className="text-xs text-slate-500 truncate mt-0.5">{moView.buildItemDesc}</div>}
+                            </div>
+                            <div>
+                              <span className="text-xs text-slate-500 block mb-0.5">Customer</span>
+                              <span className="text-sm font-semibold text-slate-900">{moView.customer || '—'}</span>
+                            </div>
+                            <div>
+                              <span className="text-xs text-slate-500 block mb-0.5">Location</span>
+                              {moView.locationNo ? <span className="text-sm font-medium underline cursor-pointer hover:bg-slate-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span> : <span className="text-sm text-slate-400">—</span>}
+                            </div>
+                            <div>
+                              <span className="text-xs text-slate-500 block mb-0.5">BOM Revision</span>
+                              <span className="text-sm font-medium">{moView.bomRev || '—'}</span>
+                            </div>
+                          </div>
+                          {/* Progress bar */}
+                          {(() => {
+                            const pct = moView.orderedQty > 0 ? Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100) : 0;
+                            const barColor = pct >= 100 ? 'bg-emerald-500' : pct > 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-300';
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between text-xs mb-1.5">
+                                  <span className="font-medium text-slate-600">Progress</span>
+                                  <span className="font-bold text-slate-700">{(moView.completedQty || 0).toLocaleString()} / {(moView.orderedQty || 0).toLocaleString()} <span className={pct >= 100 ? 'text-emerald-600' : 'text-slate-500'}>({pct}%)</span></span>
+                                </div>
+                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
                                 </div>
                               </div>
-                              <div className="space-y-2">
-                                <div className="font-medium text-slate-600">Actual Material</div>
-                                <div className="flex items-baseline gap-2">
-                                  <span className="text-slate-500">Header:</span>
-                                  <span className="font-mono text-emerald-600">${headerActual.toFixed(2)}</span>
-                                  <span className="text-slate-400">vs</span>
-                                  <span className="text-slate-500">Lines:</span>
-                                  <span className="font-mono text-emerald-600">${sumActualMat.toFixed(2)}</span>
-                                  {deltaActual > 0.01 && <span className="text-amber-600 font-medium">Δ ${deltaActual.toFixed(2)}</span>}
-                                </div>
+                            );
+                          })()}
+                          {/* Key dates */}
+                          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-slate-100">
+                            {moView.dates.order && <div><span className="text-xs text-slate-500">Order</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.order}</span></div>}
+                            {moView.dates.release && <div><span className="text-xs text-slate-500">Release</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.release}</span></div>}
+                            {moView.dates.start && <div><span className="text-xs text-slate-500">Start</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.start}</span></div>}
+                            {moView.dates.completion && <div><span className="text-xs text-slate-500">Completion</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.completion}</span></div>}
+                            {moView.dates.close && <div><span className="text-xs text-slate-500">Close</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.close}</span></div>}
+                            {moView.rawHeader?.['Sales Order Ship Date'] && <div><span className="text-xs text-slate-500">SO Ship</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.rawHeader['Sales Order Ship Date']}</span></div>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CARD 2: Quantities & Costs */}
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">Quantities & Costs</h4>
+                        </div>
+                        <div className="p-5">
+                          {/* Quantity grid */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                            <div className="text-center p-3 rounded-lg bg-slate-50">
+                              <div className="text-2xl font-bold text-slate-900 tabular-nums">{(moView.orderedQty || 0).toLocaleString()}</div>
+                              <div className="text-xs font-medium text-slate-500 mt-1">Ordered</div>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-blue-50">
+                              <div className="text-2xl font-bold text-blue-700 tabular-nums">{(moView.wipQty || 0).toLocaleString()}</div>
+                              <div className="text-xs font-medium text-blue-600 mt-1">WIP</div>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-emerald-50">
+                              <div className="text-2xl font-bold text-emerald-700 tabular-nums">{(moView.completedQty || 0).toLocaleString()}</div>
+                              <div className="text-xs font-medium text-emerald-600 mt-1">Completed</div>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-amber-50">
+                              <div className="text-2xl font-bold text-amber-700 tabular-nums">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</div>
+                              <div className="text-xs font-medium text-amber-600 mt-1">Remaining</div>
+                            </div>
+                          </div>
+                          {/* Costs: Projected vs Actual side by side */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="rounded-lg border border-slate-200 p-4">
+                              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Projected</div>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-600">Material</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Labor</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Overhead</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}</span></div>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+                              <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">Actual</div>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-600">Material</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Labor</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Overhead</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between pt-2 border-t border-emerald-200"><span className="font-semibold text-slate-700">Total</span><span className="font-mono font-bold text-emerald-800">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</span></div>
                               </div>
                             </div>
                           </div>
-                        );
-                      })()}
-
-                      {/* Audit + Revision block */}
-                      <div className="overflow-hidden rounded-xl border border-slate-200">
-                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                          <User className="w-4 h-4 text-slate-600" />
-                          <h4 className="font-semibold text-slate-800 text-sm">Audit & Revision</h4>
-                        </div>
-                        <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div><span className="text-slate-500 text-xs block">Created By</span><span className="font-medium">{moView.rawHeader?.['Created By'] || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Created Date</span><span className="font-medium tabular-nums">{moView.rawHeader?.['Created Date'] || moView.rawHeader?.['Order Date'] || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Released By</span><span className="font-medium">{moView.rawHeader?.['Released By'] || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Released Date</span><span className="font-medium tabular-nums">{moView.dates.release || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Closed By</span><span className="font-medium">{moView.rawHeader?.['Closed By'] || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Closed Date</span><span className="font-medium tabular-nums">{moView.dates.close || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">BOM Revision</span><span className="font-medium">{moView.bomRev || 'Not in snapshot'}</span></div>
-                          <div><span className="text-slate-500 text-xs block">Effective Date</span><span className="font-medium tabular-nums">{moView.rawHeader?.['BOM Effective Date'] ?? moView.rawHeader?.['Effective Date'] ?? 'Not in snapshot'}</span></div>
+                          {/* Audit info inline */}
+                          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                            {moView.rawHeader?.['Created By'] && <span>Created by <strong className="text-slate-700">{moView.rawHeader['Created By']}</strong> {moView.rawHeader?.['Created Date'] || moView.rawHeader?.['Order Date'] ? `on ${moView.rawHeader['Created Date'] || moView.rawHeader['Order Date']}` : ''}</span>}
+                            {moView.rawHeader?.['Released By'] && <span>Released by <strong className="text-slate-700">{moView.rawHeader['Released By']}</strong> {moView.dates.release ? `on ${moView.dates.release}` : ''}</span>}
+                            {moView.rawHeader?.['Closed By'] && <span>Closed by <strong className="text-slate-700">{moView.rawHeader['Closed By']}</strong> {moView.dates.close ? `on ${moView.dates.close}` : ''}</span>}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Related - SO, Job, Work Orders */}
+                      {/* CARD 3: Related Orders */}
                       {(() => {
                         const salesOrderNo = moView.salesOrderNo;
                         const jobNo = moView.jobNo;
                         const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo) : null;
                         const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => job['Job No.'] === jobNo) : null;
                         const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => wo['Job No.'] === jobNo) : [];
-                        if (!relatedSO && !salesOrderNo && !relatedJob && relatedWorkOrders.length === 0) return null;
+                        const linkedPOs = (data?.['MIPOD.json'] || data?.['PurchaseOrderDetails.json'] || []).filter((pd: any) => (pd['Manufacturing Order No.'] || pd['mohId'] || '').toString().trim() === (moView.moNo || '').toString().trim());
+                        const linkedPONumbers = Array.from(new Set<string>(linkedPOs.map((pd: any) => (pd['PO No.'] || pd['pohId'] || '').toString().trim()).filter(Boolean)));
+                        if (!relatedSO && !salesOrderNo && !relatedJob && relatedWorkOrders.length === 0 && linkedPONumbers.length === 0) return null;
                         return (
-                          <div className="rounded-xl border border-slate-100 overflow-hidden">
-                            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                              <Link2 className="w-4 h-4 text-slate-600" />
-                              <h4 className="font-semibold text-slate-800 text-sm">Related</h4>
-                            </div>
-                            <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                              {relatedSO && (
-                                <div className="rounded-lg border border-blue-200 p-3 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <div className="text-xs font-medium text-blue-500">Sales Order</div>
-                                    <div className="flex items-center gap-1">
-                                      <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(relatedSO['Sales Order No.'] || relatedSO['Order No.'] || ''); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Open in Sales Orders"><ExternalLink className="w-3 h-3" /></button>
-                                    </div>
-                                  </div>
-                                  <div className="font-mono font-semibold text-blue-700 group-hover/socard:text-blue-800">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
-                                  <div className="text-xs text-slate-600 mt-0.5">{relatedSO['Customer'] || relatedSO['Customer Name'] || '—'}</div>
-                                  <div className="text-xs text-blue-500 mt-1 opacity-0 group-hover/socard:opacity-100 transition-opacity">Click for full details</div>
-                                </div>
-                              )}
-                              {!relatedSO && salesOrderNo && (
-                                <div className="rounded-lg border border-blue-200 p-3 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <div className="text-xs font-medium text-blue-500">Sales Order</div>
-                                    <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(salesOrderNo); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Search in Sales Orders"><ExternalLink className="w-3 h-3" /></button>
-                                  </div>
-                                  <div className="font-mono font-semibold text-blue-700 group-hover/socard:text-blue-800">SO #{salesOrderNo}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">Click to view details</div>
-                                </div>
-                              )}
-                              {relatedJob && (
-                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
-                                  <div className="text-xs font-medium text-slate-500 mb-1">Job</div>
-                                  <div className="font-mono font-semibold text-slate-800">Job #{relatedJob['Job No.']}</div>
-                                  <div className="text-xs text-slate-600 mt-0.5">{relatedJob['Status'] || '—'}</div>
-                                </div>
-                              )}
-                              {relatedWorkOrders.length > 0 && (
-                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
-                                  <div className="text-xs font-medium text-slate-500 mb-1">Work Orders</div>
-                                  <div className="font-mono font-semibold text-slate-800">{relatedWorkOrders.length} WO(s)</div>
-                                  <div className="text-xs text-slate-600 mt-0.5">{relatedWorkOrders.map((wo: any) => wo['Work Order No.']).join(', ')}</div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* R/E Fields - compact */}
-                      <div className="rounded-xl border border-slate-100 overflow-hidden">
-                        <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-slate-600" />
-                          <h4 className="font-semibold text-slate-800 text-sm">MIMOH Fields (Read-Only)</h4>
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                          <Link2 className="w-4 h-4 text-slate-600" />
+                          <h4 className="font-semibold text-slate-800 text-sm">Related Orders</h4>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
-                          {[
-                            { l: 'MO No.', v: moView.moNo },
-                            { l: 'Build Item', v: moView.buildItemNo },
-                            { l: 'Location', v: moView.locationNo },
-                            { l: 'WIP Qty', v: moView.wipQty?.toLocaleString() },
-                            { l: 'Issued Qty', v: moView.releasedQty?.toLocaleString() },
-                            { l: 'Completed Qty', v: moView.completedQty?.toLocaleString() },
-                            { l: 'Planned Qty', v: moView.orderedQty?.toLocaleString() },
-                            { l: 'Release Date', v: moView.dates.release },
-                            { l: 'Completion Date', v: moView.dates.completion },
-                            { l: 'Priority', v: moView.rawHeader?.['Priority'] },
-                            { l: 'Job No.', v: moView.jobNo },
-                          ].map(({ l, v }) => v ? (
-                            <div key={l} className="flex flex-col">
-                              <span className="text-xs text-slate-500">{l}</span>
-                              <span className="text-sm font-medium tabular-nums">{v}</span>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {(relatedSO || salesOrderNo) && (
+                            <div className="rounded-lg border border-blue-200 p-4 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Sales Order</span>
+                                <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(salesOrderNo!); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Open in Sales Orders"><ExternalLink className="w-3.5 h-3.5" /></button>
+                              </div>
+                              <div className="font-mono text-lg font-bold text-blue-700 group-hover/socard:text-blue-800">SO #{salesOrderNo}</div>
+                              {relatedSO && <div className="text-xs text-slate-600 mt-1">{relatedSO['Customer'] || relatedSO['Customer Name'] || ''}</div>}
                             </div>
-                          ) : null)}
+                          )}
+                          {linkedPONumbers.length > 0 && (
+                            <div className="rounded-lg border border-orange-200 p-4 bg-gradient-to-br from-orange-50 to-white">
+                              <div className="text-xs font-semibold text-orange-500 uppercase tracking-wider mb-2">Purchase Orders</div>
+                              <div className="flex flex-wrap gap-2">
+                                {linkedPONumbers.map((poNo: string) => (
+                                  <button key={poNo} onClick={() => { openPOById(poNo); }} className="px-2.5 py-1.5 rounded-lg bg-orange-100 text-orange-800 font-mono text-sm font-semibold hover:bg-orange-200 transition-colors">
+                                    PO #{poNo}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {relatedJob && (
+                            <div className="rounded-lg border border-slate-200 p-4 bg-white">
+                              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Job</div>
+                              <div className="font-mono text-lg font-bold text-slate-800">#{relatedJob['Job No.']}</div>
+                              <div className="text-xs text-slate-600 mt-1">{relatedJob['Status'] || '—'}</div>
+                            </div>
+                          )}
+                          {relatedWorkOrders.length > 0 && (
+                            <div className="rounded-lg border border-slate-200 p-4 bg-white">
+                              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Work Orders</div>
+                              <div className="font-mono font-bold text-slate-800">{relatedWorkOrders.length} WO(s)</div>
+                              <div className="text-xs text-slate-600 mt-1">{relatedWorkOrders.map((wo: any) => wo['Work Order No.']).join(', ')}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
-
-                      {/* Extra MIMOH fields */}
-                      {(moView.rawHeader?.['Sales Item No.'] || moView.rawHeader?.['Operation Count'] || moView.rawHeader?.['Work Order Reference Count']) && (
-                        <div className="rounded-xl border border-slate-100 overflow-hidden">
-                          <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100">
-                            <h4 className="font-semibold text-slate-800 text-sm">Additional Fields</h4>
-                          </div>
-                          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {moView.rawHeader?.['Sales Item No.'] && <div><span className="text-xs text-slate-500 block">Sales Item</span><span className="text-sm font-medium">{moView.rawHeader['Sales Item No.']}</span></div>}
-                            {moView.rawHeader?.['Operation Count'] && <div><span className="text-xs text-slate-500 block">Operations</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Operation Count']}</span></div>}
-                            {moView.rawHeader?.['Work Order Reference Count'] && <div><span className="text-xs text-slate-500 block">WO Ref Count</span><span className="text-sm font-medium tabular-nums">{moView.rawHeader['Work Order Reference Count']}</span></div>}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -3399,6 +3295,28 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                       ) : (
                         <>
+                          {/* Shortage Summary Banner */}
+                          {(() => {
+                            const shortageComponents = moView.components.filter((c) => c.shortage > 0);
+                            if (shortageComponents.length === 0) return null;
+                            return (
+                              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                                  <span className="font-semibold text-red-800">{shortageComponents.length} Component{shortageComponents.length > 1 ? 's' : ''} with Shortages</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {shortageComponents.slice(0, 10).map((c, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-100 text-red-800 text-xs font-medium">
+                                      <span className="font-mono font-bold">{c.itemNo}</span>
+                                      <span className="text-red-600">short {c.shortage.toLocaleString()}</span>
+                                    </span>
+                                  ))}
+                                  {shortageComponents.length > 10 && <span className="text-xs text-red-600 self-center">+{shortageComponents.length - 10} more</span>}
+                                </div>
+                              </div>
+                            );
+                          })()}
                           {/* Exact / Grouped toggle */}
                           <div className="flex items-center gap-2 mb-4">
                             <span className="text-sm font-medium text-slate-600">View:</span>
@@ -3453,13 +3371,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     const hasShortage = c.shortage > 0;
                                     const stockStatus = c.availableStock >= remainingQty ? 'sufficient' :
                                                       c.availableStock > 0 ? 'low' : 'out';
+                                    const compPOLines = (data?.['MIPOD.json'] || data?.['PurchaseOrderDetails.json'] || []).filter((pd: any) => {
+                                      const pdMO = (pd['Manufacturing Order No.'] || pd['mohId'] || '').toString().trim();
+                                      const pdItem = (pd['Item No.'] || pd['Planned Item No.'] || '').toString().trim();
+                                      return pdMO === (moView.moNo || '').toString().trim() && pdItem === (c.itemNo || '').toString().trim();
+                                    });
+                                    const compPONos = Array.from(new Set<string>(compPOLines.map((pd: any) => (pd['PO No.'] || pd['pohId'] || '').toString().trim()).filter(Boolean)));
 
                                     return (
                                       <tr key={index} className={`border-b border-slate-100 tabular-nums ${
                                         hasShortage ? 'bg-red-50/50' : 'bg-white'
                                       } hover:bg-slate-50`}>
                                         <td className="px-4 py-3 font-mono text-blue-600 font-medium whitespace-nowrap">
-                                          {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
+                                          <div className="flex items-center gap-1.5">
+                                            {c.itemNo ? <span className="underline cursor-pointer hover:bg-blue-100 rounded px-1" onClick={(e) => { e.stopPropagation(); openItemById(c.itemNo); }}>{c.itemNo}</span> : '—'}
+                                            {compPONos.map((poNo: string) => (
+                                              <button key={poNo} onClick={(e) => { e.stopPropagation(); openPOById(poNo); }} className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-bold hover:bg-orange-200 transition-colors" title={`PO #${poNo}`}>PO</button>
+                                            ))}
+                                          </div>
                                         </td>
                                         <td className="px-4 py-3 text-slate-700 break-words">
                                           {c.desc || '—'}
@@ -3492,15 +3421,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
-                                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                            stockStatus === 'sufficient' ? 'bg-green-100 text-green-700' :
-                                              stockStatus === 'low' ? 'bg-yellow-100 text-yellow-700' :
-                                              'bg-red-100 text-red-700'
-                                          }`}>
-                                            {stockStatus === 'sufficient' ? '✓ In Stock' :
-                                             stockStatus === 'low' ? '⚠ Low Stock' :
-                                             '✗ Out of Stock'}
-                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                              stockStatus === 'sufficient' ? 'bg-emerald-500' :
+                                              stockStatus === 'low' ? 'bg-amber-500' : 'bg-red-500'
+                                            }`}></span>
+                                            <span className={`text-xs font-semibold ${
+                                              stockStatus === 'sufficient' ? 'text-emerald-700' :
+                                              stockStatus === 'low' ? 'text-amber-700' : 'text-red-700'
+                                            }`}>
+                                              {stockStatus === 'sufficient' ? 'In Stock' :
+                                               stockStatus === 'low' ? 'Low' : 'Out'}
+                                            </span>
+                                            {hasShortage && <span className="text-[10px] font-bold text-red-600">({c.shortage.toLocaleString()})</span>}
+                                          </div>
                                         </td>
                                       </tr>
                                     );
@@ -3927,7 +3861,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <button
                                           onClick={() => {
                                             // Navigate to Sales Orders section and search for this SO
-                                            setActiveSection('sales');
+                                            setActiveSection('orders');
                                             setSoSearchQuery(soNumber);
                                           }}
                                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
@@ -3981,7 +3915,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       <div className="flex items-center gap-3 pt-3 border-t border-slate-200">
                                         <button
                                           onClick={() => {
-                                            setActiveSection('sales');
+                                            setActiveSection('orders');
                                             setSoSearchQuery(soNumber);
                                           }}
                                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
@@ -3992,7 +3926,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <button
                                           onClick={() => {
                                             // Navigate to Sales Orders and try to find the PDF
-                                            setActiveSection('sales');
+                                            setActiveSection('orders');
                                             navigateToSOFolder('In Production');
                                           }}
                                           className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all text-sm font-medium"
@@ -4044,7 +3978,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   </div>
                                   <button
                                     onClick={() => {
-                                      setActiveSection('sales');
+                                      setActiveSection('orders');
                                     }}
                                     className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-medium border border-slate-200"
                                   >
@@ -4059,7 +3993,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         onClick={() => {
                                           setSoSearchQuery('');
                                           setSoSearchResults([]);
-                                          setActiveSection('sales');
+                                          setActiveSection('orders');
                                           navigateToSOFolder(so.status);
                                         }}
                                         className="flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-b-0 text-sm"
@@ -4169,7 +4103,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <table className="w-full text-sm">
                                   <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Lot No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Total Qty</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Last Move</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Expiry</th></tr></thead>
                                   <tbody className="divide-y divide-slate-100">{moItemLotSummaryView.lots.map((l, i) => (
-                                    <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { setSelectedLotId(l.lotNo); setShowLotDetail(true); setShowMODetails(false); }}>
+                                    <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { setSelectedLotId(l.lotNo); setShowLotDetail(true); }}>
                                       <td className="px-4 py-2 font-mono text-blue-600 underline decoration-blue-600/50">{l.lotNo}</td>
                                       <td className="px-4 py-2 text-right tabular-nums">{l.totalQty.toLocaleString()}</td>
                                       <td className="px-4 py-2 text-slate-800">{formatDisplayDate(l.lastMoveDate) || '—'}</td>
@@ -4187,7 +4121,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <table className="w-full text-sm">
                                   <thead className="bg-slate-100"><tr><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Lot No.</th><th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Serial No.</th><th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Qty</th></tr></thead>
                                   <tbody className="divide-y divide-slate-100">{moItemLotSummaryView.serialRows.slice(0, 50).map((r, i) => (
-                                    <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { if (r.lotNo) { setSelectedLotId(r.lotNo); setShowLotDetail(true); setShowMODetails(false); } }}>
+                                    <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { if (r.lotNo) { setSelectedLotId(r.lotNo); setShowLotDetail(true); } }}>
                                       <td className="px-4 py-2 font-mono text-blue-600 underline decoration-blue-600/50">{r.lotNo || '—'}</td>
                                       <td className="px-4 py-2 font-mono text-slate-800">{r.serialNo || '—'}</td>
                                       <td className="px-4 py-2 text-right tabular-nums">{r.qty.toLocaleString()}</td>
