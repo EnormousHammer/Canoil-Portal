@@ -11,6 +11,7 @@ Output:   Proforma Invoice_CompanyName_PO.xlsx
 """
 import os
 import shutil
+import copy
 from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
@@ -151,26 +152,54 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
     ws['B31'] = f'Trade Terms: {trade_terms}'
 
     # --- Items (rows 19-24, max 6 items before Sub Total row 25) ---
-    # Template has I27 =SUM(I19:I26) which covers all item rows + subtotal area
+    # Grab the first item row's cell formatting as a reference for consistent style
+    ref_font_b = copy.copy(ws[f'B{ITEM_START_ROW}'].font)
+    ref_font_c = copy.copy(ws[f'C{ITEM_START_ROW}'].font)
+    ref_font_g = copy.copy(ws[f'G{ITEM_START_ROW}'].font)
+    ref_font_h = copy.copy(ws[f'H{ITEM_START_ROW}'].font)
+    ref_font_i = copy.copy(ws[f'I{ITEM_START_ROW}'].font)
+    ref_align_h = copy.copy(ws[f'H{ITEM_START_ROW}'].alignment)
+    ref_align_i = copy.copy(ws[f'I{ITEM_START_ROW}'].alignment)
+    ref_numfmt_h = ws[f'H{ITEM_START_ROW}'].number_format
+    ref_numfmt_i = ws[f'I{ITEM_START_ROW}'].number_format
+
     items = so_data.get('items', [])
     for idx, item in enumerate(items[:MAX_ITEMS]):
         row = ITEM_START_ROW + idx
 
-        # Merge description cells C:F for this row (template only has C19:F19 merged)
         _merge_if_not_merged(ws, f'C{row}:F{row}')
 
-        ws[f'B{row}'] = _safe_str(item.get('product_code') or item.get('item_code'))
-        ws[f'C{row}'] = _safe_str(item.get('description'))
+        cell_b = ws[f'B{row}']
+        cell_b.value = _safe_str(item.get('product_code') or item.get('item_code'))
+        cell_b.font = copy.copy(ref_font_b)
+
+        cell_c = ws[f'C{row}']
+        cell_c.value = _safe_str(item.get('description'))
+        cell_c.font = copy.copy(ref_font_c)
+
         qty = _safe_int(item.get('quantity'))
         price = _safe_float(item.get('unit_price'))
-        ws[f'G{row}'] = qty
-        ws[f'H{row}'] = price
-        ws[f'I{row}'] = f'=H{row}*G{row}'
 
-    # Write subtotal formula at I25 (the Sub Total row)
+        cell_g = ws[f'G{row}']
+        cell_g.value = qty
+        cell_g.font = copy.copy(ref_font_g)
+
+        cell_h = ws[f'H{row}']
+        cell_h.value = price
+        cell_h.font = copy.copy(ref_font_h)
+        cell_h.alignment = copy.copy(ref_align_h)
+        cell_h.number_format = ref_numfmt_h or '$#,##0.00'
+
+        cell_i = ws[f'I{row}']
+        cell_i.value = f'=H{row}*G{row}'
+        cell_i.font = copy.copy(ref_font_i)
+        cell_i.alignment = copy.copy(ref_align_i)
+        cell_i.number_format = ref_numfmt_i or '$#,##0.00'
+
+    # Subtotal at I25: sum of item rows only
     ws['I25'] = f'=SUM(I{ITEM_START_ROW}:I{ITEM_END_ROW})'
-
-    # I27 =SUM(I19:I26) is already in the template (grand total)
+    # Grand total at I27: must equal subtotal (NOT re-sum the range that includes I25)
+    ws['I27'] = '=I25'
 
     wb.save(output_path)
     wb.close()
