@@ -2756,24 +2756,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </div>
                                   </div>
                                   {/* Line 2: Item + full description (contains SO/PO refs) */}
-                                  <div className="flex items-center gap-2 text-xs">
+                                  <div className="flex items-start gap-2 text-xs flex-wrap">
                                     <span className="font-mono font-semibold text-slate-700 shrink-0">{mo['Build Item No.']}</span>
                                     {mo['Description'] && (
-                                      <span className="text-slate-600 truncate" title={mo['Description']}>{mo['Description']}</span>
+                                      <span className="text-slate-600">{mo['Description']}</span>
                                     )}
                                     {!mo['Description'] && (mo['Non-Stocked Build Item Description']) && (
-                                      <span className="text-slate-400 truncate">{mo['Non-Stocked Build Item Description']}</span>
+                                      <span className="text-slate-400">{mo['Non-Stocked Build Item Description']}</span>
                                     )}
                                   </div>
-                                  {/* Line 3: Badges - SO (from description if needed), Batch, Location */}
+                                  {/* Line 3: Badges - SO (from description first, then direct field), Batch, Location */}
                                   <div className="flex items-center gap-2 mt-1 text-xs">
                                     {(() => {
-                                      const directSO = mo['Sales Order No.'] || mo['SO No.'];
                                       const desc = (mo['Description'] || '').toString();
-                                      let soNum = directSO && /^\d{3,6}$/.test(String(directSO).trim()) ? String(directSO).trim() : null;
-                                      if (!soNum && desc) {
-                                        const soPatterns = [/\bSO\s*#?\s*(\d{3,5})\b/i, /\bS\.?O\.?\s*#?\s*(\d{3,5})\b/i, /Sales\s*Order\s*#?\s*(\d{3,5})/i, /SO:\s*(\d{3,5})/i];
+                                      let soNum: string | null = null;
+                                      if (desc) {
+                                        const soPatterns = [/\bSO\s*#?\s*(\d{3,6})\b/i, /\bS\.?O\.?\s*#?\s*(\d{3,6})\b/i, /Sales\s*Order\s*#?\s*(\d{3,6})/i, /SO:\s*(\d{3,6})/i];
                                         for (const p of soPatterns) { const m = desc.match(p); if (m) { soNum = m[1]; break; } }
+                                      }
+                                      if (!soNum) {
+                                        const directSO = mo['Sales Order No.'] || mo['SO No.'];
+                                        if (directSO && /^\d{3,6}$/.test(String(directSO).trim())) {
+                                          soNum = String(directSO).trim();
+                                        }
                                       }
                                       return soNum ? (
                                         <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>

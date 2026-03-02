@@ -8,9 +8,9 @@ const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?forma
 
 // Backend API - same as main app; use same-origin on Vercel (proxy to Render)
 const IS_PRODUCTION = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
-const MPS_BACKEND_URL = import.meta.env.VITE_MPS_BACKEND_URL || (IS_PRODUCTION 
+const MPS_BACKEND_URL = import.meta.env.VITE_MPS_BACKEND_URL || import.meta.env.VITE_API_URL || (IS_PRODUCTION 
   ? window.location.origin   // Vercel proxies /api/* to Render - no CORS
-  : 'http://localhost:5003');
+  : 'http://localhost:5002');
 const CANOIL_API = `${MPS_BACKEND_URL}/api/data`;
 
 // Pre-warm the backend on page load to reduce cold start latency

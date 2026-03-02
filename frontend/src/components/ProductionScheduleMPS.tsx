@@ -73,11 +73,11 @@ function parseDate(dateStr: string): Date | null {
 
 function getStatusBadge(status: string) {
   const s = status.toLowerCase();
-  if (s.includes('shortage')) return { classes: 'bg-red-500/20 text-red-400 border border-red-500/40', icon: true };
-  if (s.includes('released') || s.includes('production') || s.includes('progress')) return { classes: 'bg-blue-500/20 text-blue-400 border border-blue-500/40', icon: false };
-  if (s.includes('complete') || s.includes('done') || s.includes('shipped')) return { classes: 'bg-green-500/20 text-green-400 border border-green-500/40', icon: false };
-  if (s.includes('hold') || s.includes('wait')) return { classes: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40', icon: false };
-  return { classes: 'bg-slate-500/20 text-slate-400 border border-slate-500/40', icon: false };
+  if (s.includes('shortage')) return { classes: 'bg-red-50 text-red-700 border border-red-200', icon: true };
+  if (s.includes('released') || s.includes('production') || s.includes('progress')) return { classes: 'bg-blue-50 text-blue-700 border border-blue-200', icon: false };
+  if (s.includes('complete') || s.includes('done') || s.includes('shipped')) return { classes: 'bg-green-50 text-green-700 border border-green-200', icon: false };
+  if (s.includes('hold') || s.includes('wait')) return { classes: 'bg-yellow-50 text-yellow-700 border border-yellow-200', icon: false };
+  return { classes: 'bg-gray-50 text-gray-600 border border-gray-200', icon: false };
 }
 
 function getProgressColor(pct: number) {
@@ -89,9 +89,9 @@ function getProgressColor(pct: number) {
 }
 
 function getDtcStyle(dtc: number) {
-  if (dtc <= 1) return 'text-red-400 font-bold';
-  if (dtc <= 3) return 'text-amber-400 font-semibold';
-  return 'text-green-400';
+  if (dtc <= 1) return 'text-red-600 font-bold';
+  if (dtc <= 3) return 'text-amber-600 font-semibold';
+  return 'text-green-600';
 }
 
 const LANE_HEIGHT = 52;
@@ -195,7 +195,7 @@ export function ProductionScheduleMPS() {
     if (filterShortageOnly) list = list.filter(o => o.status.toLowerCase().includes('shortage'));
     if (filterAtRiskOnly) list = list.filter(o => isOrderAtRisk(o));
     if (filterCustomer) list = list.filter(o => {
-      const cust = o.so_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0] : '') || o.customer_code || '';
+      const cust = o.so_data?.customer || o.mo_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0] : '') || o.customer_code || '';
       return cust.toLowerCase().includes(filterCustomer.toLowerCase());
     });
     if (filterWorkCenter) list = list.filter(o => o.work_center === filterWorkCenter);
@@ -217,7 +217,7 @@ export function ProductionScheduleMPS() {
     const wcs = new Set(orders.map(o => o.work_center).filter(Boolean));
     const customers = new Map<string, number>();
     orders.forEach(o => {
-      const name = o.so_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '') || o.customer_code || 'Other';
+      const name = o.so_data?.customer || o.mo_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '') || o.customer_code || 'Other';
       if (name) customers.set(name, (customers.get(name) || 0) + 1);
     });
     return {
@@ -229,7 +229,7 @@ export function ProductionScheduleMPS() {
   const customerLegend = useMemo(() => {
     const customers = new Map<string, { bg: string; count: number }>();
     filteredOrders.forEach(order => {
-      let customerName = order.so_data?.customer || '';
+      let customerName = order.so_data?.customer || order.mo_data?.customer || '';
       if (!customerName && order.product.includes(' - ')) customerName = order.product.split(' - ')[0].trim();
       if (!customerName) customerName = order.customer_code || 'Other';
       if (customerName.length > 20) customerName = customerName.substring(0, 20) + '...';
@@ -243,6 +243,7 @@ export function ProductionScheduleMPS() {
 
   const getCustomerName = useCallback((order: MPSOrder) => {
     return order.so_data?.customer ||
+      order.mo_data?.customer ||
       (order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '') ||
       order.customer_code || '';
   }, []);
@@ -305,11 +306,11 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <Factory className="w-16 h-16 text-blue-400 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-300 text-xl">Loading Production Schedule...</p>
-          <p className="text-slate-500 text-sm mt-2">Fetching live MPS data</p>
+          <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
+          <p className="text-slate-700 text-xl">Loading Production Schedule...</p>
+          <p className="text-slate-400 text-sm mt-2">Fetching live MPS data</p>
         </div>
       </div>
     );
@@ -318,17 +319,17 @@ export function ProductionScheduleMPS() {
   const todayOffset = differenceInDays(new Date(), weekStart);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+    <div className="min-h-screen flex flex-col bg-slate-50">
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="bg-slate-900/80 backdrop-blur border-b border-slate-700 px-6 py-4 flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Factory className="w-8 h-8 text-blue-400" />
+            <Factory className="w-8 h-8 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-white">Production Schedule</h1>
+              <h1 className="text-2xl font-bold text-slate-800">Production Schedule</h1>
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-slate-400">
+                <span className="text-slate-500">
                   {filteredOrders.length === orders.length
                     ? `${orders.length} orders`
                     : `${filteredOrders.length} of ${orders.length} orders`}
@@ -338,8 +339,8 @@ export function ProductionScheduleMPS() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
                   </span>
-                  <span className="text-green-400 text-xs font-medium">LIVE</span>
-                  <span className="text-slate-500 text-xs">
+                  <span className="text-green-600 text-xs font-medium">LIVE</span>
+                  <span className="text-slate-400 text-xs">
                     {loading ? 'Syncing...' :
                       secondsSinceUpdate < 3 ? 'Just updated' :
                       `${secondsSinceUpdate}s ago`}
@@ -351,11 +352,11 @@ export function ProductionScheduleMPS() {
 
           <div className="flex items-center gap-3">
             {/* View mode toggle */}
-            <div className="flex bg-slate-800 rounded-lg border border-slate-700 p-0.5">
+            <div className="flex bg-gray-100 rounded-lg border border-gray-200 p-0.5">
               <button
                 onClick={() => setViewMode('table')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                  viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <LayoutList className="w-4 h-4" />
@@ -364,7 +365,7 @@ export function ProductionScheduleMPS() {
               <button
                 onClick={() => setViewMode('timeline')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'timeline' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                  viewMode === 'timeline' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
@@ -377,22 +378,22 @@ export function ProductionScheduleMPS() {
                 <select
                   value={viewDays}
                   onChange={(e) => setViewDays(parseInt(e.target.value))}
-                  className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
+                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-slate-700 text-sm"
                 >
                   <option value={7}>1 Week</option>
                   <option value={14}>2 Weeks</option>
                   <option value={21}>3 Weeks</option>
                   <option value={28}>4 Weeks</option>
                 </select>
-                <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
-                  <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-slate-700 rounded">
-                    <ChevronLeft className="w-4 h-4 text-slate-300" />
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 border border-gray-200">
+                  <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-gray-200 rounded">
+                    <ChevronLeft className="w-4 h-4 text-slate-600" />
                   </button>
-                  <button onClick={goToToday} className="px-3 py-1 hover:bg-slate-700 rounded text-white text-sm font-medium">
+                  <button onClick={goToToday} className="px-3 py-1 hover:bg-gray-200 rounded text-slate-700 text-sm font-medium">
                     Today
                   </button>
-                  <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-slate-700 rounded">
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
+                  <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-gray-200 rounded">
+                    <ChevronRight className="w-4 h-4 text-slate-600" />
                   </button>
                 </div>
               </>
@@ -420,7 +421,7 @@ export function ProductionScheduleMPS() {
               {showExportMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-56 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                     <div className="py-1">
                       {[
                         { label: 'Export to CSV', fn: () => exportToCSV(orders) },
@@ -431,7 +432,7 @@ export function ProductionScheduleMPS() {
                         <button
                           key={item.label}
                           onClick={() => { item.fn(); setShowExportMenu(false); }}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 flex items-center gap-2"
                         >
                           <Download className="w-4 h-4" />
                           {item.label}
@@ -456,42 +457,42 @@ export function ProductionScheduleMPS() {
       </div>
 
       {/* ── KPI + Filters ──────────────────────────────────────── */}
-      <div className="bg-slate-800/70 border-b border-slate-700 px-6 py-3 flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-4">
-            <span className="text-slate-400 text-sm">
-              <span className="text-white font-semibold">{kpi.total}</span> total
+            <span className="text-slate-500 text-sm">
+              <span className="text-slate-800 font-semibold">{kpi.total}</span> total
             </span>
             {kpi.shortageCount > 0 && (
-              <span className="text-red-400 text-sm font-medium flex items-center gap-1">
+              <span className="text-red-600 text-sm font-medium flex items-center gap-1">
                 <AlertTriangle className="w-4 h-4" />
                 {kpi.shortageCount} shortage{kpi.shortageCount !== 1 ? 's' : ''}
               </span>
             )}
             {kpi.atRiskCount > 0 && (
-              <span className="text-amber-400 text-sm font-medium flex items-center gap-1">
+              <span className="text-amber-600 text-sm font-medium flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 {kpi.atRiskCount} at risk
               </span>
             )}
           </div>
-          <div className="h-4 w-px bg-slate-600" />
+          <div className="h-4 w-px bg-gray-300" />
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search SO, MO, product, customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-700 border border-slate-600 rounded-lg pl-8 pr-3 py-1.5 text-white text-sm w-64 placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="bg-white border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-slate-800 text-sm w-64 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" />
+            <Filter className="w-4 h-4 text-slate-400" />
             <button
               onClick={() => setFilterShortageOnly(!filterShortageOnly)}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                filterShortageOnly ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                filterShortageOnly ? 'bg-red-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
               }`}
             >
               Shortages
@@ -499,7 +500,7 @@ export function ProductionScheduleMPS() {
             <button
               onClick={() => setFilterAtRiskOnly(!filterAtRiskOnly)}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                filterAtRiskOnly ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                filterAtRiskOnly ? 'bg-amber-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
               }`}
             >
               At risk
@@ -507,7 +508,7 @@ export function ProductionScheduleMPS() {
             <select
               value={filterWorkCenter}
               onChange={(e) => setFilterWorkCenter(e.target.value)}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm"
+              className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm"
             >
               <option value="">All work centers</option>
               {filterOptions.workCenters.map(wc => (
@@ -517,7 +518,7 @@ export function ProductionScheduleMPS() {
             <select
               value={filterCustomer}
               onChange={(e) => setFilterCustomer(e.target.value)}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm max-w-[180px]"
+              className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm max-w-[180px]"
             >
               <option value="">All customers</option>
               {filterOptions.customers.map(c => (
@@ -525,7 +526,7 @@ export function ProductionScheduleMPS() {
               ))}
             </select>
             {hasActiveFilters && (
-              <button onClick={clearFilters} className="px-2 py-1 text-slate-400 hover:text-white text-sm" title="Clear filters">
+              <button onClick={clearFilters} className="px-2 py-1 text-slate-400 hover:text-slate-700 text-sm" title="Clear filters">
                 Clear
               </button>
             )}
@@ -534,21 +535,21 @@ export function ProductionScheduleMPS() {
       </div>
 
       {/* ── Customer legend ────────────────────────────────────── */}
-      <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-2 flex-shrink-0">
+      <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex-shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="text-slate-500 text-sm font-medium">Customers:</span>
           {customerLegend.slice(0, 10).map(([name, { bg, count }]) => (
             <div key={name} className="flex items-center gap-1.5">
               <div className={`w-3 h-3 rounded ${bg}`} />
-              <span className="text-slate-300 text-sm">{name}</span>
-              <span className="text-slate-500 text-xs">({count})</span>
+              <span className="text-slate-700 text-sm">{name}</span>
+              <span className="text-slate-400 text-xs">({count})</span>
             </div>
           ))}
         </div>
       </div>
 
       {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 flex items-center gap-2 backdrop-blur">
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           {error}
         </div>
@@ -559,9 +560,9 @@ export function ProductionScheduleMPS() {
         {filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <Filter className="w-12 h-12 mb-3 opacity-50" />
-            <p className="text-lg font-medium text-white">No orders match the current filters</p>
+            <p className="text-lg font-medium text-slate-700">No orders match the current filters</p>
             <p className="text-sm mt-1">Try clearing filters or search to see all orders.</p>
-            <button onClick={clearFilters} className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">
+            <button onClick={clearFilters} className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg text-sm">
               Clear filters
             </button>
           </div>
@@ -573,21 +574,21 @@ export function ProductionScheduleMPS() {
               const collapsed = collapsedWCs.has(wc);
               const wcShortages = wcOrders.filter(o => o.status.toLowerCase().includes('shortage')).length;
               return (
-                <div key={wc} className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden">
+                <div key={wc} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                   {/* Work center header */}
                   <button
                     onClick={() => toggleWC(wc)}
-                    className="w-full flex items-center justify-between px-5 py-3 bg-slate-700/40 hover:bg-slate-700/60 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-bold tracking-wide min-w-[48px] text-center">
                         {wc}
                       </span>
-                      <span className="text-white font-semibold">
+                      <span className="text-slate-800 font-semibold">
                         {wcOrders.length} order{wcOrders.length !== 1 ? 's' : ''}
                       </span>
                       {wcShortages > 0 && (
-                        <span className="flex items-center gap-1 text-red-400 text-sm">
+                        <span className="flex items-center gap-1 text-red-600 text-sm">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           {wcShortages} shortage{wcShortages !== 1 ? 's' : ''}
                         </span>
@@ -600,7 +601,7 @@ export function ProductionScheduleMPS() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-slate-700/30 text-xs text-slate-400 uppercase tracking-wider">
+                          <tr className="bg-gray-50 text-xs text-slate-500 uppercase tracking-wider">
                             <th className="px-3 py-2.5 text-left w-12">Line</th>
                             <th className="px-3 py-2.5 text-left">SO</th>
                             <th className="px-3 py-2.5 text-left">MO</th>
@@ -617,7 +618,7 @@ export function ProductionScheduleMPS() {
                             <th className="px-3 py-2.5 text-center w-16">DTC</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700/40">
+                        <tbody className="divide-y divide-gray-100">
                           {wcOrders.map((order, idx) => {
                             const actualPct = parseFloat(order.actual_pct) || 0;
                             const atRisk = isOrderAtRisk(order);
@@ -629,21 +630,21 @@ export function ProductionScheduleMPS() {
                               <tr
                                 key={`${order.so_number}-${idx}`}
                                 onClick={() => setSelectedOrder(order)}
-                                className={`cursor-pointer transition-colors hover:bg-slate-700/40 ${
-                                  isShortage ? 'bg-red-500/5' : atRisk ? 'bg-amber-500/5' : ''
+                                className={`cursor-pointer transition-colors hover:bg-blue-50/50 ${
+                                  isShortage ? 'bg-red-50/50' : atRisk ? 'bg-amber-50/50' : ''
                                 }`}
                               >
                                 <td className="px-3 py-2.5">
-                                  <span className="text-slate-500">{order.line_number}</span>
+                                  <span className="text-slate-400">{order.line_number}</span>
                                   {(isShortage || atRisk) && (
                                     <span className={`inline-block w-1.5 h-1.5 rounded-full ml-1.5 ${isShortage ? 'bg-red-500' : 'bg-amber-500'}`} />
                                   )}
                                 </td>
                                 <td className="px-3 py-2.5">
-                                  <span className="text-blue-400 font-mono font-medium">{order.so_number}</span>
+                                  <span className="text-blue-600 font-mono font-medium">{order.so_number}</span>
                                 </td>
                                 <td className="px-3 py-2.5">
-                                  <span className="text-purple-400 font-mono">{order.mo_number}</span>
+                                  <span className="text-violet-600 font-mono">{order.mo_number}</span>
                                 </td>
                                 <td className="px-3 py-2.5">
                                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${badge.classes}`}>
@@ -652,44 +653,44 @@ export function ProductionScheduleMPS() {
                                   </span>
                                 </td>
                                 <td className="px-3 py-2.5 max-w-[220px]">
-                                  <span className="text-white truncate block">{order.product}</span>
+                                  <span className="text-slate-800 truncate block">{order.product}</span>
                                 </td>
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-center gap-1.5">
                                     <div className={`w-2 h-2 rounded-sm flex-shrink-0 ${getCustomerColor(order.product).bg}`} />
-                                    <span className="text-slate-300 truncate max-w-[120px]">{custName || '-'}</span>
+                                    <span className="text-slate-700 truncate max-w-[150px]">{custName || '-'}</span>
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5 text-slate-400 text-xs">{order.packaging || '-'}</td>
-                                <td className="px-3 py-2.5 text-right text-white font-medium">{order.required.toLocaleString()}</td>
+                                <td className="px-3 py-2.5 text-slate-500 text-xs">{order.packaging || '-'}</td>
+                                <td className="px-3 py-2.5 text-right text-slate-800 font-medium">{order.required.toLocaleString()}</td>
                                 <td className="px-3 py-2.5 text-right">
-                                  <span className={`font-medium ${(order.ready || 0) > 0 ? 'text-green-400' : 'text-slate-500'}`}>
+                                  <span className={`font-medium ${(order.ready || 0) > 0 ? 'text-green-600' : 'text-slate-400'}`}>
                                     {(order.ready || 0).toLocaleString()}
                                   </span>
                                 </td>
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-slate-700 rounded-full h-2 min-w-[60px]">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-[60px]">
                                       <div
                                         className={`h-2 rounded-full transition-all ${getProgressColor(actualPct)}`}
                                         style={{ width: `${Math.min(actualPct, 100)}%` }}
                                       />
                                     </div>
                                     <span className={`text-xs font-medium w-10 text-right ${
-                                      actualPct >= 100 ? 'text-green-400' : actualPct > 0 ? 'text-white' : 'text-slate-500'
+                                      actualPct >= 100 ? 'text-green-600' : actualPct > 0 ? 'text-slate-700' : 'text-slate-400'
                                     }`}>
                                       {Math.round(actualPct)}%
                                     </span>
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5 text-slate-300 text-xs whitespace-nowrap">{order.start_date || '-'}</td>
-                                <td className="px-3 py-2.5 text-slate-300 text-xs whitespace-nowrap">{order.end_date || '-'}</td>
-                                <td className="px-3 py-2.5 text-yellow-400 text-xs font-medium whitespace-nowrap">{order.promised_date || '-'}</td>
+                                <td className="px-3 py-2.5 text-slate-600 text-xs whitespace-nowrap">{order.start_date || '-'}</td>
+                                <td className="px-3 py-2.5 text-slate-600 text-xs whitespace-nowrap">{order.end_date || '-'}</td>
+                                <td className="px-3 py-2.5 text-amber-600 text-xs font-medium whitespace-nowrap">{order.promised_date || '-'}</td>
                                 <td className="px-3 py-2.5 text-center">
                                   {order.dtc ? (
                                     <span className={`text-xs font-bold ${getDtcStyle(order.dtc)}`}>{order.dtc}d</span>
                                   ) : (
-                                    <span className="text-slate-600 text-xs">-</span>
+                                    <span className="text-slate-400 text-xs">-</span>
                                   )}
                                 </td>
                               </tr>
@@ -705,11 +706,11 @@ export function ProductionScheduleMPS() {
           </div>
         ) : (
           /* ────── TIMELINE VIEW ────── */
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden min-w-max">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden min-w-max shadow-sm">
             {/* Timeline header */}
-            <div className="flex border-b border-slate-700 sticky top-0 bg-slate-800 z-10">
-              <div className="w-28 flex-shrink-0 px-3 py-2 border-r border-slate-700 bg-slate-800">
-                <span className="text-slate-400 text-xs font-semibold uppercase">Work Center</span>
+            <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
+              <div className="w-28 flex-shrink-0 px-3 py-2 border-r border-gray-200 bg-white">
+                <span className="text-slate-500 text-xs font-semibold uppercase">Work Center</span>
               </div>
               <div className="flex">
                 {days.map((day, i) => {
@@ -719,14 +720,14 @@ export function ProductionScheduleMPS() {
                     <div
                       key={i}
                       style={{ width: `${columnWidth}px` }}
-                      className={`flex-shrink-0 px-1 py-2 text-center border-r border-slate-700/50 ${
-                        isToday ? 'bg-blue-500/20' : isWeekend ? 'bg-slate-700/30' : ''
+                      className={`flex-shrink-0 px-1 py-2 text-center border-r border-gray-200 ${
+                        isToday ? 'bg-blue-50' : isWeekend ? 'bg-gray-50' : ''
                       }`}
                     >
-                      <div className={`text-xs font-semibold ${isToday ? 'text-blue-400' : 'text-slate-400'}`}>
+                      <div className={`text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
                         {format(day, 'EEE')}
                       </div>
-                      <div className={`text-sm font-bold ${isToday ? 'text-blue-300' : 'text-white'}`}>
+                      <div className={`text-sm font-bold ${isToday ? 'text-blue-700' : 'text-slate-700'}`}>
                         {format(day, viewDays > 14 ? 'd' : 'MMM d')}
                       </div>
                     </div>
@@ -740,8 +741,8 @@ export function ProductionScheduleMPS() {
               const { orders: wcOrders, laneCount } = getTimelineOrders(wc);
               const rowHeight = laneCount * LANE_HEIGHT + 8;
               return (
-                <div key={wc} className="flex border-b border-slate-700/50 hover:bg-slate-700/10">
-                  <div className="w-28 flex-shrink-0 px-3 py-3 border-r border-slate-700 flex items-start pt-3">
+                <div key={wc} className="flex border-b border-gray-100 hover:bg-gray-50/50">
+                  <div className="w-28 flex-shrink-0 px-3 py-3 border-r border-gray-200 flex items-start pt-3">
                     <span className="bg-blue-600 px-2.5 py-1 rounded-lg text-white text-xs font-bold">
                       {wc}
                     </span>
@@ -754,15 +755,15 @@ export function ProductionScheduleMPS() {
                         <div
                           key={i}
                           style={{ width: `${columnWidth}px` }}
-                          className={`flex-shrink-0 border-r border-slate-700/30 ${
-                            isToday ? 'bg-blue-500/10' : isWeekend ? 'bg-slate-700/20' : ''
+                          className={`flex-shrink-0 border-r border-gray-100 ${
+                            isToday ? 'bg-blue-50' : isWeekend ? 'bg-gray-50' : ''
                           }`}
                         />
                       );
                     })}
                     {todayOffset >= 0 && todayOffset < viewDays && (
                       <div
-                        className="absolute top-0 bottom-0 w-0.5 bg-blue-400 z-10 pointer-events-none"
+                        className="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10 pointer-events-none"
                         style={{ left: `${todayOffset * columnWidth + columnWidth / 2}px` }}
                       />
                     )}
@@ -777,26 +778,26 @@ export function ProductionScheduleMPS() {
                       return (
                         <div
                           key={`${order.so_number}-${idx}`}
-                          className={`absolute rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] hover:z-20 overflow-hidden ${colors.bg} ${colors.border} ${
-                            order.isShortage ? 'opacity-70 border-dashed' : ''
+                          className={`absolute rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] hover:z-20 overflow-hidden shadow-sm ${colors.bg} ${colors.border} ${
+                            order.isShortage ? 'opacity-80 border-dashed' : ''
                           } ${order.isAtRisk && !order.isShortage ? 'ring-2 ring-amber-400' : ''}`}
                           style={{ left: `${left}px`, width: `${width}px`, top: `${top}px`, height: `${LANE_HEIGHT - 8}px` }}
                           onClick={() => setSelectedOrder(order)}
                           title={`${custName}\n${order.product}\nSO: ${order.so_number} | MO: ${order.mo_number}`}
                         >
                           <div
-                            className="absolute inset-0 bg-black/30"
+                            className="absolute inset-0 bg-black/15"
                             style={{ width: `${100 - actualPct}%`, right: 0, left: 'auto' }}
                           />
-                          <div className={`relative px-2 py-0.5 h-full flex flex-col justify-center ${colors.text}`}>
+                          <div className={`relative px-2 py-0.5 h-full flex flex-col justify-center text-white`}>
                             <div className="text-[11px] font-bold flex items-center gap-1">
-                              <span className="bg-black/20 px-1 rounded">{order.so_number}</span>
-                              <span className="opacity-70">MO:{order.mo_number}</span>
+                              <span className="bg-white/20 px-1 rounded">{order.so_number}</span>
+                              <span className="opacity-80">MO:{order.mo_number}</span>
                               {order.isShortage && <AlertTriangle className="w-3 h-3 inline" />}
                             </div>
                             <div className="text-xs font-semibold truncate">{custName}</div>
                             {width > 120 && (
-                              <div className="text-[10px] truncate opacity-80">
+                              <div className="text-[10px] truncate opacity-90">
                                 {order.product.length > 40 ? order.product.substring(0, 37) + '...' : order.product}
                               </div>
                             )}
@@ -816,7 +817,7 @@ export function ProductionScheduleMPS() {
       {selectedOrder && (() => {
         const actualPct = parseFloat(selectedOrder.actual_pct) || 0;
         const remaining = Math.max(0, selectedOrder.required - (selectedOrder.ready || 0));
-        const customerName = selectedOrder.so_data?.customer || selectedOrder.product.split(' - ')[0] || 'Unknown';
+        const customerName = selectedOrder.so_data?.customer || selectedOrder.mo_data?.customer || selectedOrder.product.split(' - ')[0] || 'Unknown';
         const colors = getCustomerColor(selectedOrder.product);
 
         return (
