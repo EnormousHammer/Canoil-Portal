@@ -37,8 +37,8 @@ interface NavigationHeaderProps {
     message?: string;
   } | null;
   currentUser?: { name: string; email: string; isAdmin: boolean } | null;
-  activeApp?: 'operations' | 'production-schedule' | 'shipping';
-  onSelectApp?: (app: 'operations' | 'production-schedule' | 'shipping') => void;
+  activeApp?: 'operations' | 'production-schedule' | 'shipments';
+  onSelectApp?: (app: 'operations' | 'production-schedule' | 'shipments') => void;
   syncInfo?: {
     folderName: string;
     syncDate: string;
@@ -163,11 +163,15 @@ export function NavigationHeader({
                   Canoil Operations
                 </button>
                 <button
-                  disabled
-                  className="px-2.5 py-1 rounded-md text-[10px] font-semibold text-slate-400 cursor-not-allowed whitespace-nowrap"
-                  title="Shipping (coming soon)"
+                  onClick={() => onSelectApp && onSelectApp('shipments')}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-colors ${
+                    activeApp === 'shipments'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+                  }`}
+                  title="Shipments"
                 >
-                  Shipping
+                  Shipments
                 </button>
               </div>
 

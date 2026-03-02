@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { NavigationHeader } from './components/NavigationHeader';
 import { ProductionScheduleMPS } from './components/ProductionScheduleMPS';
+import { ShipmentsPage } from './components/ShipmentsPage';
 import { GDriveDataLoader } from './services/GDriveDataLoader';
 import { getApiUrl } from './utils/apiConfig';
 import { fetchMPSData } from './services/mpsDataService';
@@ -84,15 +85,15 @@ function App() {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [showHealthWarning, setShowHealthWarning] = useState(false);
 
-  // Top-level app tab ('operations' portal vs 'production-schedule' view)
-  const [activeApp, setActiveApp] = useState<'operations' | 'production-schedule'>('operations');
+  // Top-level app tab ('operations' portal vs 'production-schedule' vs 'shipments' view)
+  const [activeApp, setActiveApp] = useState<'operations' | 'production-schedule' | 'shipments'>('operations');
   
   // Navigation history for back/forward buttons
-  const [navHistory, setNavHistory] = useState<('operations' | 'production-schedule')[]>(['operations']);
+  const [navHistory, setNavHistory] = useState<('operations' | 'production-schedule' | 'shipments')[]>(['operations']);
   const [navIndex, setNavIndex] = useState(0);
   
   // Navigate to app and update history
-  const navigateToApp = (app: 'operations' | 'production-schedule') => {
+  const navigateToApp = (app: 'operations' | 'production-schedule' | 'shipments') => {
     if (app === activeApp) return; // Already on this app
     
     // Truncate any forward history and add new destination
@@ -781,6 +782,8 @@ function App() {
         onRefreshData={handleRefreshData}
         onOpenProductionSchedule={() => navigateToApp('production-schedule')}
         />
+      ) : activeApp === 'shipments' ? (
+        <ShipmentsPage />
       ) : (
         <ProductionScheduleMPS />
       )}

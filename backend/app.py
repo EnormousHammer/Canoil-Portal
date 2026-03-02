@@ -49,6 +49,10 @@ load_dotenv()
 MPS_SHEET_ID = '1zAOY7ngP2mLVi-W_FL9tsPiKDPqbU6WEUmrrTDeKygw'
 MPS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{MPS_SHEET_ID}/export?format=csv'
 
+# Shipments constants
+SHIPMENTS_SHEET_ID = '1J0PRpr9IKqgPaxUudZZ8Wfkrgz92jtQWla-Zm7L3cNI'
+SHIPMENTS_CSV_URL = f'https://docs.google.com/spreadsheets/d/{SHIPMENTS_SHEET_ID}/export?format=csv'
+
 # Import logistics automation module
 try:
     from .logistics_automation import logistics_bp
@@ -5202,6 +5206,28 @@ def get_mps_data():
             if mps_data and 'error' not in mps_data:
                 return jsonify(mps_data)
             return jsonify({'mps_orders': [], 'summary': {'total_orders': 0}})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/shipments', methods=['GET'])
+def get_shipments_data():
+    """Get Shipments data from Google Sheets. Supports ?sheet= param for year tabs (default: all tabs)."""
+    import requests as req
+    try:
+        sheet_name = request.args.get('sheet', '')
+        gid = request.args.get('gid', '')
+        
+        url = SHIPMENTS_CSV_URL
+        if gid:
+            url = f'https://docs.google.com/spreadsheets/d/{SHIPMENTS_SHEET_ID}/export?format=csv&gid={gid}'
+        
+        response = req.get(url, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        if response.ok:
+            response.encoding = 'utf-8'
+            return response.text, 200, {'Content-Type': 'text/csv; charset=utf-8'}
+        return jsonify({'error': 'Failed to fetch Shipments data from Google Sheets'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
