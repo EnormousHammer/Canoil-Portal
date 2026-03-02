@@ -5493,19 +5493,29 @@ def get_sales_order_folder(folder_path):
         folders = []
         files = []
         
+        def _count_files_recursive(dir_path):
+            """Count all files recursively inside a directory."""
+            total = 0
+            try:
+                for _root, _dirs, _files in os.walk(dir_path):
+                    total += len([f for f in _files if not f.startswith('.')])
+            except Exception:
+                pass
+            return total
+
         for item in items:
             item_path = os.path.join(full_path, item)
             if os.path.isdir(item_path) and item != 'desktop.ini':
-                # Count files in subfolder
                 try:
                     subfolder_items = os.listdir(item_path)
-                    file_count = len([f for f in subfolder_items if os.path.isfile(os.path.join(item_path, f))])
+                    direct_files = len([f for f in subfolder_items if os.path.isfile(os.path.join(item_path, f))])
                     folder_count = len([f for f in subfolder_items if os.path.isdir(os.path.join(item_path, f))])
+                    total_files = _count_files_recursive(item_path) if folder_count > 0 and direct_files == 0 else direct_files
                     
                     folders.append({
                         'name': item,
                         'type': 'folder',
-                        'file_count': file_count,
+                        'file_count': total_files,
                         'folder_count': folder_count,
                         'path': os.path.join(folder_path, item).replace('\\', '/')
                     })

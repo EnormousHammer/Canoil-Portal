@@ -850,8 +850,34 @@ class GoogleDriveService:
             result = self.service.files().list(**params).execute()
             subfolder_list = result.get('files', [])
             
+            def _gdrive_count_recursive(parent_id, depth=0, max_depth=3):
+                """Count all files recursively under a Google Drive folder (up to max_depth)."""
+                if depth > max_depth:
+                    return 0, 0
+                try:
+                    cq = f"'{parent_id}' in parents and trashed=false"
+                    cp = {
+                        'q': cq,
+                        'includeItemsFromAllDrives': True,
+                        'supportsAllDrives': True,
+                        'corpora': 'drive',
+                        'driveId': sales_csr_drive_id,
+                        'fields': "files(id, mimeType)",
+                        'pageSize': 500
+                    }
+                    cr = self.service.files().list(**cp).execute()
+                    child_items = cr.get('files', [])
+                    direct_files = len([f for f in child_items if f.get('mimeType') != 'application/vnd.google-apps.folder'])
+                    child_folders = [f for f in child_items if f.get('mimeType') == 'application/vnd.google-apps.folder']
+                    total_files = direct_files
+                    for cf in child_folders:
+                        sub_files, _ = _gdrive_count_recursive(cf['id'], depth + 1, max_depth)
+                        total_files += sub_files
+                    return total_files, len(child_folders)
+                except Exception:
+                    return 0, 0
+
             for sf in subfolder_list:
-                # Count files in subfolder
                 count_query = f"'{sf['id']}' in parents and trashed=false"
                 count_params = {
                     'q': count_query,
@@ -864,13 +890,18 @@ class GoogleDriveService:
                 }
                 count_result = self.service.files().list(**count_params).execute()
                 items = count_result.get('files', [])
-                file_count = len([f for f in items if f.get('mimeType') != 'application/vnd.google-apps.folder'])
+                direct_files = len([f for f in items if f.get('mimeType') != 'application/vnd.google-apps.folder'])
                 folder_count = len([f for f in items if f.get('mimeType') == 'application/vnd.google-apps.folder'])
+                
+                if folder_count > 0 and direct_files == 0:
+                    total_files, _ = _gdrive_count_recursive(sf['id'], depth=0, max_depth=2)
+                else:
+                    total_files = direct_files
                 
                 folders.append({
                     'name': sf['name'],
                     'type': 'folder',
-                    'file_count': file_count,
+                    'file_count': total_files,
                     'folder_count': folder_count,
                     'path': f"{folder_path}/{sf['name']}".replace('//', '/'),
                     'gdrive_id': sf['id']
