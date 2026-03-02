@@ -3617,58 +3617,113 @@ def report_sales():
         return jsonify({"error": str(e)}), 500
 
 
+# ── SO file index cache (avoids slow os.walk on every keystroke) ──────────────
+_so_index_cache = {
+    "entries": [],      # list of {so_number, file, status, full_path}
+    "built_at": 0,      # epoch seconds
+    "ttl": 300,         # refresh every 5 minutes
+}
+
+
+def _build_so_index():
+    """Scan the entire Sales Orders folder tree once and cache every SO PDF."""
+    entries = []
+    best = {}
+
+    if not os.path.exists(SALES_ORDERS_BASE):
+        print(f"PROFORMA INDEX: Sales Orders path not found: {SALES_ORDERS_BASE}")
+        return entries
+
+    print(f"PROFORMA INDEX: Building SO index from {SALES_ORDERS_BASE} ...")
+    t0 = time.time()
+
+    for root, _dirs, files in os.walk(SALES_ORDERS_BASE):
+        for f in files:
+            if not f.lower().endswith('.pdf'):
+                continue
+            m = re.search(r'(?:salesorder|so)[_\s-]*(\d+)', f, re.IGNORECASE)
+            if not m:
+                continue
+
+            so_num = m.group(1)
+            rel = os.path.relpath(root, SALES_ORDERS_BASE).replace('\\', '/')
+            status = rel.split('/')[0] if rel != '.' else 'Root'
+
+            entry = {
+                "so_number": so_num,
+                "file": f,
+                "status": status,
+                "full_path": os.path.join(root, f),
+            }
+
+            prev = best.get(so_num)
+            if prev is None:
+                best[so_num] = entry
+            else:
+                rev_cur = re.search(r'_[Rr](\d+)', f)
+                rev_prev = re.search(r'_[Rr](\d+)', prev["file"])
+                cur_rev = int(rev_cur.group(1)) if rev_cur else 0
+                prev_rev = int(rev_prev.group(1)) if rev_prev else 0
+                if cur_rev > prev_rev:
+                    best[so_num] = entry
+
+    entries = sorted(best.values(),
+                     key=lambda e: int(e['so_number']) if e['so_number'].isdigit() else 0,
+                     reverse=True)
+
+    elapsed = time.time() - t0
+    print(f"PROFORMA INDEX: Indexed {len(entries)} unique SOs in {elapsed:.1f}s")
+    return entries
+
+
+def _get_so_index(force_refresh=False):
+    """Return the cached SO index, rebuilding if stale or empty."""
+    now = time.time()
+    if (force_refresh
+            or not _so_index_cache["entries"]
+            or (now - _so_index_cache["built_at"]) > _so_index_cache["ttl"]):
+        _so_index_cache["entries"] = _build_so_index()
+        _so_index_cache["built_at"] = now
+    return _so_index_cache["entries"]
+
+
 @app.route('/api/proforma-invoice/search-so', methods=['GET'])
 def search_so_for_proforma():
-    """Real-time SO search for proforma invoice. Returns matching SO numbers from the Sales Orders folder.
+    """Real-time SO search for proforma invoice.
 
-    Query params: q (search string, e.g. '312' or '3125')
-    Works locally (G: Drive) and on cloud (Google Drive API).
+    Query params:
+      q       - search string (e.g. '312' or '3125')
+      refresh - set to '1' to force re-scan of the folder
+    Works locally (cached os.walk) and on cloud (Google Drive API).
     """
     try:
         query = (request.args.get('q') or '').strip()
         if not query:
             return jsonify({"results": []})
 
-        import re as _re
-        results = []
-        seen = set()
+        force = request.args.get('refresh') == '1'
 
         is_cloud = os.getenv('RENDER') is not None or os.getenv('K_SERVICE') is not None
         use_gdrive_api = is_cloud or not os.path.exists(SALES_ORDERS_BASE)
 
         if not use_gdrive_api:
-            # LOCAL: fast os.walk scan
-            for root, dirs, files in os.walk(SALES_ORDERS_BASE):
-                for f in files:
-                    if not f.lower().endswith('.pdf'):
-                        continue
-                    # Extract SO number from filename
-                    m = _re.search(r'(?:salesorder|so)[_\s-]*(\d+)', f, _re.IGNORECASE)
-                    if not m:
-                        m = _re.search(r'(\d{3,5})', f)
-                    if not m:
-                        continue
-                    so_num = m.group(1)
-                    if query not in so_num:
-                        continue
-                    if so_num in seen:
-                        # Keep latest revision
-                        continue
-                    seen.add(so_num)
-                    # Determine status folder from path
-                    rel = os.path.relpath(root, SALES_ORDERS_BASE).replace('\\', '/')
-                    status = rel.split('/')[0] if rel != '.' else 'Root'
+            # LOCAL: search against cached index (instant)
+            index = _get_so_index(force_refresh=force)
+            results = []
+            for entry in index:
+                if query in entry["so_number"] or query.lower() in entry["file"].lower():
                     results.append({
-                        "so_number": so_num,
-                        "file": f,
-                        "status": status,
+                        "so_number": entry["so_number"],
+                        "file": entry["file"],
+                        "status": entry["status"],
                     })
                     if len(results) >= 25:
                         break
-                if len(results) >= 25:
-                    break
+            return jsonify({"results": results})
         else:
             # CLOUD: Google Drive API search
+            results = []
+            seen = set()
             gdrive_service = get_google_drive_service()
             if gdrive_service and gdrive_service.authenticated:
                 sales_csr_drive_id = gdrive_service.find_shared_drive("Sales_CSR")
@@ -3686,9 +3741,9 @@ def search_so_for_proforma():
                         ).execute()
                         for fi in resp.get('files', []):
                             fname = fi.get('name', '')
-                            m = _re.search(r'(?:salesorder|so)[_\s-]*(\d+)', fname, _re.IGNORECASE)
+                            m = re.search(r'(?:salesorder|so)[_\s-]*(\d+)', fname, re.IGNORECASE)
                             if not m:
-                                m = _re.search(r'(\d{3,5})', fname)
+                                m = re.search(r'(\d{3,5})', fname)
                             if m:
                                 so_num = m.group(1)
                                 if so_num not in seen:
@@ -3701,9 +3756,8 @@ def search_so_for_proforma():
                     except Exception as e:
                         print(f"PROFORMA SEARCH: Drive API error: {e}")
 
-        # Sort numerically descending
-        results.sort(key=lambda r: int(r['so_number']) if r['so_number'].isdigit() else 0, reverse=True)
-        return jsonify({"results": results[:25]})
+            results.sort(key=lambda r: int(r['so_number']) if r['so_number'].isdigit() else 0, reverse=True)
+            return jsonify({"results": results[:25]})
 
     except Exception as e:
         print(f"ERROR search_so_for_proforma: {e}")
@@ -3720,14 +3774,13 @@ def parse_so_for_proforma(so_number):
     """
     try:
         print(f"PROFORMA: Parsing SO {so_number} for proforma invoice")
-        import re as _re
 
         def _rev_priority_path(fp):
-            m = _re.search(r'_[rR](\d+)', os.path.basename(fp))
+            m = re.search(r'_[rR](\d+)', os.path.basename(fp))
             return (1000 + int(m.group(1))) if m else 1
 
         def _rev_priority_dict(info):
-            m = _re.search(r'_[rR](\d+)', info.get('file_name', '').lower())
+            m = re.search(r'_[rR](\d+)', info.get('file_name', '').lower())
             return (1000 + int(m.group(1))) if m else 1
 
         so_file_path = None
@@ -3735,21 +3788,33 @@ def parse_so_for_proforma(so_number):
         use_gdrive_api = is_cloud or not os.path.exists(SALES_ORDERS_BASE)
 
         if not use_gdrive_api:
-            # --- LOCAL: Walk the G: Drive folder ---
+            # --- LOCAL: Use cached index first, then fall back to targeted walk ---
             print(f"PROFORMA: Searching local G: Drive: {SALES_ORDERS_BASE}")
-            matching_files = []
-            for root, dirs, files in os.walk(SALES_ORDERS_BASE):
-                for f in files:
-                    if f.lower().endswith('.pdf') and (so_number in f):
-                        matching_files.append(os.path.join(root, f))
+            index = _get_so_index()
+            cached_match = None
+            for entry in index:
+                if entry["so_number"] == so_number:
+                    cached_match = entry
+                    break
 
-            if matching_files:
-                matching_files.sort(key=_rev_priority_path, reverse=True)
-                so_file_path = matching_files[0]
-                print(f"PROFORMA: Local file: {os.path.basename(so_file_path)}")
+            if cached_match and os.path.exists(cached_match["full_path"]):
+                so_file_path = cached_match["full_path"]
+                print(f"PROFORMA: Found in cache: {os.path.basename(so_file_path)}")
             else:
-                print(f"PROFORMA: SO {so_number} not found locally, trying Google Drive API...")
-                use_gdrive_api = True
+                # Cache miss or file moved — do a targeted walk
+                matching_files = []
+                for root, dirs, files in os.walk(SALES_ORDERS_BASE):
+                    for f in files:
+                        if f.lower().endswith('.pdf') and (so_number in f):
+                            matching_files.append(os.path.join(root, f))
+
+                if matching_files:
+                    matching_files.sort(key=_rev_priority_path, reverse=True)
+                    so_file_path = matching_files[0]
+                    print(f"PROFORMA: Local file: {os.path.basename(so_file_path)}")
+                else:
+                    print(f"PROFORMA: SO {so_number} not found locally, trying Google Drive API...")
+                    use_gdrive_api = True
 
         if use_gdrive_api and so_file_path is None:
             # --- CLOUD / FALLBACK: Use Google Drive API ---

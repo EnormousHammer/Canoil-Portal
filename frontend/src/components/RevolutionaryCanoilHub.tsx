@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CompactLoading, DataLoading } from './LoadingComponents';
 import { ToastNotification, useToasts } from './ToastNotification';
@@ -285,6 +285,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   
   // Sales Orders search state
   const [soSearchQuery, setSoSearchQuery] = useState('');
+  const [soSearchResults, setSoSearchResults] = useState<Array<{so_number: string; file: string; status: string}>>([]);
+  const [soSearching, setSoSearching] = useState(false);
+  const soSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soSearchAbortRef = useRef<AbortController | null>(null);
   
   // Proforma Invoice maker state
   const [showProformaInvoice, setShowProformaInvoice] = useState(false);
@@ -634,6 +638,44 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  // Debounced real-time SO search (same API as Proforma Invoice search)
+  React.useEffect(() => {
+    if (soSearchDebounceRef.current) clearTimeout(soSearchDebounceRef.current);
+    if (soSearchAbortRef.current) soSearchAbortRef.current.abort();
+
+    const q = soSearchQuery.trim();
+    if (!q) {
+      setSoSearchResults([]);
+      setSoSearching(false);
+      return;
+    }
+
+    setSoSearching(true);
+    soSearchDebounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      soSearchAbortRef.current = controller;
+      try {
+        const resp = await fetch(getApiUrl(`/api/proforma-invoice/search-so?q=${encodeURIComponent(q)}`), {
+          signal: controller.signal,
+        });
+        if (!resp.ok) throw new Error('Search failed');
+        const json = await resp.json();
+        setSoSearchResults(json.results || []);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('SO search error:', err);
+          setSoSearchResults([]);
+        }
+      } finally {
+        setSoSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (soSearchDebounceRef.current) clearTimeout(soSearchDebounceRef.current);
+    };
+  }, [soSearchQuery]);
   
   // MO details modal state
   const [selectedMO, setSelectedMO] = useState<any>(null);
@@ -4027,22 +4069,62 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             {/* Search for other SOs */}
                             <div className="bg-white border border-gray-200 rounded-xl p-4">
                               <div className="text-sm font-medium text-slate-700 mb-3">Search Other Sales Orders</div>
-                              <div className="flex items-center gap-3">
-                                <input
-                                  type="text"
-                                  placeholder="Search SO Number, Customer, or Item..."
-                                  value={soSearchQuery}
-                                  onChange={(e) => setSoSearchQuery(e.target.value)}
-                                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                                />
-                                <button
-                                  onClick={() => {
-                                    setActiveSection('sales');
-                                  }}
-                                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-medium border border-slate-200"
-                                >
-                                  Go to Sales Orders
-                                </button>
+                              <div className="relative">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 relative">
+                                    <input
+                                      type="text"
+                                      placeholder="Search SO number, customer, or PO..."
+                                      value={soSearchQuery}
+                                      onChange={(e) => setSoSearchQuery(e.target.value)}
+                                      className="w-full px-4 py-2.5 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                    {soSearching ? (
+                                      <svg className="w-4 h-4 text-blue-500 animate-spin absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setActiveSection('sales');
+                                    }}
+                                    className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-medium border border-slate-200"
+                                  >
+                                    Go to Sales Orders
+                                  </button>
+                                </div>
+                                {soSearchQuery.trim() && !soSearching && soSearchResults.length > 0 && (
+                                  <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-[250px] overflow-y-auto shadow-md">
+                                    {soSearchResults.slice(0, 10).map((so) => (
+                                      <div
+                                        key={so.so_number}
+                                        onClick={() => {
+                                          setSoSearchQuery('');
+                                          setSoSearchResults([]);
+                                          setActiveSection('sales');
+                                          navigateToSOFolder(so.status);
+                                        }}
+                                        className="flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-b-0 text-sm"
+                                      >
+                                        <span className="font-bold text-slate-900">SO {so.so_number}</span>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                          so.status === 'New and Revised' ? 'bg-emerald-100 text-emerald-700' :
+                                          so.status === 'In Production' ? 'bg-orange-100 text-orange-700' :
+                                          so.status === 'Completed and Closed' ? 'bg-slate-100 text-slate-600' :
+                                          so.status === 'Cancelled' ? 'bg-red-100 text-red-600' :
+                                          'bg-blue-100 text-blue-700'
+                                        }`}>{so.status}</span>
+                                        <span className="text-xs text-slate-400 truncate flex-1">{so.file}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </>
@@ -8205,24 +8287,31 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 {/* Content Section - Enhanced Light Theme */}
                 <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
-                  {/* Search Bar - Enhanced Light Theme */}
+                  {/* Search Bar - Real-time SO search */}
                   <div className="mb-8">
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search for SO Number (e.g., 2961)..."
+                        placeholder="Search SO number, customer, or PO (e.g., 3125, LANXESS)..."
                         value={soSearchQuery}
                         onChange={(e) => setSoSearchQuery(e.target.value)}
                         className="w-full px-5 py-4 pl-14 bg-white border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-base shadow-sm"
                       />
                       <div className="absolute left-5 top-1/2 transform -translate-y-1/2">
-                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
+                        {soSearching ? (
+                          <svg className="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        )}
                       </div>
                       {soSearchQuery && (
                         <button
-                          onClick={() => setSoSearchQuery('')}
+                          onClick={() => { setSoSearchQuery(''); setSoSearchResults([]); }}
                           className="absolute right-5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-lg"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8231,12 +8320,67 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </button>
                       )}
                     </div>
-                    {soSearchQuery && (
-                      <div className="mt-3 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium border border-blue-200 inline-flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                    {/* Search Results */}
+                    {soSearchQuery.trim() && !soSearching && soSearchResults.length > 0 && (
+                      <div className="mt-3 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden max-h-[400px] overflow-y-auto">
+                        <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          {soSearchResults.length} result{soSearchResults.length !== 1 ? 's' : ''} found
+                        </div>
+                        {soSearchResults.map((so) => (
+                          <div
+                            key={so.so_number}
+                            onClick={() => {
+                              const statusFolder = so.status;
+                              setSoSearchQuery('');
+                              setSoSearchResults([]);
+                              if (statusFolder === 'Completed and Closed' || statusFolder === 'In Production' || statusFolder === 'Cancelled') {
+                                navigateToSOFolder(statusFolder);
+                              } else {
+                                navigateToSOFolder(statusFolder);
+                              }
+                            }}
+                            className="flex items-center gap-4 px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-b-0 transition-colors group"
+                          >
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                              SO
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900">SO {so.so_number}</span>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  so.status === 'New and Revised' ? 'bg-emerald-100 text-emerald-700' :
+                                  so.status === 'In Production' ? 'bg-orange-100 text-orange-700' :
+                                  so.status === 'Completed and Closed' ? 'bg-slate-100 text-slate-600' :
+                                  so.status === 'Cancelled' ? 'bg-red-100 text-red-600' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {so.status}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-500 truncate mt-0.5">{so.file}</div>
+                            </div>
+                            <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {soSearchQuery.trim() && !soSearching && soSearchResults.length === 0 && (
+                      <div className="mt-3 text-center py-6 text-slate-500 bg-white border border-slate-200 rounded-2xl">
+                        <svg className="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        Searching for: <strong>{soSearchQuery}</strong>
+                        <p className="font-medium text-sm">No sales orders matching "{soSearchQuery}"</p>
+                        <p className="text-xs mt-1 text-slate-400">Try a different SO number or customer name</p>
+                      </div>
+                    )}
+
+                    {!soSearchQuery.trim() && (
+                      <div className="mt-2 text-xs text-slate-400">
+                        Search across all sales order folders: New & Revised, In Production, Completed & Closed, Cancelled
                       </div>
                     )}
                   </div>
