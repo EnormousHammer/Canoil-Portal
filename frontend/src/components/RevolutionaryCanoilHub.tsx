@@ -2755,25 +2755,38 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       )}
                                     </div>
                                   </div>
-                                  {/* Line 2: Item, Description, SO, Batch, Location */}
+                                  {/* Line 2: Item + full description (contains SO/PO refs) */}
                                   <div className="flex items-center gap-2 text-xs">
-                                    <span className="font-mono font-semibold text-slate-700">{mo['Build Item No.']}</span>
-                                    {(mo['Non-Stocked Build Item Description'] || mo['Description']) && (
-                                      <span className="text-slate-400 truncate max-w-[240px]">{(mo['Non-Stocked Build Item Description'] || mo['Description'] || '').toString().slice(0, 50)}</span>
+                                    <span className="font-mono font-semibold text-slate-700 shrink-0">{mo['Build Item No.']}</span>
+                                    {mo['Description'] && (
+                                      <span className="text-slate-600 truncate" title={mo['Description']}>{mo['Description']}</span>
                                     )}
-                                    <div className="flex items-center gap-2 ml-auto shrink-0">
-                                      {(mo['Sales Order No.'] || mo['SO No.']) && (
+                                    {!mo['Description'] && (mo['Non-Stocked Build Item Description']) && (
+                                      <span className="text-slate-400 truncate">{mo['Non-Stocked Build Item Description']}</span>
+                                    )}
+                                  </div>
+                                  {/* Line 3: Badges - SO (from description if needed), Batch, Location */}
+                                  <div className="flex items-center gap-2 mt-1 text-xs">
+                                    {(() => {
+                                      const directSO = mo['Sales Order No.'] || mo['SO No.'];
+                                      const desc = (mo['Description'] || '').toString();
+                                      let soNum = directSO && /^\d{3,6}$/.test(String(directSO).trim()) ? String(directSO).trim() : null;
+                                      if (!soNum && desc) {
+                                        const soPatterns = [/\bSO\s*#?\s*(\d{3,5})\b/i, /\bS\.?O\.?\s*#?\s*(\d{3,5})\b/i, /Sales\s*Order\s*#?\s*(\d{3,5})/i, /SO:\s*(\d{3,5})/i];
+                                        for (const p of soPatterns) { const m = desc.match(p); if (m) { soNum = m[1]; break; } }
+                                      }
+                                      return soNum ? (
                                         <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
-                                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold group-hover/so:bg-blue-100 transition-colors">SO {mo['Sales Order No.'] || mo['SO No.']}</span>
+                                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold group-hover/so:bg-blue-100 transition-colors">SO {soNum}</span>
                                         </span>
-                                      )}
-                                      {(mo['Batch No.'] || mo['Batch Number']) && (
-                                        <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-mono font-semibold">{mo['Batch No.'] || mo['Batch Number']}</span>
-                                      )}
-                                      {location && (
-                                        <span className="text-slate-500">{location}</span>
-                                      )}
-                                    </div>
+                                      ) : null;
+                                    })()}
+                                    {(mo['Batch No.'] || mo['Batch Number']) && (
+                                      <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-mono font-semibold">{mo['Batch No.'] || mo['Batch Number']}</span>
+                                    )}
+                                    {location && (
+                                      <span className="text-slate-500">{location}</span>
+                                    )}
                                   </div>
                                   {/* Line 3: Progress bar */}
                                   <div className="flex items-center gap-3 mt-2">
@@ -2912,11 +2925,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                     <div className="min-w-0">
                       <h1 className="text-xl font-bold tracking-tight text-white truncate">MO #{moView?.moNo ?? selectedMoNo}</h1>
-                      <p className="text-slate-300 text-sm truncate mt-0.5">
+                      <p className="text-slate-300 text-sm mt-0.5 max-w-2xl">
                         {(moView?.buildItemNo ?? selectedMO?.['Build Item No.']) ? (
                           <span className="text-white cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openItemById(moView?.buildItemNo ?? selectedMO?.['Build Item No.'] ?? ''); }}>{moView?.buildItemNo ?? selectedMO?.['Build Item No.']}</span>
                         ) : '—'}
-                        {(moView?.buildItemDesc ?? selectedMO?.['Non-Stocked Build Item Description']) && <span className="ml-2 text-slate-300">• {moView?.buildItemDesc ?? selectedMO?.['Non-Stocked Build Item Description']}</span>}
+                        {(moView?.rawHeader?.['Description'] ?? selectedMO?.['Description']) && <span className="ml-2 text-slate-300">• {moView?.rawHeader?.['Description'] ?? selectedMO?.['Description']}</span>}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200">
@@ -2978,7 +2991,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <div className="p-4 border-b border-slate-200 bg-gradient-to-b from-violet-50 to-white">
                       <div className="font-mono text-xs font-bold text-violet-600 mb-1">MO #{moView.moNo}</div>
                       <div className="text-sm font-semibold text-slate-900 truncate">{moView.customer || '—'}</div>
-                      <div className="text-xs text-slate-500 truncate mt-0.5">{moView.buildItemNo}{moView.buildItemDesc ? ` · ${moView.buildItemDesc}` : ''}</div>
+                      <div className="text-xs text-slate-500 mt-0.5 break-words">{moView.buildItemNo}{moView.rawHeader?.['Description'] ? ` · ${moView.rawHeader['Description']}` : moView.buildItemDesc ? ` · ${moView.buildItemDesc}` : ''}</div>
                       <div className="flex items-center gap-2 mt-2">
                         <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
                           moView.status === 0 ? 'bg-amber-100 text-amber-800' :
@@ -3056,49 +3069,49 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                       <div className="bg-white rounded-xl border-2 border-violet-200 shadow-md overflow-hidden">
                         <div className="p-6">
-                  {/* MO Overview Tab - 3-Card Layout */}
+                  {/* MO Overview Tab - Compact */}
                   {moActiveTab === 'overview' && (
-                    <div className="space-y-5">
-                      {/* CARD 1: Header — At a glance */}
+                    <div className="space-y-4">
+                      {/* Single card: Header + Quantities + Costs */}
                       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                        <div className="p-5">
-                          <div className="flex items-start justify-between gap-4 mb-4">
-                            <div className="flex items-center gap-3">
-                              <span className={`px-3 py-1.5 text-sm font-bold rounded-lg ${
-                                moView.status === 0 ? 'bg-amber-100 text-amber-800' :
-                                moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
-                                moView.status === 2 ? 'bg-blue-100 text-blue-800' :
-                                moView.status === 3 ? 'bg-violet-100 text-violet-800' :
-                                moView.status === 4 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                {moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}
-                              </span>
-                              {moView.onHold && <span className="px-3 py-1.5 text-sm font-bold rounded-lg bg-red-100 text-red-700">On Hold</span>}
-                              {(moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']) && (
-                                <span className="px-2 py-1 text-xs font-mono font-bold rounded bg-violet-50 text-violet-700">Batch: {moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']}</span>
-                              )}
-                            </div>
-                            {moView.rawHeader?.['Priority'] && (
-                              <span className="text-xs font-medium text-slate-500">Priority: {moView.rawHeader['Priority']}</span>
+                        <div className="p-4">
+                          {/* Row 1: Status badges + info grid */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                              moView.status === 0 ? 'bg-amber-100 text-amber-800' :
+                              moView.status === 1 ? 'bg-emerald-100 text-emerald-800' :
+                              moView.status === 2 ? 'bg-blue-100 text-blue-800' :
+                              moView.status === 3 ? 'bg-violet-100 text-violet-800' :
+                              moView.status === 4 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                            }`}>{moView.status === 0 ? 'Planned' : moView.status === 1 ? 'Released' : moView.status === 2 ? 'Started' : moView.status === 3 ? 'Finished' : moView.status === 4 ? 'Closed' : 'Unknown'}</span>
+                            {moView.onHold && <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-100 text-red-700">On Hold</span>}
+                            {(moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']) && (
+                              <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-violet-50 text-violet-700">Batch: {moView.rawHeader?.['Batch No.'] ?? moView.rawHeader?.['Batch Number']}</span>
                             )}
+                            <span className="ml-auto text-xs text-slate-500">{moView.customer || ''}</span>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                            <div>
-                              <span className="text-xs text-slate-500 block mb-0.5">Build Item</span>
-                              {moView.buildItemNo ? <span className="font-mono text-sm font-semibold text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span> : <span className="text-sm text-slate-400">—</span>}
-                              {moView.buildItemDesc && <div className="text-xs text-slate-500 truncate mt-0.5">{moView.buildItemDesc}</div>}
+                          {/* Build item + Description */}
+                          <div className="flex items-baseline gap-2 mb-3">
+                            {moView.buildItemNo && <span className="font-mono text-sm font-semibold text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5 shrink-0" onClick={() => openItemById(moView.buildItemNo!)}>{moView.buildItemNo}</span>}
+                            {moView.rawHeader?.['Description'] && <span className="text-sm text-slate-600">{moView.rawHeader['Description']}</span>}
+                          </div>
+                          {/* Quantity row - inline */}
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            <div className="text-center p-2 rounded-lg bg-slate-50">
+                              <div className="text-lg font-bold text-slate-900 tabular-nums">{(moView.orderedQty || 0).toLocaleString()}</div>
+                              <div className="text-[10px] font-medium text-slate-500">Ordered</div>
                             </div>
-                            <div>
-                              <span className="text-xs text-slate-500 block mb-0.5">Customer</span>
-                              <span className="text-sm font-semibold text-slate-900">{moView.customer || '—'}</span>
+                            <div className="text-center p-2 rounded-lg bg-blue-50">
+                              <div className="text-lg font-bold text-blue-700 tabular-nums">{(moView.wipQty || 0).toLocaleString()}</div>
+                              <div className="text-[10px] font-medium text-blue-600">WIP</div>
                             </div>
-                            <div>
-                              <span className="text-xs text-slate-500 block mb-0.5">Location</span>
-                              {moView.locationNo ? <span className="text-sm font-medium underline cursor-pointer hover:bg-slate-100 rounded px-0.5" onClick={() => { setSelectedLocId(moView.locationNo!); setShowLocationDetail(true); }}>{moView.locationNo}</span> : <span className="text-sm text-slate-400">—</span>}
+                            <div className="text-center p-2 rounded-lg bg-emerald-50">
+                              <div className="text-lg font-bold text-emerald-700 tabular-nums">{(moView.completedQty || 0).toLocaleString()}</div>
+                              <div className="text-[10px] font-medium text-emerald-600">Completed</div>
                             </div>
-                            <div>
-                              <span className="text-xs text-slate-500 block mb-0.5">BOM Revision</span>
-                              <span className="text-sm font-medium">{moView.bomRev || '—'}</span>
+                            <div className="text-center p-2 rounded-lg bg-amber-50">
+                              <div className="text-lg font-bold text-amber-700 tabular-nums">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</div>
+                              <div className="text-[10px] font-medium text-amber-600">Remaining</div>
                             </div>
                           </div>
                           {/* Progress bar */}
@@ -3106,80 +3119,74 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const pct = moView.orderedQty > 0 ? Math.round(((moView.completedQty || 0) / moView.orderedQty) * 100) : 0;
                             const barColor = pct >= 100 ? 'bg-emerald-500' : pct > 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-300';
                             return (
-                              <div>
-                                <div className="flex items-center justify-between text-xs mb-1.5">
-                                  <span className="font-medium text-slate-600">Progress</span>
-                                  <span className="font-bold text-slate-700">{(moView.completedQty || 0).toLocaleString()} / {(moView.orderedQty || 0).toLocaleString()} <span className={pct >= 100 ? 'text-emerald-600' : 'text-slate-500'}>({pct}%)</span></span>
+                              <div className="mb-3">
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="font-medium text-slate-500">Progress</span>
+                                  <span className="font-bold text-slate-700 tabular-nums">{pct}%</span>
                                 </div>
-                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                   <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
                                 </div>
                               </div>
                             );
                           })()}
-                          {/* Key dates */}
-                          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-slate-100">
-                            {moView.dates.order && <div><span className="text-xs text-slate-500">Order</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.order}</span></div>}
-                            {moView.dates.release && <div><span className="text-xs text-slate-500">Release</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.release}</span></div>}
-                            {moView.dates.start && <div><span className="text-xs text-slate-500">Start</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.start}</span></div>}
-                            {moView.dates.completion && <div><span className="text-xs text-slate-500">Completion</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.completion}</span></div>}
-                            {moView.dates.close && <div><span className="text-xs text-slate-500">Close</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.dates.close}</span></div>}
-                            {moView.rawHeader?.['Sales Order Ship Date'] && <div><span className="text-xs text-slate-500">SO Ship</span> <span className="text-sm font-medium tabular-nums ml-1">{moView.rawHeader['Sales Order Ship Date']}</span></div>}
+                          {/* MPS Status */}
+                          {(() => {
+                            const mpsOrders = data?.['MPS.json']?.mps_orders || [];
+                            const mpsMatch = mpsOrders.find((m: any) => (m.mo_number || '').toString().trim() === (moView.moNo || '').toString().trim());
+                            if (!mpsMatch) return null;
+                            return (
+                              <div className="mb-3 p-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <Activity className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">MPS</span>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                  <div><span className="text-indigo-600">Status</span> <span className="font-semibold text-indigo-900 ml-1">{mpsMatch.status || '—'}</span></div>
+                                  <div><span className="text-indigo-600">WC</span> <span className="font-semibold text-indigo-900 ml-1">{mpsMatch.work_center || '—'}</span></div>
+                                  {mpsMatch.start_date && <div><span className="text-indigo-600">Start</span> <span className="font-semibold text-indigo-900 ml-1 tabular-nums">{mpsMatch.start_date}</span></div>}
+                                  {mpsMatch.end_date && <div><span className="text-indigo-600">End</span> <span className="font-semibold text-indigo-900 ml-1 tabular-nums">{mpsMatch.end_date}</span></div>}
+                                  {mpsMatch.promised && <div><span className="text-indigo-600">Promised</span> <span className="font-semibold text-indigo-900 ml-1 tabular-nums">{mpsMatch.promised}</span></div>}
+                                  {mpsMatch.action_items && <div className="col-span-2 md:col-span-4"><span className="text-indigo-600">Action</span> <span className="font-medium text-indigo-900 ml-1">{mpsMatch.action_items}</span></div>}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {/* Dates row */}
+                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs mb-3 pb-3 border-b border-slate-100">
+                            {moView.dates.order && <div><span className="text-slate-400">Order</span> <span className="font-medium tabular-nums ml-1">{moView.dates.order}</span></div>}
+                            {moView.dates.release && <div><span className="text-slate-400">Release</span> <span className="font-medium tabular-nums ml-1">{moView.dates.release}</span></div>}
+                            {moView.dates.completion && <div><span className="text-slate-400">Completion</span> <span className="font-medium tabular-nums ml-1">{moView.dates.completion}</span></div>}
+                            {moView.dates.close && <div><span className="text-slate-400">Close</span> <span className="font-medium tabular-nums ml-1">{moView.dates.close}</span></div>}
+                            {moView.rawHeader?.['Sales Order Ship Date'] && <div><span className="text-slate-400">SO Ship</span> <span className="font-medium tabular-nums ml-1">{moView.rawHeader['Sales Order Ship Date']}</span></div>}
                           </div>
-                        </div>
-                      </div>
-
-                      {/* CARD 2: Quantities & Costs */}
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                        <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-slate-600" />
-                          <h4 className="font-semibold text-slate-800 text-sm">Quantities & Costs</h4>
-                        </div>
-                        <div className="p-5">
-                          {/* Quantity grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                            <div className="text-center p-3 rounded-lg bg-slate-50">
-                              <div className="text-2xl font-bold text-slate-900 tabular-nums">{(moView.orderedQty || 0).toLocaleString()}</div>
-                              <div className="text-xs font-medium text-slate-500 mt-1">Ordered</div>
-                            </div>
-                            <div className="text-center p-3 rounded-lg bg-blue-50">
-                              <div className="text-2xl font-bold text-blue-700 tabular-nums">{(moView.wipQty || 0).toLocaleString()}</div>
-                              <div className="text-xs font-medium text-blue-600 mt-1">WIP</div>
-                            </div>
-                            <div className="text-center p-3 rounded-lg bg-emerald-50">
-                              <div className="text-2xl font-bold text-emerald-700 tabular-nums">{(moView.completedQty || 0).toLocaleString()}</div>
-                              <div className="text-xs font-medium text-emerald-600 mt-1">Completed</div>
-                            </div>
-                            <div className="text-center p-3 rounded-lg bg-amber-50">
-                              <div className="text-2xl font-bold text-amber-700 tabular-nums">{((moView.orderedQty || 0) - (moView.completedQty || 0)).toLocaleString()}</div>
-                              <div className="text-xs font-medium text-amber-600 mt-1">Remaining</div>
-                            </div>
-                          </div>
-                          {/* Costs: Projected vs Actual side by side */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="rounded-lg border border-slate-200 p-4">
-                              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Projected</div>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between"><span className="text-slate-600">Material</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-600">Labor</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-600">Overhead</span><span className="font-mono font-medium">${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}</span></div>
+                          {/* Costs: compact two-column */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-slate-200 p-3">
+                              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Projected</div>
+                              <div className="space-y-1 text-xs">
+                                <div className="flex justify-between"><span className="text-slate-600">Material</span><span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Material Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Labor</span><span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Labor Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-600">Overhead</span><span className="font-mono">${(parseFloat(moView.rawHeader?.['Projected Overhead Cost'] || 0)).toFixed(2)}</span></div>
                               </div>
                             </div>
-                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
-                              <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">Actual</div>
-                              <div className="space-y-2 text-sm">
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-3">
+                              <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-2">Actual</div>
+                              <div className="space-y-1 text-xs">
                                 <div className="flex justify-between"><span className="text-slate-600">Material</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Material Cost'] || moView.rawHeader?.['Used Material Cost'] || 0)).toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-600">Labor</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Labor Cost'] || moView.rawHeader?.['Used Labor Cost'] || 0)).toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-600">Overhead</span><span className="font-mono font-semibold text-emerald-700">${(parseFloat(moView.rawHeader?.['Actual Overhead Cost'] || moView.rawHeader?.['Used Overhead Cost'] || 0)).toFixed(2)}</span></div>
-                                <div className="flex justify-between pt-2 border-t border-emerald-200"><span className="font-semibold text-slate-700">Total</span><span className="font-mono font-bold text-emerald-800">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</span></div>
+                                <div className="flex justify-between pt-1.5 border-t border-emerald-200"><span className="font-semibold text-slate-700">Total</span><span className="font-mono font-bold text-emerald-800">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</span></div>
                               </div>
                             </div>
                           </div>
-                          {/* Audit info inline */}
-                          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
-                            {moView.rawHeader?.['Created By'] && <span>Created by <strong className="text-slate-700">{moView.rawHeader['Created By']}</strong> {moView.rawHeader?.['Created Date'] || moView.rawHeader?.['Order Date'] ? `on ${moView.rawHeader['Created Date'] || moView.rawHeader['Order Date']}` : ''}</span>}
-                            {moView.rawHeader?.['Released By'] && <span>Released by <strong className="text-slate-700">{moView.rawHeader['Released By']}</strong> {moView.dates.release ? `on ${moView.dates.release}` : ''}</span>}
-                            {moView.rawHeader?.['Closed By'] && <span>Closed by <strong className="text-slate-700">{moView.rawHeader['Closed By']}</strong> {moView.dates.close ? `on ${moView.dates.close}` : ''}</span>}
+                          {/* Audit inline */}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
+                            {moView.rawHeader?.['Created By'] && <span>Created by <strong className="text-slate-600">{moView.rawHeader['Created By']}</strong></span>}
+                            {moView.rawHeader?.['Released By'] && <span>Released by <strong className="text-slate-600">{moView.rawHeader['Released By']}</strong></span>}
+                            {moView.rawHeader?.['Closed By'] && <span>Closed by <strong className="text-slate-600">{moView.rawHeader['Closed By']}</strong></span>}
+                            {moView.locationNo && <span>Location: <strong className="text-slate-600">{moView.locationNo}</strong></span>}
+                            {moView.bomRev && <span>BOM Rev: <strong className="text-slate-600">{moView.bomRev}</strong></span>}
                           </div>
                         </div>
                       </div>
@@ -3681,338 +3688,78 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                   {/* MO Sales Order Related Tab */}
                   {moActiveTab === 'pegged' && (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {(() => {
-                        // Extract SO number from multiple sources
                         const directSONo = moView.salesOrderNo || moView.rawHeader?.['SalesOrderNo'] || moView.rawHeader?.['SO No.'];
-                        const description = moView.buildItemDesc || moView.rawHeader?.['Description'] || '';
-                        const moNo = moView.moNo || '';
-                        
-                        // Try to extract SO number from description with multiple patterns
-                        // Patterns: "SO 3130", "SO3130", "SO#3130", "Sales Order 3130", "S.O. 3130", "for SO 3130", etc.
+                        const description = moView.rawHeader?.['Description'] || moView.buildItemDesc || '';
                         let soFromDesc: string | null = null;
-                        const patterns = [
-                          /\bSO\s*#?\s*(\d{3,5})\b/i,           // SO 3130, SO#3130, SO3130
-                          /\bS\.?O\.?\s*#?\s*(\d{3,5})\b/i,     // S.O. 3130, S.O.3130
-                          /Sales\s*Order\s*#?\s*(\d{3,5})/i,    // Sales Order 3130
-                          /for\s+SO\s*#?\s*(\d{3,5})/i,         // for SO 3130
-                          /,\s*SO\s*(\d{3,5})/i,                // , SO 3130
-                          /\(SO\s*(\d{3,5})\)/i,                // (SO 3130)
-                          /SO:\s*(\d{3,5})/i,                   // SO: 3130
-                          /#(\d{4,5})\b/,                       // #3130 (4-5 digit numbers)
-                        ];
-                        
-                        for (const pattern of patterns) {
-                          const match = description.match(pattern);
-                          if (match) {
-                            soFromDesc = match[1];
-                            break;
-                          }
-                        }
-                        
-                        // Validate direct SO number - should be clean numeric or simple format
-                        // If it contains pipes, slashes, or other separators, it's likely corrupted/combined data
-                        const isDirectSOValid = directSONo && 
-                          /^\d{3,6}$/.test(String(directSONo).trim()) && // Pure numeric 3-6 digits
-                          !String(directSONo).includes('|') && 
-                          !String(directSONo).includes('/');
-                        
-                        // Use validated direct SO first, then extracted from description
-                        // If direct SO looks corrupted (contains | or /), prefer the description-extracted one
+                        const soPatterns = [/\bSO\s*#?\s*(\d{3,5})\b/i, /\bS\.?O\.?\s*#?\s*(\d{3,5})\b/i, /Sales\s*Order\s*#?\s*(\d{3,5})/i, /for\s+SO\s*#?\s*(\d{3,5})/i, /,\s*SO\s*(\d{3,5})/i, /\(SO\s*(\d{3,5})\)/i, /SO:\s*(\d{3,5})/i];
+                        for (const p of soPatterns) { const m = description.match(p); if (m) { soFromDesc = m[1]; break; } }
+                        const isDirectSOValid = directSONo && /^\d{3,6}$/.test(String(directSONo).trim());
                         const soNumber = isDirectSOValid ? directSONo : (soFromDesc || (directSONo ? String(directSONo).split(/[|\/]/)[0].trim() : null));
-                        
-                        // Find the related SO in the data
+
                         const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
                         const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-                        
-                        // Combine all SOs from different sources
                         let allSOs: any[] = [...salesOrdersData];
-                        Object.values(salesOrdersByStatus).forEach((statusSOs: any) => {
-                          if (Array.isArray(statusSOs)) {
-                            allSOs = [...allSOs, ...statusSOs];
-                          }
-                        });
-                        
-                        // Find matching SO
+                        Object.values(salesOrdersByStatus).forEach((statusSOs: any) => { if (Array.isArray(statusSOs)) allSOs = [...allSOs, ...statusSOs]; });
                         const relatedSO = soNumber ? allSOs.find((so: any) => {
                           const soNum = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['SalesOrderNo'];
-                          // Extract just the number for comparison
-                          const soNumStr = String(soNum || '').replace(/\D/g, '');
-                          const searchNum = String(soNumber).replace(/\D/g, '');
-                          return soNumStr === searchNum || soNum === soNumber;
+                          return String(soNum || '').replace(/\D/g, '') === String(soNumber).replace(/\D/g, '') || soNum === soNumber;
                         }) : null;
-                        
-                        // Also find SO file from folder data if available
                         const soFile = soNumber ? allSOs.find((so: any) => {
-                          const fileName = so.name || so.file_name || '';
-                          return fileName.toLowerCase().includes(`salesorder_${soNumber}`) ||
-                                 fileName.toLowerCase().includes(`salesorder${soNumber}`);
+                          const fn = so.name || so.file_name || '';
+                          return fn.toLowerCase().includes(`salesorder_${soNumber}`) || fn.toLowerCase().includes(`salesorder${soNumber}`);
                         }) : null;
 
                         return (
                           <>
-                            {/* Header */}
-                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-5 shadow-lg">
-                              <div className="flex items-center gap-3 mb-2">
-                                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                  <Link2 className="w-5 h-5 text-white" />
-                                </div>
-                                <div>
-                                  <h4 className="font-bold text-white text-lg">Sales Order Related</h4>
-                                  <p className="text-blue-100 text-sm">
-                                    Sales Order linked to this Manufacturing Order
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* SO Detection Info */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                              <div className="text-sm text-slate-600 mb-3 font-medium">SO Detection Sources:</div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${isDirectSOValid ? 'bg-green-500' : directSONo ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
-                                  <span className="text-slate-600">Direct SO Field:</span>
-                                  <span className={`font-medium ${isDirectSOValid ? 'text-green-700' : directSONo ? 'text-amber-600 line-through' : 'text-slate-400'}`}>
-                                    {directSONo || 'Not set'}
-                                  </span>
-                                  {directSONo && !isDirectSOValid && (
-                                    <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">invalid format</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${soFromDesc ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                                  <span className="text-slate-600">From Description:</span>
-                                  <span className={`font-medium ${soFromDesc ? 'text-green-700' : 'text-slate-400'}`}>
-                                    {soFromDesc ? `SO ${soFromDesc}` : 'Not found'}
-                                  </span>
-                                  {soFromDesc && !isDirectSOValid && (
-                                    <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">✓ using this</span>
-                                  )}
-                                </div>
-                              </div>
-                              {description && (
-                                <div className="mt-3 pt-3 border-t border-slate-200">
-                                  <div className="text-xs text-slate-500 mb-1">MO Description:</div>
-                                  <div className="text-sm text-slate-700 font-mono bg-white px-3 py-2 rounded-lg border border-slate-200">
-                                    {description}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Related SO Card */}
-                            {soNumber ? (
-                              <div className="bg-white border-2 border-blue-200 rounded-2xl overflow-hidden shadow-lg">
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 border-b border-blue-200">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
-                                        <FileText className="w-6 h-6 text-white" />
-                                      </div>
-                                      <div>
-                                        <div className="text-2xl font-bold text-blue-900">SO #{soNumber}</div>
-                                        <div className="text-sm text-blue-600">
-                                          {relatedSO?.['Customer'] || relatedSO?.['Customer Name'] || relatedSO?.customer_name || 'Customer info loading...'}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium border border-green-200">
-                                        ✓ Linked
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="p-5">
-                                  {relatedSO ? (
-                                    <div className="space-y-4">
-                                      {/* SO Details Grid */}
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Order Date</div>
-                                          <div className="font-bold text-slate-900">
-                                            {relatedSO['Order Date'] || relatedSO.order_date || '—'}
-                                          </div>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Due Date</div>
-                                          <div className="font-bold text-slate-900">
-                                            {relatedSO['Due Date'] || relatedSO.due_date || '—'}
-                                          </div>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Status</div>
-                                          <div className="font-bold text-slate-900">
-                                            {relatedSO['Status'] || relatedSO.status || 'Active'}
-                                          </div>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total</div>
-                                          <div className="font-bold text-slate-900">
-                                            {relatedSO['Total'] || relatedSO.total ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Action Buttons */}
-                                      <div className="flex items-center gap-3 pt-3 border-t border-slate-200">
-                                        <button
-                                          onClick={() => {
-                                            // Navigate to Sales Orders section and search for this SO
-                                            setActiveSection('orders');
-                                            setSoSearchQuery(soNumber);
-                                          }}
-                                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                          View in Sales Orders
-                                        </button>
-                                        {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
-                                          <button
-                                            onClick={() => {
-                                              const file = soFile || relatedSO;
-                                              if (file?.gdrive_id) {
-                                                window.open(getApiUrl(`/api/gdrive/preview/${file.gdrive_id}`), '_blank');
-                                              } else if (file?.path) {
-                                                window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(file.path)}`), '_blank');
-                                              }
-                                            }}
-                                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all text-sm font-medium"
-                                          >
-                                            <FileText className="w-4 h-4" />
-                                            View PDF
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-4">
-                                      {/* Basic SO Info when detailed data not available */}
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-200">
-                                          <div className="text-xs text-blue-600 uppercase tracking-wider mb-1">SO Number</div>
-                                          <div className="font-bold text-blue-900 text-lg">#{soNumber}</div>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Source</div>
-                                          <div className="font-bold text-slate-900">
-                                            {directSONo ? 'Direct Field' : 'Description'}
-                                          </div>
-                                        </div>
-                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                          <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">MO Number</div>
-                                          <div className="font-bold text-slate-900">{moNo || '—'}</div>
-                                        </div>
-                                        <div className="bg-green-50 rounded-xl p-3 text-center border border-green-200">
-                                          <div className="text-xs text-green-600 uppercase tracking-wider mb-1">Status</div>
-                                          <div className="font-bold text-green-700">Linked ✓</div>
-                                        </div>
-                                      </div>
-
-                                      {/* Action Buttons */}
-                                      <div className="flex items-center gap-3 pt-3 border-t border-slate-200">
-                                        <button
-                                          onClick={() => {
-                                            setActiveSection('orders');
-                                            setSoSearchQuery(soNumber);
-                                          }}
-                                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-medium"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                          View in Sales Orders
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            // Navigate to Sales Orders and try to find the PDF
-                                            setActiveSection('orders');
-                                            navigateToSOFolder('In Production');
-                                          }}
-                                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all text-sm font-medium"
-                                        >
-                                          <FileText className="w-4 h-4" />
-                                          Find SO PDF
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
-                                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                  <Search className="w-8 h-8 text-slate-400" />
-                                </div>
-                                <div className="font-semibold text-slate-700 text-lg mb-2">No Sales Order Linked</div>
-                                <div className="text-sm text-slate-500 max-w-md mx-auto">
-                                  This Manufacturing Order doesn't have a Sales Order number in its data or description.
-                                  The MO may be for stock replenishment rather than a specific customer order.
-                                </div>
+                            {/* MO Description (source of SO/PO linkage) */}
+                            {description && (
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">MO Description</span>
+                                <div className="text-sm font-mono text-slate-800 mt-1">{description}</div>
                               </div>
                             )}
 
-                            {/* Search for other SOs */}
-                            <div className="bg-white border border-gray-200 rounded-xl p-4">
-                              <div className="text-sm font-medium text-slate-700 mb-3">Search Other Sales Orders</div>
-                              <div className="relative">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 relative">
-                                    <input
-                                      type="text"
-                                      placeholder="Search SO number, customer, or PO..."
-                                      value={soSearchQuery}
-                                      onChange={(e) => setSoSearchQuery(e.target.value)}
-                                      className="w-full px-4 py-2.5 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
-                                    />
-                                    {soSearching ? (
-                                      <svg className="w-4 h-4 text-blue-500 animate-spin absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
-                                    ) : (
-                                      <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                      </svg>
+                            {soNumber ? (
+                              <div className="bg-white border border-blue-200 rounded-xl overflow-hidden">
+                                <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                                      <FileText className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                      <div className="text-xl font-bold text-blue-900">SO #{soNumber}</div>
+                                      <div className="text-sm text-blue-600">{relatedSO?.['Customer'] || relatedSO?.['Customer Name'] || relatedSO?.customer_name || moView.customer || ''}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                                      <Eye className="w-4 h-4" /> View in Sales Orders
+                                    </button>
+                                    {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
+                                      <button onClick={() => { const f = soFile || relatedSO; if (f?.gdrive_id) window.open(getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`), '_blank'); else if (f?.path) window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`), '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium">
+                                        <FileText className="w-4 h-4" /> PDF
+                                      </button>
                                     )}
                                   </div>
-                                  <button
-                                    onClick={() => {
-                                      setActiveSection('orders');
-                                    }}
-                                    className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 text-sm font-medium border border-slate-200"
-                                  >
-                                    Go to Sales Orders
-                                  </button>
                                 </div>
-                                {soSearchQuery.trim() && !soSearching && soSearchResults.length > 0 && (
-                                  <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden max-h-[250px] overflow-y-auto shadow-md">
-                                    {soSearchResults.slice(0, 10).map((so) => (
-                                      <div
-                                        key={so.so_number}
-                                        onClick={() => {
-                                          setSoSearchQuery('');
-                                          setSoSearchResults([]);
-                                          setActiveSection('orders');
-                                          navigateToSOFolder(so.status);
-                                        }}
-                                        className="flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-b-0 text-sm"
-                                      >
-                                        <span className="font-bold text-slate-900">SO {so.so_number}</span>
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                          so.status === 'New and Revised' ? 'bg-emerald-100 text-emerald-700' :
-                                          so.status === 'In Production' ? 'bg-orange-100 text-orange-700' :
-                                          so.status === 'Completed and Closed' ? 'bg-slate-100 text-slate-600' :
-                                          so.status === 'Cancelled' ? 'bg-red-100 text-red-600' :
-                                          'bg-blue-100 text-blue-700'
-                                        }`}>{so.status}</span>
-                                        <span className="text-xs text-slate-400 truncate flex-1">{so.file}</span>
-                                      </div>
-                                    ))}
+                                {relatedSO && (
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
+                                    <div><span className="text-xs text-slate-500 block">Order Date</span><span className="text-sm font-semibold">{relatedSO['Order Date'] || relatedSO.order_date || '—'}</span></div>
+                                    <div><span className="text-xs text-slate-500 block">Due Date</span><span className="text-sm font-semibold">{relatedSO['Due Date'] || relatedSO.due_date || '—'}</span></div>
+                                    <div><span className="text-xs text-slate-500 block">Status</span><span className="text-sm font-semibold">{relatedSO['Status'] || relatedSO.status || 'Active'}</span></div>
+                                    <div><span className="text-xs text-slate-500 block">Total</span><span className="text-sm font-semibold">{(relatedSO['Total'] || relatedSO.total) ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}</span></div>
                                   </div>
                                 )}
                               </div>
-                            </div>
+                            ) : (
+                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
+                                <Search className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                                <div className="font-semibold text-slate-700 mb-1">No Sales Order Linked</div>
+                                <div className="text-sm text-slate-500">No SO number found in the MO data or description. This MO may be for stock replenishment.</div>
+                              </div>
+                            )}
                           </>
                         );
                       })()}
