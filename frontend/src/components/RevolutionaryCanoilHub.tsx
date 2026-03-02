@@ -604,7 +604,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       { key: 'Required Date', label: 'Required Date', fallback: 'Due Date' },
       { key: 'Location', label: 'Location', fallback: 'Location No.' },
       { key: 'Billed Qty', label: 'Billed Qty' },
-      { key: 'Extended Price', label: 'Extended Price' }
+      { key: 'Extended Price', label: 'Extended Price' },
+      { key: 'Manufacturing Order No.', label: 'MO Ref', fallback: 'mohId' },
     ];
 
     return columns.filter(col => {
@@ -2667,7 +2668,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       <span className="font-mono font-semibold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">Batch: {mo['Batch No.'] || mo['Batch Number']}</span>
                                     )}
                                     {(mo['Sales Order No.'] || mo['SO No.']) && (
-                                      <span>SO: <span className="font-medium text-blue-600">{mo['Sales Order No.'] || mo['SO No.']}</span></span>
+                                      <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
+                                        SO: <span className="font-medium text-blue-600 group-hover/so:underline group-hover/so:text-blue-700">{mo['Sales Order No.'] || mo['SO No.']}</span>
+                                        <ExternalLink className="w-3 h-3 text-blue-400 opacity-0 group-hover/so:opacity-100 transition-opacity" />
+                                      </span>
                                     )}
                                     {(mo['Location No.'] || mo['Sales Location'] || mo['Work Center']) && (
                                       <span>Loc: {mo['Location No.'] || mo['Sales Location'] || mo['Work Center']}</span>
@@ -3187,7 +3191,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               </tr>
                               <tr className="hover:bg-slate-50/50">
                                 <td className="p-3 text-slate-600">Sales Order</td>
-                                <td className="p-3 font-mono">{moView.salesOrderNo || '—'}</td>
+                                <td className="p-3 font-mono">{moView.salesOrderNo ? (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="text-blue-600 underline cursor-pointer hover:text-blue-800 hover:bg-blue-50 rounded px-0.5 font-semibold" onClick={() => setMoActiveTab('pegged')}>{moView.salesOrderNo}</span>
+                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(moView.salesOrderNo!); setShowMODetails(false); }} className="p-0.5 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Go to Sales Orders"><ExternalLink className="w-3.5 h-3.5" /></button>
+                                  </span>
+                                ) : '—'}</td>
                                 <td className="p-3 text-slate-600">Job No.</td>
                                 <td className="p-3 font-mono">{moView.jobNo || '—'}</td>
                               </tr>
@@ -3351,7 +3360,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo) : null;
                         const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => job['Job No.'] === jobNo) : null;
                         const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => wo['Job No.'] === jobNo) : [];
-                        if (!relatedSO && !relatedJob && relatedWorkOrders.length === 0) return null;
+                        if (!relatedSO && !salesOrderNo && !relatedJob && relatedWorkOrders.length === 0) return null;
                         return (
                           <div className="rounded-xl border border-slate-100 overflow-hidden">
                             <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
@@ -3360,10 +3369,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </div>
                             <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                               {relatedSO && (
-                                <div className="rounded-lg border border-slate-200 p-3 bg-white">
-                                  <div className="text-xs font-medium text-slate-500 mb-1">Sales Order</div>
-                                  <div className="font-mono font-semibold text-blue-700">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
+                                <div className="rounded-lg border border-blue-200 p-3 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="text-xs font-medium text-blue-500">Sales Order</div>
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(relatedSO['Sales Order No.'] || relatedSO['Order No.'] || ''); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Open in Sales Orders"><ExternalLink className="w-3 h-3" /></button>
+                                    </div>
+                                  </div>
+                                  <div className="font-mono font-semibold text-blue-700 group-hover/socard:text-blue-800">SO #{relatedSO['Sales Order No.'] || relatedSO['Order No.']}</div>
                                   <div className="text-xs text-slate-600 mt-0.5">{relatedSO['Customer'] || relatedSO['Customer Name'] || '—'}</div>
+                                  <div className="text-xs text-blue-500 mt-1 opacity-0 group-hover/socard:opacity-100 transition-opacity">Click for full details</div>
+                                </div>
+                              )}
+                              {!relatedSO && salesOrderNo && (
+                                <div className="rounded-lg border border-blue-200 p-3 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="text-xs font-medium text-blue-500">Sales Order</div>
+                                    <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(salesOrderNo); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Search in Sales Orders"><ExternalLink className="w-3 h-3" /></button>
+                                  </div>
+                                  <div className="font-mono font-semibold text-blue-700 group-hover/socard:text-blue-800">SO #{salesOrderNo}</div>
+                                  <div className="text-xs text-slate-500 mt-0.5">Click to view details</div>
                                 </div>
                               )}
                               {relatedJob && (
@@ -4344,6 +4369,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         { id: 'costs', label: 'Additional Costs', icon: <DollarSign className="w-4 h-4" /> },
                         { id: 'costhistory', label: 'Cost History', icon: <TrendingUp className="w-4 h-4" /> },
                       ]},
+                      { title: 'Related', items: [
+                        { id: 'related', label: 'MOs & Sales Orders', icon: <Link2 className="w-4 h-4" /> },
+                      ]},
                     ].map((section) => (
                       <div key={section.title} className="py-2">
                         <div className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{section.title}</div>
@@ -4367,12 +4395,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-6">
                       {(() => {
-                        const poNavSections = [{ title: 'Order', items: [
-                          { id: 'overview', label: 'Overview' },
-                          { id: 'lineitems', label: 'Line Items' },
-                          { id: 'costs', label: 'Additional Costs' },
-                          { id: 'costhistory', label: 'Cost History' },
-                        ]}];
+                        const poNavSections = [
+                          { title: 'Order', items: [
+                            { id: 'overview', label: 'Overview' },
+                            { id: 'lineitems', label: 'Line Items' },
+                            { id: 'costs', label: 'Additional Costs' },
+                            { id: 'costhistory', label: 'Cost History' },
+                          ]},
+                          { title: 'Related', items: [
+                            { id: 'related', label: 'MOs & Sales Orders' },
+                          ]},
+                        ];
                         const poAllTabIds = poNavSections.flatMap((s) => s.items.map((i) => i.id));
                         const poCurrentIdx = poAllTabIds.indexOf(poActiveTab);
                         const poGoPrev = () => { const i = poCurrentIdx <= 0 ? poAllTabIds.length - 1 : poCurrentIdx - 1; setPoActiveTab(poAllTabIds[i]); };
@@ -4492,6 +4525,102 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 </table>
                               </div>
                             </div>
+
+                            {/* Financial Breakdown */}
+                            {(() => {
+                              const invoicedVal = parseFloat(h['Invoiced Amount'] || h['Total Invoiced'] || h['totInvoiced'] || 0);
+                              const taxVal = parseFloat(h['Total Tax Amount'] || h['totTaxAmt'] || 0);
+                              const addCostVal = parseFloat(h['Total Additional Cost'] || h['totAddCost'] || 0);
+                              const addTaxVal = parseFloat(h['Total Additional Tax'] || h['totAddTax'] || 0);
+                              const freightVal = parseFloat(h['Freight'] || 0);
+                              const hasFinancials = invoicedVal > 0 || taxVal > 0 || addCostVal > 0 || freightVal > 0;
+                              if (!hasFinancials) return null;
+                              return (
+                                <div className="overflow-hidden rounded-xl border border-slate-200">
+                                  <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                                    <DollarSign className="w-4 h-4 text-slate-600" />
+                                    <h4 className="font-semibold text-slate-800 text-sm">Financial Breakdown</h4>
+                                  </div>
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4">
+                                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                      <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Invoiced</div>
+                                      <div className="font-bold text-slate-900 font-mono">${invoicedVal.toFixed(2)}</div>
+                                    </div>
+                                    {taxVal > 0 && (
+                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tax</div>
+                                        <div className="font-bold text-slate-900 font-mono">${taxVal.toFixed(2)}</div>
+                                      </div>
+                                    )}
+                                    {addCostVal > 0 && (
+                                      <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                                        <div className="text-xs text-amber-600 uppercase tracking-wider mb-1">Add'l Costs</div>
+                                        <div className="font-bold text-amber-800 font-mono">${addCostVal.toFixed(2)}</div>
+                                      </div>
+                                    )}
+                                    {addTaxVal > 0 && (
+                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Add'l Tax</div>
+                                        <div className="font-bold text-slate-900 font-mono">${addTaxVal.toFixed(2)}</div>
+                                      </div>
+                                    )}
+                                    {freightVal > 0 && (
+                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Freight</div>
+                                        <div className="font-bold text-slate-900 font-mono">${freightVal.toFixed(2)}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Related Manufacturing Orders */}
+                            {(() => {
+                              const poId = (poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '').toString();
+                              const moNos = Array.from(new Set(
+                                poDetailsSource
+                                  .filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId)
+                                  .map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim())
+                                  .filter(Boolean)
+                              ));
+                              if (moNos.length === 0) return null;
+                              return (
+                                <div className="overflow-hidden rounded-xl border border-violet-200">
+                                  <div className="px-4 py-3 bg-violet-50/80 border-b border-violet-100 flex items-center gap-2">
+                                    <Factory className="w-4 h-4 text-violet-600" />
+                                    <h4 className="font-semibold text-violet-800 text-sm">Related Manufacturing Orders</h4>
+                                    <span className="ml-auto text-xs text-violet-500">{moNos.length} MO{moNos.length !== 1 ? 's' : ''} linked via line items</span>
+                                  </div>
+                                  <div className="p-4 flex flex-wrap gap-2">
+                                    {moNos.map((moNo) => {
+                                      const moHeader = (data['ManufacturingOrderHeaders.json'] || []).find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
+                                      const moStatus = moHeader?.['Status'];
+                                      const statusLabel = moStatus === 0 ? 'Planned' : moStatus === 1 ? 'Released' : moStatus === 2 ? 'Started' : moStatus === 3 ? 'Finished' : moStatus === 4 ? 'Closed' : '';
+                                      return (
+                                        <button
+                                          key={moNo}
+                                          onClick={() => {
+                                            if (moHeader) {
+                                              setSelectedMO(moHeader);
+                                              setShowMODetails(true);
+                                              setMoActiveTab('overview');
+                                            }
+                                          }}
+                                          className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 hover:border-violet-300 transition-all text-sm group/molink"
+                                        >
+                                          <Factory className="w-4 h-4 text-violet-400 group-hover/molink:text-violet-600" />
+                                          <span className="font-mono font-semibold text-violet-700">MO #{moNo}</span>
+                                          {statusLabel && <span className="text-xs text-violet-400">{statusLabel}</span>}
+                                          {moHeader?.['Customer'] && <span className="text-xs text-slate-500">· {moHeader['Customer']}</span>}
+                                          <ExternalLink className="w-3 h-3 text-violet-300 opacity-0 group-hover/molink:opacity-100 transition-opacity" />
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </>
                         );
                       })()}
@@ -4648,6 +4777,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                     {locVal ? <span className="text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={(e) => { e.stopPropagation(); setSelectedLocId(locVal.toString()); setShowLocationDetail(true); }}>{locVal}</span> : '—'}
                                                   </td>
                                                 );
+
+                                              case 'Manufacturing Order No.': {
+                                                const moRefVal = (getValue(line, 'Manufacturing Order No.', 'mohId') ?? '').toString().trim();
+                                                if (!moRefVal) return <td key={col.key} className="p-3 text-gray-400">—</td>;
+                                                const moHeaderRef = (data['ManufacturingOrderHeaders.json'] || []).find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moRefVal);
+                                                return (
+                                                  <td key={col.key} className="p-3">
+                                                    <button
+                                                      onClick={(e) => { e.stopPropagation(); if (moHeaderRef) { setSelectedMO(moHeaderRef); setShowMODetails(true); setMoActiveTab('overview'); } }}
+                                                      className="inline-flex items-center gap-1 font-mono text-violet-600 hover:text-violet-800 hover:underline font-medium text-xs"
+                                                      title={moHeaderRef ? `Open MO #${moRefVal}` : `MO #${moRefVal} (not in data)`}
+                                                    >
+                                                      <Factory className="w-3 h-3" />
+                                                      {moRefVal}
+                                                    </button>
+                                                  </td>
+                                                );
+                                              }
                                               
                                               default:
                                                 return (
@@ -4985,6 +5132,155 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               {sorted.length > 100 && <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 text-center">Showing 100 of {sorted.length}</div>}
                             </div>
                           )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* PO Related Tab - MOs & Sales Orders */}
+                  {poActiveTab === 'related' && (() => {
+                    const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
+                    const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
+                    const moNos = Array.from(new Set(
+                      poLines.map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim()).filter(Boolean)
+                    ));
+                    const moHeaders = (data['ManufacturingOrderHeaders.json'] || []) as any[];
+                    const linkedMOs = moNos.map((moNo) => {
+                      const hdr = moHeaders.find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
+                      const soNo = hdr?.['Sales Order No.'] || '';
+                      return { moNo, header: hdr, soNo };
+                    });
+                    const tracedSONumbers = Array.from(new Set(linkedMOs.map(m => m.soNo).filter(Boolean)));
+                    const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
+                    const tracedSOs = tracedSONumbers.map(soNo => {
+                      const so = (salesOrdersData as any[]).find((s: any) => (s['Sales Order No.'] || s['Order No.'] || '') === soNo);
+                      return { soNo, data: so };
+                    });
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl p-5 shadow-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                              <Link2 className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-white text-lg">Related Orders</h4>
+                              <p className="text-blue-100 text-sm">Manufacturing Orders and Sales Orders linked to this PO</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Linked Manufacturing Orders */}
+                        <div className="rounded-xl border border-violet-200 overflow-hidden">
+                          <div className="px-4 py-3 bg-violet-50/80 border-b border-violet-100 flex items-center gap-2">
+                            <Factory className="w-4 h-4 text-violet-600" />
+                            <h4 className="font-semibold text-violet-800 text-sm">Linked Manufacturing Orders</h4>
+                            <span className="ml-auto text-xs text-violet-500">{linkedMOs.length} MO{linkedMOs.length !== 1 ? 's' : ''} found via MIPOD</span>
+                          </div>
+                          {linkedMOs.length === 0 ? (
+                            <div className="p-8 text-center text-slate-500">
+                              <Factory className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                              <div className="font-medium text-slate-700 mb-1">No Manufacturing Orders Linked</div>
+                              <div className="text-sm">None of this PO's line items reference a Manufacturing Order (MIPOD mohId is empty).</div>
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-violet-100">
+                              {linkedMOs.map(({ moNo, header: moHdr, soNo }) => {
+                                const moStatus = moHdr?.['Status'];
+                                const statusLabel = moStatus === 0 ? 'Planned' : moStatus === 1 ? 'Released' : moStatus === 2 ? 'Started' : moStatus === 3 ? 'Finished' : moStatus === 4 ? 'Closed' : 'Unknown';
+                                const statusColor = moStatus === 0 ? 'bg-amber-100 text-amber-700' : moStatus === 1 ? 'bg-emerald-100 text-emerald-700' : moStatus === 2 ? 'bg-blue-100 text-blue-700' : moStatus === 3 ? 'bg-violet-100 text-violet-700' : moStatus === 4 ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600';
+                                const itemsOnThisMO = poLines.filter((l: any) => (l['Manufacturing Order No.'] ?? l['mohId'] ?? '').toString().trim() === moNo);
+                                return (
+                                  <div key={moNo} className="p-4 hover:bg-violet-50/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-3">
+                                        <button
+                                          onClick={() => { if (moHdr) { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); } }}
+                                          className="font-mono font-bold text-violet-700 hover:text-violet-900 hover:underline text-base"
+                                        >
+                                          MO #{moNo}
+                                        </button>
+                                        <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                                        {soNo && (
+                                          <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                                            <FileText className="w-3 h-3" /> SO #{soNo}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-500">{itemsOnThisMO.length} line{itemsOnThisMO.length !== 1 ? 's' : ''} on this PO</span>
+                                        {moHdr && (
+                                          <button onClick={() => { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); }} className="p-1 rounded hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors" title="Open MO Details">
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {moHdr && (
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-2">
+                                        <div><span className="text-xs text-slate-500">Build Item</span><div className="font-mono text-sm font-medium">{moHdr['Build Item No.'] || '—'}</div></div>
+                                        <div><span className="text-xs text-slate-500">Customer</span><div className="text-sm font-medium">{moHdr['Customer'] || '—'}</div></div>
+                                        <div><span className="text-xs text-slate-500">Ordered</span><div className="text-sm font-medium tabular-nums">{(moHdr['Ordered'] ?? 0).toLocaleString()}</div></div>
+                                        <div><span className="text-xs text-slate-500">Completed</span><div className="text-sm font-medium tabular-nums">{(moHdr['Completed'] ?? 0).toLocaleString()}</div></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Traced Sales Orders */}
+                        {tracedSOs.length > 0 && (
+                          <div className="rounded-xl border border-blue-200 overflow-hidden">
+                            <div className="px-4 py-3 bg-blue-50/80 border-b border-blue-100 flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              <h4 className="font-semibold text-blue-800 text-sm">Traced Sales Orders</h4>
+                              <span className="ml-auto text-xs text-blue-500">Via PO → MO → SO chain</span>
+                            </div>
+                            <div className="divide-y divide-blue-100">
+                              {tracedSOs.map(({ soNo, data: soData }) => (
+                                <div key={soNo} className="p-4 hover:bg-blue-50/50 transition-colors">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={() => { setActiveSection('orders'); setSoSearchQuery(soNo); setShowPODetails(false); }}
+                                        className="font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline text-base"
+                                      >
+                                        SO #{soNo}
+                                      </button>
+                                      {soData?.['Customer'] && <span className="text-sm text-slate-600">{soData['Customer']}</span>}
+                                      {soData?.['Status'] != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{soData['Status']}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {soData?.['Total'] && <span className="text-sm font-mono font-semibold text-slate-700">${parseFloat(soData['Total']).toFixed(2)}</span>}
+                                      <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(soNo); setShowPODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Go to Sales Orders">
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-1">
+                                    Linked via MO{linkedMOs.filter(m => m.soNo === soNo).length > 1 ? 's' : ''}: {linkedMOs.filter(m => m.soNo === soNo).map(m => `#${m.moNo}`).join(', ')}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Traceability summary */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                          <div className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wider">Order Chain Traceability</div>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <span className="font-mono font-semibold bg-blue-50 px-2 py-1 rounded border border-blue-100">PO #{poId}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="font-mono font-semibold bg-violet-50 px-2 py-1 rounded border border-violet-100">{linkedMOs.length} MO{linkedMOs.length !== 1 ? 's' : ''}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="font-mono font-semibold bg-green-50 px-2 py-1 rounded border border-green-100">{tracedSOs.length} SO{tracedSOs.length !== 1 ? 's' : ''}</span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -5597,7 +5893,34 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <div className="po-id shrink-0">{poId || po['pohId'] || '—'}</div>
                                 <div className="flex-1 min-w-0">
                                   <div className="font-semibold text-slate-900 truncate">{supplierName || '—'}</div>
-                                  <div className="text-sm text-slate-500 truncate">{po['Buyer'] ? `Buyer: ${po['Buyer']}` : ''}</div>
+                                  <div className="text-sm text-slate-500 truncate">
+                                    {po['Buyer'] ? <span>Buyer: {po['Buyer']}</span> : ''}
+                                    {po['Buyer'] && po['Terms'] ? <span className="text-slate-300"> · </span> : ''}
+                                    {po['Terms'] ? <span>Terms: {po['Terms']}</span> : ''}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-600">
+                                    {(() => {
+                                      const lineCount = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId).length;
+                                      return lineCount > 0 ? <span className="font-medium text-slate-500">{lineCount} line{lineCount !== 1 ? 's' : ''}</span> : null;
+                                    })()}
+                                    {(() => {
+                                      const moNos = Array.from(new Set(
+                                        poDetailsSource
+                                          .filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId)
+                                          .map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim())
+                                          .filter(Boolean)
+                                      ));
+                                      return moNos.length > 0 ? (
+                                        <span className="inline-flex items-center gap-1">
+                                          <Factory className="w-3 h-3 text-violet-400" />
+                                          <span className="font-medium text-violet-600">
+                                            MO: {moNos.slice(0, 2).join(', ')}{moNos.length > 2 ? ` +${moNos.length - 2}` : ''}
+                                          </span>
+                                        </span>
+                                      ) : null;
+                                    })()}
+                                    {po['Ship Via'] && <span>Ship: {po['Ship Via']}</span>}
+                                  </div>
                                 </div>
                                 <span className={`px-2.5 py-1 rounded-md text-xs font-semibold w-24 text-center shrink-0 ${statusInfo.color}`}>{statusInfo.text}</span>
                                 <div className="w-24 text-right font-mono text-sm font-semibold text-emerald-600 tabular-nums shrink-0">
