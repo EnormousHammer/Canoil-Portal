@@ -1,58 +1,46 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { fetchShipmentsData, Shipment, getStatusCategory, getDestinationType } from '../services/shipmentsDataService';
 import {
-  Search,
-  RefreshCw,
-  Download,
-  Filter,
-  ChevronDown,
-  ChevronUp,
-  Package,
-  Truck,
-  Globe,
-  MapPin,
-  FileText,
-  CheckCircle,
-  AlertTriangle,
-  X,
-  Eye,
-  Clock,
-  ArrowUpDown,
-  Users
+  Search, RefreshCw, Download, Filter, ChevronDown, ChevronUp,
+  Package, Truck, Globe, MapPin, CheckCircle, AlertTriangle,
+  X, Eye, Clock, ArrowUpDown, Users, FileText, ExternalLink
 } from 'lucide-react';
 
 type SortField = keyof Shipment;
 type SortDir = 'asc' | 'desc';
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  'shipped':      { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  'ready':        { bg: 'bg-cyan-500/10',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
-  'on-schedule':  { bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-400' },
-  'late':         { bg: 'bg-amber-500/10',    text: 'text-amber-400',   dot: 'bg-amber-400' },
-  'very-late':    { bg: 'bg-red-500/10',      text: 'text-red-400',     dot: 'bg-red-400' },
-  'unscheduled':  { bg: 'bg-slate-500/10',    text: 'text-slate-400',   dot: 'bg-slate-400' },
-  'other':        { bg: 'bg-slate-500/10',    text: 'text-slate-400',   dot: 'bg-slate-400' },
-};
+function getStatusBadge(status: string) {
+  const s = status.toLowerCase();
+  if (s.includes('shipped') && s.includes('invoiced')) return 'bg-green-50 text-green-700 border border-green-200';
+  if (s.includes('shipped')) return 'bg-blue-50 text-blue-700 border border-blue-200';
+  if (s.includes('ready')) return 'bg-cyan-50 text-cyan-700 border border-cyan-200';
+  if (s.includes('very late')) return 'bg-red-50 text-red-700 border border-red-200';
+  if (s.includes('late')) return 'bg-amber-50 text-amber-700 border border-amber-200';
+  if (s.includes('on schedule')) return 'bg-blue-50 text-blue-700 border border-blue-200';
+  if (s.includes('unscheduled')) return 'bg-gray-50 text-gray-600 border border-gray-200';
+  return 'bg-gray-50 text-gray-600 border border-gray-200';
+}
 
-const DEST_CONFIG: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  'domestic':      { bg: 'bg-sky-500/8',     text: 'text-sky-300',     border: 'border-sky-500/20',     label: 'Domestic' },
-  'transborder':   { bg: 'bg-orange-500/8',  text: 'text-orange-300',  border: 'border-orange-500/20',  label: 'Transborder' },
-  'international': { bg: 'bg-violet-500/8',  text: 'text-violet-300',  border: 'border-violet-500/20',  label: 'Intl' },
-  'other':         { bg: 'bg-slate-500/8',   text: 'text-slate-400',   border: 'border-slate-500/20',   label: 'Other' },
-};
+function getDestBadge(dest: string) {
+  const d = dest.toLowerCase();
+  if (d.includes('domestic')) return 'bg-sky-50 text-sky-700 border border-sky-200';
+  if (d.includes('transborder')) return 'bg-orange-50 text-orange-700 border border-orange-200';
+  if (d.includes('international')) return 'bg-violet-50 text-violet-700 border border-violet-200';
+  return 'bg-gray-50 text-gray-600 border border-gray-200';
+}
 
 export const ShipmentsPage: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [secondsSince, setSecondsSince] = useState(0);
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [destFilter, setDestFilter] = useState('all');
-  const [termsFilter, setTermsFilter] = useState('all');
-  const [custFilter, setCustFilter] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [destFilter, setDestFilter] = useState('');
+  const [termsFilter, setTermsFilter] = useState('');
+  const [custFilter, setCustFilter] = useState('');
 
   const [sortField, setSortField] = useState<SortField>('so_number');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -79,10 +67,21 @@ export const ShipmentsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (lastUpdated) setSecondsSince(Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [lastUpdated]);
+
   const uniqueStatuses = useMemo(() => Array.from(new Set(shipments.map(s => s.status).filter(Boolean))).sort(), [shipments]);
   const uniqueDests = useMemo(() => Array.from(new Set(shipments.map(s => s.destination).filter(Boolean))).sort(), [shipments]);
   const uniqueTerms = useMemo(() => Array.from(new Set(shipments.map(s => s.shipping_terms).filter(Boolean))).sort(), [shipments]);
-  const uniqueCustomers = useMemo(() => Array.from(new Set(shipments.map(s => s.customer).filter(Boolean))).sort(), [shipments]);
+  const uniqueCustomers = useMemo(() => {
+    const map = new Map<string, number>();
+    shipments.forEach(s => { if (s.customer) map.set(s.customer, (map.get(s.customer) || 0) + 1); });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  }, [shipments]);
 
   const filtered = useMemo(() => {
     let r = [...shipments];
@@ -96,10 +95,10 @@ export const ShipmentsPage: React.FC = () => {
         s.invoice_qty.toLowerCase().includes(q)
       );
     }
-    if (statusFilter !== 'all') r = r.filter(s => s.status === statusFilter);
-    if (destFilter !== 'all') r = r.filter(s => s.destination === destFilter);
-    if (termsFilter !== 'all') r = r.filter(s => s.shipping_terms === termsFilter);
-    if (custFilter !== 'all') r = r.filter(s => s.customer === custFilter);
+    if (statusFilter) r = r.filter(s => s.status === statusFilter);
+    if (destFilter) r = r.filter(s => s.destination === destFilter);
+    if (termsFilter) r = r.filter(s => s.shipping_terms === termsFilter);
+    if (custFilter) r = r.filter(s => s.customer === custFilter);
 
     r.sort((a, b) => {
       const av = a[sortField] ?? '';
@@ -113,12 +112,10 @@ export const ShipmentsPage: React.FC = () => {
   const stats = useMemo(() => {
     const total = shipments.length;
     const shipped = shipments.filter(s => s.status.toLowerCase().includes('shipped')).length;
-    const pending = total - shipped;
     const domestic = shipments.filter(s => getDestinationType(s.destination) === 'domestic').length;
     const transborder = shipments.filter(s => getDestinationType(s.destination) === 'transborder').length;
-    const international = shipments.filter(s => getDestinationType(s.destination) === 'international').length;
-    const customers = new Set(shipments.map(s => s.customer).filter(Boolean)).size;
-    return { total, shipped, pending, domestic, transborder, international, customers };
+    const intl = shipments.filter(s => getDestinationType(s.destination) === 'international').length;
+    return { total, shipped, domestic, transborder, international: intl };
   }, [shipments]);
 
   const toggleSort = (field: SortField) => {
@@ -126,9 +123,8 @@ export const ShipmentsPage: React.FC = () => {
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  const activeFilters = [statusFilter, destFilter, termsFilter, custFilter].filter(f => f !== 'all').length + (search ? 1 : 0);
-
-  const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDestFilter('all'); setTermsFilter('all'); setCustFilter('all'); };
+  const hasFilters = !!(statusFilter || destFilter || termsFilter || custFilter || search.trim());
+  const clearFilters = () => { setSearch(''); setStatusFilter(''); setDestFilter(''); setTermsFilter(''); setCustFilter(''); };
 
   const exportCSV = () => {
     const h = ['SO','Customer','Status','Terms','Destination','Qty','Freight Rate','Customs Duty','Order Completion','Scheduled Pickup','Days Left','Actual Pickup','Invoice Date','Invoice #','Notes'];
@@ -144,286 +140,283 @@ export const ShipmentsPage: React.FC = () => {
     a.click();
   };
 
-  // Loading state
   if (loading && !shipments.length) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 animate-spin" />
-            <Truck className="absolute inset-0 m-auto w-6 h-6 text-cyan-400" />
-          </div>
-          <div>
-            <p className="text-white font-semibold text-lg">Loading Shipments</p>
-            <p className="text-slate-500 text-sm">Connecting to Canoil Central...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error && !shipments.length) {
-    return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
-        <div className="bg-slate-900/80 border border-red-500/20 rounded-2xl p-8 max-w-md text-center space-y-4">
-          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
-          <h2 className="text-white font-semibold text-lg">Connection Error</h2>
-          <p className="text-slate-400 text-sm">{error}</p>
-          <button onClick={loadData} className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-colors">
-            Try Again
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <Truck className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
+          <p className="text-slate-700 text-xl font-medium">Loading Shipments...</p>
+          <p className="text-slate-400 text-sm mt-2">Fetching live data from Canoil Central</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1120]">
-      {/* ─── Header Bar ─── */}
-      <header className="sticky top-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-b border-white/[0.06]">
-        <div className="px-6 py-3 flex items-center justify-between gap-4">
-          {/* Left: Title */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <Truck className="w-[18px] h-[18px] text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-[15px] font-semibold text-white leading-tight truncate">Shipments</h1>
-              <p className="text-[11px] text-slate-500 leading-tight">
-                {lastUpdated && <span>{lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-                {loading && <span className="ml-1.5 text-cyan-400">syncing...</span>}
-              </p>
+    <div className="min-h-screen flex flex-col bg-slate-50">
+
+      {/* ── Header ─── */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Truck className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Shipments</h1>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-slate-500">
+                  {filtered.length === shipments.length
+                    ? <><span className="text-slate-800 font-semibold">{shipments.length}</span> shipments</>
+                    : <><span className="text-slate-800 font-semibold">{filtered.length}</span> of {shipments.length} shipments</>}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                  <span className="text-green-600 text-xs font-medium">LIVE</span>
+                  <span className="text-slate-400 text-xs">
+                    {loading ? 'Syncing...' : secondsSince < 3 ? 'Just updated' : `${secondsSince}s ago`}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Center: Search */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by SO, customer, invoice..."
-                className="w-full pl-9 pr-8 py-[7px] bg-white/[0.04] border border-white/[0.06] rounded-lg text-[13px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500/40 focus:bg-white/[0.06] transition-all"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowFilters(v => !v)}
-              className={`flex items-center gap-1.5 px-3 py-[7px] rounded-lg text-[12px] font-medium transition-all ${
-                showFilters || activeFilters
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                  : 'bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.06]'
-              }`}
+              onClick={exportCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
             >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Filters</span>
-              {activeFilters > 0 && (
-                <span className="ml-0.5 w-4 h-4 rounded-full bg-cyan-500 text-[10px] text-white font-bold flex items-center justify-center">{activeFilters}</span>
-              )}
+              <Download className="w-4 h-4" />
+              Export
             </button>
-            <button onClick={loadData} disabled={loading} className="p-[7px] bg-white/[0.04] border border-white/[0.06] text-slate-400 rounded-lg hover:bg-white/[0.06] transition-all" title="Refresh">
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-[7px] bg-white/[0.04] border border-white/[0.06] text-slate-400 rounded-lg hover:bg-white/[0.06] text-[12px] font-medium transition-all">
-              <Download className="w-3.5 h-3.5" />
-              <span>Export</span>
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              title="Refresh now"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* ─── Filter Row ─── */}
-        {showFilters && (
-          <div className="px-6 pb-3 pt-0">
-            <div className="flex items-center gap-3">
-              <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={uniqueStatuses} />
-              <FilterSelect label="Destination" value={destFilter} onChange={setDestFilter} options={uniqueDests} />
-              <FilterSelect label="Terms" value={termsFilter} onChange={setTermsFilter} options={uniqueTerms} />
-              <FilterSelect label="Customer" value={custFilter} onChange={setCustFilter} options={uniqueCustomers} />
-              {activeFilters > 0 && (
-                <button onClick={clearFilters} className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium whitespace-nowrap ml-auto">Clear all</button>
-              )}
-            </div>
+      {/* ── KPI + Filters ─── */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Quick stats */}
+          <div className="flex items-center gap-4">
+            <span className="text-slate-500 text-sm">
+              <span className="text-slate-800 font-semibold">{stats.total}</span> total
+            </span>
+            <span className="text-green-600 text-sm font-medium flex items-center gap-1">
+              <CheckCircle className="w-4 h-4" />
+              {stats.shipped} shipped
+            </span>
+            <span className="text-sky-600 text-sm flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5" />
+              {stats.domestic} domestic
+            </span>
+            <span className="text-orange-600 text-sm flex items-center gap-1">
+              <Truck className="w-3.5 h-3.5" />
+              {stats.transborder} transborder
+            </span>
+            <span className="text-violet-600 text-sm flex items-center gap-1">
+              <Globe className="w-3.5 h-3.5" />
+              {stats.international} intl
+            </span>
           </div>
-        )}
-      </header>
 
-      {/* ─── KPI Cards ─── */}
-      <div className="px-6 pt-4 pb-2">
-        <div className="grid grid-cols-7 gap-2.5">
-          <KpiCard icon={<Package className="w-4 h-4" />} label="Total" value={stats.total} color="slate" />
-          <KpiCard icon={<CheckCircle className="w-4 h-4" />} label="Shipped" value={stats.shipped} color="emerald" />
-          <KpiCard icon={<Clock className="w-4 h-4" />} label="Pending" value={stats.pending} color="amber" />
-          <KpiCard icon={<MapPin className="w-4 h-4" />} label="Domestic" value={stats.domestic} color="sky" />
-          <KpiCard icon={<Truck className="w-4 h-4" />} label="Transborder" value={stats.transborder} color="orange" />
-          <KpiCard icon={<Globe className="w-4 h-4" />} label="International" value={stats.international} color="violet" />
-          <KpiCard icon={<Users className="w-4 h-4" />} label="Customers" value={stats.customers} color="cyan" />
+          <div className="h-4 w-px bg-gray-300" />
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search SO, customer, invoice..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="bg-white border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-slate-800 text-sm w-64 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
+              <option value="">All statuses</option>
+              {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={destFilter} onChange={e => setDestFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
+              <option value="">All destinations</option>
+              {uniqueDests.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select value={termsFilter} onChange={e => setTermsFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
+              <option value="">All terms</option>
+              {uniqueTerms.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={custFilter} onChange={e => setCustFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm max-w-[180px]">
+              <option value="">All customers</option>
+              {uniqueCustomers.map(c => <option key={c} value={c}>{c.length > 22 ? c.slice(0, 22) + '\u2026' : c}</option>)}
+            </select>
+            {hasFilters && (
+              <button onClick={clearFilters} className="px-2 py-1 text-slate-400 hover:text-slate-700 text-sm" title="Clear filters">
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ─── Result count ─── */}
-      <div className="px-6 py-2 flex items-center justify-between">
-        <span className="text-[11px] text-slate-500">
-          {filtered.length === shipments.length
-            ? <><span className="text-slate-300 font-medium">{shipments.length}</span> shipments</>
-            : <><span className="text-slate-300 font-medium">{filtered.length}</span> of {shipments.length} shipments</>}
-        </span>
-      </div>
+      {/* Error banner */}
+      {error && (
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
-      {/* ─── Table ─── */}
-      <div className="px-6 pb-6">
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden bg-[#0d1526]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <TH field="so_number" label="SO #" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[90px]" />
-                  <TH field="customer" label="Customer" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="min-w-[180px]" />
-                  <TH field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[170px]" />
-                  <TH field="shipping_terms" label="Terms" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[110px]" />
-                  <TH field="destination" label="Destination" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[120px]" />
-                  <TH field="invoice_qty" label="Quantity" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[120px]" />
-                  <TH field="order_completion" label="Completed" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
-                  <TH field="scheduled_pickup" label="Scheduled" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
-                  <TH field="actual_pickup" label="Picked Up" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
-                  <TH field="invoice_number" label="Invoice" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
-                  <th className="w-[40px] px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => {
-                  const sc = STATUS_CONFIG[getStatusCategory(s.status)] || STATUS_CONFIG.other;
-                  const dc = DEST_CONFIG[getDestinationType(s.destination)] || DEST_CONFIG.other;
-                  return (
+      {/* ── Table ─── */}
+      <div className="flex-1 overflow-auto p-6">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+            <Filter className="w-12 h-12 mb-3 opacity-50" />
+            <p className="text-lg font-medium text-slate-700">No shipments match the current filters</p>
+            <p className="text-sm mt-1">Try clearing filters or search to see all shipments.</p>
+            {hasFilters && (
+              <button onClick={clearFilters} className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg text-sm">
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <TH field="so_number" label="SO #" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="customer" label="Customer" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="status" label="Status" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="shipping_terms" label="Terms" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="destination" label="Destination" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="invoice_qty" label="Quantity" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="order_completion" label="Completed" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="scheduled_pickup" label="Scheduled" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="actual_pickup" label="Picked Up" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <TH field="invoice_number" label="Invoice" cur={sortField} dir={sortDir} onSort={toggleSort} />
+                    <th className="w-10 px-3 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map((s, i) => (
                     <tr
                       key={`${s.so_number}-${i}`}
                       onClick={() => setSelected(s)}
-                      className="border-b border-white/[0.03] hover:bg-white/[0.02] cursor-pointer transition-colors group"
+                      className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
                     >
-                      <td className="px-3 py-2.5">
-                        <span className="text-[13px] font-mono font-semibold text-cyan-400">{s.so_number}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm font-semibold text-blue-600 font-mono">{s.so_number}</span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[13px] text-slate-200 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-600 italic">--</span>}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-800 block truncate max-w-[220px]" title={s.customer}>
+                          {s.customer || <span className="text-slate-400 italic">--</span>}
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-[3px] rounded-md text-[11px] font-medium ${sc.bg} ${sc.text}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>
                           {s.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[12px] text-slate-400">{s.shipping_terms}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-600">{s.shipping_terms}</span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center px-2 py-[2px] rounded text-[11px] font-medium border ${dc.bg} ${dc.text} ${dc.border}`}>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getDestBadge(s.destination)}`}>
                           {s.destination}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[12px] text-slate-300">{s.invoice_qty}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-700">{s.invoice_qty}</span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[12px] text-slate-400">{s.order_completion || '--'}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-500">{s.order_completion || '--'}</span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[12px] text-slate-400">{s.scheduled_pickup || '--'}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-500">{s.scheduled_pickup || '--'}</span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-[12px] text-slate-400">{s.actual_pickup || '--'}</span>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-500">{s.actual_pickup && s.actual_pickup.toLowerCase() !== 'leave empty' ? s.actual_pickup : '--'}</span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-4 py-3">
                         {s.invoice_number ? (
                           <div>
-                            <span className="text-[12px] font-mono text-slate-300">#{s.invoice_number}</span>
-                            {s.invoice_date && <p className="text-[10px] text-slate-500 mt-0.5">{s.invoice_date}</p>}
+                            <span className="text-sm font-mono font-medium text-slate-800">#{s.invoice_number}</span>
+                            {s.invoice_date && <p className="text-xs text-slate-400 mt-0.5">{s.invoice_date}</p>}
                           </div>
                         ) : (
-                          <span className="text-[12px] text-slate-600">--</span>
+                          <span className="text-sm text-slate-400">--</span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <Eye className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-300 transition-colors inline-block" />
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={e => { e.stopPropagation(); setSelected(s); }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {!filtered.length && (
-            <div className="py-16 text-center">
-              <Package className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm font-medium">No shipments match your criteria</p>
-              {activeFilters > 0 && (
-                <button onClick={clearFilters} className="mt-2 text-[12px] text-cyan-400 hover:text-cyan-300 font-medium">Clear filters</button>
-              )}
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* ─── Detail Drawer ─── */}
+      {/* ── Detail Side Panel ─── */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setSelected(null)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-          <div
-            className="relative w-full max-w-md bg-[#0d1526] border-l border-white/[0.06] shadow-2xl h-full overflow-y-auto animate-slide-in"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Drawer Header */}
-            <div className="sticky top-0 bg-[#0d1526]/95 backdrop-blur-xl border-b border-white/[0.06] px-5 py-4 flex items-center justify-between z-10">
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setSelected(null)} />
+          <div className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto border-l border-gray-200 animate-slide-in">
+            {/* Panel header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-4 flex items-center justify-between z-10">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-white" />
+                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-[15px] font-semibold text-white">SO {selected.so_number}</h2>
-                  <p className="text-[12px] text-slate-400 truncate">{selected.customer}</p>
+                  <h2 className="text-lg font-bold text-slate-800">SO {selected.so_number}</h2>
+                  <p className="text-sm text-slate-500 truncate">{selected.customer}</p>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-slate-500 hover:text-white transition-colors">
-                <X className="w-4 h-4" />
+              <button onClick={() => setSelected(null)} className="p-2 rounded-lg hover:bg-gray-100 text-slate-400 hover:text-slate-700 transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Drawer Body */}
+            {/* Panel body */}
             <div className="px-5 py-5 space-y-5">
-              {/* Status + Destination row */}
-              <div className="flex gap-2">
-                {(() => {
-                  const sc = STATUS_CONFIG[getStatusCategory(selected.status)] || STATUS_CONFIG.other;
-                  return (
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium ${sc.bg} ${sc.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                      {selected.status}
-                    </span>
-                  );
-                })()}
-                {(() => {
-                  const dc = DEST_CONFIG[getDestinationType(selected.destination)] || DEST_CONFIG.other;
-                  return (
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded text-[12px] font-medium border ${dc.bg} ${dc.text} ${dc.border}`}>
-                      {selected.destination}
-                    </span>
-                  );
-                })()}
+              {/* Badges */}
+              <div className="flex flex-wrap gap-2">
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getStatusBadge(selected.status)}`}>
+                  {selected.status}
+                </span>
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getDestBadge(selected.destination)}`}>
+                  {selected.destination}
+                </span>
               </div>
 
-              {/* Info Grid */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-4">
                 <Field label="Shipping Terms" value={selected.shipping_terms} />
                 <Field label="Sales Location" value={selected.sales_location} />
                 <Field label="Invoice Qty" value={selected.invoice_qty} />
@@ -432,22 +425,22 @@ export const ShipmentsPage: React.FC = () => {
                 <Field label="Invoice #" value={selected.invoice_number} mono />
               </div>
 
-              <hr className="border-white/[0.06]" />
+              <hr className="border-gray-200" />
 
-              {/* Timeline */}
-              <div className="space-y-3">
-                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Timeline</h3>
-                <div className="space-y-2.5">
-                  <TimelineItem label="Order Completion" value={selected.order_completion} />
-                  <TimelineItem label="Scheduled Pickup" value={selected.scheduled_pickup} />
-                  <TimelineItem label="Actual Pickup" value={selected.actual_pickup} />
-                  <TimelineItem label="Invoice Date" value={selected.invoice_date} />
+              {/* Dates */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Timeline</h3>
+                <div className="space-y-3">
+                  <DateRow label="Order Completion" value={selected.order_completion} />
+                  <DateRow label="Scheduled Pickup" value={selected.scheduled_pickup} />
+                  <DateRow label="Actual Pickup" value={selected.actual_pickup} />
+                  <DateRow label="Invoice Date" value={selected.invoice_date} />
                 </div>
                 {selected.days_left !== null && (
-                  <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-[12px] text-slate-400">Days Left:</span>
-                    <span className={`text-[13px] font-semibold font-mono ${(selected.days_left ?? 0) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm text-slate-600">Days Left</span>
+                    <span className={`text-sm font-bold font-mono ml-auto ${(selected.days_left ?? 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {selected.days_left}
                     </span>
                   </div>
@@ -457,10 +450,10 @@ export const ShipmentsPage: React.FC = () => {
               {/* Notes */}
               {selected.notes && (
                 <>
-                  <hr className="border-white/[0.06]" />
+                  <hr className="border-gray-200" />
                   <div>
-                    <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Notes</h3>
-                    <p className="text-[13px] text-slate-300 leading-relaxed bg-white/[0.03] rounded-lg p-3 border border-white/[0.06]">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notes</h3>
+                    <p className="text-sm text-slate-700 bg-gray-50 rounded-lg p-3 border border-gray-200 leading-relaxed">
                       {selected.notes}
                     </p>
                   </div>
@@ -472,66 +465,25 @@ export const ShipmentsPage: React.FC = () => {
       )}
 
       <style>{`
-        @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .animate-slide-in { animation: slide-in 0.2s ease-out; }
       `}</style>
     </div>
   );
 };
 
-/* ─── Sub-components ─── */
-
-function KpiCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
-  const colors: Record<string, string> = {
-    slate:   'text-slate-400',
-    emerald: 'text-emerald-400',
-    amber:   'text-amber-400',
-    sky:     'text-sky-400',
-    orange:  'text-orange-400',
-    violet:  'text-violet-400',
-    cyan:    'text-cyan-400',
-  };
-  return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2.5">
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className={colors[color] || 'text-slate-400'}>{icon}</span>
-        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{label}</span>
-      </div>
-      <p className={`text-xl font-bold tabular-nums ${colors[color] || 'text-slate-400'}`}>{value}</p>
-    </div>
-  );
-}
-
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <label className="text-[10px] text-slate-500 font-medium uppercase tracking-wider whitespace-nowrap">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="bg-white/[0.04] border border-white/[0.06] rounded-lg text-[12px] text-slate-300 pl-2 pr-6 py-1.5 focus:outline-none focus:border-cyan-500/40 appearance-none cursor-pointer max-w-[160px] truncate"
-      >
-        <option value="all">All</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function TH({ field, label, sortField, sortDir, onSort, w }: { field: SortField; label: string; sortField: SortField; sortDir: SortDir; onSort: (f: SortField) => void; w?: string }) {
-  const active = sortField === field;
+function TH({ field, label, cur, dir, onSort }: { field: SortField; label: string; cur: SortField; dir: SortDir; onSort: (f: SortField) => void }) {
+  const active = cur === field;
   return (
     <th
       onClick={() => onSort(field)}
-      className={`${w || ''} px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors ${
-        active ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
+      className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${
+        active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
       }`}
     >
       <div className="flex items-center gap-1">
         {label}
-        {active
-          ? (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)
-          : <ArrowUpDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100" />}
+        {active && (dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
       </div>
     </th>
   );
@@ -540,24 +492,18 @@ function TH({ field, label, sortField, sortDir, onSort, w }: { field: SortField;
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-0.5">{label}</p>
-      <p className={`text-[13px] ${value ? 'text-slate-200' : 'text-slate-600'} ${mono ? 'font-mono' : ''}`}>{value || '--'}</p>
+      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className={`text-sm ${value ? 'text-slate-800' : 'text-slate-400'} ${mono ? 'font-mono' : ''}`}>{value || '--'}</p>
     </div>
   );
 }
 
-function TimelineItem({ label, value }: { label: string; value: string }) {
-  const hasValue = !!value && value.toLowerCase() !== 'leave empty';
+function DateRow({ label, value }: { label: string; value: string }) {
+  const hasVal = !!value && value.toLowerCase() !== 'leave empty';
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex flex-col items-center mt-1">
-        <div className={`w-2 h-2 rounded-full ${hasValue ? 'bg-cyan-400' : 'bg-slate-700'}`} />
-        <div className="w-px h-4 bg-white/[0.06]" />
-      </div>
-      <div className="flex-1 -mt-0.5">
-        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{label}</p>
-        <p className={`text-[13px] ${hasValue ? 'text-slate-200' : 'text-slate-600'}`}>{hasValue ? value : '--'}</p>
-      </div>
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className={`text-sm font-medium ${hasVal ? 'text-slate-800' : 'text-slate-400'}`}>{hasVal ? value : '--'}</span>
     </div>
   );
 }
