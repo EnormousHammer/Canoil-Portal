@@ -603,25 +603,8 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
                   </div>
                 </div>
                 
-                {/* Action Cards Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* Report Maker */}
-                  <button 
-                    onClick={() => onNavigate('report-maker')}
-                    className="group relative flex flex-col items-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-blue-500/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/20"
-                  >
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/0 to-indigo-500/0 group-hover:from-blue-500/10 group-hover:to-indigo-500/10 transition-all duration-300"></div>
-                    <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-2xl group-hover:from-blue-500 group-hover:to-indigo-600 transition-all duration-300 shadow-lg shadow-blue-500/0 group-hover:shadow-blue-500/30">
-                      <FileText className="w-8 h-8 text-blue-400 group-hover:text-white transition-colors duration-300" />
-                    </div>
-                    <span className="font-bold text-white group-hover:text-blue-300 transition-colors">Reports</span>
-                    <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">Replaces MISys reporting — and does more</span>
-                    {/* Hover arrow */}
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <ArrowUpRight className="w-4 h-4 text-blue-400" />
-                    </div>
-                  </button>
-
+                {/* Quick Access Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {/* Manufacturing */}
                   <button 
                     onClick={() => onNavigate('manufacturing-orders')}
@@ -638,7 +621,23 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
                     </div>
                   </button>
 
-                  {/* Smart SO Entry / Email Assistant */}
+                  {/* Purchase Orders */}
+                  <button 
+                    onClick={() => onNavigate('purchase-orders')}
+                    className="group relative flex flex-col items-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-orange-500/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/20"
+                  >
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-500/0 to-amber-500/0 group-hover:from-orange-500/10 group-hover:to-amber-500/10 transition-all duration-300"></div>
+                    <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-2xl group-hover:from-orange-500 group-hover:to-amber-600 transition-all duration-300 shadow-lg shadow-orange-500/0 group-hover:shadow-orange-500/30">
+                      <ShoppingCart className="w-8 h-8 text-orange-400 group-hover:text-white transition-colors duration-300" />
+                    </div>
+                    <span className="font-bold text-white group-hover:text-orange-300 transition-colors">Purchase</span>
+                    <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">PO Management</span>
+                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <ArrowUpRight className="w-4 h-4 text-orange-400" />
+                    </div>
+                  </button>
+
+                  {/* Email AI (for admin) / Sales Orders */}
                   {isHaron ? (
                     <button 
                       onClick={() => onNavigate('email-assistant')}
@@ -653,48 +652,26 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
                       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         <ArrowUpRight className="w-4 h-4 text-violet-400" />
                       </div>
-                      {/* Special badge for AI */}
                       <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-violet-500 to-purple-500 rounded-full text-[10px] font-bold text-white shadow-lg">
                         AI
                       </div>
                     </button>
                   ) : (
                     <button 
-                      onClick={() => onNavigate('so-entry')}
-                      className="group relative flex flex-col items-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-violet-500/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-violet-500/20"
+                      onClick={() => onNavigate('orders')}
+                      className="group relative flex flex-col items-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-500/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/20"
                     >
-                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-500/0 to-purple-500/0 group-hover:from-violet-500/10 group-hover:to-purple-500/10 transition-all duration-300"></div>
-                      <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-gradient-to-br from-violet-500/20 to-purple-500/20 rounded-2xl group-hover:from-violet-500 group-hover:to-purple-600 transition-all duration-300 shadow-lg shadow-violet-500/0 group-hover:shadow-violet-500/30">
-                        <Zap className="w-8 h-8 text-violet-400 group-hover:text-white transition-colors duration-300" />
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/0 to-blue-500/0 group-hover:from-cyan-500/10 group-hover:to-blue-500/10 transition-all duration-300"></div>
+                      <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-2xl group-hover:from-cyan-500 group-hover:to-blue-600 transition-all duration-300 shadow-lg shadow-cyan-500/0 group-hover:shadow-cyan-500/30">
+                        <ShoppingCart className="w-8 h-8 text-cyan-400 group-hover:text-white transition-colors duration-300" />
                       </div>
-                      <span className="font-bold text-white group-hover:text-violet-300 transition-colors">SO Entry</span>
-                      <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">Smart BOM</span>
+                      <span className="font-bold text-white group-hover:text-cyan-300 transition-colors">Sales</span>
+                      <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">Order Management</span>
                       <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <ArrowUpRight className="w-4 h-4 text-violet-400" />
+                        <ArrowUpRight className="w-4 h-4 text-cyan-400" />
                       </div>
                     </button>
                   )}
-
-                  {/* AI Command */}
-                  <button 
-                    onClick={() => onNavigate('ai-command')}
-                    className="group relative flex flex-col items-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-amber-500/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/20"
-                  >
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-amber-500/0 to-orange-500/0 group-hover:from-amber-500/10 group-hover:to-orange-500/10 transition-all duration-300"></div>
-                    <div className="relative w-16 h-16 mb-4 flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl group-hover:from-amber-500 group-hover:to-orange-600 transition-all duration-300 shadow-lg shadow-amber-500/0 group-hover:shadow-amber-500/30">
-                      <Brain className="w-8 h-8 text-amber-400 group-hover:text-white transition-colors duration-300" />
-                    </div>
-                    <span className="font-bold text-white group-hover:text-amber-300 transition-colors">AI Command</span>
-                    <span className="text-xs font-medium text-slate-500 mt-1 group-hover:text-slate-400">GPT-4 Powered</span>
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <ArrowUpRight className="w-4 h-4 text-amber-400" />
-                    </div>
-                    {/* Special badge */}
-                    <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full text-[10px] font-bold text-white shadow-lg flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      NEW
-                    </div>
-                  </button>
                 </div>
                 
                 {/* Bottom info bar */}

@@ -163,17 +163,6 @@ export function NavigationHeader({
                   Canoil Operations
                 </button>
                 <button
-                  onClick={handleProductionScheduleClick}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-semibold whitespace-nowrap transition-colors ${
-                    activeApp === 'production-schedule'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
-                  }`}
-                  title="Production Schedule"
-                >
-                  Production Schedule
-                </button>
-                <button
                   disabled
                   className="px-2.5 py-1 rounded-md text-[10px] font-semibold text-slate-400 cursor-not-allowed whitespace-nowrap"
                   title="Shipping (coming soon)"
