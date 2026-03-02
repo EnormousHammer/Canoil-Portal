@@ -195,7 +195,8 @@ export function ProductionScheduleMPS() {
     if (filterShortageOnly) list = list.filter(o => o.status.toLowerCase().includes('shortage'));
     if (filterAtRiskOnly) list = list.filter(o => isOrderAtRisk(o));
     if (filterCustomer) list = list.filter(o => {
-      const cust = o.so_data?.customer || o.mo_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0] : '') || o.customer_code || '';
+      const fromProd = o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '';
+      const cust = fromProd || o.so_data?.customer || o.mo_data?.customer || o.customer_code || '';
       return cust.toLowerCase().includes(filterCustomer.toLowerCase());
     });
     if (filterWorkCenter) list = list.filter(o => o.work_center === filterWorkCenter);
@@ -217,7 +218,8 @@ export function ProductionScheduleMPS() {
     const wcs = new Set(orders.map(o => o.work_center).filter(Boolean));
     const customers = new Map<string, number>();
     orders.forEach(o => {
-      const name = o.so_data?.customer || o.mo_data?.customer || (o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '') || o.customer_code || 'Other';
+      const fromProduct = o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '';
+      const name = fromProduct || o.so_data?.customer || o.mo_data?.customer || o.customer_code || 'Other';
       if (name) customers.set(name, (customers.get(name) || 0) + 1);
     });
     return {
@@ -229,8 +231,8 @@ export function ProductionScheduleMPS() {
   const customerLegend = useMemo(() => {
     const customers = new Map<string, { bg: string; count: number }>();
     filteredOrders.forEach(order => {
-      let customerName = order.so_data?.customer || order.mo_data?.customer || '';
-      if (!customerName && order.product.includes(' - ')) customerName = order.product.split(' - ')[0].trim();
+      let customerName = order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '';
+      if (!customerName) customerName = order.so_data?.customer || order.mo_data?.customer || '';
       if (!customerName) customerName = order.customer_code || 'Other';
       if (customerName.length > 20) customerName = customerName.substring(0, 20) + '...';
       const colors = getCustomerColor(order.product);
@@ -242,9 +244,11 @@ export function ProductionScheduleMPS() {
   }, [filteredOrders]);
 
   const getCustomerName = useCallback((order: MPSOrder) => {
-    return order.so_data?.customer ||
+    // Product field is most reliable for company name: "CompanyName - ProductDesc - ..."
+    const fromProduct = order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '';
+    return fromProduct ||
+      order.so_data?.customer ||
       order.mo_data?.customer ||
-      (order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '') ||
       order.customer_code || '';
   }, []);
 

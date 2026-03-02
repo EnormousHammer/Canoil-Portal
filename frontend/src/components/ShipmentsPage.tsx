@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { fetchShipmentsData, Shipment, YEAR_TABS, categorizeStatus, statusPriority } from '../services/shipmentsDataService';
+import { fetchShipmentsData, Shipment, YEAR_TABS, categorizeStatus, statusPriority, fetchSODetails, SODetail } from '../services/shipmentsDataService';
 import {
   Search, RefreshCw, Download, Filter, ChevronDown, ChevronUp,
   Truck, Globe, MapPin, CheckCircle, AlertTriangle,
-  X, Eye, Clock, Users, FileText, Package, ArrowRight
+  X, Eye, Clock, Users, FileText, Package, ArrowRight,
+  ExternalLink, DollarSign, Loader2, Box
 } from 'lucide-react';
 
 type SortField = keyof Shipment;
@@ -48,6 +49,38 @@ export const ShipmentsPage: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [selected, setSelected] = useState<Shipment | null>(null);
+  const [soDetail, setSODetail] = useState<SODetail | null>(null);
+  const [soLoading, setSOLoading] = useState(false);
+
+  const selectShipment = useCallback((shipment: Shipment | null) => {
+    setSelected(shipment);
+    setSODetail(null);
+    if (shipment) {
+      setSOLoading(true);
+      fetchSODetails(shipment.so_number)
+        .then(detail => setSODetail(detail))
+        .finally(() => setSOLoading(false));
+    }
+  }, []);
+
+  const openSOPdf = useCallback(async (soNumber: string) => {
+    const soBase = soNumber.split('-')[0].replace(/[^0-9]/g, '');
+    if (!soBase) return;
+    const backendUrl = import.meta.env.VITE_MPS_BACKEND_URL || import.meta.env.VITE_API_URL ||
+      (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')
+        ? 'http://localhost:5002' : window.location.origin);
+    try {
+      const resp = await fetch(`${backendUrl}/api/sales-orders/find/${soBase}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.found && data.filePath) {
+          window.open(`${backendUrl}/api/sales-order-pdf/${encodeURIComponent(data.filePath)}`, '_blank');
+          return;
+        }
+      }
+    } catch {}
+    window.open(`${backendUrl}/api/proforma-invoice/parse-so/${soBase}`, '_blank');
+  }, []);
 
   const loadData = useCallback(async (tab = activeTab) => {
     setLoading(true);
@@ -287,7 +320,7 @@ export const ShipmentsPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-amber-100">
                   {pendingShipments.slice(0, 10).map((s, i) => (
-                    <tr key={`pending-${i}`} className="hover:bg-amber-100/50 cursor-pointer" onClick={() => setSelected(s)}>
+                    <tr key={`pending-${i}`} className="hover:bg-amber-100/50 cursor-pointer" onClick={() => selectShipment(s)}>
                       <td className="px-3 py-2 text-sm font-mono font-semibold text-blue-600">{s.so_number}</td>
                       <td className="px-3 py-2 text-sm text-slate-800 truncate max-w-[200px]">{s.customer}</td>
                       <td className="px-3 py-2"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
@@ -434,7 +467,7 @@ export const ShipmentsPage: React.FC = () => {
                             </td>
                           </tr>
                         )}
-                        <tr onClick={() => setSelected(s)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group border-b border-gray-100">
+                        <tr onClick={() => selectShipment(s)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group border-b border-gray-100">
                           <td className="px-4 py-3"><span className="text-sm font-semibold text-blue-600 font-mono">{s.so_number}</span></td>
                           <td className="px-4 py-3"><span className="text-sm text-slate-800 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-400 italic">--</span>}</span></td>
                           <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
@@ -450,7 +483,7 @@ export const ShipmentsPage: React.FC = () => {
                             ) : <span className="text-sm text-slate-400">--</span>}
                           </td>
                           <td className="px-3 py-3">
-                            <button onClick={e => { e.stopPropagation(); setSelected(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100">
+                            <button onClick={e => { e.stopPropagation(); selectShipment(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100">
                               <Eye className="w-4 h-4" />
                             </button>
                           </td>
@@ -468,8 +501,9 @@ export const ShipmentsPage: React.FC = () => {
       {/* ── Detail Side Panel ─── */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/20" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto border-l border-gray-200 animate-slide-in">
+          <div className="absolute inset-0 bg-black/20" onClick={() => selectShipment(null)} />
+          <div className="relative w-full max-w-lg bg-white shadow-2xl h-full overflow-y-auto border-l border-gray-200 animate-slide-in">
+            {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-4 flex items-center justify-between z-10">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
@@ -480,15 +514,29 @@ export const ShipmentsPage: React.FC = () => {
                   <p className="text-sm text-slate-500 truncate">{selected.customer}</p>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} className="p-2 rounded-lg hover:bg-gray-100 text-slate-400 hover:text-slate-700 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openSOPdf(selected.so_number)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  title="View Sales Order PDF"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View SO
+                </button>
+                <button onClick={() => selectShipment(null)} className="p-2 rounded-lg hover:bg-gray-100 text-slate-400 hover:text-slate-700 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
+
             <div className="px-5 py-5 space-y-5">
+              {/* Status & Destination badges */}
               <div className="flex flex-wrap gap-2">
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getStatusBadge(selected.status)}`}>{selected.status}</span>
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${getDestBadge(selected.destination)}`}>{selected.destination}</span>
               </div>
+
+              {/* Shipment info */}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Shipping Terms" value={selected.shipping_terms} />
                 <Field label="Sales Location" value={selected.sales_location} />
@@ -497,7 +545,129 @@ export const ShipmentsPage: React.FC = () => {
                 <Field label="Customs Duty" value={selected.customs_duty} />
                 <Field label="Invoice #" value={selected.invoice_number} mono />
               </div>
+
               <hr className="border-gray-200" />
+
+              {/* SO Line Items from PDF */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5" />
+                    Items Shipped
+                  </h3>
+                  {soLoading && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+                </div>
+                {soLoading ? (
+                  <div className="text-center py-6">
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">Loading SO details...</p>
+                  </div>
+                ) : soDetail && soDetail.items.length > 0 ? (
+                  <div className="space-y-2">
+                    {soDetail.items.filter(it => !it.is_charge).map((item, idx) => (
+                      <div key={idx} className="bg-gray-50 rounded-lg border border-gray-200 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-800 leading-snug">{item.description || item.item_code}</p>
+                            {item.item_code && item.description && (
+                              <p className="text-xs text-slate-400 font-mono mt-0.5">{item.item_code}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <span className="text-slate-500">
+                            <span className="font-semibold text-slate-700">{item.quantity.toLocaleString()}</span> {item.unit}
+                          </span>
+                          {item.unit_price > 0 && (
+                            <span className="text-slate-500">
+                              @ <span className="font-medium text-slate-600">${item.unit_price.toFixed(2)}</span>
+                            </span>
+                          )}
+                          {item.amount > 0 && (
+                            <span className="ml-auto font-semibold text-slate-700">${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !soLoading && (
+                  <p className="text-sm text-slate-400 italic py-2">No item details available for this SO.</p>
+                )}
+              </div>
+
+              {/* Charges (Pallets, Freight, Brokerage) */}
+              {soDetail && soDetail.items.some(it => it.is_charge) && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5" />
+                      Charges
+                    </h3>
+                    <div className="space-y-2">
+                      {soDetail.items.filter(it => it.is_charge).map((charge, idx) => (
+                        <div key={idx} className="flex items-center justify-between px-3 py-2.5 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2">
+                            <Box className="w-4 h-4 text-amber-600" />
+                            <div>
+                              <span className="text-sm font-medium text-amber-800">{charge.item_code || charge.description}</span>
+                              {charge.quantity > 0 && (
+                                <span className="text-xs text-amber-600 ml-2">×{charge.quantity}</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-sm font-bold text-amber-800 font-mono">${charge.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* SO Totals */}
+              {soDetail && soDetail.total_amount > 0 && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Order Total</h3>
+                    <div className="space-y-1">
+                      {soDetail.subtotal > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Subtotal</span>
+                          <span className="text-slate-700 font-mono">${soDetail.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {soDetail.tax > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Tax</span>
+                          <span className="text-slate-700 font-mono">${soDetail.tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm font-bold pt-1 border-t border-slate-200">
+                        <span className="text-slate-700">Total</span>
+                        <span className="text-slate-800 font-mono">${soDetail.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* SO Additional Info */}
+              {soDetail && (soDetail.po_number || soDetail.terms || soDetail.ship_to?.company_name) && (
+                <>
+                  <hr className="border-gray-200" />
+                  <div className="grid grid-cols-2 gap-4">
+                    {soDetail.po_number && <Field label="PO Number" value={soDetail.po_number} mono />}
+                    {soDetail.terms && <Field label="Payment Terms" value={soDetail.terms} />}
+                    {soDetail.ship_to?.company_name && <Field label="Ship To" value={soDetail.ship_to.company_name} />}
+                    {soDetail.ship_to?.address && <Field label="Ship Address" value={soDetail.ship_to.address} />}
+                  </div>
+                </>
+              )}
+
+              <hr className="border-gray-200" />
+
+              {/* Timeline */}
               <div>
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Timeline</h3>
                 <div className="space-y-2">
@@ -514,6 +684,8 @@ export const ShipmentsPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Notes */}
               {selected.notes && (
                 <>
                   <hr className="border-gray-200" />

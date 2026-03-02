@@ -102,6 +102,85 @@ export async function fetchShipmentsData(gid: string): Promise<Shipment[]> {
   return shipments;
 }
 
+export interface SODetail {
+  so_number: string;
+  customer_name: string;
+  order_date: string;
+  due_date: string;
+  po_number: string;
+  terms: string;
+  subtotal: number;
+  tax: number;
+  total_amount: number;
+  items: SOLineItem[];
+  sold_to: { company_name: string; address: string; phone: string; email: string };
+  ship_to: { company_name: string; address: string };
+}
+
+export interface SOLineItem {
+  item_code: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  amount: number;
+  is_charge?: boolean;
+}
+
+export async function fetchSODetails(soNumber: string): Promise<SODetail | null> {
+  const soBase = soNumber.split('-')[0].replace(/[^0-9]/g, '');
+  if (!soBase) return null;
+
+  try {
+    const resp = await fetch(`${BACKEND_URL}/api/proforma-invoice/parse-so/${soBase}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    if (!json.success || !json.so_data) return null;
+    const d = json.so_data;
+    return {
+      so_number: d.so_number || soBase,
+      customer_name: d.customer_name || d.sold_to?.company_name || '',
+      order_date: d.order_date || '',
+      due_date: d.due_date || '',
+      po_number: d.po_number || '',
+      terms: d.terms || '',
+      subtotal: d.subtotal || 0,
+      tax: d.tax || 0,
+      total_amount: d.total_amount || 0,
+      items: (d.items || []).map((it: any) => ({
+        item_code: it.item_code || it.item_no || '',
+        description: it.description || '',
+        quantity: it.quantity || 0,
+        unit: it.unit || '',
+        unit_price: it.unit_price || it.price || 0,
+        amount: it.amount || it.total_price || 0,
+        is_charge: !!it.is_charge,
+      })),
+      sold_to: {
+        company_name: d.sold_to?.company_name || '',
+        address: d.sold_to?.address || '',
+        phone: d.sold_to?.phone || '',
+        email: d.sold_to?.email || '',
+      },
+      ship_to: {
+        company_name: d.ship_to?.company_name || '',
+        address: d.ship_to?.address || '',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getSOViewUrl(soNumber: string): string | null {
+  const soBase = soNumber.split('-')[0].replace(/[^0-9]/g, '');
+  if (!soBase) return null;
+  return `${BACKEND_URL}/api/sales-orders/find/${soBase}`;
+}
+
 export function categorizeStatus(status: string): 'shipped' | 'ready' | 'scheduled' | 'late' | 'unscheduled' | 'other' {
   const s = status.toLowerCase();
   if (s.includes('shipped')) return 'shipped';
