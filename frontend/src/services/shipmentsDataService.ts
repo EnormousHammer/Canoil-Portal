@@ -20,11 +20,32 @@ export interface Shipment {
   customs_duty: string;
   order_completion: string;
   scheduled_pickup: string;
+  days_left: number | null;
   actual_pickup: string;
   invoice_date: string;
   invoice_number: string;
   notes: string;
 }
+
+/*
+  CSV column layout (row 8 = headers, data starts row 9):
+  [0]  SO
+  [1]  Sales Location
+  [2]  Customer
+  [3]  Status
+  [4]  Shipping Terms
+  [5]  Destination
+  [6]  Invoice Qty.
+  [7]  Freight Rate
+  [8]  Customs Duty
+  [9]  Order Completion
+  [10] Scheduled Pickup
+  [11] Days Left          <-- calculated column in sheet
+  [12] Actual Pickup
+  [13] Invoice Date
+  [14] Invoice No.
+  [15] Notes
+*/
 
 export async function fetchShipmentsData(gid?: string): Promise<Shipment[]> {
   try {
@@ -48,12 +69,10 @@ export async function fetchShipmentsData(gid?: string): Promise<Shipment[]> {
 
       if (backendResponse.ok) {
         csvText = await backendResponse.text();
-        console.log('Fetched Shipments data from backend');
       } else {
         throw new Error('Backend not available');
       }
     } catch {
-      console.log('Backend not available, fetching directly from Google Sheets');
       const gidParam = gid ? `&gid=${gid}` : '';
       const response = await fetch(`${CSV_URL}${gidParam}&${cacheBusterParams}`, {
         method: 'GET',
@@ -67,33 +86,34 @@ export async function fetchShipmentsData(gid?: string): Promise<Shipment[]> {
       }
 
       csvText = await response.text();
-      console.log('Fetched Shipments data directly from Google Sheets');
     }
 
     const cleanCsv = csvText
       .replace(/Ã©/g, 'é')
       .replace(/Ã¨/g, 'è')
       .replace(/Ã´/g, 'ô')
-      .replace(/Ã®/g, 'î');
+      .replace(/Ã®/g, 'î')
+      .replace(/â/g, '№');
 
     const result = Papa.parse(cleanCsv, { header: false, skipEmptyLines: true });
     const rows = result.data as string[][];
 
     if (rows.length < 10) {
-      console.warn('Not enough rows in Shipments data');
       return [];
     }
 
-    // Row 9 (index 8) has headers: SO, Sales Location, Customer, Status, Shipping Terms, Destination, Invoice Qty., Freight Rate, Customs Duty, Order Completion, Scheduled Pickup, Actual Pickup, Invoice Date, Invoice No, Notes
-    // Data starts from row 10 (index 9)
     const shipments: Shipment[] = [];
 
     for (let i = 9; i < rows.length; i++) {
       const row = rows[i];
-      if (!row[0] || !String(row[0]).trim()) continue;
+      const soNum = String(row[0] ?? '').trim();
+      if (!soNum) continue;
 
-      const shipment: Shipment = {
-        so_number: String(row[0] ?? '').trim(),
+      const daysLeftRaw = String(row[11] ?? '').trim();
+      const daysLeft = daysLeftRaw ? parseInt(daysLeftRaw, 10) : null;
+
+      shipments.push({
+        so_number: soNum,
         sales_location: String(row[1] ?? '').trim(),
         customer: String(row[2] ?? '').trim(),
         status: String(row[3] ?? '').trim(),
@@ -104,18 +124,14 @@ export async function fetchShipmentsData(gid?: string): Promise<Shipment[]> {
         customs_duty: String(row[8] ?? '').trim(),
         order_completion: String(row[9] ?? '').trim(),
         scheduled_pickup: String(row[10] ?? '').trim(),
-        actual_pickup: String(row[11] ?? '').trim(),
-        invoice_date: String(row[12] ?? '').trim(),
-        invoice_number: String(row[13] ?? '').trim(),
-        notes: String(row[14] ?? '').trim(),
-      };
-
-      if (shipment.so_number) {
-        shipments.push(shipment);
-      }
+        days_left: isNaN(daysLeft as number) ? null : daysLeft,
+        actual_pickup: String(row[12] ?? '').trim(),
+        invoice_date: String(row[13] ?? '').trim(),
+        invoice_number: String(row[14] ?? '').trim(),
+        notes: String(row[15] ?? '').trim(),
+      });
     }
 
-    console.log(`Loaded ${shipments.length} shipments`);
     return shipments;
 
   } catch (error) {
@@ -124,34 +140,21 @@ export async function fetchShipmentsData(gid?: string): Promise<Shipment[]> {
   }
 }
 
-export function getShipmentStatusColor(status: string): string {
+export function getStatusCategory(status: string): 'shipped' | 'ready' | 'on-schedule' | 'late' | 'very-late' | 'unscheduled' | 'other' {
   const s = status.toLowerCase();
-  if (s.includes('shipped') && s.includes('invoiced')) return 'bg-green-500';
-  if (s.includes('shipped')) return 'bg-blue-500';
-  if (s.includes('ready')) return 'bg-cyan-500';
-  if (s.includes('schedule') || s.includes('on schedule')) return 'bg-purple-500';
-  if (s.includes('late')) return 'bg-red-500';
-  if (s.includes('very late')) return 'bg-red-700';
-  if (s.includes('unscheduled')) return 'bg-yellow-500';
-  return 'bg-slate-500';
+  if (s.includes('shipped')) return 'shipped';
+  if (s.includes('ready')) return 'ready';
+  if (s.includes('very late')) return 'very-late';
+  if (s.includes('late')) return 'late';
+  if (s.includes('on schedule')) return 'on-schedule';
+  if (s.includes('unscheduled')) return 'unscheduled';
+  return 'other';
 }
 
-export function getShipmentStatusBadge(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes('shipped') && s.includes('invoiced')) return 'bg-green-500/20 text-green-400 border-green-500/50';
-  if (s.includes('shipped')) return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
-  if (s.includes('ready')) return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50';
-  if (s.includes('on schedule')) return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
-  if (s.includes('very late')) return 'bg-red-700/20 text-red-400 border-red-700/50';
-  if (s.includes('late')) return 'bg-red-500/20 text-red-400 border-red-500/50';
-  if (s.includes('unscheduled')) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
-  return 'bg-slate-500/20 text-slate-400 border-slate-500/50';
-}
-
-export function getDestinationBadge(destination: string): string {
+export function getDestinationType(destination: string): 'domestic' | 'transborder' | 'international' | 'other' {
   const d = destination.toLowerCase();
-  if (d.includes('domestic')) return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
-  if (d.includes('transborder')) return 'bg-orange-500/20 text-orange-400 border-orange-500/50';
-  if (d.includes('international')) return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
-  return 'bg-slate-500/20 text-slate-400 border-slate-500/50';
+  if (d.includes('domestic')) return 'domestic';
+  if (d.includes('transborder')) return 'transborder';
+  if (d.includes('international')) return 'international';
+  return 'other';
 }

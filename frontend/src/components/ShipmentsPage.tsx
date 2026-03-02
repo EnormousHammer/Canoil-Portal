@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { fetchShipmentsData, Shipment, getShipmentStatusBadge, getDestinationBadge } from '../services/shipmentsDataService';
+import { fetchShipmentsData, Shipment, getStatusCategory, getDestinationType } from '../services/shipmentsDataService';
 import {
   Search,
   RefreshCw,
@@ -15,11 +15,31 @@ import {
   CheckCircle,
   AlertTriangle,
   X,
-  Eye
+  Eye,
+  Clock,
+  ArrowUpDown,
+  Users
 } from 'lucide-react';
 
-type SortField = 'so_number' | 'customer' | 'status' | 'destination' | 'shipping_terms' | 'scheduled_pickup' | 'actual_pickup' | 'invoice_date';
-type SortDirection = 'asc' | 'desc';
+type SortField = keyof Shipment;
+type SortDir = 'asc' | 'desc';
+
+const STATUS_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
+  'shipped':      { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  'ready':        { bg: 'bg-cyan-500/10',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
+  'on-schedule':  { bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-400' },
+  'late':         { bg: 'bg-amber-500/10',    text: 'text-amber-400',   dot: 'bg-amber-400' },
+  'very-late':    { bg: 'bg-red-500/10',      text: 'text-red-400',     dot: 'bg-red-400' },
+  'unscheduled':  { bg: 'bg-slate-500/10',    text: 'text-slate-400',   dot: 'bg-slate-400' },
+  'other':        { bg: 'bg-slate-500/10',    text: 'text-slate-400',   dot: 'bg-slate-400' },
+};
+
+const DEST_CONFIG: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  'domestic':      { bg: 'bg-sky-500/8',     text: 'text-sky-300',     border: 'border-sky-500/20',     label: 'Domestic' },
+  'transborder':   { bg: 'bg-orange-500/8',  text: 'text-orange-300',  border: 'border-orange-500/20',  label: 'Transborder' },
+  'international': { bg: 'bg-violet-500/8',  text: 'text-violet-300',  border: 'border-violet-500/20',  label: 'Intl' },
+  'other':         { bg: 'bg-slate-500/8',   text: 'text-slate-400',   border: 'border-slate-500/20',   label: 'Other' },
+};
 
 export const ShipmentsPage: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -27,17 +47,17 @@ export const ShipmentsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [destinationFilter, setDestinationFilter] = useState<string>('all');
-  const [shippingTermsFilter, setShippingTermsFilter] = useState<string>('all');
-  const [customerFilter, setCustomerFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [destFilter, setDestFilter] = useState('all');
+  const [termsFilter, setTermsFilter] = useState('all');
+  const [custFilter, setCustFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
 
   const [sortField, setSortField] = useState<SortField>('so_number');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [selected, setSelected] = useState<Shipment | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,7 +67,7 @@ export const ShipmentsPage: React.FC = () => {
       setShipments(data);
       setLastUpdated(new Date());
     } catch (err: any) {
-      setError(err.message || 'Failed to load shipments data');
+      setError(err.message || 'Failed to load shipments');
     } finally {
       setLoading(false);
     }
@@ -55,36 +75,20 @@ export const ShipmentsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(loadData, 120000);
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const uniqueStatuses = useMemo(() => {
-    const statuses = new Set(shipments.map(s => s.status).filter(Boolean));
-    return Array.from(statuses).sort();
-  }, [shipments]);
+  const uniqueStatuses = useMemo(() => Array.from(new Set(shipments.map(s => s.status).filter(Boolean))).sort(), [shipments]);
+  const uniqueDests = useMemo(() => Array.from(new Set(shipments.map(s => s.destination).filter(Boolean))).sort(), [shipments]);
+  const uniqueTerms = useMemo(() => Array.from(new Set(shipments.map(s => s.shipping_terms).filter(Boolean))).sort(), [shipments]);
+  const uniqueCustomers = useMemo(() => Array.from(new Set(shipments.map(s => s.customer).filter(Boolean))).sort(), [shipments]);
 
-  const uniqueDestinations = useMemo(() => {
-    const destinations = new Set(shipments.map(s => s.destination).filter(Boolean));
-    return Array.from(destinations).sort();
-  }, [shipments]);
-
-  const uniqueShippingTerms = useMemo(() => {
-    const terms = new Set(shipments.map(s => s.shipping_terms).filter(Boolean));
-    return Array.from(terms).sort();
-  }, [shipments]);
-
-  const uniqueCustomers = useMemo(() => {
-    const customers = new Set(shipments.map(s => s.customer).filter(Boolean));
-    return Array.from(customers).sort();
-  }, [shipments]);
-
-  const filteredShipments = useMemo(() => {
-    let result = [...shipments];
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(s =>
+  const filtered = useMemo(() => {
+    let r = [...shipments];
+    if (search) {
+      const q = search.toLowerCase();
+      r = r.filter(s =>
         s.so_number.toLowerCase().includes(q) ||
         s.customer.toLowerCase().includes(q) ||
         s.invoice_number.toLowerCase().includes(q) ||
@@ -92,106 +96,83 @@ export const ShipmentsPage: React.FC = () => {
         s.invoice_qty.toLowerCase().includes(q)
       );
     }
+    if (statusFilter !== 'all') r = r.filter(s => s.status === statusFilter);
+    if (destFilter !== 'all') r = r.filter(s => s.destination === destFilter);
+    if (termsFilter !== 'all') r = r.filter(s => s.shipping_terms === termsFilter);
+    if (custFilter !== 'all') r = r.filter(s => s.customer === custFilter);
 
-    if (statusFilter !== 'all') {
-      result = result.filter(s => s.status === statusFilter);
-    }
-    if (destinationFilter !== 'all') {
-      result = result.filter(s => s.destination === destinationFilter);
-    }
-    if (shippingTermsFilter !== 'all') {
-      result = result.filter(s => s.shipping_terms === shippingTermsFilter);
-    }
-    if (customerFilter !== 'all') {
-      result = result.filter(s => s.customer === customerFilter);
-    }
-
-    result.sort((a, b) => {
-      const aVal = a[sortField] || '';
-      const bVal = b[sortField] || '';
-      const comparison = aVal.localeCompare(bVal, undefined, { numeric: true });
-      return sortDirection === 'asc' ? comparison : -comparison;
+    r.sort((a, b) => {
+      const av = a[sortField] ?? '';
+      const bv = b[sortField] ?? '';
+      const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
     });
+    return r;
+  }, [shipments, search, statusFilter, destFilter, termsFilter, custFilter, sortField, sortDir]);
 
-    return result;
-  }, [shipments, searchQuery, statusFilter, destinationFilter, shippingTermsFilter, customerFilter, sortField, sortDirection]);
-
-  const summaryStats = useMemo(() => {
+  const stats = useMemo(() => {
     const total = shipments.length;
     const shipped = shipments.filter(s => s.status.toLowerCase().includes('shipped')).length;
-    const domestic = shipments.filter(s => s.destination.toLowerCase().includes('domestic')).length;
-    const transborder = shipments.filter(s => s.destination.toLowerCase().includes('transborder')).length;
-    const international = shipments.filter(s => s.destination.toLowerCase().includes('international')).length;
-    const uniqueCustomerCount = new Set(shipments.map(s => s.customer)).size;
-    return { total, shipped, domestic, transborder, international, uniqueCustomerCount };
+    const pending = total - shipped;
+    const domestic = shipments.filter(s => getDestinationType(s.destination) === 'domestic').length;
+    const transborder = shipments.filter(s => getDestinationType(s.destination) === 'transborder').length;
+    const international = shipments.filter(s => getDestinationType(s.destination) === 'international').length;
+    const customers = new Set(shipments.map(s => s.customer).filter(Boolean)).size;
+    return { total, shipped, pending, domestic, transborder, international, customers };
   }, [shipments]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('asc'); }
   };
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ChevronDown className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100" />;
-    return sortDirection === 'asc'
-      ? <ChevronUp className="w-3 h-3 text-cyan-400" />
-      : <ChevronDown className="w-3 h-3 text-cyan-400" />;
-  };
+  const activeFilters = [statusFilter, destFilter, termsFilter, custFilter].filter(f => f !== 'all').length + (search ? 1 : 0);
+
+  const clearFilters = () => { setSearch(''); setStatusFilter('all'); setDestFilter('all'); setTermsFilter('all'); setCustFilter('all'); };
 
   const exportCSV = () => {
-    const headers = ['SO', 'Sales Location', 'Customer', 'Status', 'Shipping Terms', 'Destination', 'Invoice Qty', 'Freight Rate', 'Customs Duty', 'Order Completion', 'Scheduled Pickup', 'Actual Pickup', 'Invoice Date', 'Invoice #', 'Notes'];
-    const csvRows = [headers.join(',')];
-    filteredShipments.forEach(s => {
-      csvRows.push([
-        s.so_number, s.sales_location, `"${s.customer}"`, `"${s.status}"`, s.shipping_terms, s.destination,
-        `"${s.invoice_qty}"`, s.freight_rate, s.customs_duty, s.order_completion, s.scheduled_pickup,
-        s.actual_pickup, s.invoice_date, s.invoice_number, `"${s.notes}"`
-      ].join(','));
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const h = ['SO','Customer','Status','Terms','Destination','Qty','Freight Rate','Customs Duty','Order Completion','Scheduled Pickup','Days Left','Actual Pickup','Invoice Date','Invoice #','Notes'];
+    const rows = [h.join(','), ...filtered.map(s => [
+      s.so_number, `"${s.customer}"`, `"${s.status}"`, s.shipping_terms, s.destination,
+      `"${s.invoice_qty}"`, s.freight_rate, s.customs_duty, s.order_completion, s.scheduled_pickup,
+      s.days_left ?? '', s.actual_pickup, s.invoice_date, s.invoice_number, `"${s.notes}"`
+    ].join(','))];
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `shipments_${new Date().toISOString().split('T')[0]}.csv`;
+    a.href = URL.createObjectURL(blob);
+    a.download = `canoil_shipments_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
-  const clearFilters = () => {
-    setSearchQuery('');
-    setStatusFilter('all');
-    setDestinationFilter('all');
-    setShippingTermsFilter('all');
-    setCustomerFilter('all');
-  };
-
-  const activeFilterCount = [statusFilter, destinationFilter, shippingTermsFilter, customerFilter].filter(f => f !== 'all').length + (searchQuery ? 1 : 0);
-
-  if (loading && shipments.length === 0) {
+  // Loading state
+  if (loading && !shipments.length) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg font-semibold">Loading Shipments...</p>
-          <p className="text-slate-400 text-sm mt-1">Fetching data from Google Sheets</p>
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative w-16 h-16 mx-auto">
+            <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400 animate-spin" />
+            <Truck className="absolute inset-0 m-auto w-6 h-6 text-cyan-400" />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-lg">Loading Shipments</p>
+            <p className="text-slate-500 text-sm">Connecting to Canoil Central...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (error && shipments.length === 0) {
+  // Error state
+  if (error && !shipments.length) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <p className="text-white text-lg font-semibold mb-2">Failed to Load Shipments</p>
-          <p className="text-slate-400 text-sm mb-4">{error}</p>
-          <button onClick={loadData} className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">
-            Retry
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="bg-slate-900/80 border border-red-500/20 rounded-2xl p-8 max-w-md text-center space-y-4">
+          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
+          <h2 className="text-white font-semibold text-lg">Connection Error</h2>
+          <p className="text-slate-400 text-sm">{error}</p>
+          <button onClick={loadData} className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium transition-colors">
+            Try Again
           </button>
         </div>
       </div>
@@ -199,368 +180,384 @@ export const ShipmentsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Title */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                <Truck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Shipments</h1>
-                <p className="text-xs text-slate-400">
-                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Loading...'} 
-                  {loading && <span className="ml-2 text-cyan-400 animate-pulse">refreshing...</span>}
-                </p>
-              </div>
+    <div className="min-h-screen bg-[#0B1120]">
+      {/* ─── Header Bar ─── */}
+      <header className="sticky top-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="px-6 py-3 flex items-center justify-between gap-4">
+          {/* Left: Title */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+              <Truck className="w-[18px] h-[18px] text-white" />
             </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search SO, customer, invoice..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent w-64"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Toggle */}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  showFilters || activeFilterCount > 0
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                }`}
-              >
-                <Filter className="w-4 h-4" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="bg-white/20 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Refresh */}
-              <button
-                onClick={loadData}
-                disabled={loading}
-                className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-colors"
-                title="Refresh data"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
-
-              {/* Export */}
-              <button
-                onClick={exportCSV}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-semibold text-white leading-tight truncate">Shipments</h1>
+              <p className="text-[11px] text-slate-500 leading-tight">
+                {lastUpdated && <span>{lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                {loading && <span className="ml-1.5 text-cyan-400">syncing...</span>}
+              </p>
             </div>
           </div>
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Filters</span>
-                {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} className="text-xs text-cyan-400 hover:text-cyan-300 font-medium">
-                    Clear all
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-4 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg text-sm text-white px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                  >
-                    <option value="all">All Statuses</option>
-                    {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Destination</label>
-                  <select
-                    value={destinationFilter}
-                    onChange={(e) => setDestinationFilter(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg text-sm text-white px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                  >
-                    <option value="all">All Destinations</option>
-                    {uniqueDestinations.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Shipping Terms</label>
-                  <select
-                    value={shippingTermsFilter}
-                    onChange={(e) => setShippingTermsFilter(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg text-sm text-white px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                  >
-                    <option value="all">All Terms</option>
-                    {uniqueShippingTerms.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Customer</label>
-                  <select
-                    value={customerFilter}
-                    onChange={(e) => setCustomerFilter(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg text-sm text-white px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                  >
-                    <option value="all">All Customers</option>
-                    {uniqueCustomers.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
+          {/* Center: Search */}
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by SO, customer, invoice..."
+                className="w-full pl-9 pr-8 py-[7px] bg-white/[0.04] border border-white/[0.06] rounded-lg text-[13px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500/40 focus:bg-white/[0.06] transition-all"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-[7px] rounded-lg text-[12px] font-medium transition-all ${
+                showFilters || activeFilters
+                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                  : 'bg-white/[0.04] text-slate-400 border border-white/[0.06] hover:bg-white/[0.06]'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFilters > 0 && (
+                <span className="ml-0.5 w-4 h-4 rounded-full bg-cyan-500 text-[10px] text-white font-bold flex items-center justify-center">{activeFilters}</span>
+              )}
+            </button>
+            <button onClick={loadData} disabled={loading} className="p-[7px] bg-white/[0.04] border border-white/[0.06] text-slate-400 rounded-lg hover:bg-white/[0.06] transition-all" title="Refresh">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-[7px] bg-white/[0.04] border border-white/[0.06] text-slate-400 rounded-lg hover:bg-white/[0.06] text-[12px] font-medium transition-all">
+              <Download className="w-3.5 h-3.5" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Filter Row ─── */}
+        {showFilters && (
+          <div className="px-6 pb-3 pt-0">
+            <div className="flex items-center gap-3">
+              <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={uniqueStatuses} />
+              <FilterSelect label="Destination" value={destFilter} onChange={setDestFilter} options={uniqueDests} />
+              <FilterSelect label="Terms" value={termsFilter} onChange={setTermsFilter} options={uniqueTerms} />
+              <FilterSelect label="Customer" value={custFilter} onChange={setCustFilter} options={uniqueCustomers} />
+              {activeFilters > 0 && (
+                <button onClick={clearFilters} className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium whitespace-nowrap ml-auto">Clear all</button>
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* ─── KPI Cards ─── */}
+      <div className="px-6 pt-4 pb-2">
+        <div className="grid grid-cols-7 gap-2.5">
+          <KpiCard icon={<Package className="w-4 h-4" />} label="Total" value={stats.total} color="slate" />
+          <KpiCard icon={<CheckCircle className="w-4 h-4" />} label="Shipped" value={stats.shipped} color="emerald" />
+          <KpiCard icon={<Clock className="w-4 h-4" />} label="Pending" value={stats.pending} color="amber" />
+          <KpiCard icon={<MapPin className="w-4 h-4" />} label="Domestic" value={stats.domestic} color="sky" />
+          <KpiCard icon={<Truck className="w-4 h-4" />} label="Transborder" value={stats.transborder} color="orange" />
+          <KpiCard icon={<Globe className="w-4 h-4" />} label="International" value={stats.international} color="violet" />
+          <KpiCard icon={<Users className="w-4 h-4" />} label="Customers" value={stats.customers} color="cyan" />
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="max-w-full mx-auto px-4 py-4">
-        <div className="grid grid-cols-6 gap-3 mb-4">
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs text-slate-400 font-medium">Total Shipments</span>
-            </div>
-            <p className="text-2xl font-bold text-white">{summaryStats.total}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="w-4 h-4 text-green-400" />
-              <span className="text-xs text-slate-400 font-medium">Shipped</span>
-            </div>
-            <p className="text-2xl font-bold text-green-400">{summaryStats.shipped}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <MapPin className="w-4 h-4 text-blue-400" />
-              <span className="text-xs text-slate-400 font-medium">Domestic</span>
-            </div>
-            <p className="text-2xl font-bold text-blue-400">{summaryStats.domestic}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Truck className="w-4 h-4 text-orange-400" />
-              <span className="text-xs text-slate-400 font-medium">Transborder</span>
-            </div>
-            <p className="text-2xl font-bold text-orange-400">{summaryStats.transborder}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Globe className="w-4 h-4 text-purple-400" />
-              <span className="text-xs text-slate-400 font-medium">International</span>
-            </div>
-            <p className="text-2xl font-bold text-purple-400">{summaryStats.international}</p>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="w-4 h-4 text-slate-400" />
-              <span className="text-xs text-slate-400 font-medium">Customers</span>
-            </div>
-            <p className="text-2xl font-bold text-white">{summaryStats.uniqueCustomerCount}</p>
-          </div>
-        </div>
+      {/* ─── Result count ─── */}
+      <div className="px-6 py-2 flex items-center justify-between">
+        <span className="text-[11px] text-slate-500">
+          {filtered.length === shipments.length
+            ? <><span className="text-slate-300 font-medium">{shipments.length}</span> shipments</>
+            : <><span className="text-slate-300 font-medium">{filtered.length}</span> of {shipments.length} shipments</>}
+        </span>
+      </div>
 
-        {/* Results count */}
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-slate-400">
-            Showing <span className="text-white font-semibold">{filteredShipments.length}</span> of {shipments.length} shipments
-          </p>
-        </div>
-
-        {/* Table */}
-        <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
+      {/* ─── Table ─── */}
+      <div className="px-6 pb-6">
+        <div className="rounded-xl border border-white/[0.06] overflow-hidden bg-[#0d1526]">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-left">
               <thead>
-                <tr className="bg-slate-800/80 border-b border-slate-700/50">
-                  {[
-                    { field: 'so_number' as SortField, label: 'SO #', width: 'w-24' },
-                    { field: 'customer' as SortField, label: 'Customer', width: 'w-48' },
-                    { field: 'status' as SortField, label: 'Status', width: 'w-40' },
-                    { field: 'shipping_terms' as SortField, label: 'Terms', width: 'w-28' },
-                    { field: 'destination' as SortField, label: 'Destination', width: 'w-28' },
-                    { field: 'so_number' as SortField, label: 'Qty', width: 'w-32' },
-                    { field: 'scheduled_pickup' as SortField, label: 'Scheduled', width: 'w-32' },
-                    { field: 'actual_pickup' as SortField, label: 'Actual Pickup', width: 'w-32' },
-                    { field: 'invoice_date' as SortField, label: 'Invoice', width: 'w-32' },
-                  ].map(({ field, label, width }) => (
-                    <th
-                      key={label}
-                      onClick={() => handleSort(field)}
-                      className={`${width} px-3 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white group`}
-                    >
-                      <div className="flex items-center gap-1">
-                        {label}
-                        <SortIcon field={field} />
-                      </div>
-                    </th>
-                  ))}
-                  <th className="w-10 px-3 py-2.5" />
+                <tr className="border-b border-white/[0.06]">
+                  <TH field="so_number" label="SO #" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[90px]" />
+                  <TH field="customer" label="Customer" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="min-w-[180px]" />
+                  <TH field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[170px]" />
+                  <TH field="shipping_terms" label="Terms" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[110px]" />
+                  <TH field="destination" label="Destination" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[120px]" />
+                  <TH field="invoice_qty" label="Quantity" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[120px]" />
+                  <TH field="order_completion" label="Completed" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
+                  <TH field="scheduled_pickup" label="Scheduled" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
+                  <TH field="actual_pickup" label="Picked Up" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
+                  <TH field="invoice_number" label="Invoice" sortField={sortField} sortDir={sortDir} onSort={toggleSort} w="w-[130px]" />
+                  <th className="w-[40px] px-3 py-2.5" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {filteredShipments.map((shipment, idx) => (
-                  <tr
-                    key={`${shipment.so_number}-${idx}`}
-                    className="hover:bg-slate-800/40 transition-colors cursor-pointer"
-                    onClick={() => setSelectedShipment(shipment)}
-                  >
-                    <td className="px-3 py-2.5">
-                      <span className="text-sm font-mono font-semibold text-cyan-400">{shipment.so_number}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-sm text-white truncate block max-w-[200px]" title={shipment.customer}>
-                        {shipment.customer}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getShipmentStatusBadge(shipment.status)}`}>
-                        {shipment.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs text-slate-300">{shipment.shipping_terms}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getDestinationBadge(shipment.destination)}`}>
-                        {shipment.destination}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs text-slate-300">{shipment.invoice_qty}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs text-slate-300">{shipment.scheduled_pickup}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs text-slate-300">{shipment.actual_pickup}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-xs text-slate-300">{shipment.invoice_date}</div>
-                      {shipment.invoice_number && (
-                        <div className="text-xs text-slate-500 font-mono">#{shipment.invoice_number}</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedShipment(shipment); }}
-                        className="p-1 text-slate-500 hover:text-cyan-400 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+              <tbody>
+                {filtered.map((s, i) => {
+                  const sc = STATUS_CONFIG[getStatusCategory(s.status)] || STATUS_CONFIG.other;
+                  const dc = DEST_CONFIG[getDestinationType(s.destination)] || DEST_CONFIG.other;
+                  return (
+                    <tr
+                      key={`${s.so_number}-${i}`}
+                      onClick={() => setSelected(s)}
+                      className="border-b border-white/[0.03] hover:bg-white/[0.02] cursor-pointer transition-colors group"
+                    >
+                      <td className="px-3 py-2.5">
+                        <span className="text-[13px] font-mono font-semibold text-cyan-400">{s.so_number}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[13px] text-slate-200 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-600 italic">--</span>}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-[3px] rounded-md text-[11px] font-medium ${sc.bg} ${sc.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[12px] text-slate-400">{s.shipping_terms}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center px-2 py-[2px] rounded text-[11px] font-medium border ${dc.bg} ${dc.text} ${dc.border}`}>
+                          {s.destination}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[12px] text-slate-300">{s.invoice_qty}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[12px] text-slate-400">{s.order_completion || '--'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[12px] text-slate-400">{s.scheduled_pickup || '--'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-[12px] text-slate-400">{s.actual_pickup || '--'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {s.invoice_number ? (
+                          <div>
+                            <span className="text-[12px] font-mono text-slate-300">#{s.invoice_number}</span>
+                            {s.invoice_date && <p className="text-[10px] text-slate-500 mt-0.5">{s.invoice_date}</p>}
+                          </div>
+                        ) : (
+                          <span className="text-[12px] text-slate-600">--</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <Eye className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-300 transition-colors inline-block" />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {filteredShipments.length === 0 && (
-            <div className="p-12 text-center">
-              <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400 font-medium">No shipments found</p>
-              <p className="text-slate-500 text-sm mt-1">Try adjusting your search or filters</p>
-              {activeFilterCount > 0 && (
-                <button onClick={clearFilters} className="mt-3 text-sm text-cyan-400 hover:text-cyan-300 font-medium">
-                  Clear all filters
-                </button>
+          {!filtered.length && (
+            <div className="py-16 text-center">
+              <Package className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm font-medium">No shipments match your criteria</p>
+              {activeFilters > 0 && (
+                <button onClick={clearFilters} className="mt-2 text-[12px] text-cyan-400 hover:text-cyan-300 font-medium">Clear filters</button>
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Detail Modal */}
-      {selectedShipment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSelectedShipment(null)}>
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                  <Truck className="w-5 h-5 text-white" />
+      {/* ─── Detail Drawer ─── */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setSelected(null)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+          <div
+            className="relative w-full max-w-md bg-[#0d1526] border-l border-white/[0.06] shadow-2xl h-full overflow-y-auto animate-slide-in"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div className="sticky top-0 bg-[#0d1526]/95 backdrop-blur-xl border-b border-white/[0.06] px-5 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-white" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">SO {selectedShipment.so_number}</h2>
-                  <p className="text-sm text-slate-400">{selectedShipment.customer}</p>
+                <div className="min-w-0">
+                  <h2 className="text-[15px] font-semibold text-white">SO {selected.so_number}</h2>
+                  <p className="text-[12px] text-slate-400 truncate">{selected.customer}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedShipment(null)} className="p-2 text-slate-400 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
+              <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-slate-500 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <DetailField label="Status" value={selectedShipment.status} badge={getShipmentStatusBadge(selectedShipment.status)} />
-                <DetailField label="Destination" value={selectedShipment.destination} badge={getDestinationBadge(selectedShipment.destination)} />
-                <DetailField label="Shipping Terms" value={selectedShipment.shipping_terms} />
-                <DetailField label="Sales Location" value={selectedShipment.sales_location} />
-                <DetailField label="Invoice Qty" value={selectedShipment.invoice_qty} />
-                <DetailField label="Freight Rate" value={selectedShipment.freight_rate} />
-                <DetailField label="Customs Duty" value={selectedShipment.customs_duty} />
-                <DetailField label="Order Completion" value={selectedShipment.order_completion} />
-                <DetailField label="Scheduled Pickup" value={selectedShipment.scheduled_pickup} />
-                <DetailField label="Actual Pickup" value={selectedShipment.actual_pickup} />
-                <DetailField label="Invoice Date" value={selectedShipment.invoice_date} />
-                <DetailField label="Invoice #" value={selectedShipment.invoice_number} />
+
+            {/* Drawer Body */}
+            <div className="px-5 py-5 space-y-5">
+              {/* Status + Destination row */}
+              <div className="flex gap-2">
+                {(() => {
+                  const sc = STATUS_CONFIG[getStatusCategory(selected.status)] || STATUS_CONFIG.other;
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium ${sc.bg} ${sc.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      {selected.status}
+                    </span>
+                  );
+                })()}
+                {(() => {
+                  const dc = DEST_CONFIG[getDestinationType(selected.destination)] || DEST_CONFIG.other;
+                  return (
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded text-[12px] font-medium border ${dc.bg} ${dc.text} ${dc.border}`}>
+                      {selected.destination}
+                    </span>
+                  );
+                })()}
               </div>
-              {selectedShipment.notes && (
-                <div>
-                  <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Notes</span>
-                  <p className="mt-1 text-sm text-slate-300 bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                    {selectedShipment.notes}
-                  </p>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <Field label="Shipping Terms" value={selected.shipping_terms} />
+                <Field label="Sales Location" value={selected.sales_location} />
+                <Field label="Invoice Qty" value={selected.invoice_qty} />
+                <Field label="Freight Rate" value={selected.freight_rate} />
+                <Field label="Customs Duty" value={selected.customs_duty} />
+                <Field label="Invoice #" value={selected.invoice_number} mono />
+              </div>
+
+              <hr className="border-white/[0.06]" />
+
+              {/* Timeline */}
+              <div className="space-y-3">
+                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Timeline</h3>
+                <div className="space-y-2.5">
+                  <TimelineItem label="Order Completion" value={selected.order_completion} />
+                  <TimelineItem label="Scheduled Pickup" value={selected.scheduled_pickup} />
+                  <TimelineItem label="Actual Pickup" value={selected.actual_pickup} />
+                  <TimelineItem label="Invoice Date" value={selected.invoice_date} />
                 </div>
+                {selected.days_left !== null && (
+                  <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[12px] text-slate-400">Days Left:</span>
+                    <span className={`text-[13px] font-semibold font-mono ${(selected.days_left ?? 0) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {selected.days_left}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              {selected.notes && (
+                <>
+                  <hr className="border-white/[0.06]" />
+                  <div>
+                    <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Notes</h3>
+                    <p className="text-[13px] text-slate-300 leading-relaxed bg-white/[0.03] rounded-lg p-3 border border-white/[0.06]">
+                      {selected.notes}
+                    </p>
+                  </div>
+                </>
               )}
             </div>
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in { animation: slide-in 0.2s ease-out; }
+      `}</style>
     </div>
   );
 };
 
-function DetailField({ label, value, badge }: { label: string; value: string; badge?: string }) {
-  if (!value) return (
-    <div>
-      <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">{label}</span>
-      <p className="text-sm text-slate-600 mt-0.5">--</p>
+/* ─── Sub-components ─── */
+
+function KpiCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+  const colors: Record<string, string> = {
+    slate:   'text-slate-400',
+    emerald: 'text-emerald-400',
+    amber:   'text-amber-400',
+    sky:     'text-sky-400',
+    orange:  'text-orange-400',
+    violet:  'text-violet-400',
+    cyan:    'text-cyan-400',
+  };
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2.5">
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className={colors[color] || 'text-slate-400'}>{icon}</span>
+        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{label}</span>
+      </div>
+      <p className={`text-xl font-bold tabular-nums ${colors[color] || 'text-slate-400'}`}>{value}</p>
     </div>
   );
+}
+
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className="text-[10px] text-slate-500 font-medium uppercase tracking-wider whitespace-nowrap">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="bg-white/[0.04] border border-white/[0.06] rounded-lg text-[12px] text-slate-300 pl-2 pr-6 py-1.5 focus:outline-none focus:border-cyan-500/40 appearance-none cursor-pointer max-w-[160px] truncate"
+      >
+        <option value="all">All</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function TH({ field, label, sortField, sortDir, onSort, w }: { field: SortField; label: string; sortField: SortField; sortDir: SortDir; onSort: (f: SortField) => void; w?: string }) {
+  const active = sortField === field;
+  return (
+    <th
+      onClick={() => onSort(field)}
+      className={`${w || ''} px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors ${
+        active ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-300'
+      }`}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {active
+          ? (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100" />}
+      </div>
+    </th>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</span>
-      {badge ? (
-        <p className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border mt-1 ${badge}`}>
-          {value}
-        </p>
-      ) : (
-        <p className="text-sm text-white mt-0.5">{value}</p>
-      )}
+      <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-0.5">{label}</p>
+      <p className={`text-[13px] ${value ? 'text-slate-200' : 'text-slate-600'} ${mono ? 'font-mono' : ''}`}>{value || '--'}</p>
+    </div>
+  );
+}
+
+function TimelineItem({ label, value }: { label: string; value: string }) {
+  const hasValue = !!value && value.toLowerCase() !== 'leave empty';
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex flex-col items-center mt-1">
+        <div className={`w-2 h-2 rounded-full ${hasValue ? 'bg-cyan-400' : 'bg-slate-700'}`} />
+        <div className="w-px h-4 bg-white/[0.06]" />
+      </div>
+      <div className="flex-1 -mt-0.5">
+        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{label}</p>
+        <p className={`text-[13px] ${hasValue ? 'text-slate-200' : 'text-slate-600'}`}>{hasValue ? value : '--'}</p>
+      </div>
     </div>
   );
 }
