@@ -315,12 +315,12 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
-                className="w-full px-5 py-4 pl-12 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all text-base shadow-sm"
+                className="w-full px-5 py-4 pl-14 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all text-base shadow-sm"
               />
               {searching ? (
-                <Loader2 className="w-5 h-5 text-violet-500 animate-spin absolute left-4 top-1/2 -translate-y-1/2" />
+                <Loader2 className="w-5 h-5 text-violet-500 animate-spin absolute left-5 top-1/2 -translate-y-1/2" />
               ) : (
-                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Search className="w-5 h-5 text-slate-400 absolute left-5 top-1/2 -translate-y-1/2" />
               )}
               {searchQuery && (
                 <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">

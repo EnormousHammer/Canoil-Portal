@@ -8294,7 +8294,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 
                 {/* Content Section - Enhanced Light Theme */}
                 <div className="p-6 bg-gradient-to-b from-slate-50/50 to-white">
-                  {/* Search Bar - Real-time SO search */}
+                  {/* Search Bar - Real-time SO search (hide when Proforma Invoice is open to avoid duplicate) */}
+                  {!showProformaInvoice && (
                   <div className="mb-8">
                     <div className="relative">
                       <input
@@ -8391,6 +8392,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                     )}
                   </div>
+                  )}
                   
                   {/* Status Folders Grid - Enhanced Light Theme */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
