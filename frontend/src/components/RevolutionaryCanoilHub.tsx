@@ -4031,9 +4031,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         {poView?.vendorName && poView?.vendorNo && (poView.vendorName !== poView.vendorNo) && <span className="ml-2 text-slate-300">• {poView.vendorName}</span>}
                       </p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-200">
-                          {(poView?.status ?? selectedPO?.['Status']) === 0 ? 'Open' : (poView?.status ?? selectedPO?.['Status']) === 1 ? 'Pending' : (poView?.status ?? selectedPO?.['Status']) === 2 ? 'Closed' : (poView?.status ?? selectedPO?.['Status']) === 3 ? 'Cancelled' : 'Unknown'}
-                        </span>
+                        {(() => {
+                          const hdrStat = Number(poView?.status ?? selectedPO?.['Status'] ?? -1);
+                          const hdrRecvPct = (poView && poView.totalOrdered > 0) ? Math.round((poView.totalReceived / poView.totalOrdered) * 100) : 0;
+                          if (hdrStat === 3) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-red-500/30 text-red-200">Cancelled</span>;
+                          if (hdrStat === 2) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-500/30 text-slate-300">Closed</span>;
+                          if (hdrRecvPct >= 100) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-500/30 text-emerald-200">Fully Received</span>;
+                          if (hdrRecvPct > 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-200">Partial Recv ({hdrRecvPct}%)</span>;
+                          if (hdrStat === 1) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-500/30 text-amber-200">Pending</span>;
+                          if (hdrStat === 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-green-500/30 text-green-200">Open</span>;
+                          return <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-500/30 text-blue-200">Unknown</span>;
+                        })()}
                         <span className="text-slate-400 text-xs">{(poView?.totalValue ?? parseFloat(selectedPO?.['Total Amount'] || selectedPO?.['Total'] || 0)).toLocaleString(undefined, { style: 'currency', currency: 'CAD' })}</span>
                         <span className="text-slate-500">·</span>
                         <span className="text-slate-400 text-xs">{formatDisplayDate(poView?.orderDate ?? selectedPO?.['Order Date'] ?? selectedPO?.['ordDt']) || '—'}</span>
@@ -4071,15 +4079,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="text-xs text-slate-500 mt-0.5 truncate">{poView.vendorNo}</div>
                           )}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                              sidebarStatus === 0 ? 'bg-emerald-100 text-emerald-800' :
-                              sidebarStatus === 1 ? 'bg-amber-100 text-amber-800' :
-                              sidebarStatus === 2 ? 'bg-slate-200 text-slate-700' :
-                              sidebarStatus === 3 ? 'bg-red-100 text-red-700' :
-                              'bg-slate-200 text-slate-700'
-                            }`}>
-                              {sidebarStatus === 0 ? 'Open' : sidebarStatus === 1 ? 'Pending' : sidebarStatus === 2 ? 'Closed' : sidebarStatus === 3 ? 'Cancelled' : '?'}
-                            </span>
+                            {(() => {
+                              const sstat = Number(sidebarStatus ?? -1);
+                              if (sstat === 3) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">Cancelled</span>;
+                              if (sstat === 2) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-200 text-slate-700">Closed</span>;
+                              if (sidebarRecvPct >= 100) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800">Fully Received</span>;
+                              if (sidebarRecvPct > 0) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-700">Partial Recv</span>;
+                              if (sstat === 1) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800">Pending</span>;
+                              if (sstat === 0) return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800">Open</span>;
+                              return <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-slate-200 text-slate-700">?</span>;
+                            })()}
                             {sidebarTotal > 0 && (
                               <span className="text-[10px] font-bold text-emerald-600 font-mono">${sidebarTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             )}
@@ -4193,12 +4202,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="p-4">
                                 {/* Status badges */}
                                 <div className="flex items-center gap-2 mb-3">
-                                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
-                                    status === 0 ? 'bg-emerald-100 text-emerald-800' :
-                                    status === 1 ? 'bg-amber-100 text-amber-800' :
-                                    status === 2 ? 'bg-slate-200 text-slate-700' :
-                                    status === 3 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
-                                  }`}>{status === 0 ? 'Open' : status === 1 ? 'Pending' : status === 2 ? 'Closed' : status === 3 ? 'Cancelled' : 'Unknown'}</span>
+                                  {(() => {
+                                    const nStat = Number(status ?? -1);
+                                    if (nStat === 3) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-100 text-red-700">Cancelled</span>;
+                                    if (nStat === 2) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-200 text-slate-700">Closed</span>;
+                                    if (recvPct >= 100) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800">Fully Received</span>;
+                                    if (recvPct > 0) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 text-blue-700">Partial Recv ({recvPct}%)</span>;
+                                    if (nStat === 1) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-800">Pending</span>;
+                                    if (nStat === 0) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800">Open</span>;
+                                    return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600">Unknown</span>;
+                                  })()}
                                   {(h['Revision'] != null && h['Revision'] !== '' && h['Revision'] !== '0' && h['Revision'] !== 0) && (
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-blue-50 text-blue-700">Rev. {h['Revision']}</span>
                                   )}
@@ -5333,7 +5346,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <tr key={i} className="cursor-pointer hover:bg-blue-50" onClick={() => { setSelectedPO(p); setShowPODetails(true); setShowSupplierDetail(false); setSelectedSuplId(null); }}>
                                   <td className="px-4 py-2 font-mono text-blue-600 underline">{p['PO No.'] ?? p['pohId'] ?? '—'}</td>
                                   <td className="px-4 py-2">{formatDisplayDate(p['Order Date'] ?? p['ordDt']) || '—'}</td>
-                                  <td className="px-4 py-2">{p['Status'] ?? p['poStatus'] ?? '—'}</td>
+                                  <td className="px-4 py-2">{(() => { const s = Number(p['Status'] ?? p['poStatus'] ?? -1); return s === 0 ? 'Open' : s === 1 ? 'Pending' : s === 2 ? 'Closed' : s === 3 ? 'Cancelled' : '—'; })()}</td>
                                 </tr>
                               ))}</tbody>
                             </table>
@@ -5741,16 +5754,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const startIndex = (poCurrentPage - 1) * poPageSize;
                             const endIndex = startIndex + poPageSize;
                             return sortedPOs.slice(startIndex, endIndex).map((po: any, index: number) => {
-                            const getStatusInfo = (status: any) => {
-                              switch(status) {
-                                case 0: return { text: 'Open', color: 'bg-green-100 text-green-700' };
-                                case 1: return { text: 'Pending', color: 'bg-yellow-100 text-yellow-700' };
-                                case 2: return { text: 'Closed', color: 'bg-gray-100 text-gray-700' };
-                                case 3: return { text: 'Cancelled', color: 'bg-red-100 text-red-700' };
-                                default: return { text: status || 'Unknown', color: 'bg-blue-100 text-blue-700' };
-                              }
-                            };
-                            const statusInfo = getStatusInfo(po['Status'] ?? po['poStatus']);
                             const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                             const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
                             const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
@@ -5767,8 +5770,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const totalOrdered = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0), 0);
                             const totalReceived = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Received Qty'] || l['Received'] || 0) || 0), 0);
                             const recvPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
-                            const isClosed = (po['Status'] ?? po['poStatus']) === 2 || (po['Status'] ?? po['poStatus']) === 3;
+                            const rawStatus = Number(po['Status'] ?? po['poStatus'] ?? -1);
+                            const isClosed = rawStatus === 2 || rawStatus === 3;
                             const isFullyReceived = recvPct >= 100;
+
+                            const getStatusInfo = (stat: number, recPct: number): { text: string; color: string } => {
+                              if (stat === 3) return { text: 'Cancelled', color: 'bg-red-100 text-red-700' };
+                              if (stat === 2) return { text: 'Closed', color: 'bg-gray-200 text-gray-700' };
+                              if (recPct >= 100) return { text: 'Fully Received', color: 'bg-emerald-100 text-emerald-700' };
+                              if (recPct > 0 && stat <= 1) return { text: 'Partial Recv', color: 'bg-blue-100 text-blue-700' };
+                              if (stat === 1) return { text: 'Pending', color: 'bg-yellow-100 text-yellow-700' };
+                              if (stat === 0) return { text: 'Open', color: 'bg-green-100 text-green-700' };
+                              return { text: 'Unknown', color: 'bg-slate-100 text-slate-600' };
+                            };
+                            const statusInfo = getStatusInfo(rawStatus, recvPct);
                             const recvBarColor = isFullyReceived ? 'bg-emerald-500' : recvPct > 50 ? 'bg-blue-500' : recvPct > 0 ? 'bg-amber-500' : 'bg-slate-300';
 
                             const moNos = Array.from(new Set(
