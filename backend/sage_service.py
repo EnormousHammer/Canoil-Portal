@@ -3,10 +3,26 @@ Sage 50 Accounting Integration Service
 READ-ONLY access to Sage 50 Canadian (Quantum) MySQL database.
 Database: MySQL on 192.168.1.11:13540, database 'simply'
 
+╔══════════════════════════════════════════════════════════════════╗
+║  ABSOLUTE HARD CONSTRAINT — SAGE 50 IS 100% READ-ONLY          ║
+║                                                                  ║
+║  WE NEVER WRITE TO SAGE. WE NEVER INSERT INTO SAGE.            ║
+║  WE NEVER UPDATE SAGE. WE NEVER DELETE FROM SAGE.              ║
+║  NO EXCEPTIONS. NO WORKAROUNDS. THIS IS NOT NEGOTIABLE.         ║
+║                                                                  ║
+║  All portal data lives in PostgreSQL. Sage is an external        ║
+║  accounting system we READ from — that's it.                     ║
+╚══════════════════════════════════════════════════════════════════╝
+
 SAFETY: This module enforces read-only access at THREE levels:
-  1. MySQL session is set to READ ONLY mode on every connection
-  2. A SafeReadOnlyCursor wrapper rejects any non-SELECT SQL
-  3. autocommit is disabled and commit() is never called
+  1. MySQL session is SET to READ ONLY mode on every connection
+  2. A ReadOnlyCursor wrapper blocks any non-SELECT statement
+  3. autocommit is disabled and commit() is NEVER called
+
+If any code attempts INSERT/UPDATE/DELETE on Sage, it will:
+  - Be blocked by ReadOnlyCursor with a PermissionError
+  - Be blocked by MySQL READ ONLY transaction mode
+  - Never be committed even if somehow executed
 """
 
 import pymysql

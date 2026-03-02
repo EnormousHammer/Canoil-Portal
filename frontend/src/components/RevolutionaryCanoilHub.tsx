@@ -20,6 +20,8 @@ import PurchaseRequisitionModal from './PurchaseRequisitionModal';
 import ExportAllCompanyDataModal from './ExportAllCompanyDataModal';
 import InventoryActionsModal from './InventoryActionsModal';
 import { ProformaInvoiceMaker } from './ProformaInvoiceMaker';
+import { ERPPortal } from './ERPPortal';
+import { CleanIntelligentSOEntry } from './CleanIntelligentSOEntry';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
   BarChart3, 
@@ -2129,6 +2131,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
             </div>
           </button>
+
+          {/* ERP PORTAL - Full ERP system (Phase 1-4) */}
+          <button 
+            onClick={() => setActiveSection('erp-portal')}
+            className={`group relative rounded-3xl border-2 border-transparent transition-all duration-500 cursor-pointer overflow-hidden ${
+              activeSection === 'erp-portal'
+                ? 'bg-gradient-to-br from-rose-500 via-pink-600 to-red-700 text-white shadow-2xl shadow-rose-500/40 scale-[1.02]' 
+                : 'bg-white/90 backdrop-blur-sm text-slate-700 shadow-xl hover:shadow-2xl hover:-translate-y-2 hover:bg-white'
+            }`}
+            style={{ minHeight: '160px' }}
+          >
+            <div className="relative flex flex-col items-center justify-center h-full p-5">
+              <div className="text-5xl mb-3 transform transition-transform duration-300 group-hover:scale-110 drop-shadow-lg">
+                🏢
+              </div>
+              <div className={`text-base font-extrabold tracking-wide text-center ${activeSection === 'erp-portal' ? 'text-white' : 'text-slate-800'}`}>
+                ERP<br/>PORTAL
+              </div>
+              <div className={`text-xs mt-1 font-medium ${activeSection === 'erp-portal' ? 'text-rose-100' : 'text-rose-600'}`}>
+                Full Enterprise System
+              </div>
+            </div>
+          </button>
         </div>
 
         {/* BREADCRUMB NAVIGATION */}
@@ -2155,6 +2180,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 {activeSection === 'work-orders' && 'Work Orders'}
                 {activeSection === 'so-entry' && 'Smart SO Entry'}
                 {activeSection === 'intelligence' && 'AI Intelligence'}
+                {activeSection === 'erp-portal' && 'ERP Portal'}
               </span>
             </nav>
           </div>
@@ -11288,6 +11314,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         </div>
       )}
       
+      {/* ERP Portal - Full Enterprise System (Phase 1-4) */}
+      {activeSection === 'erp-portal' && (
+        <div className="max-w-7xl mx-auto">
+          <ERPPortal data={data} currentUser={currentUser} />
+        </div>
+      )}
+
+      {/* Smart SO Entry - Wire CleanIntelligentSOEntry */}
+      {activeSection === 'so-entry' && (
+        <div className="max-w-7xl mx-auto">
+          <CleanIntelligentSOEntry data={data} />
+        </div>
+      )}
+
       {/* Toast Notifications */}
       <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </>

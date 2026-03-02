@@ -1,3 +1,9 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  SAGE 50 IS 100% READ-ONLY — NEVER WRITE TO SAGE — EVER       ║
+# ║  All portal data writes go to PostgreSQL only.                  ║
+# ║  sage_service.py has triple-layer protection enforcing this.    ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 from flask_compress import Compress
@@ -78,6 +84,98 @@ try:
 except ImportError as e:
     SAGE_AVAILABLE = False
     print(f"Sage 50 integration not available: {e}")
+
+# Import Portal ERP services (Phase 1-4)
+try:
+    import db_service
+    DB_AVAILABLE = db_service.PG_AVAILABLE
+    print(f"Portal DB service loaded (psycopg2 available: {DB_AVAILABLE})")
+except ImportError:
+    db_service = None
+    DB_AVAILABLE = False
+    print("Portal DB service not available")
+
+try:
+    import auth_service
+    AUTH_AVAILABLE = True
+except ImportError:
+    auth_service = None
+    AUTH_AVAILABLE = False
+
+try:
+    import audit_service
+except ImportError:
+    audit_service = None
+
+try:
+    import etl_service
+except ImportError:
+    etl_service = None
+
+try:
+    import sage_matching
+except ImportError:
+    sage_matching = None
+
+try:
+    import so_crud_service
+except ImportError:
+    so_crud_service = None
+
+try:
+    import customer_service
+except ImportError:
+    customer_service = None
+
+try:
+    import supplier_service
+except ImportError:
+    supplier_service = None
+
+try:
+    import shipment_service
+except ImportError:
+    shipment_service = None
+
+try:
+    import mrp_engine
+except ImportError:
+    mrp_engine = None
+
+try:
+    import sage_reports
+except ImportError:
+    sage_reports = None
+
+try:
+    import workflow_service
+except ImportError:
+    workflow_service = None
+
+try:
+    import costing_service
+except ImportError:
+    costing_service = None
+
+try:
+    import notification_service
+except ImportError:
+    notification_service = None
+
+try:
+    import qc_service
+except ImportError:
+    qc_service = None
+
+try:
+    import invoice_service
+except ImportError:
+    invoice_service = None
+
+try:
+    import financial_views_service
+except ImportError:
+    financial_views_service = None
 
 def safe_float(value):
     """Safely convert value to float, handling commas and None values"""
@@ -1685,6 +1783,28 @@ else:
 # Register BOL HTML blueprint - DISABLED (duplicate endpoint in logistics_automation.py)
 # if BOL_HTML_AVAILABLE:
 #     app.register_blueprint(bol_html_bp)
+
+# Auth middleware: validate JWT on every request (Phase 1.3)
+if AUTH_AVAILABLE and auth_service:
+    @app.before_request
+    def _before_request_auth():
+        return auth_service.auth_middleware()
+    print("Auth middleware registered")
+
+# Initialize portal DB schema on first request (Phase 1.1)
+_db_schema_initialized = False
+@app.before_request
+def _ensure_db_schema():
+    global _db_schema_initialized
+    if _db_schema_initialized:
+        return
+    _db_schema_initialized = True
+    if db_service and db_service.is_available():
+        try:
+            db_service.ensure_schema()
+            print("Portal DB schema ensured")
+        except Exception as e:
+            print(f"Portal DB schema init failed: {e}")
 #     print("BOL HTML module loaded")
 # else:
 #     print("BOL HTML module not available")
@@ -7858,6 +7978,788 @@ def sage_receipts():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
+# PORTAL ERP ENDPOINTS (Phase 1-4)
+# All new data writes go to portal Postgres — NEVER to Sage.
+# ============================================================
+
+# -- Phase 1.1: DB Status --
+@app.route('/api/db/status')
+def api_db_status():
+    if db_service:
+        return jsonify(db_service.status())
+    return jsonify({"connected": False, "pg_available": False})
+
+# -- Phase 1.2: ETL Admin --
+@app.route('/api/admin/etl/run', methods=['POST'])
+def api_etl_run():
+    if not etl_service:
+        return jsonify({"error": "ETL service not available"}), 503
+    triggered_by = "admin"
+    if auth_service:
+        user = auth_service.get_current_user()
+        if user:
+            triggered_by = user.get("email", "admin")
+    result = etl_service.run_etl_async(triggered_by=triggered_by)
+    return jsonify(result)
+
+@app.route('/api/admin/etl/status')
+def api_etl_status():
+    if not etl_service:
+        return jsonify({"error": "ETL service not available"}), 503
+    return jsonify(etl_service.get_status())
+
+# -- Phase 1.3: Auth Endpoints --
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    if not auth_service:
+        return jsonify({"error": "Auth service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    email = body.get("email", "").strip()
+    password = body.get("password", "")
+    if not email or not password:
+        return jsonify({"error": "Email and password required"}), 400
+    result, status_code = auth_service.login(email, password)
+    return jsonify(result), status_code
+
+@app.route('/api/auth/me')
+def api_auth_me():
+    if not auth_service:
+        return jsonify({"error": "Auth not available"}), 503
+    user = auth_service.get_current_user()
+    if not user or user.get("id") == 0:
+        return jsonify({"error": "Not authenticated"}), 401
+    return jsonify({"user": user})
+
+@app.route('/api/auth/change-password', methods=['POST'])
+def api_auth_change_password():
+    if not auth_service:
+        return jsonify({"error": "Auth not available"}), 503
+    user = auth_service.get_current_user()
+    if not user or user.get("id") == 0:
+        return jsonify({"error": "Not authenticated"}), 401
+    body = request.get_json(force=True, silent=True) or {}
+    old_pw = body.get("old_password", "")
+    new_pw = body.get("new_password", "")
+    if not old_pw or not new_pw:
+        return jsonify({"error": "Old and new password required"}), 400
+    db_user = auth_service.get_user_by_email(user["email"])
+    if not db_user or not auth_service.check_password(old_pw, db_user["password_hash"]):
+        return jsonify({"error": "Current password incorrect"}), 400
+    new_hash = auth_service.hash_password(new_pw)
+    db_service.execute(
+        "UPDATE core.portal_users SET password_hash = %s WHERE id = %s",
+        (new_hash, user["id"])
+    )
+    return jsonify({"success": True})
+
+@app.route('/api/admin/users')
+def api_admin_users():
+    if not auth_service:
+        return jsonify([])
+    return jsonify(auth_service.list_users())
+
+@app.route('/api/admin/users', methods=['POST'])
+def api_admin_create_user():
+    if not auth_service:
+        return jsonify({"error": "Auth not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        user = auth_service.create_user(
+            body.get("email", ""), body.get("password", "changeme123"),
+            body.get("display_name", ""), body.get("role", "viewer")
+        )
+        return jsonify(user), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+# -- Phase 1.4: Audit Log --
+@app.route('/api/audit-log')
+def api_audit_log():
+    if not audit_service:
+        return jsonify({"entries": [], "total": 0})
+    return jsonify(audit_service.get_audit_log(
+        entity_type=request.args.get("entity_type"),
+        entity_id=request.args.get("entity_id"),
+        user_email=request.args.get("user"),
+        action=request.args.get("action"),
+        date_from=request.args.get("date_from"),
+        date_to=request.args.get("date_to"),
+        limit=int(request.args.get("limit", 100)),
+        offset=int(request.args.get("offset", 0)),
+    ))
+
+# -- Phase 1.5: Sage Key Matching --
+@app.route('/api/sage/matching-report')
+def api_sage_matching_report():
+    if not sage_matching:
+        return jsonify({"error": "Sage matching not available"}), 503
+    return jsonify(sage_matching.get_all_mappings())
+
+@app.route('/api/sage/matching/run', methods=['POST'])
+def api_sage_matching_run():
+    if not sage_matching or not SAGE_AVAILABLE:
+        return jsonify({"error": "Sage matching or Sage service not available"}), 503
+    try:
+        sage_customers = sage_service.get_customers() if SAGE_AVAILABLE else []
+        sage_inventory = sage_service.get_inventory() if SAGE_AVAILABLE else []
+        sage_vendors = sage_service.get_vendors() if SAGE_AVAILABLE else []
+        data = _data_cache or {}
+        misys_mos = data.get("ManufacturingOrderHeaders.json", [])
+        misys_items = data.get("Items.json", [])
+        misys_suppliers = data.get("MISUPL.json", [])
+        cust_matches = sage_matching.match_customers(misys_mos, sage_customers)
+        item_matches = sage_matching.match_items(misys_items, sage_inventory)
+        supl_matches = sage_matching.match_suppliers(misys_suppliers, sage_vendors)
+        sage_matching.save_mappings(cust_matches, "customer")
+        sage_matching.save_mappings(item_matches, "item")
+        sage_matching.save_mappings(supl_matches, "supplier")
+        return jsonify({
+            "customers": {"total": len(cust_matches), "matched": sum(1 for m in cust_matches if m["confidence"] != "unmatched")},
+            "items": {"total": len(item_matches), "matched": sum(1 for m in item_matches if m["confidence"] != "unmatched")},
+            "suppliers": {"total": len(supl_matches), "matched": sum(1 for m in supl_matches if m["confidence"] != "unmatched")},
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# -- Phase 2.1: Sales Order CRUD --
+@app.route('/api/sales-orders', methods=['GET'])
+def api_list_sales_orders():
+    if not so_crud_service:
+        return jsonify([])
+    try:
+        return jsonify(so_crud_service.list_sos(
+            status=request.args.get("status"),
+            limit=int(request.args.get("limit", 100)),
+            offset=int(request.args.get("offset", 0)),
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/sales-orders', methods=['POST'])
+def api_create_sales_order():
+    if not so_crud_service:
+        return jsonify({"error": "SO service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    user = auth_service.get_current_user() if auth_service else {}
+    try:
+        so = so_crud_service.create_so(body, created_by=user.get("email", "portal"))
+        return jsonify(so), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/sales-orders/<so_no>', methods=['GET'])
+def api_get_sales_order(so_no):
+    if not so_crud_service:
+        return jsonify({"error": "SO service not available"}), 503
+    so = so_crud_service.get_so(so_no)
+    if not so:
+        return jsonify({"error": "SO not found"}), 404
+    return jsonify(so)
+
+@app.route('/api/sales-orders/<so_no>', methods=['PUT'])
+def api_update_sales_order(so_no):
+    if not so_crud_service:
+        return jsonify({"error": "SO service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = so_crud_service.update_so(so_no, body)
+    if not result:
+        return jsonify({"error": "SO not found"}), 404
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/sales-orders/<so_no>/status', methods=['PATCH'])
+def api_update_so_status(so_no):
+    if not so_crud_service:
+        return jsonify({"error": "SO service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = so_crud_service.update_so_status(so_no, body.get("status", ""))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/sales-orders/<so_no>', methods=['DELETE'])
+def api_delete_sales_order(so_no):
+    if not so_crud_service:
+        return jsonify({"error": "SO service not available"}), 503
+    result = so_crud_service.delete_so(so_no)
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+# -- Phase 2.2: Customer Master --
+@app.route('/api/customers', methods=['GET'])
+def api_list_customers():
+    if not customer_service:
+        return jsonify([])
+    try:
+        return jsonify(customer_service.list_customers(
+            search=request.args.get("search"),
+            limit=int(request.args.get("limit", 100)),
+            offset=int(request.args.get("offset", 0)),
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/customers', methods=['POST'])
+def api_create_customer():
+    if not customer_service:
+        return jsonify({"error": "Customer service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        cust = customer_service.create_customer(body)
+        return jsonify(cust), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>', methods=['GET'])
+def api_get_customer(customer_id):
+    if not customer_service:
+        return jsonify({"error": "Customer service not available"}), 503
+    cust = customer_service.get_customer(customer_id)
+    if not cust:
+        return jsonify({"error": "Customer not found"}), 404
+    return jsonify(cust)
+
+@app.route('/api/customers/<int:customer_id>', methods=['PUT'])
+def api_update_customer(customer_id):
+    if not customer_service:
+        return jsonify({"error": "Customer service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = customer_service.update_customer(customer_id, body)
+    if not result:
+        return jsonify({"error": "Customer not found"}), 404
+    return jsonify(result)
+
+@app.route('/api/customers/<int:customer_id>/contacts', methods=['POST'])
+def api_add_customer_contact(customer_id):
+    if not customer_service:
+        return jsonify({"error": "Customer service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    contact = customer_service.add_contact(customer_id, body)
+    return jsonify(contact), 201
+
+@app.route('/api/customers/<int:customer_id>/pricing', methods=['POST'])
+def api_set_customer_pricing(customer_id):
+    if not customer_service:
+        return jsonify({"error": "Customer service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    pricing = customer_service.set_customer_pricing(
+        customer_id, body.get("item_no"), body.get("price"),
+        body.get("effective_date")
+    )
+    return jsonify(pricing), 201
+
+# -- Phase 2.3: Supplier Master Enhancement --
+@app.route('/api/suppliers/<supplier_no>', methods=['PUT'])
+def api_update_supplier(supplier_no):
+    if not supplier_service:
+        return jsonify({"error": "Supplier service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = supplier_service.update_supplier(supplier_no, body)
+    if not result:
+        return jsonify({"error": "Supplier not found"}), 404
+    return jsonify(result)
+
+@app.route('/api/suppliers/<supplier_no>/contacts', methods=['GET'])
+def api_get_supplier_contacts(supplier_no):
+    if not supplier_service:
+        return jsonify([])
+    return jsonify(supplier_service.get_contacts(supplier_no))
+
+@app.route('/api/suppliers/<supplier_no>/contacts', methods=['POST'])
+def api_add_supplier_contact(supplier_no):
+    if not supplier_service:
+        return jsonify({"error": "Supplier service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    contact = supplier_service.add_contact(supplier_no, body)
+    return jsonify(contact), 201
+
+@app.route('/api/suppliers/<supplier_no>/performance', methods=['GET'])
+def api_get_supplier_performance(supplier_no):
+    if not supplier_service:
+        return jsonify([])
+    return jsonify(supplier_service.get_performance(supplier_no))
+
+@app.route('/api/suppliers/<supplier_no>/performance', methods=['POST'])
+def api_add_supplier_performance(supplier_no):
+    if not supplier_service:
+        return jsonify({"error": "Supplier service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    record = supplier_service.add_performance_record(supplier_no, body)
+    return jsonify(record), 201
+
+@app.route('/api/suppliers/<supplier_no>/performance/summary')
+def api_supplier_performance_summary(supplier_no):
+    if not supplier_service:
+        return jsonify({})
+    return jsonify(supplier_service.get_performance_summary(supplier_no))
+
+# -- Phase 2.4: Sage Enrichment on MO Detail --
+@app.route('/api/mo/<mo_no>/sage-enrichment')
+def api_mo_sage_enrichment(mo_no):
+    if not SAGE_AVAILABLE:
+        return jsonify({"error": "Sage not available"}), 503
+    try:
+        data = _data_cache or {}
+        mos = data.get("ManufacturingOrderHeaders.json", [])
+        mo = next((m for m in mos if (m.get("Mfg. Order No.") or m.get("mohId")) == mo_no), None)
+        if not mo:
+            return jsonify({"error": "MO not found"}), 404
+        customer_name = mo.get("Customer", "")
+        enrichment = {"mo_no": mo_no, "customer_name": customer_name}
+        if customer_name:
+            customers = sage_service.get_customers()
+            sage_cust = next((c for c in customers if (c.get("name") or c.get("sName") or "").strip().lower() == customer_name.strip().lower()), None)
+            if sage_cust:
+                enrichment["sage_customer"] = {
+                    "credit_limit": sage_cust.get("credit_limit") or sage_cust.get("dCrLimit"),
+                    "ytd_sales": sage_cust.get("ytd_sales") or sage_cust.get("dAmtYtd"),
+                    "payment_terms": sage_cust.get("payment_terms") or sage_cust.get("nNetDay"),
+                }
+        return jsonify(enrichment)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# -- Phase 2.5: Inventory Reconciliation --
+@app.route('/api/inventory/reconciliation')
+def api_inventory_reconciliation():
+    if not SAGE_AVAILABLE:
+        return jsonify({"error": "Sage not available"}), 503
+    try:
+        data = _data_cache or {}
+        misys_items = {}
+        for loc in (data.get("MIILOCQT.json") or data.get("MIILOC.json") or []):
+            if not isinstance(loc, dict):
+                continue
+            ino = loc.get("Item No.") or loc.get("itemId") or ""
+            qty = float(loc.get("qStk") or loc.get("Stock") or 0)
+            misys_items[ino] = misys_items.get(ino, 0) + qty
+        sage_items = {}
+        sage_inv = sage_service.get_inventory()
+        for si in (sage_inv or []):
+            code = (si.get("part_code") or si.get("sPartCode") or "").strip()
+            qty = float(si.get("in_stock") or si.get("dInStock") or 0)
+            if code:
+                sage_items[code] = qty
+        all_items = set(list(misys_items.keys()) + list(sage_items.keys()))
+        rows = []
+        for item in sorted(all_items):
+            m_qty = misys_items.get(item, 0)
+            s_qty = sage_items.get(item, 0)
+            variance = round(m_qty - s_qty, 2)
+            rows.append({"item_no": item, "misys_qty": m_qty, "sage_qty": s_qty, "variance": variance})
+        discrepancies_only = request.args.get("discrepancies_only", "false").lower() == "true"
+        if discrepancies_only:
+            rows = [r for r in rows if abs(r["variance"]) > 0.01]
+        return jsonify({"items": rows, "total": len(rows)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# -- Phase 2.6: MRP Engine --
+@app.route('/api/mrp/run', methods=['POST'])
+def api_mrp_run():
+    if not mrp_engine:
+        return jsonify({"error": "MRP engine not available"}), 503
+    try:
+        data = _data_cache or {}
+        items_data = data.get("Items.json", [])
+        portal_so_lines = []
+        if db_service and db_service.is_available():
+            portal_so_lines = db_service.fetch_all(
+                """SELECT sol.*, so.required_date FROM core.sales_order_lines sol
+                   JOIN core.sales_orders so ON so.id = sol.so_id
+                   WHERE so.status IN ('confirmed','released')"""
+            )
+        sage_sos = []
+        if SAGE_AVAILABLE:
+            sage_sos = sage_service.get_sales_orders()
+        user = auth_service.get_current_user() if auth_service else {}
+        result = mrp_engine.run_mrp(items_data, portal_so_lines, sage_sos, run_by=user.get("email", "system"))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/mrp/results/<int:run_id>')
+def api_mrp_results(run_id):
+    if not mrp_engine:
+        return jsonify({"error": "MRP engine not available"}), 503
+    run = mrp_engine.get_run(run_id)
+    if not run:
+        return jsonify({"error": "MRP run not found"}), 404
+    return jsonify(run)
+
+@app.route('/api/mrp/latest')
+def api_mrp_latest():
+    if not mrp_engine:
+        return jsonify({"error": "MRP engine not available"}), 503
+    run = mrp_engine.get_latest_run()
+    return jsonify(run or {})
+
+@app.route('/api/mrp/planned-orders/<int:planned_id>/convert-to-po', methods=['POST'])
+def api_mrp_convert_to_po(planned_id):
+    if not mrp_engine:
+        return jsonify({"error": "MRP engine not available"}), 503
+    user = auth_service.get_current_user() if auth_service else {}
+    result = mrp_engine.convert_to_po(planned_id, created_by=user.get("email", "portal"))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+# -- Phase 2.7: Shipments --
+@app.route('/api/shipments', methods=['GET'])
+def api_list_shipments():
+    if not shipment_service:
+        return jsonify([])
+    return jsonify(shipment_service.list_shipments(
+        so_no=request.args.get("so_no"),
+        status=request.args.get("status"),
+    ))
+
+@app.route('/api/shipments', methods=['POST'])
+def api_create_shipment():
+    if not shipment_service:
+        return jsonify({"error": "Shipment service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    user = auth_service.get_current_user() if auth_service else {}
+    ship = shipment_service.create_shipment(body, created_by=user.get("email", "portal"))
+    return jsonify(ship), 201
+
+@app.route('/api/shipments/<int:shipment_id>')
+def api_get_shipment(shipment_id):
+    if not shipment_service:
+        return jsonify({"error": "Shipment service not available"}), 503
+    ship = shipment_service.get_shipment(shipment_id)
+    if not ship:
+        return jsonify({"error": "Shipment not found"}), 404
+    return jsonify(ship)
+
+@app.route('/api/shipments/<int:shipment_id>/confirm', methods=['PATCH'])
+def api_confirm_shipment(shipment_id):
+    if not shipment_service:
+        return jsonify({"error": "Shipment service not available"}), 503
+    result = shipment_service.confirm_shipment(shipment_id)
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/shipments/fulfillment/<so_no>')
+def api_so_fulfillment(so_no):
+    if not shipment_service:
+        return jsonify([])
+    return jsonify(shipment_service.get_so_fulfillment(so_no))
+
+# -- Phase 3.1: Financial Reports from Sage (READ-ONLY) --
+@app.route('/api/reports/financial/sales')
+def api_financial_sales():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    year = int(request.args.get("year", datetime.now().year))
+    month = int(request.args.get("month", datetime.now().month))
+    return jsonify(sage_reports.get_monthly_sales_summary(year, month))
+
+@app.route('/api/reports/financial/customers')
+def api_financial_customers():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    return jsonify(sage_reports.get_customer_revenue_report())
+
+@app.route('/api/reports/financial/vendors')
+def api_financial_vendors():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    return jsonify(sage_reports.get_vendor_spend_report())
+
+@app.route('/api/reports/financial/gl')
+def api_financial_gl():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    return jsonify(sage_reports.get_gl_snapshot())
+
+@app.route('/api/reports/financial/inventory-valuation')
+def api_financial_inventory_val():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    return jsonify(sage_reports.get_inventory_valuation())
+
+@app.route('/api/reports/financial/ar-aging')
+def api_financial_ar_aging():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    return jsonify(sage_reports.get_ar_aging())
+
+# -- Phase 3.2: Month-End Package --
+@app.route('/api/reports/month-end')
+def api_month_end():
+    if not sage_reports:
+        return jsonify({"error": "Sage reports not available"}), 503
+    year = int(request.args.get("year", datetime.now().year))
+    month = int(request.args.get("month", datetime.now().month))
+    return jsonify(sage_reports.get_month_end_package(year, month))
+
+# -- Phase 3.3: Approval Workflows --
+@app.route('/api/approvals/pending')
+def api_approvals_pending():
+    if not workflow_service:
+        return jsonify([])
+    user = auth_service.get_current_user() if auth_service else {}
+    return jsonify(workflow_service.get_pending(user_role=user.get("role")))
+
+@app.route('/api/approvals/<int:approval_id>/approve', methods=['POST'])
+def api_approve(approval_id):
+    if not workflow_service:
+        return jsonify({"error": "Workflow not available"}), 503
+    user = auth_service.get_current_user() if auth_service else {}
+    body = request.get_json(force=True, silent=True) or {}
+    result = workflow_service.approve(approval_id, user.get("email", "admin"), body.get("comments"))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/approvals/<int:approval_id>/reject', methods=['POST'])
+def api_reject(approval_id):
+    if not workflow_service:
+        return jsonify({"error": "Workflow not available"}), 503
+    user = auth_service.get_current_user() if auth_service else {}
+    body = request.get_json(force=True, silent=True) or {}
+    result = workflow_service.reject(approval_id, user.get("email", "admin"), body.get("comments"))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/approvals/history')
+def api_approvals_history():
+    if not workflow_service:
+        return jsonify([])
+    return jsonify(workflow_service.get_history(
+        entity_type=request.args.get("entity_type"),
+        entity_id=request.args.get("entity_id"),
+    ))
+
+@app.route('/api/workflow-rules', methods=['GET'])
+def api_list_workflow_rules():
+    if not workflow_service:
+        return jsonify([])
+    return jsonify(workflow_service.list_rules())
+
+@app.route('/api/workflow-rules', methods=['POST'])
+def api_create_workflow_rule():
+    if not workflow_service:
+        return jsonify({"error": "Workflow not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    rule = workflow_service.create_rule(body)
+    return jsonify(rule), 201
+
+# -- Phase 3.4: BOM Cost Rollup --
+@app.route('/api/bom/<item_no>/cost-rollup')
+def api_bom_cost_rollup(item_no):
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    result = costing_service.bom_cost_rollup(item_no, bom_data=data, items_data=data.get("Items.json", []))
+    return jsonify(result)
+
+@app.route('/api/costing/so/<so_no>')
+def api_costing_so(so_no):
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    return jsonify(costing_service.cogs_for_so(so_no, bom_data=data, items_data=data.get("Items.json", [])))
+
+@app.route('/api/costing/so/<so_no>/margin')
+def api_margin_so(so_no):
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    return jsonify(costing_service.margin_for_so(so_no, bom_data=data, items_data=data.get("Items.json", [])))
+
+@app.route('/api/costing/variance-report')
+def api_cost_variance():
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    return jsonify(costing_service.cost_variance_report(items_data=data.get("Items.json", [])))
+
+@app.route('/api/costing/margin/by-customer')
+def api_margin_by_customer():
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    return jsonify(costing_service.margin_by_customer())
+
+@app.route('/api/costing/margin/by-order')
+def api_margin_by_order():
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    return jsonify(costing_service.margin_by_order(bom_data=data, items_data=data.get("Items.json", [])))
+
+@app.route('/api/costing/margin/by-product')
+def api_margin_by_product():
+    if not costing_service:
+        return jsonify({"error": "Costing service not available"}), 503
+    data = _data_cache or {}
+    return jsonify(costing_service.margin_by_product(bom_data=data, items_data=data.get("Items.json", [])))
+
+# -- Phase 3.5: Notifications & Alerts --
+@app.route('/api/notifications')
+def api_get_notifications():
+    if not notification_service:
+        return jsonify([])
+    user = auth_service.get_current_user() if auth_service else {}
+    uid = user.get("id")
+    if not uid:
+        return jsonify([])
+    return jsonify(notification_service.get_notifications(
+        uid, unread_only=request.args.get("unread_only", "false").lower() == "true"
+    ))
+
+@app.route('/api/notifications/unread-count')
+def api_notification_count():
+    if not notification_service:
+        return jsonify({"count": 0})
+    user = auth_service.get_current_user() if auth_service else {}
+    uid = user.get("id")
+    if not uid:
+        return jsonify({"count": 0})
+    return jsonify({"count": notification_service.get_unread_count(uid)})
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['PATCH'])
+def api_mark_notification_read(notif_id):
+    if not notification_service:
+        return jsonify({"error": "Notification service not available"}), 503
+    return jsonify(notification_service.mark_read(notif_id))
+
+@app.route('/api/alert-rules', methods=['GET'])
+def api_list_alert_rules():
+    if not notification_service:
+        return jsonify([])
+    return jsonify(notification_service.list_alert_rules())
+
+@app.route('/api/alert-rules', methods=['POST'])
+def api_create_alert_rule():
+    if not notification_service:
+        return jsonify({"error": "Notification service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    user = auth_service.get_current_user() if auth_service else {}
+    rule = notification_service.create_alert_rule(body, created_by=user.get("email"))
+    return jsonify(rule), 201
+
+@app.route('/api/alert-rules/<int:rule_id>', methods=['PUT'])
+def api_update_alert_rule(rule_id):
+    if not notification_service:
+        return jsonify({"error": "Notification service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = notification_service.update_alert_rule(rule_id, body)
+    return jsonify(result)
+
+# -- Phase 3.6: Quality Control --
+@app.route('/api/inspections/pending')
+def api_pending_inspections():
+    if not qc_service:
+        return jsonify([])
+    return jsonify(qc_service.get_pending_inspections())
+
+@app.route('/api/inspections/<int:inspection_id>/result', methods=['POST'])
+def api_record_inspection(inspection_id):
+    if not qc_service:
+        return jsonify({"error": "QC service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    user = auth_service.get_current_user() if auth_service else {}
+    result = qc_service.record_result(
+        inspection_id,
+        results=body.get("results"),
+        status=body.get("status", "pass"),
+        inspector_id=user.get("id"),
+        notes=body.get("notes"),
+        coa_path=body.get("coa_file_path"),
+    )
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@app.route('/api/items/<item_no>/quality-specs', methods=['GET'])
+def api_get_quality_specs(item_no):
+    if not qc_service:
+        return jsonify([])
+    return jsonify(qc_service.get_specs_for_item(item_no))
+
+@app.route('/api/items/<item_no>/quality-specs', methods=['POST'])
+def api_create_quality_spec(item_no):
+    if not qc_service:
+        return jsonify({"error": "QC service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    spec = qc_service.create_spec(item_no, body)
+    return jsonify(spec), 201
+
+# -- Phase 4.2: Invoicing --
+@app.route('/api/invoices/from-shipment/<int:shipment_id>', methods=['POST'])
+def api_create_invoice_from_shipment(shipment_id):
+    if not invoice_service:
+        return jsonify({"error": "Invoice service not available"}), 503
+    user = auth_service.get_current_user() if auth_service else {}
+    result = invoice_service.create_from_shipment(shipment_id, created_by=user.get("email", "portal"))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+@app.route('/api/invoices', methods=['GET'])
+def api_list_invoices():
+    if not invoice_service:
+        return jsonify([])
+    return jsonify(invoice_service.list_invoices(
+        status=request.args.get("status"),
+        customer_id=request.args.get("customer_id", type=int),
+    ))
+
+@app.route('/api/invoices/<int:invoice_id>')
+def api_get_invoice(invoice_id):
+    if not invoice_service:
+        return jsonify({"error": "Invoice service not available"}), 503
+    inv = invoice_service.get_invoice(invoice_id)
+    if not inv:
+        return jsonify({"error": "Invoice not found"}), 404
+    return jsonify(inv)
+
+@app.route('/api/invoices/<int:invoice_id>/pdf')
+def api_invoice_pdf(invoice_id):
+    if not invoice_service:
+        return jsonify({"error": "Invoice service not available"}), 503
+    html = invoice_service.generate_invoice_html(invoice_id)
+    if not html:
+        return jsonify({"error": "Invoice not found"}), 404
+    return Response(html, mimetype="text/html")
+
+@app.route('/api/invoices/<int:invoice_id>/status', methods=['PATCH'])
+def api_update_invoice_status(invoice_id):
+    if not invoice_service:
+        return jsonify({"error": "Invoice service not available"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    result = invoice_service.update_status(invoice_id, body.get("status", ""))
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+# -- Phase 4.3: AP/AR Views --
+@app.route('/api/financial/ar-aging')
+def api_ar_aging():
+    if not financial_views_service:
+        return jsonify({"error": "Financial views not available"}), 503
+    return jsonify(financial_views_service.ar_aging())
+
+@app.route('/api/financial/ap-aging')
+def api_ap_aging():
+    if not financial_views_service:
+        return jsonify({"error": "Financial views not available"}), 503
+    return jsonify(financial_views_service.ap_aging())
+
+@app.route('/api/financial/gl-summary')
+def api_gl_summary():
+    if not financial_views_service:
+        return jsonify({"error": "Financial views not available"}), 503
+    return jsonify(financial_views_service.gl_summary())
 
 
 if __name__ == '__main__':
