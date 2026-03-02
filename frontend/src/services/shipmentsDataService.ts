@@ -111,3 +111,17 @@ export function categorizeStatus(status: string): 'shipped' | 'ready' | 'schedul
   if (s.includes('unscheduled')) return 'unscheduled';
   return 'other';
 }
+
+// Priority: lower = more urgent = shows first
+export function statusPriority(status: string): number {
+  const cat = categorizeStatus(status);
+  switch (cat) {
+    case 'late':        return 0;
+    case 'unscheduled': return 1;
+    case 'ready':       return 2;
+    case 'scheduled':   return 3;
+    case 'other':       return 4;
+    case 'shipped':     return 5;
+    default:            return 6;
+  }
+}

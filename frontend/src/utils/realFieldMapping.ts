@@ -563,7 +563,7 @@ export const REAL_FIELD_MAPPING: FieldMapping = {
 
   // EMPTY FILES (19 FILES) - NO FIELD DATA
   "BillOfMaterialRoutingDetails.json": [],
-  "Items.json": [],
+  // "Items.json": [], // duplicate - already defined above with 32 fields
   "Items_qty_keys.json": [],
   "Items_union_keys.json": [],
   "Items_default_keys.json": [],

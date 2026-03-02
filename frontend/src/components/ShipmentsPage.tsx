@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { fetchShipmentsData, Shipment, YEAR_TABS, categorizeStatus } from '../services/shipmentsDataService';
+import { fetchShipmentsData, Shipment, YEAR_TABS, categorizeStatus, statusPriority } from '../services/shipmentsDataService';
 import {
   Search, RefreshCw, Download, Filter, ChevronDown, ChevronUp,
   Truck, Globe, MapPin, CheckCircle, AlertTriangle,
@@ -45,8 +45,8 @@ export const ShipmentsPage: React.FC = () => {
   const [destFilter, setDestFilter] = useState('');
   const [termsFilter, setTermsFilter] = useState('');
   const [custFilter, setCustFilter] = useState('');
-  const [sortField, setSortField] = useState<SortField>('so_number');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortField, setSortField] = useState<SortField>('status');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [selected, setSelected] = useState<Shipment | null>(null);
 
   const loadData = useCallback(async (tab = activeTab) => {
@@ -97,11 +97,20 @@ export const ShipmentsPage: React.FC = () => {
       const q = search.toLowerCase();
       r = r.filter(s => s.so_number.toLowerCase().includes(q) || s.customer.toLowerCase().includes(q) || s.invoice_number.toLowerCase().includes(q) || s.notes.toLowerCase().includes(q) || s.invoice_qty.toLowerCase().includes(q));
     }
-    if (statusFilter) r = r.filter(s => s.status === statusFilter);
+    if (statusFilter) {
+      const sf = statusFilter.toLowerCase();
+      r = r.filter(s => s.status.toLowerCase().includes(sf) || s.status === statusFilter);
+    }
     if (destFilter) r = r.filter(s => s.destination === destFilter);
     if (termsFilter) r = r.filter(s => s.shipping_terms === termsFilter);
     if (custFilter) r = r.filter(s => s.customer === custFilter);
     r.sort((a, b) => {
+      if (sortField === 'status') {
+        const pa = statusPriority(a.status);
+        const pb = statusPriority(b.status);
+        if (pa !== pb) return sortDir === 'asc' ? pa - pb : pb - pa;
+        return b.so_number.localeCompare(a.so_number, undefined, { numeric: true });
+      }
       const cmp = String(a[sortField] ?? '').localeCompare(String(b[sortField] ?? ''), undefined, { numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -302,13 +311,42 @@ export const ShipmentsPage: React.FC = () => {
         </div>
       )}
 
+      {/* ── Quick Status Filters ─── */}
+      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { value: '', label: 'All', color: 'bg-gray-100 text-slate-700 border-gray-300' },
+            { value: 'Late', label: 'Late / Overdue', color: 'bg-red-50 text-red-700 border-red-200' },
+            { value: 'Unscheduled', label: 'Unscheduled', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+            { value: 'Ready', label: 'Ready to Ship', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+            { value: 'On Schedule', label: 'On Schedule', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            { value: 'Shipped', label: 'Shipped / Invoiced', color: 'bg-slate-50 text-slate-600 border-slate-200' },
+          ].map(btn => {
+            const isActive = statusFilter.toLowerCase().includes(btn.value.toLowerCase()) || (btn.value === '' && !statusFilter);
+            const count = btn.value === ''
+              ? shipments.length
+              : shipments.filter(s => s.status.toLowerCase().includes(btn.value.toLowerCase())).length;
+            return (
+              <button
+                key={btn.value}
+                onClick={() => setStatusFilter(btn.value)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  isActive
+                    ? btn.color + ' ring-2 ring-offset-1 ring-blue-400'
+                    : 'bg-white text-slate-500 border-gray-200 hover:border-gray-300 hover:text-slate-700'
+                }`}
+              >
+                {btn.label}
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── Filters ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0 mt-0">
+      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-slate-500 text-sm font-medium">All Shipments</span>
-          </div>
-          <div className="h-4 w-px bg-gray-300" />
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -326,10 +364,6 @@ export const ShipmentsPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-400" />
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
-              <option value="">All statuses</option>
-              {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
             <select value={destFilter} onChange={e => setDestFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
               <option value="">All destinations</option>
               {uniqueDests.map(d => <option key={d} value={d}>{d}</option>)}
@@ -383,30 +417,47 @@ export const ShipmentsPage: React.FC = () => {
                     <th className="w-10 px-3 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filtered.map((s, i) => (
-                    <tr key={`${s.so_number}-${i}`} onClick={() => setSelected(s)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group">
-                      <td className="px-4 py-3"><span className="text-sm font-semibold text-blue-600 font-mono">{s.so_number}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-800 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-400 italic">--</span>}</span></td>
-                      <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-600">{s.shipping_terms}</span></td>
-                      <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getDestBadge(s.destination)}`}>{s.destination}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-700">{s.invoice_qty}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.order_completion || '--'}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.scheduled_pickup || '--'}</span></td>
-                      <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.actual_pickup && s.actual_pickup.toLowerCase() !== 'leave empty' ? s.actual_pickup : '--'}</span></td>
-                      <td className="px-4 py-3">
-                        {s.invoice_number ? (
-                          <div><span className="text-sm font-mono font-medium text-slate-800">#{s.invoice_number}</span>{s.invoice_date && <p className="text-xs text-slate-400 mt-0.5">{s.invoice_date}</p>}</div>
-                        ) : <span className="text-sm text-slate-400">--</span>}
-                      </td>
-                      <td className="px-3 py-3">
-                        <button onClick={e => { e.stopPropagation(); setSelected(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {filtered.map((s, i) => {
+                    const prevStatus = i > 0 ? filtered[i - 1].status : null;
+                    const showGroupHeader = sortField === 'status' && s.status !== prevStatus;
+                    const groupCount = showGroupHeader ? filtered.filter(x => x.status === s.status).length : 0;
+                    return (
+                      <React.Fragment key={`${s.so_number}-${i}`}>
+                        {showGroupHeader && (
+                          <tr className="bg-gray-50 border-y border-gray-200">
+                            <td colSpan={11} className="px-4 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span>
+                                <span className="text-xs text-slate-500 font-medium">{groupCount} shipment{groupCount !== 1 ? 's' : ''}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        <tr onClick={() => setSelected(s)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group border-b border-gray-100">
+                          <td className="px-4 py-3"><span className="text-sm font-semibold text-blue-600 font-mono">{s.so_number}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-800 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-400 italic">--</span>}</span></td>
+                          <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-600">{s.shipping_terms}</span></td>
+                          <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getDestBadge(s.destination)}`}>{s.destination}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-700">{s.invoice_qty}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.order_completion || '--'}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.scheduled_pickup || '--'}</span></td>
+                          <td className="px-4 py-3"><span className="text-sm text-slate-500">{s.actual_pickup && s.actual_pickup.toLowerCase() !== 'leave empty' ? s.actual_pickup : '--'}</span></td>
+                          <td className="px-4 py-3">
+                            {s.invoice_number ? (
+                              <div><span className="text-sm font-mono font-medium text-slate-800">#{s.invoice_number}</span>{s.invoice_date && <p className="text-xs text-slate-400 mt-0.5">{s.invoice_date}</p>}</div>
+                            ) : <span className="text-sm text-slate-400">--</span>}
+                          </td>
+                          <td className="px-3 py-3">
+                            <button onClick={e => { e.stopPropagation(); setSelected(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100">
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
