@@ -3200,7 +3200,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       {(() => {
                         const salesOrderNo = moView.salesOrderNo;
                         const jobNo = moView.jobNo;
-                        const relatedSO = salesOrderNo ? (data['SalesOrders.json'] || []).find((so: any) => so['Sales Order No.'] === salesOrderNo || so['Order No.'] === salesOrderNo) : null;
+                        const allSOSources = [...(data['SalesOrders.json'] || []), ...(data['ParsedSalesOrders.json'] || []), ...(data['SalesOrderHeaders.json'] || [])];
+                        Object.values(data['SalesOrdersByStatus'] || {}).forEach((arr: any) => { if (Array.isArray(arr)) allSOSources.push(...arr); });
+                        const soDigits = salesOrderNo ? String(salesOrderNo).replace(/\D/g, '') : '';
+                        const relatedSO = salesOrderNo ? allSOSources.find((so: any) => {
+                          const num = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['SalesOrderNo'] || so['SO No.'];
+                          return String(num || '').replace(/\D/g, '') === soDigits || num === salesOrderNo;
+                        }) : null;
                         const relatedJob = jobNo ? (data['Jobs.json'] || []).find((job: any) => job['Job No.'] === jobNo) : null;
                         const relatedWorkOrders = jobNo ? (data['WorkOrders.json'] || []).filter((wo: any) => wo['Job No.'] === jobNo) : [];
                         const linkedPOs = (data?.['MIPOD.json'] || data?.['PurchaseOrderDetails.json'] || []).filter((pd: any) => (pd['Manufacturing Order No.'] || pd['mohId'] || '').toString().trim() === (moView.moNo || '').toString().trim());
@@ -3742,35 +3748,89 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
+                                    {(soFile || relatedSO?.path || relatedSO?.gdrive_id) ? (
                                       <button onClick={() => { const f = soFile || relatedSO; const url = f?.gdrive_id ? getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`) : f?.path ? getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`) : ''; if (url) window.open(url, '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium" title="Open SO document in a new browser tab">
                                         <ExternalLink className="w-4 h-4" /> New Tab
                                       </button>
+                                    ) : (
+                                      <button onClick={async () => {
+                                        try {
+                                          const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
+                                          const result = await resp.json();
+                                          if (result.found && result.filePath) {
+                                            window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
+                                          } else {
+                                            setActiveSection('orders');
+                                            setSoSearchQuery(String(soNumber));
+                                            resetSONavigation();
+                                            setShowMODetails(false);
+                                          }
+                                        } catch { 
+                                          setActiveSection('orders');
+                                          setSoSearchQuery(String(soNumber));
+                                          resetSONavigation();
+                                          setShowMODetails(false);
+                                        }
+                                      }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium" title="Find and open SO PDF from G: Drive">
+                                        <ExternalLink className="w-4 h-4" /> View PDF
+                                      </button>
                                     )}
+                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium" title="Go to Sales Orders and search for this SO">
+                                      <Search className="w-4 h-4" /> Sales Orders
+                                    </button>
                                   </div>
                                 </div>
 
-                                {/* Embedded SO PDF viewer - view right here */}
+                                {/* Embedded SO PDF viewer - view right here, with dynamic find fallback */}
                                 {(() => {
                                   const soPdfSource = soFile || relatedSO;
                                   const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path || soPdfSource?.is_pdf;
-                                  if (!hasPdf) return null;
-                                  const pdfUrl = soPdfSource.gdrive_id
-                                    ? getApiUrl(`/api/gdrive/preview/${soPdfSource.gdrive_id}`)
-                                    : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(soPdfSource.path)}#toolbar=1&navpanes=0`);
-                                  return (
-                                    <div className="border-b border-blue-100">
-                                      <div className="px-4 py-2 bg-blue-50/50 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
-                                        <span className="text-[10px] text-blue-500">{soPdfSource.name || `SO_${soNumber}`}</span>
-                                      </div>
-                                      <div className="bg-slate-100 p-2">
-                                        <iframe
-                                          src={pdfUrl}
-                                          className="w-full rounded-lg border border-slate-200 bg-white"
+                                  if (hasPdf) {
+                                    const pdfUrl = soPdfSource.gdrive_id
+                                      ? getApiUrl(`/api/gdrive/preview/${soPdfSource.gdrive_id}`)
+                                      : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(soPdfSource.path)}#toolbar=1&navpanes=0`);
+                                    return (
+                                      <div className="border-b border-blue-100">
+                                        <div className="px-4 py-2 bg-blue-50/50 flex items-center justify-between">
+                                          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
+                                          <span className="text-[10px] text-blue-500">{soPdfSource.name || `SO_${soNumber}`}</span>
+                                        </div>
+                                        <div className="bg-slate-100 p-2">
+                                          <iframe
+                                            src={pdfUrl}
+                                            className="w-full rounded-lg border border-slate-200 bg-white"
                                           style={{ height: '400px', minHeight: '300px' }}
                                           title={`Sales Order ${soNumber}`}
                                         />
+                                      </div>
+                                    </div>
+                                  );
+                                  }
+                                  return (
+                                    <div className="border-b border-blue-100">
+                                      <div className="px-4 py-3 bg-blue-50/50 flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
+                                        <button onClick={async () => {
+                                          try {
+                                            const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
+                                            const result = await resp.json();
+                                            if (result.found && result.filePath) {
+                                              window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
+                                            } else {
+                                              setActiveSection('orders');
+                                              setSoSearchQuery(String(soNumber));
+                                              resetSONavigation();
+                                              setShowMODetails(false);
+                                            }
+                                          } catch {
+                                            setActiveSection('orders');
+                                            setSoSearchQuery(String(soNumber));
+                                            resetSONavigation();
+                                            setShowMODetails(false);
+                                          }
+                                        }} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium">
+                                          <ExternalLink className="w-3.5 h-3.5" /> Find & Open PDF
+                                        </button>
                                       </div>
                                     </div>
                                   );
@@ -3899,8 +3959,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       const soPdfSource = soFile;
                                       const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path;
                                       if (!hasPdf) return (
-                                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                                          <div className="text-xs text-amber-700">SO #{soNumber} is referenced but no document or header data found. The SO number was found {soFromDesc ? 'in the MO description' : 'in the Sales Order No. field'}.</div>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+                                          <div className="text-xs text-blue-700">SO #{soNumber} found {soFromDesc ? 'in MO description' : 'in Sales Order No. field'}</div>
+                                          <div className="flex items-center gap-2">
+                                            <button onClick={async () => {
+                                              try {
+                                                const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
+                                                const result = await resp.json();
+                                                if (result.found && result.filePath) {
+                                                  window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
+                                                } else {
+                                                  setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false);
+                                                }
+                                              } catch { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }
+                                            }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium">
+                                              <ExternalLink className="w-3.5 h-3.5" /> View PDF
+                                            </button>
+                                            <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }} className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-xs font-medium">
+                                              <Search className="w-3.5 h-3.5" /> Sales Orders
+                                            </button>
+                                          </div>
                                         </div>
                                       );
                                       const pdfUrl = soPdfSource.gdrive_id
