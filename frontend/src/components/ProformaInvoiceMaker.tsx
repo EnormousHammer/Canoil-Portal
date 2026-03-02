@@ -13,6 +13,7 @@ interface ProformaItem {
 }
 
 interface ProformaData {
+  so_number: string;
   customer_name: string;
   po_number: string;
   address: string;
@@ -52,7 +53,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
   const [searching, setSearching] = useState(false);
   const [selectedSONumber, setSelectedSONumber] = useState('');
   const [formData, setFormData] = useState<ProformaData>({
-    customer_name: '', po_number: '', address: '', city_state_zip: '',
+    so_number: '', customer_name: '', po_number: '', address: '', city_state_zip: '',
     country: '', phone: '', email: '', ship_via: '',
     ship_by_date: '', invoice_date: new Date().toISOString().split('T')[0],
     trade_terms: 'EXW', items: [],
@@ -108,7 +109,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
   const parseAddress = useCallback((soldTo: any) => {
     if (!soldTo) return { address: '', city_state_zip: '', country: '', phone: '', email: '' };
     const fullAddr = soldTo.full_address || '';
-    let address = soldTo.street || soldTo.street_address || soldTo.addr1 || '';
+    let address = soldTo.street || soldTo.street_address || soldTo.address || soldTo.addr1 || '';
     let cityStateZip = '';
     let country = soldTo.country || '';
     const phone = soldTo.phone || soldTo.telephone || '';
@@ -128,10 +129,34 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
       }
     }
     if (!cityStateZip) {
-      const parts = [soldTo.city, soldTo.state, soldTo.postal_code || soldTo.postal || soldTo.zip].filter(Boolean);
+      const parts = [soldTo.city, soldTo.province || soldTo.state, soldTo.postal_code || soldTo.postal || soldTo.zip].filter(Boolean);
       cityStateZip = parts.join(', ');
     }
     return { address, city_state_zip: cityStateZip, country, phone, email };
+  }, []);
+
+  const extractShipVia = useCallback((so: any): string => {
+    const instructions = so.special_instructions || '';
+    if (instructions) {
+      const shipViaMatch = instructions.match(/ship\s+via\s+([^,\n]+?)(?:\s+COLLECT|\s+PREPAID|\s+account|\s*,|\s*\n|$)/i);
+      if (shipViaMatch) return shipViaMatch[1].trim();
+    }
+    const broker = so.brokerage?.broker_name || '';
+    if (broker) return broker;
+    return '';
+  }, []);
+
+  const extractTradeTerms = useCallback((so: any): string => {
+    const knownTerms = ['EXW', 'FOB', 'CIF', 'DAP', 'DDP', 'FCA', 'CPT', 'CIP', 'CFR', 'FAS', 'DAT', 'DPU'];
+    const terms = (so.terms || '').toUpperCase();
+    for (const t of knownTerms) {
+      if (terms.includes(t)) return t;
+    }
+    const instructions = (so.special_instructions || '').toUpperCase();
+    for (const t of knownTerms) {
+      if (instructions.includes(t)) return t;
+    }
+    return 'EXW';
   }, []);
 
   const handleSelectSO = useCallback(async (soNumber: string) => {
@@ -159,22 +184,30 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
         unit_price: safeParseCurrency(it.unit_price || it.price),
       }));
 
-      setFormData({
+      const newFormData: ProformaData = {
+        so_number: so.so_number || soNumber,
         customer_name: so.customer_name || soldTo.company_name || soldTo.company || '',
         po_number: so.po_number || '',
         address: addr.address, city_state_zip: addr.city_state_zip,
         country: addr.country, phone: addr.phone, email: addr.email,
-        ship_via: '', ship_by_date: so.ship_date || '',
+        ship_via: extractShipVia(so), ship_by_date: so.ship_date || '',
         invoice_date: new Date().toISOString().split('T')[0],
-        trade_terms: 'EXW', items,
-      });
+        trade_terms: extractTradeTerms(so), items,
+      };
+
+      setFormData(newFormData);
       setStep('edit');
+
+      // Auto-generate and download the proforma invoice
+      if (newFormData.customer_name.trim() && newFormData.items.length > 0) {
+        setTimeout(() => generateAndDownload(newFormData), 300);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load SO data');
     } finally {
       setParsing(false);
     }
-  }, [parseAddress]);
+  }, [parseAddress, extractShipVia, extractTradeTerms]);
 
   const updateField = (field: keyof ProformaData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -202,10 +235,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
 
   const totalAmount = formData.items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0);
 
-  const handleGenerate = async () => {
-    if (!formData.customer_name.trim()) { setError('Customer name is required'); return; }
-    if (formData.items.length === 0) { setError('At least one item is required'); return; }
-
+  const generateAndDownload = async (data: ProformaData) => {
     setGenerating(true);
     setError('');
     setSuccess('');
@@ -213,7 +243,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
       const response = await fetch(getApiUrl('/api/proforma-invoice/generate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(data),
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -221,7 +251,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
       }
       const blob = await response.blob();
       const cd = response.headers.get('Content-Disposition');
-      let filename = `Proforma Invoice_${formData.customer_name}_${formData.po_number || 'draft'}.xlsx`;
+      let filename = `Proforma Invoice_${data.customer_name}_${data.po_number || 'draft'}.xlsx`;
       if (cd) {
         const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (match?.[1]) filename = match[1].replace(/['"]/g, '');
@@ -234,12 +264,18 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setSuccess(`Proforma Invoice generated: ${filename}`);
+      setSuccess(`Proforma Invoice generated and downloaded: ${filename}`);
     } catch (err: any) {
       setError(err.message || 'Failed to generate proforma invoice');
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleGenerate = async () => {
+    if (!formData.customer_name.trim()) { setError('Customer name is required'); return; }
+    if (formData.items.length === 0) { setError('At least one item is required'); return; }
+    await generateAndDownload(formData);
   };
 
   const statusColor = (status: string) => {

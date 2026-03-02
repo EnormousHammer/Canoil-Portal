@@ -13,14 +13,15 @@ import os
 import shutil
 from datetime import datetime
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), 'templates', 'proforma_invoice')
 TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, 'proforma_invoice_template.xlsx')
 
 ITEM_START_ROW = 19
-ITEM_END_ROW = 26
-MAX_ITEMS = ITEM_END_ROW - ITEM_START_ROW + 1  # 8
+ITEM_END_ROW = 24
+MAX_ITEMS = ITEM_END_ROW - ITEM_START_ROW + 1  # 6 (rows 19-24, before Sub Total at row 25)
 
 
 def _safe_str(val, default=''):
@@ -66,6 +67,17 @@ def _parse_date(val):
     return None
 
 
+def _merge_if_not_merged(ws, cell_range):
+    """Merge cells only if they aren't already merged."""
+    for existing in ws.merged_cells.ranges:
+        if str(existing) == cell_range:
+            return
+    try:
+        ws.merge_cells(cell_range)
+    except Exception:
+        pass
+
+
 def generate_proforma_invoice(so_data: dict) -> tuple:
     """
     Copy the proforma invoice template and fill it with sales order data.
@@ -81,10 +93,11 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
 
     customer_name = _safe_str(so_data.get('customer_name'), 'Customer')
     po_number = _safe_str(so_data.get('po_number'))
+    so_number = _safe_str(so_data.get('so_number'))
     invoice_date = _parse_date(so_data.get('invoice_date')) or datetime.now()
     date_str = invoice_date.strftime('%Y-%m-%d')
 
-    # --- Build output filename: Proforma Invoice_CompanyName_PO ---
+    # --- Build output filename ---
     safe_customer = ''.join(
         c for c in customer_name if c.isalnum() or c in (' ', '-', '_', '.')
     ).strip()
@@ -108,8 +121,12 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
     wb = load_workbook(output_path)
     ws = wb.active
 
-    # --- Header ---
+    # --- Title row ---
     ws['C4'] = f'Proforma Invoice {date_str}'
+    if so_number:
+        ws['G4'] = f'SO# {so_number}'
+
+    # --- Buyer / Sold To ---
     ws['C5'] = customer_name
     ws['C7'] = _safe_str(so_data.get('address'))
     ws['C8'] = _safe_str(so_data.get('city_state_zip'))
@@ -133,17 +150,27 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
     trade_terms = _safe_str(so_data.get('trade_terms'), 'EXW')
     ws['B31'] = f'Trade Terms: {trade_terms}'
 
-    # --- Items (rows 19-26, template already has formatting & I27 SUM formula) ---
+    # --- Items (rows 19-24, max 6 items before Sub Total row 25) ---
+    # Template has I27 =SUM(I19:I26) which covers all item rows + subtotal area
     items = so_data.get('items', [])
     for idx, item in enumerate(items[:MAX_ITEMS]):
         row = ITEM_START_ROW + idx
+
+        # Merge description cells C:F for this row (template only has C19:F19 merged)
+        _merge_if_not_merged(ws, f'C{row}:F{row}')
+
         ws[f'B{row}'] = _safe_str(item.get('product_code') or item.get('item_code'))
         ws[f'C{row}'] = _safe_str(item.get('description'))
-        ws[f'G{row}'] = _safe_int(item.get('quantity'))
-        ws[f'H{row}'] = _safe_float(item.get('unit_price'))
+        qty = _safe_int(item.get('quantity'))
+        price = _safe_float(item.get('unit_price'))
+        ws[f'G{row}'] = qty
+        ws[f'H{row}'] = price
         ws[f'I{row}'] = f'=H{row}*G{row}'
 
-    # I27 =SUM(I19:I26) is already in the template - do not touch it
+    # Write subtotal formula at I25 (the Sub Total row)
+    ws['I25'] = f'=SUM(I{ITEM_START_ROW}:I{ITEM_END_ROW})'
+
+    # I27 =SUM(I19:I26) is already in the template (grand total)
 
     wb.save(output_path)
     wb.close()
