@@ -5493,6 +5493,10 @@ def get_sales_order_folder(folder_path):
         folders = []
         files = []
         
+        import calendar as _cal
+
+        _MONTH_NAMES = {str(i).zfill(2): _cal.month_name[i] for i in range(1, 13)}
+
         def _count_files_recursive(dir_path):
             """Count all files recursively inside a directory."""
             total = 0
@@ -5502,6 +5506,10 @@ def get_sales_order_folder(folder_path):
             except Exception:
                 pass
             return total
+
+        def _display_name(raw_name):
+            """Convert '01'-'12' to month names, leave everything else as-is."""
+            return _MONTH_NAMES.get(raw_name, raw_name)
 
         for item in items:
             item_path = os.path.join(full_path, item)
@@ -5514,6 +5522,7 @@ def get_sales_order_folder(folder_path):
                     
                     folders.append({
                         'name': item,
+                        'display_name': _display_name(item),
                         'type': 'folder',
                         'file_count': total_files,
                         'folder_count': folder_count,
@@ -5522,6 +5531,7 @@ def get_sales_order_folder(folder_path):
                 except:
                     folders.append({
                         'name': item,
+                        'display_name': _display_name(item),
                         'type': 'folder',
                         'file_count': 0,
                         'folder_count': 0,

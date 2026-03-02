@@ -1782,6 +1782,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     }
   };
 
+  const MONTH_NAMES: Record<string, string> = {
+    '01': 'January', '02': 'February', '03': 'March', '04': 'April',
+    '05': 'May', '06': 'June', '07': 'July', '08': 'August',
+    '09': 'September', '10': 'October', '11': 'November', '12': 'December',
+  };
+  const displayFolderName = (name: string) => MONTH_NAMES[name] || name;
+
   // Sales Orders navigation functions - LOADS REAL FILES
   const navigateToSOFolder = (folderName: string) => {
     const newPath = [...soCurrentPath, folderName];
@@ -8189,7 +8196,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                           }`}
                         >
-                          {folder}
+                          {displayFolderName(folder)}
                         </button>
                       </React.Fragment>
                     ))}
@@ -8598,7 +8605,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           </svg>
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-slate-900 tracking-tight">{soCurrentPath[soCurrentPath.length - 1]}</h3>
+                          <h3 className="text-xl font-bold text-slate-900 tracking-tight">{displayFolderName(soCurrentPath[soCurrentPath.length - 1])}</h3>
                           <div className="text-sm text-slate-500 mt-0.5 flex items-center gap-2">
                             {soLoading ? (
                               <>
@@ -8676,7 +8683,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                     </svg>
                                   </div>
-                                  <div className="font-bold text-slate-900 text-base mb-2 truncate group-hover:text-blue-700 transition-colors">{folder.name}</div>
+                                  <div className="font-bold text-slate-900 text-base mb-2 truncate group-hover:text-blue-700 transition-colors">{folder.display_name || folder.name}</div>
                                   <div className="flex items-center gap-2 text-xs text-slate-500">
                                     <span className="text-emerald-600 font-medium">{folder.file_count}</span> files
                                     {folder.folder_count > 0 && (

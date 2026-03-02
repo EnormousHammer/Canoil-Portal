@@ -850,6 +850,9 @@ class GoogleDriveService:
             result = self.service.files().list(**params).execute()
             subfolder_list = result.get('files', [])
             
+            import calendar as _cal
+            _MONTH_NAMES = {str(i).zfill(2): _cal.month_name[i] for i in range(1, 13)}
+
             def _gdrive_count_recursive(parent_id, depth=0, max_depth=3):
                 """Count all files recursively under a Google Drive folder (up to max_depth)."""
                 if depth > max_depth:
@@ -900,6 +903,7 @@ class GoogleDriveService:
                 
                 folders.append({
                     'name': sf['name'],
+                    'display_name': _MONTH_NAMES.get(sf['name'], sf['name']),
                     'type': 'folder',
                     'file_count': total_files,
                     'folder_count': folder_count,
