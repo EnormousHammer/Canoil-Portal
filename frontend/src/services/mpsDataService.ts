@@ -369,7 +369,14 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
         required: parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0,
         ready: parseFloat(String(row[10] ?? '').replace(/[^0-9.]/g, '')) || 0,
         planned_pct: String(row[11] ?? '').trim() || '0%',
-        actual_pct: String(row[12] ?? '').trim() || '0%',
+        actual_pct: (() => {
+          const csvPct = String(row[12] ?? '').trim();
+          if (csvPct && parseFloat(csvPct) > 0) return csvPct;
+          const req = parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0;
+          const rdy = parseFloat(String(row[10] ?? '').replace(/[^0-9.]/g, '')) || 0;
+          if (req > 0) return `${Math.min(Math.round((rdy / req) * 100), 100)}%`;
+          return '0%';
+        })(),
         promised_date: String(row[13] ?? '').trim() || '',
         start_date: String(row[14] ?? '').trim() || '',
         end_date: String(row[15] ?? '').trim() || '',
