@@ -3882,6 +3882,35 @@ def parse_so_for_proforma(so_number):
             err_msg = so_data.get('error', 'Unknown parse error') if isinstance(so_data, dict) else 'Parser returned nothing'
             return jsonify({"error": f"Failed to parse SO {so_number}: {err_msg}"}), 500
 
+        # PROFORMA-SPECIFIC: Re-extract charge items (Pallet, Freight, Brokerage)
+        # The main parser excludes these, but proforma invoices need ALL charges
+        raw_text = so_data.get('raw_text', '')
+        if raw_text:
+            charge_patterns = [
+                (r'^(Pallet)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Pallet'),
+                (r'^(Freight\s*Charge)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Freight'),
+                (r'^(Brokerage)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Brokerage'),
+            ]
+            for line in raw_text.split('\n'):
+                line = line.strip()
+                for pattern, charge_type in charge_patterns:
+                    m = re.match(pattern, line, re.IGNORECASE)
+                    if m:
+                        charge_item = {
+                            'item_code': charge_type,
+                            'description': m.group(3).strip() or charge_type,
+                            'quantity': int(m.group(2)),
+                            'unit': 'EACH',
+                            'unit_price': float(m.group(4).replace(',', '')),
+                            'amount': float(m.group(5).replace(',', '')),
+                            'total_price': float(m.group(5).replace(',', '')),
+                            'price': float(m.group(4).replace(',', '')),
+                            'is_charge': True
+                        }
+                        so_data.setdefault('items', []).append(charge_item)
+                        print(f"PROFORMA CHARGE: {charge_type} ${charge_item['amount']}")
+                        break
+
         return jsonify({"success": True, "so_data": so_data})
 
     except Exception as e:

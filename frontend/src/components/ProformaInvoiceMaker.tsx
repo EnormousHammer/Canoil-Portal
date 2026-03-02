@@ -106,33 +106,34 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
     };
   }, [searchQuery]);
 
-  const parseAddress = useCallback((soldTo: any) => {
-    if (!soldTo) return { address: '', city_state_zip: '', country: '', phone: '', email: '' };
-    const fullAddr = soldTo.full_address || '';
-    let address = soldTo.street || soldTo.street_address || soldTo.address || soldTo.addr1 || '';
-    let cityStateZip = '';
-    let country = soldTo.country || '';
-    const phone = soldTo.phone || soldTo.telephone || '';
-    const email = soldTo.email || '';
+  const parseAddress = useCallback((so: any) => {
+    const billing = so.billing_address || {};
+    const soldTo = so.sold_to || {};
+    const shipping = so.shipping_address || {};
+    const city = billing.city || shipping.city || '';
+    const province = billing.province || billing.state || shipping.province || '';
+    const postal = billing.postal_code || billing.postal || shipping.postal_code || '';
+    const country = billing.country || shipping.country || soldTo.country || '';
+    const phone = billing.phone || soldTo.phone || shipping.phone || '';
+    const email = billing.email || soldTo.email || shipping.email || '';
 
-    if (fullAddr && !address) {
-      const lines = fullAddr.split(/[\n,]+/).map((l: string) => l.trim()).filter(Boolean);
-      if (lines.length >= 3) {
-        address = lines[0];
-        cityStateZip = lines.slice(1, -1).join(', ');
-        country = country || lines[lines.length - 1];
-      } else if (lines.length === 2) {
-        address = lines[0];
-        cityStateZip = lines[1];
-      } else {
-        address = fullAddr;
+    // Build street address: use full_address minus city/postal/country parts for completeness
+    const fullAddr = billing.full_address || soldTo.address || billing.address || '';
+    let streetAddress = '';
+    if (fullAddr && city) {
+      // Strip city onwards from full address to get the street portion
+      const cityIdx = fullAddr.indexOf(city);
+      if (cityIdx > 0) {
+        streetAddress = fullAddr.substring(0, cityIdx).replace(/,\s*$/, '').trim();
       }
     }
-    if (!cityStateZip) {
-      const parts = [soldTo.city, soldTo.province || soldTo.state, soldTo.postal_code || soldTo.postal || soldTo.zip].filter(Boolean);
-      cityStateZip = parts.join(', ');
+    if (!streetAddress) {
+      streetAddress = billing.street || billing.street_address || soldTo.address || billing.address || '';
     }
-    return { address, city_state_zip: cityStateZip, country, phone, email };
+
+    const cityParts = [city, province, postal].filter(Boolean);
+    const cityStateZip = cityParts.join(', ');
+    return { address: streetAddress, city_state_zip: cityStateZip, country, phone, email };
   }, []);
 
   const extractShipVia = useCallback((so: any): string => {
@@ -175,8 +176,7 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
       const so = result.so_data;
       if (!so) throw new Error('No data returned from parser');
 
-      const soldTo = so.sold_to || so.billing_address || {};
-      const addr = parseAddress(soldTo);
+      const addr = parseAddress(so);
       const items: ProformaItem[] = (so.items || []).map((it: any) => ({
         product_code: it.item_code || it.product_code || '',
         description: it.description || '',
@@ -184,13 +184,25 @@ export const ProformaInvoiceMaker: React.FC<Props> = ({ data, onClose }) => {
         unit_price: safeParseCurrency(it.unit_price || it.price),
       }));
 
+      const formatDate = (d: string): string => {
+        if (!d) return '';
+        const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+        if (m) {
+          let yr = parseInt(m[3], 10);
+          if (yr < 100) yr += yr < 50 ? 2000 : 1900;
+          return `${yr}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+        }
+        return d;
+      };
+
+      const billing = so.billing_address || so.sold_to || {};
       const newFormData: ProformaData = {
         so_number: so.so_number || soNumber,
-        customer_name: so.customer_name || soldTo.company_name || soldTo.company || '',
+        customer_name: so.customer_name || billing.company || billing.company_name || '',
         po_number: so.po_number || '',
         address: addr.address, city_state_zip: addr.city_state_zip,
         country: addr.country, phone: addr.phone, email: addr.email,
-        ship_via: extractShipVia(so), ship_by_date: so.ship_date || '',
+        ship_via: extractShipVia(so), ship_by_date: formatDate(so.ship_date || ''),
         invoice_date: new Date().toISOString().split('T')[0],
         trade_terms: extractTradeTerms(so), items,
       };
