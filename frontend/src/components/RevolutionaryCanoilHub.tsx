@@ -8483,7 +8483,103 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <div className="mt-3 h-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full opacity-60"></div>
                       </div>
                     </div>
-                    
+
+                    {/* Completed and Closed Card */}
+                    <div 
+                      onClick={() => navigateToSOFolder('Completed and Closed')}
+                      className="group relative bg-white rounded-2xl p-6 border border-slate-200 hover:border-slate-300 hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-1"
+                    >
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-slate-100/60 to-transparent rounded-full -translate-y-24 translate-x-24 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-blue-100/40 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
+                      
+                      <div className="relative">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 bg-gradient-to-br from-slate-500 via-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-500/30 group-hover:scale-110 transition-transform ring-4 ring-white">
+                              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-slate-900 text-xl">Completed & Closed</div>
+                              <div className="text-sm text-slate-500 font-semibold">Fulfilled orders by year/month</div>
+                            </div>
+                          </div>
+                          <svg className="w-6 h-6 text-slate-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl p-5 mb-5 border border-slate-100">
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.completed.count || '1000+'}</div>
+                              <div className="text-sm text-slate-600 font-bold uppercase tracking-wider mt-1">Closed SOs</div>
+                            </div>
+                            <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100">
+                              <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <div className="w-2.5 h-2.5 bg-blue-400 rounded-full"></div>
+                          Browse by year: 2022 - 2026
+                        </div>
+                        <div className="mt-3 h-1 bg-gradient-to-r from-slate-400 to-blue-500 rounded-full opacity-60"></div>
+                      </div>
+                    </div>
+
+                    {/* Cancelled Card */}
+                    <div 
+                      onClick={() => navigateToSOFolder('Cancelled')}
+                      className="group relative bg-white rounded-2xl p-6 border border-red-200 hover:border-red-300 hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-1"
+                    >
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-red-100/60 to-transparent rounded-full -translate-y-24 translate-x-24 group-hover:scale-150 transition-transform duration-500"></div>
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-pink-100/40 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
+                      
+                      <div className="relative">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 bg-gradient-to-br from-red-500 via-rose-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-xl shadow-red-500/30 group-hover:scale-110 transition-transform ring-4 ring-white">
+                              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                              </svg>
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-slate-900 text-xl">Cancelled</div>
+                              <div className="text-sm text-red-500 font-semibold">Voided or cancelled orders</div>
+                            </div>
+                          </div>
+                          <svg className="w-6 h-6 text-red-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                        
+                        <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-5 mb-5 border border-red-100">
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <div className="text-5xl font-black text-slate-900 tracking-tight">{salesOrderAnalytics.cancelled.count || 0}</div>
+                              <div className="text-sm text-red-600 font-bold uppercase tracking-wider mt-1">Cancelled SOs</div>
+                            </div>
+                            <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm border border-red-100">
+                              <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <div className="w-2.5 h-2.5 bg-red-400 rounded-full"></div>
+                          Last updated: {salesOrderAnalytics.cancelled.lastUpdated}
+                        </div>
+                        <div className="mt-3 h-1 bg-gradient-to-r from-red-500 to-pink-500 rounded-full opacity-60"></div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
