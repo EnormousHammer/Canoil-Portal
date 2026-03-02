@@ -116,9 +116,16 @@ export function buildPOView(
     };
   });
 
-  const totalOrdered = lineViews.reduce((s, l) => s + l.orderedQty, 0);
-  const totalReceived = lineViews.reduce((s, l) => s + l.receivedQty, 0);
+  let totalOrdered = lineViews.reduce((s, l) => s + l.orderedQty, 0);
+  let totalReceived = lineViews.reduce((s, l) => s + l.receivedQty, 0);
   const totalValue = lineViews.reduce((s, l) => s + l.extendedPrice, 0);
+
+  if (totalOrdered === 0 && totalReceived === 0 && header) {
+    const hdrOrd = toNum(header["Total Ordered"] ?? header["totOrdered"]);
+    const hdrRcv = toNum(header["Total Received"] ?? header["totReceived"]);
+    if (hdrOrd > 0) totalOrdered = hdrOrd;
+    if (hdrRcv > 0) totalReceived = hdrRcv;
+  }
   const totalInvoiced = toNum(header?.["Invoiced Amount"] ?? header?.["Total Invoiced"] ?? header?.["totInvoiced"]);
   const totalTax = toNum(header?.["Total Tax Amount"] ?? header?.["totTaxAmt"]);
   const totalAdditionalCost = toNum(header?.["Total Additional Cost"] ?? header?.["totAddCost"]);

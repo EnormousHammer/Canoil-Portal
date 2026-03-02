@@ -395,9 +395,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       
       // Calculate total ordered and received quantities from line items
       const totalOrderedQty = poLines.reduce((sum: number, line: any) => 
-        sum + parseStockValue(line['Ordered Qty'] || line['Ordered'] || 0), 0);
+        sum + parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? line['ordered'] ?? line['ordQty'] ?? 0), 0);
       const totalReceivedQty = poLines.reduce((sum: number, line: any) => 
-        sum + parseStockValue(line['Received Qty'] || line['Received'] || 0), 0);
+        sum + parseStockValue(line['Received Qty'] ?? line['Received'] ?? line['received'] ?? line['recvQty'] ?? 0), 0);
       
       // Calculate weighted average unit cost from line items (use Item Recent Cost when PO line has no price)
       const recentUnitCost = (() => {
@@ -415,7 +415,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               const itemRow = ino ? itemByNo[ino] : null;
               unitPrice = itemRow ? parseCostValue(itemRow['Recent Cost'] ?? itemRow['cLast'] ?? itemRow['Last Cost'] ?? 0) : 0;
             }
-            const orderedQty = parseStockValue(line['Ordered'] || line['Ordered Qty'] || 0);
+            const orderedQty = parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? line['ordered'] ?? line['ordQty'] ?? 0);
             return sum + (unitPrice * orderedQty);
           }, 0);
           
@@ -447,7 +447,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         // Calculate from received line items
         const receivedValue = poLines.reduce((sum: number, line: any) => {
           const unitPrice = parseCostValue(line['Unit Price'] || line['Cost'] || 0);
-          const receivedQty = parseStockValue(line['Received Qty'] || line['Received'] || 0);
+          const receivedQty = parseStockValue(line['Received Qty'] ?? line['Received'] ?? line['received'] ?? line['recvQty'] ?? 0);
           return sum + (unitPrice * receivedQty);
         }, 0);
         
@@ -499,8 +499,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     });
 
     const lines = poDetailsSource.map((line: any) => {
-      const ordered = parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? 0);
-      const received = parseStockValue(line['Received Qty'] ?? line['Received'] ?? 0);
+      const ordered = parseStockValue(line['Ordered Qty'] ?? line['Ordered'] ?? line['ordered'] ?? line['ordQty'] ?? 0);
+      const received = parseStockValue(line['Received Qty'] ?? line['Received'] ?? line['received'] ?? line['recvQty'] ?? 0);
       const unitPrice = parseCostValue(line['Unit Price'] ?? line['Unit Cost'] ?? line['Cost'] ?? 0);
       return {
         poId: line['PO No.'] || '',
@@ -3705,16 +3705,18 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         const soNumber = isDirectSOValid ? directSONo : (soFromDesc || (directSONo ? String(directSONo).split(/[|\/]/)[0].trim() : null));
 
                         const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
+                        const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
                         const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-                        let allSOs: any[] = [...salesOrdersData];
+                        let allSOs: any[] = [...salesOrdersData, ...parsedSalesOrders];
                         Object.values(salesOrdersByStatus).forEach((statusSOs: any) => { if (Array.isArray(statusSOs)) allSOs = [...allSOs, ...statusSOs]; });
+                        const soNumDigits = soNumber ? String(soNumber).replace(/\D/g, '') : '';
                         const relatedSO = soNumber ? allSOs.find((so: any) => {
-                          const soNum = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['SalesOrderNo'];
-                          return String(soNum || '').replace(/\D/g, '') === String(soNumber).replace(/\D/g, '') || soNum === soNumber;
+                          const soNum = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['SalesOrderNo'] || so['order_number'] || so['SO No.'];
+                          return String(soNum || '').replace(/\D/g, '') === soNumDigits || soNum === soNumber;
                         }) : null;
                         const soFile = soNumber ? allSOs.find((so: any) => {
-                          const fn = so.name || so.file_name || '';
-                          return fn.toLowerCase().includes(`salesorder_${soNumber}`) || fn.toLowerCase().includes(`salesorder${soNumber}`);
+                          const fn = (so.name || so.file_name || so.filename || '').toLowerCase();
+                          return fn.includes(`salesorder_${soNumber}`) || fn.includes(`salesorder${soNumber}`) || fn.includes(`so_${soNumber}`) || fn.includes(`so-${soNumber}`) || fn.includes(`${soNumber}.pdf`);
                         }) : null;
 
                         return (
@@ -5820,9 +5822,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                             const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
                             const lineCount = poLines.length;
-                            const totalOrdered = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0), 0);
-                            const totalReceived = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Received Qty'] || l['Received'] || 0) || 0), 0);
-                            const recvPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
+                            const totalOrdered = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Ordered Qty'] ?? l['Ordered'] ?? l['ordered'] ?? l['ordQty'] ?? 0) || 0), 0);
+                            const totalReceived = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Received Qty'] ?? l['Received'] ?? l['received'] ?? l['recvQty'] ?? 0) || 0), 0);
+                            const linePct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : -1;
+                            const recvPct = linePct >= 0 ? linePct : (() => {
+                              const hdrOrdered = parseFloat(po['Total Ordered'] ?? po['totOrdered'] ?? 0) || 0;
+                              const hdrReceived = parseFloat(po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
+                              return hdrOrdered > 0 ? Math.round((hdrReceived / hdrOrdered) * 100) : 0;
+                            })();
                             const rawStatus = Number(po['Status'] ?? po['poStatus'] ?? -1);
                             const isClosed = rawStatus === 2 || rawStatus === 3;
                             const isFullyReceived = recvPct >= 100;
