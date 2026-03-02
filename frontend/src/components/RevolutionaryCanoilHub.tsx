@@ -3741,12 +3741,39 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
-                                      <button onClick={() => { const f = soFile || relatedSO; if (f?.gdrive_id) window.open(getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`), '_blank'); else if (f?.path) window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`), '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium">
-                                        <FileText className="w-4 h-4" /> PDF
+                                      <button onClick={() => { const f = soFile || relatedSO; const url = f?.gdrive_id ? getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`) : f?.path ? getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`) : ''; if (url) window.open(url, '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium" title="Open SO document in a new browser tab">
+                                        <ExternalLink className="w-4 h-4" /> New Tab
                                       </button>
                                     )}
                                   </div>
                                 </div>
+
+                                {/* Embedded SO PDF viewer - view right here */}
+                                {(() => {
+                                  const soPdfSource = soFile || relatedSO;
+                                  const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path || soPdfSource?.is_pdf;
+                                  if (!hasPdf) return null;
+                                  const pdfUrl = soPdfSource.gdrive_id
+                                    ? getApiUrl(`/api/gdrive/preview/${soPdfSource.gdrive_id}`)
+                                    : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(soPdfSource.path)}#toolbar=1&navpanes=0`);
+                                  return (
+                                    <div className="border-b border-blue-100">
+                                      <div className="px-4 py-2 bg-blue-50/50 flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
+                                        <span className="text-[10px] text-blue-500">{soPdfSource.name || `SO_${soNumber}`}</span>
+                                      </div>
+                                      <div className="bg-slate-100 p-2">
+                                        <iframe
+                                          src={pdfUrl}
+                                          className="w-full rounded-lg border border-slate-200 bg-white"
+                                          style={{ height: '400px', minHeight: '300px' }}
+                                          title={`Sales Order ${soNumber}`}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
                                 {relatedSO ? (
                                   <div className="p-5 space-y-4">
                                     {/* SO KPI tiles */}
@@ -3848,7 +3875,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="p-5">
+                                  <div className="p-5 space-y-4">
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                       <div className="rounded-lg bg-slate-50 p-3 text-center">
                                         <div className="text-xs text-slate-500 mb-1">SO Number</div>
@@ -3865,9 +3892,35 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         </div>
                                       )}
                                     </div>
-                                    <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3">
-                                      <div className="text-xs text-amber-700">SO #{soNumber} is referenced but full Sales Order data is not available in the current dataset. The SO number was found {soFromDesc ? 'in the MO description' : 'in the Sales Order No. field'}.</div>
-                                    </div>
+                                    {/* Try to find and embed SO PDF even without header data */}
+                                    {(() => {
+                                      const soPdfSource = soFile;
+                                      const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path;
+                                      if (!hasPdf) return (
+                                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                          <div className="text-xs text-amber-700">SO #{soNumber} is referenced but no document or header data found. The SO number was found {soFromDesc ? 'in the MO description' : 'in the Sales Order No. field'}.</div>
+                                        </div>
+                                      );
+                                      const pdfUrl = soPdfSource.gdrive_id
+                                        ? getApiUrl(`/api/gdrive/preview/${soPdfSource.gdrive_id}`)
+                                        : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(soPdfSource.path)}#toolbar=1&navpanes=0`);
+                                      return (
+                                        <div className="rounded-lg border border-blue-200 overflow-hidden">
+                                          <div className="px-4 py-2 bg-blue-50/50 flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
+                                            <span className="text-[10px] text-blue-500">{soPdfSource.name || `SO_${soNumber}`}</span>
+                                          </div>
+                                          <div className="bg-slate-100 p-2">
+                                            <iframe
+                                              src={pdfUrl}
+                                              className="w-full rounded-lg border border-slate-200 bg-white"
+                                              style={{ height: '400px', minHeight: '300px' }}
+                                              title={`Sales Order ${soNumber}`}
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -4202,7 +4255,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               <div className="p-4">
                                 {/* Status badges */}
                                 <div className="flex items-center gap-2 mb-3">
-                                  {(() => {
+                                {(() => {
                                     const nStat = Number(status ?? -1);
                                     if (nStat === 3) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-100 text-red-700">Cancelled</span>;
                                     if (nStat === 2) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-200 text-slate-700">Closed</span>;
@@ -4211,7 +4264,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     if (nStat === 1) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-800">Pending</span>;
                                     if (nStat === 0) return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800">Open</span>;
                                     return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600">Unknown</span>;
-                                  })()}
+                                })()}
                                   {(h['Revision'] != null && h['Revision'] !== '' && h['Revision'] !== '0' && h['Revision'] !== 0) && (
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-blue-50 text-blue-700">Rev. {h['Revision']}</span>
                                   )}
@@ -4219,7 +4272,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-amber-50 text-amber-700">{poView.currency}</span>
                                   )}
                                   <span className="ml-auto text-xs text-slate-500">{poLines.length} line items</span>
-                                </div>
+                              </div>
 
                                 {/* Supplier clickable */}
                                 <div className="flex items-baseline gap-2 mb-3">
@@ -4230,14 +4283,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <span className="text-sm text-slate-600">{suplName}</span>
                                   )}
                                   {!suplId && <span className="text-sm text-slate-400">No supplier</span>}
-                                </div>
+                            </div>
 
                                 {/* Quantity row - 4-cell grid (like MO) */}
                                 <div className="grid grid-cols-4 gap-2 mb-3">
                                   <div className="text-center p-2 rounded-lg bg-slate-50">
                                     <div className="text-lg font-bold text-slate-900 tabular-nums">{totalOrderedQty.toLocaleString()}</div>
                                     <div className="text-[10px] font-medium text-slate-500">Ordered</div>
-                                  </div>
+                              </div>
                                   <div className="text-center p-2 rounded-lg bg-blue-50">
                                     <div className="text-lg font-bold text-blue-700 tabular-nums">{totalReceivedQty.toLocaleString()}</div>
                                     <div className="text-[10px] font-medium text-blue-600">Received</div>
@@ -4249,22 +4302,22 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <div className="text-center p-2 rounded-lg bg-amber-50">
                                     <div className="text-lg font-bold text-amber-700 tabular-nums">{remainingQty.toLocaleString()}</div>
                                     <div className="text-[10px] font-medium text-amber-600">Remaining</div>
-                                  </div>
-                                </div>
+                              </div>
+                            </div>
 
                                 {/* Receiving progress bar */}
                                 {totalOrderedQty > 0 && (() => {
                                   const barColor = recvPct >= 100 ? 'bg-emerald-500' : recvPct > 50 ? 'bg-blue-500' : recvPct > 0 ? 'bg-amber-500' : 'bg-slate-300';
-                                  return (
+                              return (
                                     <div className="mb-3">
                                       <div className="flex items-center justify-between text-xs mb-1">
                                         <span className="font-medium text-slate-500">Receiving Progress</span>
                                         <span className="font-bold text-slate-700 tabular-nums">{recvPct}%</span>
-                                      </div>
+                                  </div>
                                       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                         <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(recvPct, 100)}%` }}></div>
-                                      </div>
                                     </div>
+                                      </div>
                                   );
                                 })()}
 
@@ -4285,7 +4338,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   {h['Last Maintained'] && (
                                     <div><span className="text-slate-400">Last Updated</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(h['Last Maintained'])}</span></div>
                                   )}
-                                </div>
+                                      </div>
 
                                 {/* Financial: two-column like MO Projected/Actual */}
                                 <div className="grid grid-cols-2 gap-3">
@@ -4305,7 +4358,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       {procHdr?.recentUnitCost != null && procHdr.recentUnitCost > 0 && (
                                         <div className="flex justify-between pt-1.5 border-t border-slate-100"><span className="text-slate-600">Avg Unit Cost</span><span className="font-mono font-semibold">${procHdr.recentUnitCost.toFixed(2)}</span></div>
                                       )}
-                                    </div>
+                                      </div>
                                   </div>
                                   <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-3">
                                     <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-2">Payment Status</div>
@@ -4316,7 +4369,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <div className="flex justify-between"><span className="text-slate-600">Amount Paid</span><span className="font-mono font-semibold text-emerald-700">${procHdr.amountPaid.toFixed(2)}</span></div>
                                       )}
                                       <div className="flex justify-between pt-1.5 border-t border-emerald-200"><span className="font-semibold text-slate-700">Remaining</span><span className="font-mono font-bold text-emerald-800">${(totalAmt - invoicedAmt).toFixed(2)}</span></div>
-                                    </div>
+                                      </div>
                                   </div>
                                 </div>
 
@@ -4351,8 +4404,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           <div className="text-slate-600">{[extensionData.shipTo.city, extensionData.shipTo.state, extensionData.shipTo.postal].filter(Boolean).join(', ')}</div>
                                         )}
                                         {extensionData.shipTo.country && <div className="text-slate-500 text-xs">{extensionData.shipTo.country}</div>}
-                                      </div>
-                                    </div>
+                                  </div>
+                                </div>
                                   )}
                                   {extensionData?.billTo && (extensionData.billTo.name || extensionData.billTo.addr1) && (
                                     <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-3">
@@ -4396,12 +4449,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         <div className="flex flex-wrap gap-2">
                                           {moNos.map((moNo: string) => {
                                             const moHeader = moHeaders.find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
-                                            return (
+                                      return (
                                               <button key={moNo} onClick={() => { if (moHeader) { setSelectedMO(moHeader); setShowMODetails(true); setMoActiveTab('overview'); } }} className="px-2.5 py-1.5 rounded-lg bg-violet-100 text-violet-800 font-mono text-sm font-semibold hover:bg-violet-200 transition-colors">
                                                 MO #{moNo}
-                                              </button>
-                                            );
-                                          })}
+                                        </button>
+                                      );
+                                    })}
                                         </div>
                                       </div>
                                     )}
@@ -5817,7 +5870,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       {poTotal > 0 && (
                                         <span className="font-mono text-sm font-bold text-emerald-600 tabular-nums">${poTotal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
                                       )}
-                                    </div>
+                                  </div>
                                   </div>
                                   {/* Row 2: Buyer, Terms, Items */}
                                   <div className="flex items-start gap-2 text-xs flex-wrap">
@@ -5831,9 +5884,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <div className="flex items-center gap-2 mt-1 text-xs">
                                     {moNos.length > 0 && (
                                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-semibold">
-                                        <Factory className="w-3 h-3 text-violet-400" />
-                                        MO: {moNos.slice(0, 2).join(', ')}{moNos.length > 2 ? ` +${moNos.length - 2}` : ''}
-                                      </span>
+                                          <Factory className="w-3 h-3 text-violet-400" />
+                                            MO: {moNos.slice(0, 2).join(', ')}{moNos.length > 2 ? ` +${moNos.length - 2}` : ''}
+                                          </span>
                                     )}
                                     {po['Ship Via'] && (
                                       <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{po['Ship Via']}</span>
@@ -5850,14 +5903,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   <div className="flex items-center gap-3 mt-2">
                                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                       <div className={`h-full rounded-full transition-all duration-500 ${recvBarColor}`} style={{ width: `${Math.min(recvPct, 100)}%` }}></div>
-                                    </div>
+                                </div>
                                     <div className="flex items-center gap-1.5 shrink-0 text-xs tabular-nums">
                                       <span className="font-bold text-slate-700">{totalReceived.toLocaleString()}</span>
                                       <span className="text-slate-400">/</span>
                                       <span className="font-medium text-slate-500">{totalOrdered.toLocaleString()}</span>
                                       <span className="text-slate-400 text-[10px]">recv</span>
                                       <span className={`font-bold ml-1 ${isFullyReceived ? 'text-emerald-600' : 'text-slate-600'}`}>{recvPct}%</span>
-                                    </div>
+                                </div>
                                   </div>
                                   )}
                                 </div>

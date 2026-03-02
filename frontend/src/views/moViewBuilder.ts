@@ -140,19 +140,20 @@ export function buildMOView(
         d["Required Qty."] ??
         d["Required Qty"] ??
         d["Required"] ??
+        d["reqQty"] ??
         d["Quantity"]
     );
     const released = toNum(
-      d["Released"] ?? d["Released Qty."] ?? d["Released Qty"] ?? d["Issued"] ?? d["Issued Qty"] ?? d["Release"]
+      d["Released"] ?? d["Released Qty."] ?? d["Released Qty"] ?? d["Issued"] ?? d["Issued Qty"] ?? d["relQty"] ?? d["Release"]
     );
-    const wip = toNum(d["WIP"]);
-    const reserve = toNum(d["Reserve"]);
-    const completed = toNum(d["Completed"] ?? d["Completed Qty"]);
+    const wip = toNum(d["WIP"] ?? d["wipQty"]);
+    const reserve = toNum(d["Reserve"] ?? d["resQty"]);
+    const completed = toNum(d["Completed"] ?? d["Completed Qty"] ?? d["endQty"]);
     const unitCost = toNum(
-      d["Material Cost"] ?? d["Unit Cost"] ?? d["Cost"]
+      d["Material Cost"] ?? d["matCost"] ?? d["Unit Cost"] ?? d["Cost"] ?? d["Non-stocked Item Cost"] ?? d["nonItemCost"]
     );
     const sourceLocation = toStr(
-      d["Source Location"] ?? d["Location"] ?? d["Location No."]
+      d["Source Location"] ?? d["srcLoc"] ?? d["Location"] ?? d["Location No."]
     );
 
     releasedQty += released;
@@ -164,8 +165,12 @@ export function buildMOView(
       alertRow?.["Stock"] ?? alertRow?.["Available"] ?? alertRow?.["On Hand"] ?? 0
     );
 
-    const plannedExtLine = required * unitCost;
-    const actualExtLine = released * unitCost;
+    const effectiveUnitCost = unitCost > 0 ? unitCost : toNum(
+      alertRow?.["Standard Cost"] ?? alertRow?.["stdCost"] ?? alertRow?.["Last Cost"] ?? alertRow?.["lstCost"] ?? alertRow?.["Recent Cost"] ?? alertRow?.["Cost"] ?? 0
+    );
+
+    const plannedExtLine = required * effectiveUnitCost;
+    const actualExtLine = released * effectiveUnitCost;
 
     const existing = byItem.get(compNo);
     if (existing) {
@@ -205,7 +210,7 @@ export function buildMOView(
         shortageQty: Math.max(0, required - released),
         availableStock,
         shortage,
-        materialCost: unitCost,
+        materialCost: effectiveUnitCost,
         totalCost: plannedExtLine,
         plannedExt: plannedExtLine,
         actualExt: actualExtLine,
@@ -283,32 +288,37 @@ export function buildMOExactLines(
         d["Required Qty."] ??
         d["Required Qty"] ??
         d["Required"] ??
+        d["reqQty"] ??
         d["Quantity"]
     );
     const issuedQty = toNum(
-      d["Released"] ?? d["Released Qty."] ?? d["Released Qty"] ?? d["Issued"] ?? d["Issued Qty"] ?? d["Release"]
+      d["Released"] ?? d["Released Qty."] ?? d["Released Qty"] ?? d["Issued"] ?? d["Issued Qty"] ?? d["relQty"] ?? d["Release"]
     );
     const unitCost = toNum(
-      d["Material Cost"] ?? d["Unit Cost"] ?? d["Cost"]
+      d["Material Cost"] ?? d["matCost"] ?? d["Unit Cost"] ?? d["Cost"] ?? d["Non-stocked Item Cost"] ?? d["nonItemCost"]
     );
     const sourceLoc = toStr(
-      d["Source Location"] ?? d["Location"] ?? d["Location No."]
+      d["Source Location"] ?? d["srcLoc"] ?? d["Location"] ?? d["Location No."]
     );
     const issueType = toStr(
-      d["Issue Type"] ?? d["Issue Method"] ?? d["Backflush"] ?? ""
+      d["Issue Type"] ?? d["Detail Type"] ?? d["dType"] ?? d["Issue Method"] ?? d["Backflush"] ?? ""
     );
 
-    const lineNo = d["Detail No."] ?? d["Line No."] ?? d["Line"] ?? d["podId"] ?? lines.length + 1;
-    const opSeq = d["Operation No."] ?? d["Operation"] ?? d["operNo"] ?? "—";
+    const lineNo = d["Detail No."] ?? d["momdId"] ?? d["Line No."] ?? d["Line"] ?? d["lineNbr"] ?? d["podId"] ?? lines.length + 1;
+    const opSeq = d["Operation No."] ?? d["Operation"] ?? d["opCode"] ?? d["operNo"] ?? "—";
     const issuedItemNo = toStr(d["Issued Item No."] ?? d["Alternate Item No."]) || plannedItemNo;
 
     const alertRow = indexes.alertByItemNo.get(toUpper(plannedItemNo)) ?? indexes.itemByNo.get(toUpper(plannedItemNo));
     const desc =
-      d["Non-stocked Item Description"] ??
+      d["Non-stocked Item Description"] ?? d["nonItemDesc"] ??
       d["Description"] ??
       d["Item Description"] ??
       alertRow?.["Description"] ??
       undefined;
+
+    const effectiveUnitCost = unitCost > 0 ? unitCost : toNum(
+      alertRow?.["Standard Cost"] ?? alertRow?.["stdCost"] ?? alertRow?.["Last Cost"] ?? alertRow?.["lstCost"] ?? alertRow?.["Recent Cost"] ?? alertRow?.["Cost"] ?? 0
+    );
 
     lines.push({
       lineNo,
@@ -319,9 +329,9 @@ export function buildMOExactLines(
       requiredQty,
       issuedQty,
       remainingQty: requiredQty - issuedQty,
-      unitCost,
-      plannedExt: requiredQty * unitCost,
-      actualExt: issuedQty * unitCost,
+      unitCost: effectiveUnitCost,
+      plannedExt: requiredQty * effectiveUnitCost,
+      actualExt: issuedQty * effectiveUnitCost,
       sourceLoc: sourceLoc || "—",
       issueType: issueType || "—",
     });

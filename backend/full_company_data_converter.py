@@ -109,7 +109,13 @@ FULL_COMPANY_MAPPINGS = {
     "MIMOMD": (
         ["ManufacturingOrderDetails.json", "MIMOMD.json"],
         {"mohId": "Mfg. Order No.", "partId": "Component Item No.", "reqQty": "Required Quantity", "qty": "Quantity",
-         "endQty": "Completed", "compQty": "Completed", "relQty": "Released", "wipQty": "WIP", "resQty": "Reserve"},
+         "endQty": "Completed", "compQty": "Completed", "relQty": "Released", "wipQty": "WIP", "resQty": "Reserve",
+         "matCost": "Material Cost", "srcLoc": "Source Location", "lineNbr": "Line", "opCode": "Operation No.",
+         "dType": "Detail Type", "scrapCost": "Scrap Cost", "scrapQty": "Scrapped", "nonItem": "Non-stocked",
+         "nonItemCost": "Non-stocked Item Cost", "nonItemDesc": "Non-stocked Item Description",
+         "cmnt": "Comment", "childOrdId": "Child MO No.", "bomRev": "BOM Revision No.",
+         "podQty": "On Purchase Order", "momdId": "Detail No.", "overRide": "Auto-build Override",
+         "lead": "Assy. Lead (Days)"},
     ),
     # MIPOH: exact columns from export (pohId, poStatus, suplId, name, ordDt, closeDt, totOrdered, totReceived)
     "MIPOH": (
