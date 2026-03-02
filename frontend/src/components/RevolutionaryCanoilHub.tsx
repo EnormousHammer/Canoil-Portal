@@ -3217,10 +3217,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             <div className="rounded-lg border border-blue-200 p-4 bg-gradient-to-br from-blue-50 to-white cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group/socard" onClick={() => setMoActiveTab('pegged')}>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-semibold text-blue-500 uppercase tracking-wider">Sales Order</span>
-                                <button onClick={(e) => { e.stopPropagation(); setActiveSection('orders'); setSoSearchQuery(salesOrderNo!); setShowMODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Open in Sales Orders"><ExternalLink className="w-3.5 h-3.5" /></button>
+                                <span className="text-[10px] text-blue-400 group-hover/socard:text-blue-600">Click to view details →</span>
                               </div>
                               <div className="font-mono text-lg font-bold text-blue-700 group-hover/socard:text-blue-800">SO #{salesOrderNo}</div>
                               {relatedSO && <div className="text-xs text-slate-600 mt-1">{relatedSO['Customer'] || relatedSO['Customer Name'] || ''}</div>}
+                              {relatedSO?.['Total'] && <div className="text-xs font-mono font-semibold text-blue-600 mt-1">${parseFloat(relatedSO['Total'] || 0).toFixed(2)}</div>}
                             </div>
                           )}
                           {linkedPONumbers.length > 0 && (
@@ -3739,9 +3740,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-                                      <Eye className="w-4 h-4" /> View in Sales Orders
-                                    </button>
                                     {(soFile || relatedSO?.path || relatedSO?.gdrive_id) && (
                                       <button onClick={() => { const f = soFile || relatedSO; if (f?.gdrive_id) window.open(getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`), '_blank'); else if (f?.path) window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`), '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium">
                                         <FileText className="w-4 h-4" /> PDF
@@ -3749,12 +3747,127 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     )}
                                   </div>
                                 </div>
-                                {relatedSO && (
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
-                                    <div><span className="text-xs text-slate-500 block">Order Date</span><span className="text-sm font-semibold">{relatedSO['Order Date'] || relatedSO.order_date || '—'}</span></div>
-                                    <div><span className="text-xs text-slate-500 block">Due Date</span><span className="text-sm font-semibold">{relatedSO['Due Date'] || relatedSO.due_date || '—'}</span></div>
-                                    <div><span className="text-xs text-slate-500 block">Status</span><span className="text-sm font-semibold">{relatedSO['Status'] || relatedSO.status || 'Active'}</span></div>
-                                    <div><span className="text-xs text-slate-500 block">Total</span><span className="text-sm font-semibold">{(relatedSO['Total'] || relatedSO.total) ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}</span></div>
+                                {relatedSO ? (
+                                  <div className="p-5 space-y-4">
+                                    {/* SO KPI tiles */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                        <div className="text-xs text-slate-500 mb-1">Order Date</div>
+                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(relatedSO['Order Date'] || relatedSO.order_date) || '—'}</div>
+                                      </div>
+                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                        <div className="text-xs text-slate-500 mb-1">Due Date</div>
+                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(relatedSO['Due Date'] || relatedSO.due_date || relatedSO['Ship Date'] || relatedSO['Required Date']) || '—'}</div>
+                                      </div>
+                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                        <div className="text-xs text-slate-500 mb-1">Status</div>
+                                        <div className="text-sm font-semibold">{relatedSO['Status'] || relatedSO.status || 'Active'}</div>
+                                      </div>
+                                      <div className="rounded-lg bg-emerald-50 p-3 text-center">
+                                        <div className="text-xs text-emerald-600 mb-1">Total</div>
+                                        <div className="text-sm font-bold text-emerald-700 font-mono">{(relatedSO['Total'] || relatedSO.total) ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}</div>
+                                      </div>
+                                    </div>
+
+                                    {/* SO detail fields - show everything available */}
+                                    {(() => {
+                                      const soFields: Array<{label: string; value: string}> = [];
+                                      if (relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO.customer_name) soFields.push({ label: 'Customer', value: relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO.customer_name });
+                                      if (relatedSO['Ship To'] || relatedSO['Ship To Name']) soFields.push({ label: 'Ship To', value: relatedSO['Ship To'] || relatedSO['Ship To Name'] });
+                                      if (relatedSO['PO Number'] || relatedSO['Customer PO'] || relatedSO['Customer PO No.']) soFields.push({ label: 'Customer PO', value: relatedSO['PO Number'] || relatedSO['Customer PO'] || relatedSO['Customer PO No.'] });
+                                      if (relatedSO['Sales Rep'] || relatedSO['Salesperson']) soFields.push({ label: 'Sales Rep', value: relatedSO['Sales Rep'] || relatedSO['Salesperson'] });
+                                      if (relatedSO['Ship Via']) soFields.push({ label: 'Ship Via', value: relatedSO['Ship Via'] });
+                                      if (relatedSO['Terms']) soFields.push({ label: 'Terms', value: relatedSO['Terms'] });
+                                      if (relatedSO['FOB']) soFields.push({ label: 'FOB', value: relatedSO['FOB'] });
+                                      if (relatedSO['Currency'] || relatedSO['Source Currency']) soFields.push({ label: 'Currency', value: relatedSO['Currency'] || relatedSO['Source Currency'] });
+                                      if (relatedSO['Ship Date'] || relatedSO['Promised Date']) soFields.push({ label: 'Ship Date', value: formatDisplayDate(relatedSO['Ship Date'] || relatedSO['Promised Date']) || relatedSO['Ship Date'] || relatedSO['Promised Date'] });
+                                      if (relatedSO['Notes'] || relatedSO['Comment'] || relatedSO['Description']) soFields.push({ label: 'Notes', value: relatedSO['Notes'] || relatedSO['Comment'] || relatedSO['Description'] });
+                                      if (soFields.length === 0) return null;
+                                      return (
+                                        <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100">
+                                            <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">Sales Order Details</h5>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 p-4 text-sm">
+                                            {soFields.map((f, i) => (
+                                              <div key={i} className="flex items-baseline gap-2">
+                                                <span className="text-xs text-slate-400 shrink-0 w-24">{f.label}</span>
+                                                <span className="font-medium text-slate-800 truncate">{f.value}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* SO line items if available */}
+                                    {(() => {
+                                      const soLineItems = relatedSO?.lines || relatedSO?.['Line Items'] || relatedSO?.details || [];
+                                      if (!Array.isArray(soLineItems) || soLineItems.length === 0) return null;
+                                      return (
+                                        <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                                            <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">SO Line Items</h5>
+                                            <span className="text-xs text-slate-500">{soLineItems.length} items</span>
+                                          </div>
+                                          <div className="overflow-x-auto">
+                                            <table className="w-full text-xs">
+                                              <thead className="bg-slate-50/80">
+                                                <tr>
+                                                  <th className="text-left p-2.5 font-medium text-slate-600">Item</th>
+                                                  <th className="text-left p-2.5 font-medium text-slate-600">Description</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-600">Qty</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-600">Price</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="divide-y divide-slate-50">
+                                                {soLineItems.slice(0, 20).map((sl: any, si: number) => (
+                                                  <tr key={si} className="hover:bg-slate-50/50">
+                                                    <td className="p-2.5 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => openItemById(sl['Item No.'] || sl.item_no || sl.itemId || '')}>{sl['Item No.'] || sl.item_no || sl.itemId || '—'}</td>
+                                                    <td className="p-2.5 text-slate-600 truncate max-w-[200px]">{sl['Description'] || sl.description || '—'}</td>
+                                                    <td className="p-2.5 text-right tabular-nums">{(sl['Ordered'] || sl['Qty'] || sl.qty || 0).toLocaleString()}</td>
+                                                    <td className="p-2.5 text-right font-mono tabular-nums">{(sl['Unit Price'] || sl.price || 0) > 0 ? `$${parseFloat(sl['Unit Price'] || sl.price || 0).toFixed(2)}` : '—'}</td>
+                                                  </tr>
+                                                ))}
+                                              </tbody>
+                                            </table>
+                                            {soLineItems.length > 20 && <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-500">Showing 20 of {soLineItems.length}</div>}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* MO → SO linkage info */}
+                                    <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+                                      <div className="text-xs text-blue-600 font-medium">
+                                        This Sales Order is linked to MO #{moView.moNo} {soFromDesc ? '(found in MO description)' : '(from Sales Order No. field)'}
+                                      </div>
+                                      {moView.rawHeader?.['Sales Order Ship Date'] && (
+                                        <div className="text-xs text-blue-700 mt-1">SO Ship Date: <span className="font-semibold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</span></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="p-5">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                        <div className="text-xs text-slate-500 mb-1">SO Number</div>
+                                        <div className="text-sm font-bold font-mono">{soNumber}</div>
+                                      </div>
+                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                        <div className="text-xs text-slate-500 mb-1">Customer</div>
+                                        <div className="text-sm font-semibold">{moView.customer || '—'}</div>
+                                      </div>
+                                      {moView.rawHeader?.['Sales Order Ship Date'] && (
+                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                          <div className="text-xs text-slate-500 mb-1">Ship Date</div>
+                                          <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3">
+                                      <div className="text-xs text-amber-700">SO #{soNumber} is referenced but full Sales Order data is not available in the current dataset. The SO number was found {soFromDesc ? 'in the MO description' : 'in the Sales Order No. field'}.</div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -3942,15 +4055,62 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <div className="flex-1 flex min-h-0 bg-slate-50">
                   {/* Left sidebar nav */}
                   <aside className="flex-shrink-0 w-56 bg-white border-r-2 border-slate-200 flex flex-col overflow-y-auto">
+                    {/* PO Summary - persistent context (like MO sidebar) */}
+                    {(() => {
+                      const sidebarTotal = poView?.totalValue ?? (parseFloat(selectedPO?.['Total Amount'] || selectedPO?.['Total'] || '0') || 0);
+                      const sidebarStatus = poView?.status ?? selectedPO?.['Status'];
+                      const sidebarLines = poView?.lines ?? [];
+                      const sidebarTotalOrdered = sidebarLines.reduce((s: number, l: any) => s + (l.orderedQty ?? 0), 0);
+                      const sidebarTotalReceived = sidebarLines.reduce((s: number, l: any) => s + (l.receivedQty ?? 0), 0);
+                      const sidebarRecvPct = sidebarTotalOrdered > 0 ? Math.round((sidebarTotalReceived / sidebarTotalOrdered) * 100) : 0;
+                      return (
+                        <div className="p-4 border-b border-slate-200 bg-gradient-to-b from-blue-50 to-white">
+                          <div className="font-mono text-xs font-bold text-blue-600 mb-1">PO #{poView?.poNo ?? selectedPONo}</div>
+                          <div className="text-sm font-semibold text-slate-900 truncate">{poView?.vendorName || poView?.vendorNo || '—'}</div>
+                          {poView?.vendorName && poView?.vendorNo && poView.vendorName !== poView.vendorNo && (
+                            <div className="text-xs text-slate-500 mt-0.5 truncate">{poView.vendorNo}</div>
+                          )}
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                              sidebarStatus === 0 ? 'bg-emerald-100 text-emerald-800' :
+                              sidebarStatus === 1 ? 'bg-amber-100 text-amber-800' :
+                              sidebarStatus === 2 ? 'bg-slate-200 text-slate-700' :
+                              sidebarStatus === 3 ? 'bg-red-100 text-red-700' :
+                              'bg-slate-200 text-slate-700'
+                            }`}>
+                              {sidebarStatus === 0 ? 'Open' : sidebarStatus === 1 ? 'Pending' : sidebarStatus === 2 ? 'Closed' : sidebarStatus === 3 ? 'Cancelled' : '?'}
+                            </span>
+                            {sidebarTotal > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-600 font-mono">${sidebarTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            )}
+                            {sidebarTotalOrdered > 0 && (
+                              <span className="text-[10px] font-bold text-slate-500">{sidebarRecvPct}% recv</span>
+                            )}
+                          </div>
+                          {sidebarTotalOrdered > 0 && (
+                            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-2">
+                              <div className={`h-full rounded-full ${
+                                sidebarRecvPct >= 100 ? 'bg-emerald-500' : 'bg-blue-500'
+                              }`} style={{ width: `${Math.min(sidebarRecvPct, 100)}%` }}></div>
+                            </div>
+                          )}
+                          {sidebarLines.length > 0 && (
+                            <div className="text-[10px] text-slate-400 mt-1.5">{sidebarLines.length} line items · {poView?.linkedMONumbers?.length || 0} MOs linked</div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {[
                       { title: 'Order', items: [
                         { id: 'overview', label: 'Overview', icon: <ClipboardList className="w-4 h-4" /> },
                         { id: 'lineitems', label: 'Line Items', icon: <Package className="w-4 h-4" /> },
+                        { id: 'receiving', label: 'Receiving Status', icon: <CheckCircle2 className="w-4 h-4" /> },
                         { id: 'costs', label: 'Additional Costs', icon: <DollarSign className="w-4 h-4" /> },
                         { id: 'costhistory', label: 'Cost History', icon: <TrendingUp className="w-4 h-4" /> },
                       ]},
                       { title: 'Related', items: [
-                        { id: 'related', label: 'MOs & Sales Orders', icon: <Link2 className="w-4 h-4" /> },
+                        { id: 'related', label: 'Related MOs', icon: <Link2 className="w-4 h-4" /> },
+                        ...(dataCatalog.hasTransactions && selectedPONo ? [{ id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> }] : []),
                       ]},
                     ].map((section) => (
                       <div key={section.title} className="py-2">
@@ -3979,11 +4139,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           { title: 'Order', items: [
                             { id: 'overview', label: 'Overview' },
                             { id: 'lineitems', label: 'Line Items' },
+                            { id: 'receiving', label: 'Receiving Status' },
                             { id: 'costs', label: 'Additional Costs' },
                             { id: 'costhistory', label: 'Cost History' },
                           ]},
                           { title: 'Related', items: [
-                            { id: 'related', label: 'MOs & Sales Orders' },
+                            { id: 'related', label: 'Related MOs' },
+                            ...(dataCatalog.hasTransactions && selectedPONo ? [{ id: 'transactions', label: 'Transactions' }] : []),
                           ]},
                         ];
                         const poAllTabIds = poNavSections.flatMap((s) => s.items.map((i) => i.id));
@@ -4004,203 +4166,285 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                       <div className="bg-white rounded-xl border-2 border-blue-200 shadow-md overflow-hidden">
                         <div className="p-6">
-                  {/* PO Overview Tab - MISys-style */}
+                  {/* PO Overview Tab - Enterprise (matches MO style) */}
                   {poActiveTab === 'overview' && (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {(() => {
                         const h = poView?.rawHeader ?? selectedPO ?? {};
                         const status = (poView?.status ?? h['Status']) as number;
                         const totalAmt = poView?.totalValue ?? parseFloat(h['Total Amount'] || h['Total'] || 0);
                         const invoicedAmt = parseFloat(h['Invoiced Amount'] || h['Total Invoiced'] || 0);
                         const receivedAmt = parseFloat(h['Received Amount'] || h['Total Received'] || 0);
-                        const suplId = (poView?.vendorNo ?? poView?.vendorName ?? h['Supplier No.'] ?? h['Name'] ?? h['suplId'] ?? h['Vendor No.'] ?? '').toString();
+                        const suplId = (poView?.vendorNo ?? h['Supplier No.'] ?? h['Name'] ?? h['suplId'] ?? h['Vendor No.'] ?? '').toString();
+                        const suplName = poView?.vendorName ?? '';
+                        const poLines = poView?.lines ?? [];
+                        const totalOrderedQty = poLines.reduce((s: number, l: any) => s + (l.orderedQty ?? 0), 0);
+                        const totalReceivedQty = poLines.reduce((s: number, l: any) => s + (l.receivedQty ?? 0), 0);
+                        const totalBilledQty = poLines.reduce((s: number, l: any) => s + (l.billedQty ?? 0), 0);
+                        const remainingQty = totalOrderedQty - totalReceivedQty;
+                        const recvPct = totalOrderedQty > 0 ? Math.round((totalReceivedQty / totalOrderedQty) * 100) : 0;
+                        const poIdForAvg = (poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '').toString();
+                        const procHdr = processPurchaseOrders.headers.find((ph: any) => (ph.poId ?? '').toString() === poIdForAvg);
+                        const extensionData = procHdr;
                         return (
                           <>
-                            {/* KPI strip */}
-                            <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-slate-500">Status</span>
-                                <span className={`px-2 py-1 text-xs font-semibold rounded-md ${
-                                  status === 0 ? 'bg-emerald-100 text-emerald-800' :
-                                  status === 1 ? 'bg-amber-100 text-amber-800' :
-                                  status === 2 ? 'bg-slate-200 text-slate-700' :
-                                  status === 3 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {status === 0 ? 'Open' : status === 1 ? 'Pending' : status === 2 ? 'Closed' : status === 3 ? 'Cancelled' : 'Unknown'}
-                                </span>
-                                {(poView?.rawHeader?.['Revision'] ?? h['Revision']) && (
-                                  <span className="text-xs text-slate-500">Rev. {poView?.rawHeader?.['Revision'] ?? h['Revision']}</span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-6 text-sm tabular-nums">
-                                <span><span className="text-slate-500">Total</span> <span className="font-semibold text-slate-900">${totalAmt.toFixed(2)}</span></span>
-                                <span><span className="text-slate-500">Received</span> <span className="font-semibold text-blue-600">${receivedAmt.toFixed(2)}</span></span>
-                                <span><span className="text-slate-500">Invoiced</span> <span className="font-semibold text-amber-600">${invoicedAmt.toFixed(2)}</span></span>
-                                <span><span className="text-slate-500">Remaining</span> <span className="font-semibold text-emerald-600">${(totalAmt - invoicedAmt).toFixed(2)}</span></span>
-                                {(() => {
-                                  const poIdForAvg = (poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '').toString();
-                                  const procHdr = processPurchaseOrders.headers.find((ph: any) => (ph.poId ?? '').toString() === poIdForAvg);
-                                  return procHdr?.recentUnitCost != null && procHdr.recentUnitCost > 0 ? (
-                                    <span title="Weighted avg unit cost from line items"><span className="text-slate-500">Avg Unit Cost</span> <span className="font-semibold text-slate-700">${procHdr.recentUnitCost.toFixed(2)}</span></span>
-                                  ) : null;
-                                })()}
-                              </div>
-                            </div>
+                            {/* CARD 1: Status + Supplier + Quantities */}
+                            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                              <div className="p-4">
+                                {/* Status badges */}
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                                    status === 0 ? 'bg-emerald-100 text-emerald-800' :
+                                    status === 1 ? 'bg-amber-100 text-amber-800' :
+                                    status === 2 ? 'bg-slate-200 text-slate-700' :
+                                    status === 3 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                                  }`}>{status === 0 ? 'Open' : status === 1 ? 'Pending' : status === 2 ? 'Closed' : status === 3 ? 'Cancelled' : 'Unknown'}</span>
+                                  {(h['Revision'] != null && h['Revision'] !== '' && h['Revision'] !== '0' && h['Revision'] !== 0) && (
+                                    <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-blue-50 text-blue-700">Rev. {h['Revision']}</span>
+                                  )}
+                                  {poView?.currency && poView.currency !== 'CAD' && (
+                                    <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-amber-50 text-amber-700">{poView.currency}</span>
+                                  )}
+                                  <span className="ml-auto text-xs text-slate-500">{poLines.length} line items</span>
+                                </div>
 
-                            {/* MIPOH Header */}
-                            <div className="overflow-hidden rounded-xl border border-slate-200">
-                              <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100">
-                                <h4 className="font-semibold text-slate-800 text-sm">MIPOH · Purchase Order Header</h4>
-                              </div>
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                  <thead className="bg-white/95 border-b border-slate-200">
-                                    <tr>
-                                      <th className="text-left p-3 font-medium text-slate-600">Field</th>
-                                      <th className="text-left p-3 font-medium text-slate-600">Value</th>
-                                      <th className="text-left p-3 font-medium text-slate-600">Field</th>
-                                      <th className="text-left p-3 font-medium text-slate-600">Value</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    <tr className="hover:bg-slate-50/50">
-                                      <td className="p-3 text-slate-600">PO No.</td>
-                                      <td className="p-3 font-mono font-medium">{poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '—'}</td>
-                                      <td className="p-3 text-slate-600">Supplier</td>
-                                      <td className="p-3">{suplId ? <span className="font-mono text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => { setSelectedSuplId(suplId); setShowSupplierDetail(true); }}>{suplId}</span> : '—'}</td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50/50">
-                                      <td className="p-3 text-slate-600">Order Date</td>
-                                      <td className="p-3 tabular-nums">{formatDisplayDate(poView?.orderDate ?? h['Order Date'] ?? h['ordDt']) || '—'}</td>
-                                      <td className="p-3 text-slate-600">Close Date</td>
-                                      <td className="p-3 tabular-nums">{formatDisplayDate(h['Close Date'] ?? h['closeDt']) || '—'}</td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50/50">
-                                      <td className="p-3 text-slate-600">Buyer</td>
-                                      <td className="p-3">{h['Buyer'] || '—'}</td>
-                                      <td className="p-3 text-slate-600">Terms</td>
-                                      <td className="p-3">{h['Terms'] || '—'}</td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50/50">
-                                      <td className="p-3 text-slate-600">Contact</td>
-                                      <td className="p-3">{h['Contact'] || '—'}</td>
-                                      <td className="p-3 text-slate-600">Currency</td>
-                                      <td className="p-3">{h['Source Currency'] || h['Home Currency'] || '—'}</td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50/50">
-                                      <td className="p-3 text-slate-600">Ship Via</td>
-                                      <td className="p-3">{h['Ship Via'] || '—'}</td>
-                                      <td className="p-3 text-slate-600">FOB</td>
-                                      <td className="p-3">{h['FOB'] || '—'}</td>
-                                    </tr>
-                                    {(h['Freight'] != null && parseFloat(h['Freight']) !== 0) && (
-                                      <tr className="hover:bg-slate-50/50">
-                                        <td className="p-3 text-slate-600">Freight</td>
-                                        <td className="p-3 font-mono">${parseFloat(h['Freight'] || 0).toFixed(2)}</td>
-                                        <td className="p-3"></td>
-                                        <td className="p-3"></td>
-                                      </tr>
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
+                                {/* Supplier clickable */}
+                                <div className="flex items-baseline gap-2 mb-3">
+                                  {suplId && (
+                                    <span className="font-mono text-sm font-semibold text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5 shrink-0" onClick={() => { setSelectedSuplId(suplId); setShowSupplierDetail(true); }}>{suplId}</span>
+                                  )}
+                                  {suplName && suplName !== suplId && (
+                                    <span className="text-sm text-slate-600">{suplName}</span>
+                                  )}
+                                  {!suplId && <span className="text-sm text-slate-400">No supplier</span>}
+                                </div>
 
-                            {/* Financial Breakdown */}
-                            {(() => {
-                              const invoicedVal = parseFloat(h['Invoiced Amount'] || h['Total Invoiced'] || h['totInvoiced'] || 0);
-                              const taxVal = parseFloat(h['Total Tax Amount'] || h['totTaxAmt'] || 0);
-                              const addCostVal = parseFloat(h['Total Additional Cost'] || h['totAddCost'] || 0);
-                              const addTaxVal = parseFloat(h['Total Additional Tax'] || h['totAddTax'] || 0);
-                              const freightVal = parseFloat(h['Freight'] || 0);
-                              const hasFinancials = invoicedVal > 0 || taxVal > 0 || addCostVal > 0 || freightVal > 0;
-                              if (!hasFinancials) return null;
-                              return (
-                                <div className="overflow-hidden rounded-xl border border-slate-200">
-                                  <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4 text-slate-600" />
-                                    <h4 className="font-semibold text-slate-800 text-sm">Financial Breakdown</h4>
+                                {/* Quantity row - 4-cell grid (like MO) */}
+                                <div className="grid grid-cols-4 gap-2 mb-3">
+                                  <div className="text-center p-2 rounded-lg bg-slate-50">
+                                    <div className="text-lg font-bold text-slate-900 tabular-nums">{totalOrderedQty.toLocaleString()}</div>
+                                    <div className="text-[10px] font-medium text-slate-500">Ordered</div>
                                   </div>
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4">
-                                    <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                      <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Invoiced</div>
-                                      <div className="font-bold text-slate-900 font-mono">${invoicedVal.toFixed(2)}</div>
-                                    </div>
-                                    {taxVal > 0 && (
-                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tax</div>
-                                        <div className="font-bold text-slate-900 font-mono">${taxVal.toFixed(2)}</div>
-                                      </div>
-                                    )}
-                                    {addCostVal > 0 && (
-                                      <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                                        <div className="text-xs text-amber-600 uppercase tracking-wider mb-1">Add'l Costs</div>
-                                        <div className="font-bold text-amber-800 font-mono">${addCostVal.toFixed(2)}</div>
-                                      </div>
-                                    )}
-                                    {addTaxVal > 0 && (
-                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Add'l Tax</div>
-                                        <div className="font-bold text-slate-900 font-mono">${addTaxVal.toFixed(2)}</div>
-                                      </div>
-                                    )}
-                                    {freightVal > 0 && (
-                                      <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                        <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Freight</div>
-                                        <div className="font-bold text-slate-900 font-mono">${freightVal.toFixed(2)}</div>
-                                      </div>
-                                    )}
+                                  <div className="text-center p-2 rounded-lg bg-blue-50">
+                                    <div className="text-lg font-bold text-blue-700 tabular-nums">{totalReceivedQty.toLocaleString()}</div>
+                                    <div className="text-[10px] font-medium text-blue-600">Received</div>
+                                  </div>
+                                  <div className="text-center p-2 rounded-lg bg-emerald-50">
+                                    <div className="text-lg font-bold text-emerald-700 tabular-nums">{totalBilledQty.toLocaleString()}</div>
+                                    <div className="text-[10px] font-medium text-emerald-600">Billed</div>
+                                  </div>
+                                  <div className="text-center p-2 rounded-lg bg-amber-50">
+                                    <div className="text-lg font-bold text-amber-700 tabular-nums">{remainingQty.toLocaleString()}</div>
+                                    <div className="text-[10px] font-medium text-amber-600">Remaining</div>
                                   </div>
                                 </div>
-                              );
-                            })()}
 
-                            {/* Related Manufacturing Orders */}
+                                {/* Receiving progress bar */}
+                                {totalOrderedQty > 0 && (() => {
+                                  const barColor = recvPct >= 100 ? 'bg-emerald-500' : recvPct > 50 ? 'bg-blue-500' : recvPct > 0 ? 'bg-amber-500' : 'bg-slate-300';
+                                  return (
+                                    <div className="mb-3">
+                                      <div className="flex items-center justify-between text-xs mb-1">
+                                        <span className="font-medium text-slate-500">Receiving Progress</span>
+                                        <span className="font-bold text-slate-700 tabular-nums">{recvPct}%</span>
+                                      </div>
+                                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(recvPct, 100)}%` }}></div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
+                                {/* Dates row (compact, like MO) */}
+                                <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs mb-3 pb-3 border-b border-slate-100">
+                                  {(poView?.orderDate ?? h['Order Date'] ?? h['ordDt']) && (
+                                    <div><span className="text-slate-400">Order</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(poView?.orderDate ?? h['Order Date'] ?? h['ordDt'])}</span></div>
+                                  )}
+                                  {h['Required Date'] && (
+                                    <div><span className="text-slate-400">Required</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(h['Required Date'])}</span></div>
+                                  )}
+                                  {(poView?.closeDate ?? h['Close Date'] ?? h['closeDt']) && (
+                                    <div><span className="text-slate-400">Close</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(poView?.closeDate ?? h['Close Date'] ?? h['closeDt'])}</span></div>
+                                  )}
+                                  {h['Print Date'] && (
+                                    <div><span className="text-slate-400">Printed</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(h['Print Date'])}</span></div>
+                                  )}
+                                  {h['Last Maintained'] && (
+                                    <div><span className="text-slate-400">Last Updated</span> <span className="font-medium tabular-nums ml-1">{formatDisplayDate(h['Last Maintained'])}</span></div>
+                                  )}
+                                </div>
+
+                                {/* Financial: two-column like MO Projected/Actual */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="rounded-lg border border-slate-200 p-3">
+                                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Order Value</div>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex justify-between"><span className="text-slate-600">Total</span><span className="font-mono font-semibold">${totalAmt.toFixed(2)}</span></div>
+                                      {poView?.freight != null && poView.freight > 0 && (
+                                        <div className="flex justify-between"><span className="text-slate-600">Freight</span><span className="font-mono">${poView.freight.toFixed(2)}</span></div>
+                                      )}
+                                      {poView?.totalTax != null && poView.totalTax > 0 && (
+                                        <div className="flex justify-between"><span className="text-slate-600">Tax</span><span className="font-mono">${poView.totalTax.toFixed(2)}</span></div>
+                                      )}
+                                      {poView?.totalAdditionalCost != null && poView.totalAdditionalCost > 0 && (
+                                        <div className="flex justify-between"><span className="text-slate-600">Add'l Costs</span><span className="font-mono">${poView.totalAdditionalCost.toFixed(2)}</span></div>
+                                      )}
+                                      {procHdr?.recentUnitCost != null && procHdr.recentUnitCost > 0 && (
+                                        <div className="flex justify-between pt-1.5 border-t border-slate-100"><span className="text-slate-600">Avg Unit Cost</span><span className="font-mono font-semibold">${procHdr.recentUnitCost.toFixed(2)}</span></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-3">
+                                    <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-2">Payment Status</div>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex justify-between"><span className="text-slate-600">Invoiced</span><span className="font-mono font-semibold text-emerald-700">${invoicedAmt.toFixed(2)}</span></div>
+                                      <div className="flex justify-between"><span className="text-slate-600">Received Value</span><span className="font-mono font-semibold text-emerald-700">${receivedAmt.toFixed(2)}</span></div>
+                                      {procHdr?.amountPaid != null && procHdr.amountPaid > 0 && (
+                                        <div className="flex justify-between"><span className="text-slate-600">Amount Paid</span><span className="font-mono font-semibold text-emerald-700">${procHdr.amountPaid.toFixed(2)}</span></div>
+                                      )}
+                                      <div className="flex justify-between pt-1.5 border-t border-emerald-200"><span className="font-semibold text-slate-700">Remaining</span><span className="font-mono font-bold text-emerald-800">${(totalAmt - invoicedAmt).toFixed(2)}</span></div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Shipping & Terms inline */}
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
+                                  {h['Buyer'] && <span>Buyer: <strong className="text-slate-600">{h['Buyer']}</strong></span>}
+                                  {h['Terms'] && <span>Terms: <strong className="text-slate-600">{h['Terms']}</strong></span>}
+                                  {h['Contact'] && <span>Contact: <strong className="text-slate-600">{h['Contact']}</strong></span>}
+                                  {(h['Ship Via'] || h['shpVia']) && <span>Ship Via: <strong className="text-slate-600">{h['Ship Via'] || h['shpVia']}</strong></span>}
+                                  {(h['FOB'] || h['fob']) && <span>FOB: <strong className="text-slate-600">{h['FOB'] || h['fob']}</strong></span>}
+                                  {(h['Source Currency'] || h['Home Currency']) && <span>Currency: <strong className="text-slate-600">{h['Source Currency'] || h['Home Currency']}</strong></span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* CARD 2: Ship To / Bill To addresses (from extensions) */}
+                            {extensionData?.shipTo && (extensionData.shipTo.name || extensionData.shipTo.addr1) && (
+                              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                                  <Truck className="w-4 h-4 text-slate-600" />
+                                  <h4 className="font-semibold text-slate-800 text-sm">Shipping & Billing</h4>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 p-4">
+                                  {extensionData?.shipTo && (extensionData.shipTo.name || extensionData.shipTo.addr1) && (
+                                    <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3">
+                                      <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1.5">Ship To</div>
+                                      <div className="text-sm space-y-0.5">
+                                        {extensionData.shipTo.name && <div className="font-semibold text-slate-900">{extensionData.shipTo.name}</div>}
+                                        {extensionData.shipTo.addr1 && <div className="text-slate-600">{extensionData.shipTo.addr1}</div>}
+                                        {extensionData.shipTo.addr2 && <div className="text-slate-600">{extensionData.shipTo.addr2}</div>}
+                                        {(extensionData.shipTo.city || extensionData.shipTo.state || extensionData.shipTo.postal) && (
+                                          <div className="text-slate-600">{[extensionData.shipTo.city, extensionData.shipTo.state, extensionData.shipTo.postal].filter(Boolean).join(', ')}</div>
+                                        )}
+                                        {extensionData.shipTo.country && <div className="text-slate-500 text-xs">{extensionData.shipTo.country}</div>}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {extensionData?.billTo && (extensionData.billTo.name || extensionData.billTo.addr1) && (
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-3">
+                                      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Bill To</div>
+                                      <div className="text-sm space-y-0.5">
+                                        {extensionData.billTo.name && <div className="font-semibold text-slate-900">{extensionData.billTo.name}</div>}
+                                        {extensionData.billTo.addr1 && <div className="text-slate-600">{extensionData.billTo.addr1}</div>}
+                                        {extensionData.billTo.addr2 && <div className="text-slate-600">{extensionData.billTo.addr2}</div>}
+                                        {(extensionData.billTo.city || extensionData.billTo.state || extensionData.billTo.postal) && (
+                                          <div className="text-slate-600">{[extensionData.billTo.city, extensionData.billTo.state, extensionData.billTo.postal].filter(Boolean).join(', ')}</div>
+                                        )}
+                                        {extensionData.billTo.country && <div className="text-slate-500 text-xs">{extensionData.billTo.country}</div>}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* CARD 3: Related Orders (quick links) */}
                             {(() => {
                               const poId = (poView?.poNo ?? h['PO No.'] ?? h['pohId'] ?? '').toString();
-                              const moNos = Array.from(new Set(
+                              const moNos = poView?.linkedMONumbers ?? Array.from(new Set(
                                 poDetailsSource
                                   .filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId)
                                   .map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim())
                                   .filter(Boolean)
                               ));
                               if (moNos.length === 0) return null;
+                              const moHeaders = (data['ManufacturingOrderHeaders.json'] || []) as any[];
                               return (
-                                <div className="overflow-hidden rounded-xl border border-violet-200">
-                                  <div className="px-4 py-3 bg-violet-50/80 border-b border-violet-100 flex items-center gap-2">
-                                    <Factory className="w-4 h-4 text-violet-600" />
-                                    <h4 className="font-semibold text-violet-800 text-sm">Related Manufacturing Orders</h4>
-                                    <span className="ml-auto text-xs text-violet-500">{moNos.length} MO{moNos.length !== 1 ? 's' : ''} linked via line items</span>
+                                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                  <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                                    <Link2 className="w-4 h-4 text-slate-600" />
+                                    <h4 className="font-semibold text-slate-800 text-sm">Related Orders</h4>
                                   </div>
-                                  <div className="p-4 flex flex-wrap gap-2">
-                                    {moNos.map((moNo) => {
-                                      const moHeader = (data['ManufacturingOrderHeaders.json'] || []).find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
-                                      const moStatus = moHeader?.['Status'];
-                                      const statusLabel = moStatus === 0 ? 'Planned' : moStatus === 1 ? 'Released' : moStatus === 2 ? 'Started' : moStatus === 3 ? 'Finished' : moStatus === 4 ? 'Closed' : '';
-                                      return (
-                                        <button
-                                          key={moNo}
-                                          onClick={() => {
-                                            if (moHeader) {
-                                              setSelectedMO(moHeader);
-                                              setShowMODetails(true);
-                                              setMoActiveTab('overview');
-                                            }
-                                          }}
-                                          className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-violet-200 rounded-lg hover:bg-violet-50 hover:border-violet-300 transition-all text-sm group/molink"
-                                        >
-                                          <Factory className="w-4 h-4 text-violet-400 group-hover/molink:text-violet-600" />
-                                          <span className="font-mono font-semibold text-violet-700">MO #{moNo}</span>
-                                          {statusLabel && <span className="text-xs text-violet-400">{statusLabel}</span>}
-                                          {moHeader?.['Customer'] && <span className="text-xs text-slate-500">· {moHeader['Customer']}</span>}
-                                          <ExternalLink className="w-3 h-3 text-violet-300 opacity-0 group-hover/molink:opacity-100 transition-opacity" />
-                                        </button>
-                                      );
-                                    })}
+                                  <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {moNos.length > 0 && (
+                                      <div className="rounded-lg border border-violet-200 p-4 bg-gradient-to-br from-violet-50 to-white">
+                                        <div className="text-xs font-semibold text-violet-500 uppercase tracking-wider mb-2">Manufacturing Orders</div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {moNos.map((moNo: string) => {
+                                            const moHeader = moHeaders.find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
+                                            return (
+                                              <button key={moNo} onClick={() => { if (moHeader) { setSelectedMO(moHeader); setShowMODetails(true); setMoActiveTab('overview'); } }} className="px-2.5 py-1.5 rounded-lg bg-violet-100 text-violet-800 font-mono text-sm font-semibold hover:bg-violet-200 transition-colors">
+                                                MO #{moNo}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
                             })()}
+
+                            {/* CARD 4: Line Items Preview (top 5) */}
+                            {poLines.length > 0 && (
+                              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                <div className="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-slate-600" />
+                                    <h4 className="font-semibold text-slate-800 text-sm">Line Items Preview</h4>
+                                    <span className="text-xs text-slate-500">{poLines.length} items</span>
+                                  </div>
+                                  <button onClick={() => setPoActiveTab('lineitems')} className="text-xs text-blue-600 hover:text-blue-800 font-medium">View All →</button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-slate-50/80 border-b border-slate-100">
+                                      <tr>
+                                        <th className="text-left p-2.5 font-medium text-slate-600">Item No.</th>
+                                        <th className="text-left p-2.5 font-medium text-slate-600">Description</th>
+                                        <th className="text-right p-2.5 font-medium text-slate-600">Ordered</th>
+                                        <th className="text-right p-2.5 font-medium text-slate-600">Received</th>
+                                        <th className="text-right p-2.5 font-medium text-slate-600">Unit Price</th>
+                                        <th className="text-right p-2.5 font-medium text-slate-600">Extended</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                      {poLines.slice(0, 5).map((line: any, idx: number) => (
+                                        <tr key={idx} className="hover:bg-slate-50/50">
+                                          <td className="p-2.5 font-mono text-blue-600 font-medium">
+                                            {line.itemNo ? <span className="underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={(e) => { e.stopPropagation(); openItemById(line.itemNo); }}>{line.itemNo}</span> : '—'}
+                                          </td>
+                                          <td className="p-2.5 text-slate-600 truncate max-w-[200px]">{line.description || '—'}</td>
+                                          <td className="p-2.5 text-right font-medium tabular-nums">{(line.orderedQty ?? 0).toLocaleString()}</td>
+                                          <td className="p-2.5 text-right font-medium text-emerald-600 tabular-nums">{(line.receivedQty ?? 0).toLocaleString()}</td>
+                                          <td className="p-2.5 text-right font-mono tabular-nums">{(line.unitPrice ?? 0) > 0 ? `$${line.unitPrice.toFixed(2)}` : '—'}</td>
+                                          <td className="p-2.5 text-right font-mono font-semibold text-emerald-700 tabular-nums">{(line.extendedPrice ?? 0) > 0 ? `$${line.extendedPrice.toFixed(2)}` : '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  {poLines.length > 5 && (
+                                    <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center">
+                                      <button onClick={() => setPoActiveTab('lineitems')} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                        View all {poLines.length} items →
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </>
                         );
                       })()}
@@ -4717,7 +4961,127 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     );
                   })()}
 
-                  {/* PO Related Tab - MOs & Sales Orders */}
+                  {/* PO Receiving Status Tab - per-line receiving detail */}
+                  {poActiveTab === 'receiving' && (() => {
+                    const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
+                    const poLineItems = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
+                    if (poLineItems.length === 0) {
+                      return (
+                        <div className="text-center py-12 text-slate-500">
+                          <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <div className="font-medium text-slate-700 mb-1">No line items to track</div>
+                          <div className="text-sm">MIPOD has no records for this PO</div>
+                        </div>
+                      );
+                    }
+                    const totalOrdered = poLineItems.reduce((s: number, l: any) => s + (parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0), 0);
+                    const totalReceived = poLineItems.reduce((s: number, l: any) => s + (parseFloat(l['Received Qty'] || l['Received'] || 0) || 0), 0);
+                    const totalBilled = poLineItems.reduce((s: number, l: any) => s + (parseFloat(l['Billed Qty'] || l['Invoiced'] || 0) || 0), 0);
+                    const overallPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
+                    const fullyReceivedCount = poLineItems.filter((l: any) => {
+                      const ord = parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0;
+                      const rcv = parseFloat(l['Received Qty'] || l['Received'] || 0) || 0;
+                      return ord > 0 && rcv >= ord;
+                    }).length;
+                    const partialCount = poLineItems.filter((l: any) => {
+                      const ord = parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0;
+                      const rcv = parseFloat(l['Received Qty'] || l['Received'] || 0) || 0;
+                      return ord > 0 && rcv > 0 && rcv < ord;
+                    }).length;
+                    const pendingCount = poLineItems.filter((l: any) => {
+                      const ord = parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0;
+                      const rcv = parseFloat(l['Received Qty'] || l['Received'] || 0) || 0;
+                      return ord > 0 && rcv === 0;
+                    }).length;
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Overall receiving KPI */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                            <div className="text-2xl font-bold text-slate-900 tabular-nums">{overallPct}%</div>
+                            <div className="text-[10px] font-medium text-slate-500 uppercase">Overall Received</div>
+                          </div>
+                          <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-center">
+                            <div className="text-2xl font-bold text-emerald-700 tabular-nums">{fullyReceivedCount}</div>
+                            <div className="text-[10px] font-medium text-emerald-600 uppercase">Fully Received</div>
+                          </div>
+                          <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
+                            <div className="text-2xl font-bold text-amber-700 tabular-nums">{partialCount}</div>
+                            <div className="text-[10px] font-medium text-amber-600 uppercase">Partial</div>
+                          </div>
+                          <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-center">
+                            <div className="text-2xl font-bold text-red-700 tabular-nums">{pendingCount}</div>
+                            <div className="text-[10px] font-medium text-red-600 uppercase">Not Received</div>
+                          </div>
+                          <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-center">
+                            <div className="text-2xl font-bold text-blue-700 tabular-nums">{totalBilled.toLocaleString()}</div>
+                            <div className="text-[10px] font-medium text-blue-600 uppercase">Total Billed</div>
+                          </div>
+                        </div>
+
+                        {/* Overall progress bar */}
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <div className="flex items-center justify-between text-sm mb-2">
+                            <span className="font-medium text-slate-700">Overall Receiving Progress</span>
+                            <span className="font-bold text-slate-900 tabular-nums">{totalReceived.toLocaleString()} / {totalOrdered.toLocaleString()} units</span>
+                          </div>
+                          <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${overallPct >= 100 ? 'bg-emerald-500' : overallPct > 50 ? 'bg-blue-500' : overallPct > 0 ? 'bg-amber-500' : 'bg-slate-300'}`} style={{ width: `${Math.min(overallPct, 100)}%` }}></div>
+                          </div>
+                        </div>
+
+                        {/* Per-line receiving detail */}
+                        <div className="rounded-xl border border-slate-100 overflow-hidden">
+                          <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+                            <h4 className="font-semibold text-slate-800 text-sm">Per-Line Receiving Status</h4>
+                          </div>
+                          <div className="divide-y divide-slate-50">
+                            {poLineItems.map((line: any, idx: number) => {
+                              const itemNo = (line['Item No.'] ?? line['Part No.'] ?? line['itemId'] ?? '').toString().trim();
+                              const desc = (line['Description'] ?? line['descr'] ?? '').toString();
+                              const ord = parseFloat(line['Ordered Qty'] || line['Ordered'] || 0) || 0;
+                              const rcv = parseFloat(line['Received Qty'] || line['Received'] || 0) || 0;
+                              const billed = parseFloat(line['Billed Qty'] || line['Invoiced'] || 0) || 0;
+                              const pct = ord > 0 ? Math.round((rcv / ord) * 100) : 0;
+                              const isFull = pct >= 100;
+                              const lastRecv = (line['Last Received Date'] ?? line['lastRecvDt'] ?? '').toString();
+                              const reqDate = (line['Required Date'] ?? line['initDueDt'] ?? line['realDueDt'] ?? '').toString();
+                              const barColor = isFull ? 'bg-emerald-500' : pct > 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-300';
+                              return (
+                                <div key={idx} className="px-4 py-3 hover:bg-slate-50/50 transition-colors">
+                                  <div className="flex items-center gap-3 mb-1.5">
+                                    <span className="font-mono text-xs font-semibold text-slate-500 w-6 shrink-0">#{idx + 1}</span>
+                                    {itemNo && <span className="font-mono text-sm font-semibold text-blue-600 underline cursor-pointer hover:bg-blue-50 rounded px-0.5" onClick={() => openItemById(itemNo)}>{itemNo}</span>}
+                                    {desc && <span className="text-xs text-slate-500 truncate">{desc}</span>}
+                                    <div className="ml-auto flex items-center gap-3 shrink-0 text-xs">
+                                      {reqDate && <span className="text-slate-400">Due: <span className="tabular-nums">{formatDisplayDate(reqDate)}</span></span>}
+                                      {lastRecv && <span className="text-emerald-600">Last recv: <span className="tabular-nums">{formatDisplayDate(lastRecv)}</span></span>}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 text-xs tabular-nums">
+                                      <span className="font-bold text-slate-700">{rcv.toLocaleString()}</span>
+                                      <span className="text-slate-400">/</span>
+                                      <span className="font-medium text-slate-500">{ord.toLocaleString()}</span>
+                                      {billed > 0 && <span className="text-blue-500 ml-1">(billed: {billed.toLocaleString()})</span>}
+                                      <span className={`font-bold ml-1 ${isFull ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* PO Related Tab - Manufacturing Orders */}
                   {poActiveTab === 'related' && (() => {
                     const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
                     const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
@@ -4727,27 +5091,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     const moHeaders = (data['ManufacturingOrderHeaders.json'] || []) as any[];
                     const linkedMOs = moNos.map((moNo) => {
                       const hdr = moHeaders.find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
-                      const soNo = hdr?.['Sales Order No.'] || '';
-                      return { moNo, header: hdr, soNo };
-                    });
-                    const tracedSONumbers = Array.from(new Set(linkedMOs.map(m => m.soNo).filter(Boolean)));
-                    const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
-                    const tracedSOs = tracedSONumbers.map(soNo => {
-                      const so = (salesOrdersData as any[]).find((s: any) => (s['Sales Order No.'] || s['Order No.'] || '') === soNo);
-                      return { soNo, data: so };
+                      return { moNo, header: hdr };
                     });
 
                     return (
                       <div className="space-y-6">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl p-5 shadow-lg">
+                        <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl p-5 shadow-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                               <Link2 className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                              <h4 className="font-bold text-white text-lg">Related Orders</h4>
-                              <p className="text-blue-100 text-sm">Manufacturing Orders and Sales Orders linked to this PO</p>
+                              <h4 className="font-bold text-white text-lg">Related Manufacturing Orders</h4>
+                              <p className="text-violet-100 text-sm">MOs linked to this PO via line item references (MIPOD)</p>
                             </div>
                           </div>
                         </div>
@@ -4767,7 +5124,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </div>
                           ) : (
                             <div className="divide-y divide-violet-100">
-                              {linkedMOs.map(({ moNo, header: moHdr, soNo }) => {
+                              {linkedMOs.map(({ moNo, header: moHdr }) => {
                                 const moStatus = moHdr?.['Status'];
                                 const statusLabel = moStatus === 0 ? 'Planned' : moStatus === 1 ? 'Released' : moStatus === 2 ? 'Started' : moStatus === 3 ? 'Finished' : moStatus === 4 ? 'Closed' : 'Unknown';
                                 const statusColor = moStatus === 0 ? 'bg-amber-100 text-amber-700' : moStatus === 1 ? 'bg-emerald-100 text-emerald-700' : moStatus === 2 ? 'bg-blue-100 text-blue-700' : moStatus === 3 ? 'bg-violet-100 text-violet-700' : moStatus === 4 ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-600';
@@ -4783,11 +5140,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           MO #{moNo}
                                         </button>
                                         <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
-                                        {soNo && (
-                                          <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                                            <FileText className="w-3 h-3" /> SO #{soNo}
-                                          </span>
-                                        )}
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs text-slate-500">{itemsOnThisMO.length} line{itemsOnThisMO.length !== 1 ? 's' : ''} on this PO</span>
@@ -4813,54 +5165,46 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           )}
                         </div>
 
-                        {/* Traced Sales Orders */}
-                        {tracedSOs.length > 0 && (
-                          <div className="rounded-xl border border-blue-200 overflow-hidden">
-                            <div className="px-4 py-3 bg-blue-50/80 border-b border-blue-100 flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-blue-600" />
-                              <h4 className="font-semibold text-blue-800 text-sm">Traced Sales Orders</h4>
-                              <span className="ml-auto text-xs text-blue-500">Via PO → MO → SO chain</span>
-                            </div>
-                            <div className="divide-y divide-blue-100">
-                              {tracedSOs.map(({ soNo, data: soData }) => (
-                                <div key={soNo} className="p-4 hover:bg-blue-50/50 transition-colors">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <button
-                                        onClick={() => { setActiveSection('orders'); setSoSearchQuery(soNo); setShowPODetails(false); }}
-                                        className="font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline text-base"
-                                      >
-                                        SO #{soNo}
-                                      </button>
-                                      {soData?.['Customer'] && <span className="text-sm text-slate-600">{soData['Customer']}</span>}
-                                      {soData?.['Status'] != null && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{soData['Status']}</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {soData?.['Total'] && <span className="text-sm font-mono font-semibold text-slate-700">${parseFloat(soData['Total']).toFixed(2)}</span>}
-                                      <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(soNo); setShowPODetails(false); }} className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors" title="Go to Sales Orders">
-                                        <ExternalLink className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-slate-500 mt-1">
-                                    Linked via MO{linkedMOs.filter(m => m.soNo === soNo).length > 1 ? 's' : ''}: {linkedMOs.filter(m => m.soNo === soNo).map(m => `#${m.moNo}`).join(', ')}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
                         {/* Traceability summary */}
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                          <div className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wider">Order Chain Traceability</div>
+                          <div className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wider">Order Linkage</div>
                           <div className="flex items-center gap-2 text-sm text-slate-700">
                             <span className="font-mono font-semibold bg-blue-50 px-2 py-1 rounded border border-blue-100">PO #{poId}</span>
                             <span className="text-slate-400">→</span>
                             <span className="font-mono font-semibold bg-violet-50 px-2 py-1 rounded border border-violet-100">{linkedMOs.length} MO{linkedMOs.length !== 1 ? 's' : ''}</span>
-                            <span className="text-slate-400">→</span>
-                            <span className="font-mono font-semibold bg-green-50 px-2 py-1 rounded border border-green-100">{tracedSOs.length} SO{tracedSOs.length !== 1 ? 's' : ''}</span>
                           </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* PO Transactions Tab - Ledger entries for this PO */}
+                  {poActiveTab === 'transactions' && (() => {
+                    const poId = (poView?.poNo ?? selectedPO?.['PO No.'] ?? selectedPO?.['pohId'] ?? '').toString();
+                    return (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl p-5 shadow-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                              <Activity className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-white text-lg">Transaction Ledger</h4>
+                              <p className="text-blue-100 text-sm">All ledger transactions referencing PO #{poId}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+                          <Activity className="w-12 h-12 mx-auto mb-3 text-violet-400" />
+                          <div className="font-medium text-slate-700 mb-2">View Transactions in Ledger</div>
+                          <p className="text-sm text-slate-500 mb-4">Open the Transaction Explorer filtered to this PO for a full ledger view.</p>
+                          <button
+                            onClick={() => openTransactionExplorerWithFilters({ docRef: poId })}
+                            className="px-6 py-2.5 bg-gradient-to-r from-violet-500 to-blue-600 text-white rounded-lg font-semibold text-sm hover:from-violet-600 hover:to-blue-700 transition-all shadow-lg shadow-violet-500/25 inline-flex items-center gap-2"
+                          >
+                            <Activity className="w-4 h-4" />
+                            Open Transaction Explorer
+                          </button>
                         </div>
                       </div>
                     );
@@ -5373,18 +5717,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </div>
                       </div>
                     </div>
-                    <div className="overflow-x-auto max-h-[700px] px-6 pb-6 bg-slate-50/30 rounded-b-2xl">
-                      <div className="data-list data-list-po">
-                        <div className="data-list-header sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-100 -mx-5 px-5">
-                          <span className="w-[72px] shrink-0">PO #</span>
-                          <span className="flex-1 min-w-0">Supplier</span>
-                          <span className="w-24 shrink-0">Status</span>
-                          <span className="w-24 shrink-0 text-right">Total</span>
-                          <span className="w-28 shrink-0">Date</span>
-                          <span className="w-28 shrink-0 text-right">Actions</span>
-                        </div>
+                    <div className="px-6 pb-6 bg-slate-50/30 rounded-b-2xl">
+                      <div className="space-y-2">
                           {(() => {
-                            // Filter: show POs with ID and (supplier OR any amount)
                             let filteredPOs = searchPurchaseOrders.filter((po: any) => {
                               const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                               if (!poId) return false;
@@ -5406,7 +5741,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             const startIndex = (poCurrentPage - 1) * poPageSize;
                             const endIndex = startIndex + poPageSize;
                             return sortedPOs.slice(startIndex, endIndex).map((po: any, index: number) => {
-                            // Get status info
                             const getStatusInfo = (status: any) => {
                               switch(status) {
                                 case 0: return { text: 'Open', color: 'bg-green-100 text-green-700' };
@@ -5416,99 +5750,101 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 default: return { text: status || 'Unknown', color: 'bg-blue-100 text-blue-700' };
                               }
                             };
-                            
                             const statusInfo = getStatusInfo(po['Status'] ?? po['poStatus']);
-                            
-                            // Get supplier defaults from other POs (for better fallback values)
-                            const getSupplierDefaults = (supplierNo: string) => {
-                              if (!supplierNo) return {};
-                              const allPOs = poHeadersSource;
-                              const currPoId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
-                              const supplierPOs = allPOs.filter((p: any) => 
-                                (p['Supplier No.'] === supplierNo || p['Name'] === supplierNo || p['suplId'] === supplierNo) && 
-                                (p['PO No.'] ?? p['pohId'] ?? '').toString().trim() !== currPoId
-                              );
-                              
-                              if (supplierPOs.length === 0) return {};
-                              
-                              // Get most common values from supplier's other POs
-                              const terms = supplierPOs.map((p: any) => p['Terms']).filter(Boolean);
-                              const shipVia = supplierPOs.map((p: any) => p['Ship Via']).filter(Boolean);
-                              const fob = supplierPOs.map((p: any) => p['FOB']).filter(Boolean);
-                              const contact = supplierPOs.map((p: any) => p['Contact']).filter(Boolean);
-                              
-                              return {
-                                terms: terms.length > 0 ? terms[0] : null, // Use first (most recent)
-                                shipVia: shipVia.length > 0 ? shipVia[0] : null,
-                                fob: fob.length > 0 ? fob[0] : null,
-                                contact: contact.length > 0 ? contact[0] : null
-                              };
-                            };
-                            
-                            const supplierDefaults = getSupplierDefaults((po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString());
-                            
                             const poId = (po['PO No.'] ?? po['pohId'] ?? '').toString().trim();
                             const supl = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
                             const tot = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
                             const inv = parseFloat(po['Invoiced Amount'] ?? po['Total Invoiced'] ?? po['totInvoiced'] ?? 0) || 0;
                             const recv = parseFloat(po['Received Amount'] ?? po['Total Received'] ?? po['totReceived'] ?? 0) || 0;
                             const hasData = !!poId && (!!supl || tot > 0 || inv > 0 || recv > 0);
-                            
                             if (!hasData) return null;
-                            
                             const poTotal = parseFloat(po['Total Amount'] ?? po['totalAmt'] ?? po['Total'] ?? 0) || 0;
                             const supplierName = (po['Supplier No.'] ?? po['Name'] ?? po['suplId'] ?? po['Vendor No.'] ?? '').toString().trim();
                             const orderDateVal = po['Order Date'] ?? po['ordDt'] ?? '';
 
+                            const poLines = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId);
+                            const lineCount = poLines.length;
+                            const totalOrdered = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Ordered Qty'] || l['Ordered'] || 0) || 0), 0);
+                            const totalReceived = poLines.reduce((s: number, l: any) => s + (parseFloat(l['Received Qty'] || l['Received'] || 0) || 0), 0);
+                            const recvPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
+                            const isClosed = (po['Status'] ?? po['poStatus']) === 2 || (po['Status'] ?? po['poStatus']) === 3;
+                            const isFullyReceived = recvPct >= 100;
+                            const recvBarColor = isFullyReceived ? 'bg-emerald-500' : recvPct > 50 ? 'bg-blue-500' : recvPct > 0 ? 'bg-amber-500' : 'bg-slate-300';
+
+                            const moNos = Array.from(new Set(
+                              poLines.map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim()).filter(Boolean)
+                            ));
+
+                            const vendorRow = indexes.misuplById.get(supl);
+                            const vendorDisplayName = vendorRow?.['Name'] ?? vendorRow?.['descr'] ?? '';
+                            const supplierDisplay = vendorDisplayName && vendorDisplayName !== supl ? `${supl} · ${vendorDisplayName}` : supl;
+
                             return (
                               <div 
                                 key={index} 
-                                className="data-list-card group"
+                                className={`group rounded-xl border bg-white hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer ${isClosed ? 'opacity-60 hover:opacity-100' : ''} ${isClosed ? 'border-slate-200' : 'border-slate-200'}`}
                                 onClick={() => {
                                   setSelectedPO(po);
                                   setShowPODetails(true);
                                   setPoActiveTab('overview');
                                 }}
                               >
-                                <div className="po-id shrink-0">{poId || po['pohId'] || '—'}</div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-slate-900 truncate">{supplierName || '—'}</div>
-                                  <div className="text-sm text-slate-500 truncate">
-                                    {po['Buyer'] ? <span>Buyer: {po['Buyer']}</span> : ''}
-                                    {po['Buyer'] && po['Terms'] ? <span className="text-slate-300"> · </span> : ''}
-                                    {po['Terms'] ? <span>Terms: {po['Terms']}</span> : ''}
+                                <div className="px-4 py-3">
+                                  {/* Row 1: PO#, Status, Supplier, Date, Amount */}
+                                  <div className="flex items-center gap-3 mb-1.5">
+                                    <span className="font-mono text-sm font-bold text-blue-700 shrink-0">#{poId}</span>
+                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 ${statusInfo.color}`}>
+                                      {statusInfo.text}
+                                    </span>
+                                    <span className="font-semibold text-slate-900 text-sm truncate">{supplierDisplay || '—'}</span>
+                                    <div className="ml-auto flex items-center gap-4 shrink-0">
+                                      <span className="text-xs text-slate-500 tabular-nums">{formatDisplayDate(orderDateVal)}</span>
+                                      {poTotal > 0 && (
+                                        <span className="font-mono text-sm font-bold text-emerald-600 tabular-nums">${poTotal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-600">
-                                    {(() => {
-                                      const lineCount = poDetailsSource.filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId).length;
-                                      return lineCount > 0 ? <span className="font-medium text-slate-500">{lineCount} line{lineCount !== 1 ? 's' : ''}</span> : null;
-                                    })()}
-                                    {(() => {
-                                      const moNos = Array.from(new Set(
-                                        poDetailsSource
-                                          .filter((line: any) => (line['PO No.'] ?? line['pohId']) == poId)
-                                          .map((line: any) => (line['Manufacturing Order No.'] ?? line['mohId'] ?? '').toString().trim())
-                                          .filter(Boolean)
-                                      ));
-                                      return moNos.length > 0 ? (
-                                        <span className="inline-flex items-center gap-1">
-                                          <Factory className="w-3 h-3 text-violet-400" />
-                                          <span className="font-medium text-violet-600">
-                                            MO: {moNos.slice(0, 2).join(', ')}{moNos.length > 2 ? ` +${moNos.length - 2}` : ''}
-                                          </span>
-                                        </span>
-                                      ) : null;
-                                    })()}
-                                    {po['Ship Via'] && <span>Ship: {po['Ship Via']}</span>}
+                                  {/* Row 2: Buyer, Terms, Items */}
+                                  <div className="flex items-start gap-2 text-xs flex-wrap">
+                                    {po['Buyer'] && <span className="text-slate-600">Buyer: <span className="font-semibold text-slate-700">{po['Buyer']}</span></span>}
+                                    {po['Buyer'] && po['Terms'] && <span className="text-slate-300">·</span>}
+                                    {po['Terms'] && <span className="text-slate-600">Terms: <span className="font-medium">{po['Terms']}</span></span>}
+                                    {(po['Buyer'] || po['Terms']) && lineCount > 0 && <span className="text-slate-300">·</span>}
+                                    {lineCount > 0 && <span className="text-slate-500">{lineCount} line item{lineCount !== 1 ? 's' : ''}</span>}
                                   </div>
-                                </div>
-                                <span className={`px-2.5 py-1 rounded-md text-xs font-semibold w-24 text-center shrink-0 ${statusInfo.color}`}>{statusInfo.text}</span>
-                                <div className="w-24 text-right font-mono text-sm font-semibold text-emerald-600 tabular-nums shrink-0">
-                                  {poTotal > 0 ? `$${poTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}
-                                </div>
-                                <div className="w-28 text-sm text-slate-600 tabular-nums shrink-0">{orderDateVal ? formatDisplayDate(orderDateVal) : '—'}</div>
-                                <div className="w-28 shrink-0 flex justify-end">
-                                  <span className="text-slate-400 text-sm">View →</span>
+                                  {/* Row 3: Badges - MOs, Ship Via, Currency */}
+                                  <div className="flex items-center gap-2 mt-1 text-xs">
+                                    {moNos.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-semibold">
+                                        <Factory className="w-3 h-3 text-violet-400" />
+                                        MO: {moNos.slice(0, 2).join(', ')}{moNos.length > 2 ? ` +${moNos.length - 2}` : ''}
+                                      </span>
+                                    )}
+                                    {po['Ship Via'] && (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{po['Ship Via']}</span>
+                                    )}
+                                    {(po['Source Currency'] || po['Home Currency']) && (po['Source Currency'] || po['Home Currency']) !== 'CAD' && (
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono font-semibold">{po['Source Currency'] || po['Home Currency']}</span>
+                                    )}
+                                    {inv > 0 && (
+                                      <span className="text-slate-500">Invoiced: <span className="font-mono font-semibold text-slate-700">${inv.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
+                                    )}
+                                  </div>
+                                  {/* Row 4: Receiving progress bar */}
+                                  {lineCount > 0 && (
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all duration-500 ${recvBarColor}`} style={{ width: `${Math.min(recvPct, 100)}%` }}></div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 text-xs tabular-nums">
+                                      <span className="font-bold text-slate-700">{totalReceived.toLocaleString()}</span>
+                                      <span className="text-slate-400">/</span>
+                                      <span className="font-medium text-slate-500">{totalOrdered.toLocaleString()}</span>
+                                      <span className="text-slate-400 text-[10px]">recv</span>
+                                      <span className={`font-bold ml-1 ${isFullyReceived ? 'text-emerald-600' : 'text-slate-600'}`}>{recvPct}%</span>
+                                    </div>
+                                  </div>
+                                  )}
                                 </div>
                               </div>
                             );
