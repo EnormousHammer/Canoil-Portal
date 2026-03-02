@@ -187,8 +187,18 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
       console.log('✅ Fetched MPS data directly from Google Sheets');
     }
     
+    // Fix common UTF-8 double-encoding artifacts before parsing
+    const cleanCsv = csvText
+      .replace(/Ã—/g, '×')
+      .replace(/ÃÐ/g, '×')
+      .replace(/Ã\u0097/g, '×')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã¨/g, 'è')
+      .replace(/Ã´/g, 'ô')
+      .replace(/Ã®/g, 'î');
+    
     // Parse CSV data
-    const result = Papa.parse(csvText, { header: false, skipEmptyLines: true });
+    const result = Papa.parse(cleanCsv, { header: false, skipEmptyLines: true });
     const rows = result.data as string[][];
     
     if (rows.length < 5) {

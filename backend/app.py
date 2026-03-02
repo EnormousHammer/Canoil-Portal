@@ -5075,6 +5075,7 @@ def load_mps_data():
             })
             
             if response.status_code == 200:
+                response.encoding = 'utf-8'
                 csv_data = response.text
                 print(f"Success with Google Sheets URL")
             else:
@@ -5192,7 +5193,8 @@ def get_mps_data():
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             })
             if response.ok:
-                return response.text, 200, {'Content-Type': 'text/csv'}
+                response.encoding = 'utf-8'
+                return response.text, 200, {'Content-Type': 'text/csv; charset=utf-8'}
             return jsonify({'error': 'Failed to fetch MPS data from Google Sheets'}), 500
         else:
             # JSON for App.tsx (mps_orders, summary)
