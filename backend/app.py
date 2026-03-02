@@ -70,6 +70,15 @@ except ImportError:
 # BOL HTML module removed - using the one in logistics_automation.py
 BOL_HTML_AVAILABLE = False
 
+# Import Sage 50 Accounting integration
+try:
+    import sage_service
+    SAGE_AVAILABLE = True
+    print("Sage 50 Accounting integration loaded")
+except ImportError as e:
+    SAGE_AVAILABLE = False
+    print(f"Sage 50 integration not available: {e}")
+
 def safe_float(value):
     """Safely convert value to float, handling commas and None values"""
     if value is None:
@@ -7672,6 +7681,184 @@ def vision_analyze_so():
             'success': False,
             'error': f'Vision analysis failed: {str(e)}'
         }), 500
+
+# ============================================================================
+# SAGE 50 ACCOUNTING ENDPOINTS
+# ============================================================================
+
+@app.route('/api/sage/status')
+def sage_status():
+    """Test Sage 50 connection and return summary."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'connected': False, 'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.test_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'connected': False, 'error': str(e)}), 500
+
+@app.route('/api/sage/dashboard')
+def sage_dashboard():
+    """Get Sage 50 dashboard summary."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.get_dashboard_summary()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/customers')
+def sage_customers():
+    """List customers from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        search = request.args.get('search', None)
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 500))
+        offset = int(request.args.get('offset', 0))
+        result = sage_service.get_customers(search=search, inactive=inactive, limit=limit, offset=offset)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/customers/<int:customer_id>')
+def sage_customer_detail(customer_id):
+    """Get single customer with recent orders."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.get_customer(customer_id)
+        if not result:
+            return jsonify({'error': 'Customer not found'}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/vendors')
+def sage_vendors():
+    """List vendors from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        search = request.args.get('search', None)
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 500))
+        offset = int(request.args.get('offset', 0))
+        result = sage_service.get_vendors(search=search, inactive=inactive, limit=limit, offset=offset)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/vendors/<int:vendor_id>')
+def sage_vendor_detail(vendor_id):
+    """Get single vendor details."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.get_vendor(vendor_id)
+        if not result:
+            return jsonify({'error': 'Vendor not found'}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/inventory')
+def sage_inventory():
+    """List inventory items from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        search = request.args.get('search', None)
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 500))
+        offset = int(request.args.get('offset', 0))
+        result = sage_service.get_inventory(search=search, inactive=inactive, limit=limit, offset=offset)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/inventory/<int:item_id>')
+def sage_inventory_detail(item_id):
+    """Get single inventory item with locations and pricing."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.get_inventory_item(item_id)
+        if not result:
+            return jsonify({'error': 'Item not found'}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/sales-orders')
+def sage_sales_orders():
+    """List sales orders from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        search = request.args.get('search', None)
+        customer_id = request.args.get('customer_id', None, type=int)
+        quote_only = request.args.get('quotes', 'false').lower() == 'true'
+        date_from = request.args.get('date_from', None)
+        date_to = request.args.get('date_to', None)
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        result = sage_service.get_sales_orders(
+            search=search, customer_id=customer_id, quote_only=quote_only,
+            date_from=date_from, date_to=date_to, limit=limit, offset=offset
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/sales-orders/<int:order_id>')
+def sage_sales_order_detail(order_id):
+    """Get single sales order with line items."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        result = sage_service.get_sales_order(order_id)
+        if not result:
+            return jsonify({'error': 'Sales order not found'}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/accounts')
+def sage_accounts():
+    """List chart of accounts from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        search = request.args.get('search', None)
+        account_type = request.args.get('type', None)
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        result = sage_service.get_accounts(search=search, account_type=account_type, inactive=inactive)
+        return jsonify({'accounts': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sage/receipts')
+def sage_receipts():
+    """List receipts/payments from Sage 50."""
+    if not SAGE_AVAILABLE:
+        return jsonify({'error': 'Sage 50 module not loaded'}), 503
+    try:
+        date_from = request.args.get('date_from', None)
+        date_to = request.args.get('date_to', None)
+        vendor_customer_id = request.args.get('entity_id', None, type=int)
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        result = sage_service.get_receipts(
+            date_from=date_from, date_to=date_to,
+            vendor_customer_id=vendor_customer_id, limit=limit, offset=offset
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     print("Starting Flask backend...")

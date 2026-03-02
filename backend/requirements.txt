@@ -29,3 +29,4 @@ asgiref>=3.7.0  # Required for WsgiToAsgi adapter (Flask to ASGI)
 schedule>=1.2.0  # Required for so_background_refresh
 playwright>=1.40.0  # Required for HTML to PDF conversion
 weasyprint>=60.0  # Fallback PDF generator (no browser needed)
+PyMySQL>=1.1.0  # Sage 50 Accounting integration (MySQL database)
