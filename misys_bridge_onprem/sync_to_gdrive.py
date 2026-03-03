@@ -177,9 +177,11 @@ def _fmt(val):
 
 
 def make_full_company_folder_name() -> str:
-    """Returns: March 3, 2026_14-30"""
+    """Returns: March 3, 2026_02-30 PM"""
     now = datetime.now()
-    return now.strftime("%B {d}, %Y_%H-%M").format(d=now.day)
+    # %I = 12-hour clock, %M = minutes, %p = AM/PM
+    time_str = now.strftime("%I-%M %p")  # e.g. 02-30 PM
+    return now.strftime("%B {d}, %Y_").format(d=now.day) + time_str
 
 
 def _is_dated(name: str) -> bool:
