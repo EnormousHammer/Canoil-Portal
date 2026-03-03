@@ -4095,7 +4095,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   {/* MO Lots Tab (build item lots) */}
                   {/* MO Sage Accounting Tab */}
                   {moActiveTab === 'sage' && (
-                    <MOSageTab moNo={moView.moNo ?? selectedMoNo} customerName={moView.customer ?? selectedMO?.['Customer'] ?? ''} />
+                    <MOSageTab
+                      moNo={moView.moNo ?? selectedMoNo}
+                      customerName={moView.customer ?? (selectedMO ? getCustomerName(selectedMO) : '') ?? ''}
+                    />
                   )}
 
                   {moActiveTab === 'lots' && (
@@ -11743,7 +11746,9 @@ const MOSageTab: React.FC<{ moNo: string; customerName: string }> = ({ moNo, cus
     if (!moNo) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/mo/${encodeURIComponent(moNo)}/sage-tab`)
+    const params = new URLSearchParams();
+    if (customerName) params.set('customer_name', customerName);
+    fetch(`/api/mo/${encodeURIComponent(moNo)}/sage-tab?${params}`)
       .then(r => r.json())
       .then(d => {
         if (d.error) setError(d.error);
@@ -11751,7 +11756,7 @@ const MOSageTab: React.FC<{ moNo: string; customerName: string }> = ({ moNo, cus
         setLoading(false);
       })
       .catch(e => { setError(String(e)); setLoading(false); });
-  }, [moNo]);
+  }, [moNo, customerName]);
 
   if (loading) {
     return (

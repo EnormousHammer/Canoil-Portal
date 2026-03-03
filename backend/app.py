@@ -8394,22 +8394,30 @@ def api_mo_sage_tab(mo_no):
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
-        data = _data_cache or {}
-        mos = data.get("ManufacturingOrderHeaders.json", [])
-        mo = next((m for m in mos if str(m.get("Mfg. Order No.") or m.get("mohId") or "").strip() == str(mo_no).strip()), None)
-        customer_name = ""
+        # Frontend passes customer_name directly — use it as primary source so we
+        # don't depend on _data_cache being populated on this Render worker.
+        customer_name = request.args.get('customer_name', '').strip()
         build_item = ""
         component_ids = []
+
+        # Augment with MO data from cache when available
+        data = _data_cache or {}
+        mos = data.get("ManufacturingOrderHeaders.json", [])
+        mo = next((m for m in mos
+                   if str(m.get("Mfg. Order No.") or m.get("mohId") or "").strip() == str(mo_no).strip()), None)
         if mo:
-            customer_name = str(mo.get("Customer") or "").strip()
-            build_item = str(mo.get("Build Item No.") or mo.get("buildItemNo") or "").strip()
+            # Use cache customer name only if the frontend didn't provide one
+            if not customer_name:
+                customer_name = str(mo.get("Customer") or "").strip()
+            build_item = str(mo.get("Build Item No.") or mo.get("buildItem") or mo.get("buildItemNo") or "").strip()
             mo_details = data.get("ManufacturingOrderDetails.json", [])
             component_ids = list(set(
-                str(d.get("Item No.") or d.get("Planned Item No.") or d.get("itemId") or "").strip()
+                str(d.get("Item No.") or d.get("Component Item No.") or d.get("partId") or d.get("itemId") or "").strip()
                 for d in mo_details
                 if str(d.get("Mfg. Order No.") or d.get("mohId") or "").strip() == str(mo_no).strip()
-                and str(d.get("Item No.") or d.get("Planned Item No.") or "").strip()
+                and str(d.get("Item No.") or d.get("Component Item No.") or d.get("partId") or "").strip()
             ))
+
         result = s.get_mo_sage_data(customer_name, build_item, component_ids)
         result["mo_no"] = mo_no
         result["customer_name_searched"] = customer_name
