@@ -738,11 +738,20 @@ def get_sales_orders(search: str = None, customer_id: int = None,
 # ---------------------------------------------------------------------------
 
 def get_available_years() -> list:
-    """Return list of years found in titrec (transaction journal), sorted descending."""
+    """Return only years that have actual invoiced revenue in titrec (dInvAmt > 0)."""
     df = _tables().get("titrec")
     if df is None or df.empty or "dtASDate" not in df.columns:
         return [datetime.now().year]
-    dates = df["dtASDate"].dropna().astype(str)
+
+    rows = df.copy()
+    rows["dtASDate"] = rows["dtASDate"].dropna().astype(str)
+
+    # Only include years that have positive invoice amounts (real revenue)
+    if "dInvAmt" in rows.columns:
+        rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+        rows = rows[rows["_amt"] > 0]
+
+    dates = rows["dtASDate"].astype(str)
     years = sorted(
         set(int(d[:4]) for d in dates if len(d) >= 4 and d[:4].isdigit()),
         reverse=True,
