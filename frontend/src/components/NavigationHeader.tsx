@@ -47,6 +47,7 @@ interface NavigationHeaderProps {
   } | null;
   onRefreshData?: () => Promise<void>;
   onLoadFullCompanyData?: () => Promise<void>;
+  onLoadLiveSql?: () => Promise<void>;
 }
 
 export function NavigationHeader({
@@ -65,7 +66,8 @@ export function NavigationHeader({
   onSelectApp,
   syncInfo,
   onRefreshData,
-  onLoadFullCompanyData
+  onLoadFullCompanyData,
+  onLoadLiveSql
 }: NavigationHeaderProps) {
 
   // Format sync date for display
@@ -242,6 +244,15 @@ export function NavigationHeader({
                           className="text-[10px] font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
                         >
                           Load
+                        </button>
+                      )}
+                      {onLoadLiveSql && (
+                        <button
+                          type="button"
+                          onClick={() => onLoadLiveSql()}
+                          className="text-[10px] font-medium text-emerald-600 hover:text-emerald-800 whitespace-nowrap border border-emerald-300 rounded px-1"
+                        >
+                          ⚡ Live SQL
                         </button>
                       )}
                     </span>

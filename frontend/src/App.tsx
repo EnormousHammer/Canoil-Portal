@@ -666,6 +666,7 @@ function App() {
         syncInfo={syncInfo}
         onRefreshData={handleRefreshData}
         onLoadFullCompanyData={() => handleRefreshData({ source: 'full_company_data' })}
+        onLoadLiveSql={() => handleRefreshData({ source: 'live_sql' })}
       />
 
       {/* System Health Warning Banner */}
