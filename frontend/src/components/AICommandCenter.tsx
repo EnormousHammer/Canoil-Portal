@@ -333,7 +333,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
             total_items: inventoryItems.length
           },
           operations: {
-            active_manufacturing_orders: moHeaders.filter((mo: any) => mo.Status === '1').length,
+            active_manufacturing_orders: moHeaders.filter((mo: any) => String(mo.Status ?? '2') !== '2').length,
             active_purchase_orders: poOrders.filter((po: any) => po.Status === 'Open').length
           }
         },
@@ -506,10 +506,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     allSalesOrders = uniqueSalesOrders;
     
     const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
+    // Status '2' = Closed/Completed — exclude those, only count Status '0' (Open) and '1' (Released/Active)
+    const activeMoHeaders = moHeaders.filter((mo: any) => String(mo.Status ?? mo['Status'] ?? '2') !== '2');
     const items = data['Items.json'] || [];
     
-    // Calculate unique customers from MO headers
-    const uniqueCustomers = new Set(moHeaders.map((mo: any) => mo.Customer).filter(Boolean)).size;
+    // Calculate unique customers from active MO headers only
+    const uniqueCustomers = new Set(activeMoHeaders.map((mo: any) => mo.Customer).filter(Boolean)).size;
     
     // Calculate low stock items
     const lowStockItems = items.filter((item: any) => {
@@ -536,7 +538,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
     const dataSummary = {
       salesOrders: allSalesOrders.length,
-      manufacturingOrders: moHeaders.length,
+      manufacturingOrders: activeMoHeaders.length,
       items: items.length,
       customers: uniqueCustomers,
       lowStockItems,
@@ -1151,8 +1153,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                     <div className="text-gray-600">Inventory Items</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-purple-200">
-                                    <div className="font-bold text-purple-600">{(data['ManufacturingOrderHeaders.json'] || []).length.toLocaleString()}</div>
-                                    <div className="text-gray-600">Manufacturing Orders</div>
+                                    <div className="font-bold text-purple-600">{(data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => String(mo.Status ?? '2') !== '2').length.toLocaleString()}</div>
+                                    <div className="text-gray-600">Active MOs</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-orange-200">
                                     <div className="font-bold text-orange-600">{(data['PurchaseOrders.json'] || []).length.toLocaleString()}</div>

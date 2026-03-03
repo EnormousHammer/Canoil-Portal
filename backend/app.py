@@ -6099,7 +6099,7 @@ def analyze_inventory_data(data, query):
             "total_items": len(customalert5_items),
             "items_with_stock": len([item for item in customalert5_items if safe_float(item.get("Stock", 0)) > 0]),
             "total_boms": len(bom_headers),
-            "active_manufacturing_orders": len([mo for mo in mo_headers if mo.get("Status", 0) in [1, 2]]),
+            "active_manufacturing_orders": len([mo for mo in mo_headers if str(mo.get("Status", "2")) not in ["2"]]),
             "active_purchase_orders": len([po for po in po_headers if po.get("Status", 0) == 1]),
         }
         
@@ -6157,7 +6157,7 @@ def find_item_usage_and_availability(data, item_description_or_no, quantity_need
         # Find active manufacturing orders using this item
         active_usage = []
         for mo in mo_headers:
-            if mo.get("Status", 0) in [1, 2]:  # Released or WIP
+            if str(mo.get("Status", "2")) not in ["2"]:  # Open ('0') or Released/Active ('1')
                 # Check if this MO uses our item
                 mo_no = mo.get("Mfg. Order No.", "")
                 for mo_detail in mo_details:

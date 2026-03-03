@@ -1365,10 +1365,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
   const manufacturingMetrics = useMemo(() => {
     const allMOs = data['ManufacturingOrderHeaders.json'] || [];
-    const pending = allMOs.filter((mo: any) => mo["Status"] === 0).length;
-    const active = allMOs.filter((mo: any) => mo["Status"] === 1).length;
-    const closed = allMOs.filter((mo: any) => mo["Status"] === 2).length;
-    const activeMOsList = allMOs.filter((mo: any) => mo["Status"] === 0 || mo["Status"] === 1);
+    // Status comes as strings: '0' = Open, '1' = Released/Active, '2' = Closed/Completed
+    const pending = allMOs.filter((mo: any) => String(mo["Status"]) === '0').length;
+    const active = allMOs.filter((mo: any) => String(mo["Status"]) === '1').length;
+    const closed = allMOs.filter((mo: any) => String(mo["Status"]) === '2').length;
+    const activeMOsList = allMOs.filter((mo: any) => String(mo["Status"]) === '0' || String(mo["Status"]) === '1');
     const totalValue = activeMOsList.reduce((sum: number, mo: any) => {
       const cost = parseFloat(mo["Cumulative Cost"] || mo["Total Material Cost"] || 0);
       return sum + cost;
@@ -2262,10 +2263,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 purchaseMetrics={purchaseMetrics}
                 salesOrderAnalytics={salesOrderAnalytics}
                 jobsAnalytics={{
-                  activeJobs: (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => mo['Status'] === '1').length,
-                  activeWorkOrders: (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => mo['Status'] === '1').length,
-                  completedJobs: (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => mo['Status'] === '2').length,
-                  totalJobs: (data['ManufacturingOrderHeaders.json'] || []).length,
+                  activeJobs: (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => String(mo['Status']) !== '2').length,
+                  activeWorkOrders: (data['ManufacturingOrderDetails.json'] || []).filter((mo: any) => String(mo['Status']) === '1').length,
+                  completedJobs: (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => String(mo['Status']) === '2').length,
+                  totalJobs: (data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => String(mo['Status']) !== '2').length,
                   totalJobValue: 0
                 }}
                 formatCAD={formatCAD}
