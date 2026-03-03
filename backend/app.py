@@ -89,6 +89,16 @@ except ImportError as e:
     SAGE_AVAILABLE = False
     print(f"Sage 50 integration not available: {e}")
 
+# Import Sage G Drive CSV service (reads exported CSVs from local G: Drive path)
+try:
+    import sage_gdrive_service
+    SAGE_GDRIVE_AVAILABLE = True
+    print("Sage G Drive CSV service loaded")
+except ImportError as e:
+    sage_gdrive_service = None
+    SAGE_GDRIVE_AVAILABLE = False
+    print(f"Sage G Drive service not available: {e}")
+
 # Import Portal ERP services (Phase 1-4)
 try:
     import db_service
@@ -8176,6 +8186,321 @@ def sage_receipts():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# SAGE G DRIVE CSV ENDPOINTS  (read from exported CSVs, no MySQL required)
+# ============================================================================
+
+def _sgds():
+    """Shortcut: return sage_gdrive_service or None."""
+    return sage_gdrive_service if SAGE_GDRIVE_AVAILABLE else None
+
+
+@app.route('/api/sage/gdrive/status')
+def sage_gdrive_status():
+    """Check Sage G Drive folder status and cache info."""
+    s = _sgds()
+    if not s:
+        return jsonify({"available": False, "error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify({"available": True, **s.get_status()})
+    except Exception as e:
+        return jsonify({"available": False, "error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/load', methods=['POST'])
+def sage_gdrive_load():
+    """Force-reload Sage data from G Drive CSVs into memory cache."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        tables, err = s.load_data(force=True)
+        if err and not tables:
+            return jsonify({"error": err}), 500
+        return jsonify({"ok": True, "tables_loaded": len(tables),
+                        "row_counts": {k: len(v) for k, v in tables.items()}})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/customers')
+def sage_gdrive_customers():
+    """List Sage customers from G Drive CSV."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        search = request.args.get('search')
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 500))
+        offset = int(request.args.get('offset', 0))
+        return jsonify(s.get_customers(search=search, inactive=inactive, limit=limit, offset=offset))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/customer-by-name')
+def sage_gdrive_customer_by_name():
+    """Look up a Sage customer by name (for MO Sage tab)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    name = request.args.get('name', '')
+    if not name:
+        return jsonify({"error": "name parameter required"}), 400
+    try:
+        result = s.get_customer_by_name(name)
+        if not result:
+            return jsonify({"customer": None, "found": False})
+        return jsonify({"customer": result, "found": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/inventory')
+def sage_gdrive_inventory():
+    """List Sage inventory with stock and YTD stats from G Drive CSV."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        search = request.args.get('search')
+        inactive = request.args.get('inactive', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 700))
+        offset = int(request.args.get('offset', 0))
+        return jsonify(s.get_inventory(search=search, inactive=inactive, limit=limit, offset=offset))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/item-pricing/<int:item_id>')
+def sage_gdrive_item_pricing(item_id):
+    """Get all pricing tiers for a single Sage inventory item."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_item_pricing(item_id))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/sales-orders')
+def sage_gdrive_sales_orders():
+    """List Sage sales orders from G Drive CSV."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        search = request.args.get('search')
+        customer_id = request.args.get('customer_id', None, type=int)
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        limit = int(request.args.get('limit', 200))
+        offset = int(request.args.get('offset', 0))
+        return jsonify(s.get_sales_orders(search=search, customer_id=customer_id,
+                                          date_from=date_from, date_to=date_to,
+                                          limit=limit, offset=offset))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# -- Sage G Drive Analytics --
+
+@app.route('/api/sage/gdrive/analytics/kpis')
+def sage_gdrive_kpis():
+    """Dashboard KPIs: YTD revenue, active customers, open SOs."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_dashboard_kpis())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/top-customers')
+def sage_gdrive_top_customers():
+    """Top customers by YTD sales with YoY change and credit utilization."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        limit = int(request.args.get('limit', 25))
+        return jsonify(s.get_top_customers(limit=limit))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/best-movers')
+def sage_gdrive_best_movers():
+    """Best-moving items by YTD units sold with revenue and margin."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        limit = int(request.args.get('limit', 25))
+        return jsonify(s.get_best_movers(limit=limit))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/monthly-revenue')
+def sage_gdrive_monthly_revenue():
+    """Monthly invoiced revenue for the requested year."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+        return jsonify(s.get_monthly_revenue(year=year))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/ar-aging')
+def sage_gdrive_ar_aging():
+    """Customer AR aging buckets (0-30, 31-60, 61-90, 90+ days)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_ar_aging())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/sales-by-product')
+def sage_gdrive_sales_by_product():
+    """Top products by invoiced revenue from transaction lines."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        limit = int(request.args.get('limit', 25))
+        return jsonify(s.get_sales_by_product(limit=limit))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# -- MO Sage Tab --
+
+@app.route('/api/mo/<mo_no>/sage-tab')
+def api_mo_sage_tab(mo_no):
+    """Full Sage data for the MO detail Sage tab (customer + item pricing)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        data = _data_cache or {}
+        mos = data.get("ManufacturingOrderHeaders.json", [])
+        mo = next((m for m in mos if str(m.get("Mfg. Order No.") or m.get("mohId") or "").strip() == str(mo_no).strip()), None)
+        customer_name = ""
+        build_item = ""
+        component_ids = []
+        if mo:
+            customer_name = str(mo.get("Customer") or "").strip()
+            build_item = str(mo.get("Build Item No.") or mo.get("buildItemNo") or "").strip()
+            mo_details = data.get("ManufacturingOrderDetails.json", [])
+            component_ids = list(set(
+                str(d.get("Item No.") or d.get("Planned Item No.") or d.get("itemId") or "").strip()
+                for d in mo_details
+                if str(d.get("Mfg. Order No.") or d.get("mohId") or "").strip() == str(mo_no).strip()
+                and str(d.get("Item No.") or d.get("Planned Item No.") or "").strip()
+            ))
+        result = s.get_mo_sage_data(customer_name, build_item, component_ids)
+        result["mo_no"] = mo_no
+        result["customer_name_searched"] = customer_name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# -- Item Mapping endpoints --
+
+@app.route('/api/sage/item-mapping')
+def sage_item_mapping_get():
+    """Get all item mappings."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_all_item_mappings())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/item-mapping/suggest', methods=['POST'])
+def sage_item_mapping_suggest():
+    """Run suggestion algorithm against all MiSys items and current Sage inventory."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        data = _data_cache or {}
+        misys_items = data.get("Items.json", [])
+        if not misys_items:
+            return jsonify({"error": "MiSys item data not loaded — load /api/data first"}), 400
+        stats = s.suggest_item_mappings(misys_items)
+        return jsonify({"ok": True, "stats": stats})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/item-mapping/confirm', methods=['POST'])
+def sage_item_mapping_confirm():
+    """Confirm a single item mapping (user explicitly approves)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    misys_id = body.get("misys_item_id", "").strip()
+    sage_code = body.get("sage_part_code", "").strip()
+    if not misys_id or not sage_code:
+        return jsonify({"error": "misys_item_id and sage_part_code required"}), 400
+    user = auth_service.get_current_user() if auth_service else {}
+    confirmed_by = user.get("email", body.get("confirmed_by", "user"))
+    try:
+        result = s.confirm_item_mapping(misys_id, sage_code, confirmed_by=confirmed_by)
+        if "error" in result:
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/item-mapping/reject', methods=['POST'])
+def sage_item_mapping_reject():
+    """Reject/clear an item mapping suggestion."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    body = request.get_json(force=True, silent=True) or {}
+    misys_id = body.get("misys_item_id", "").strip()
+    if not misys_id:
+        return jsonify({"error": "misys_item_id required"}), 400
+    user = auth_service.get_current_user() if auth_service else {}
+    confirmed_by = user.get("email", "user")
+    try:
+        return jsonify(s.reject_item_mapping(misys_id, confirmed_by=confirmed_by))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/item-mapping/bulk-confirm-exact', methods=['POST'])
+def sage_item_mapping_bulk_confirm():
+    """Bulk-confirm all exact (score=1.0) unconfirmed mappings."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    user = auth_service.get_current_user() if auth_service else {}
+    confirmed_by = user.get("email", "user")
+    try:
+        return jsonify(s.bulk_confirm_exact_mappings(confirmed_by=confirmed_by))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================

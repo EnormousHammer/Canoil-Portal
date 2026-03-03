@@ -2984,6 +2984,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         { id: 'transactions', label: 'Transactions', icon: <Activity className="w-4 h-4" /> },
                         ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots', icon: <Hash className="w-4 h-4" /> }] : []),
                       ]},
+                      { title: 'Accounting', items: [
+                        { id: 'sage', label: 'Sage Accounting', icon: <span className="text-[13px]">🏦</span> },
+                      ]},
                     ];
                     const moAllTabIds = moNavSections.flatMap((s) => s.items.map((i) => i.id));
                     const moCurrentIdx = moAllTabIds.indexOf(moActiveTab);
@@ -3054,6 +3057,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             { id: 'pegged', label: 'Sales Order Related' },
                             { id: 'transactions', label: 'Transactions' },
                             ...(dataCatalog.hasLotTrace && moView?.buildItemNo ? [{ id: 'lots', label: 'Lots' }] : []),
+                          ]},
+                          { title: 'Accounting', items: [
+                            { id: 'sage', label: 'Sage Accounting' },
                           ]},
                         ];
                         const moAllTabIds = moNavSections.flatMap((s) => s.items.map((i) => i.id));
@@ -4087,6 +4093,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   )}
 
                   {/* MO Lots Tab (build item lots) */}
+                  {/* MO Sage Accounting Tab */}
+                  {moActiveTab === 'sage' && (
+                    <MOSageTab moNo={moView.moNo ?? selectedMoNo} customerName={moView.customer ?? selectedMO?.['Customer'] ?? ''} />
+                  )}
+
                   {moActiveTab === 'lots' && (
                     <div className="space-y-6">
                       <div className="text-sm text-slate-600">Lots for build item {moView.buildItemNo}</div>
@@ -11717,6 +11728,248 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       {/* Toast Notifications */}
       <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </>
+  );
+};
+
+// ============================================================================
+// MO Sage Accounting Tab
+// ============================================================================
+const MOSageTab: React.FC<{ moNo: string; customerName: string }> = ({ moNo, customerName }) => {
+  const [loading, setLoading] = React.useState(true);
+  const [data, setData] = React.useState<any>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!moNo) return;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/mo/${encodeURIComponent(moNo)}/sage-tab`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) setError(d.error);
+        else setData(d);
+        setLoading(false);
+      })
+      .catch(e => { setError(String(e)); setLoading(false); });
+  }, [moNo]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 p-8 text-slate-500">
+        <svg className="animate-spin h-5 w-5 text-orange-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span className="text-sm">Loading Sage accounting data…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+          <p className="font-semibold mb-1">Sage data not available</p>
+          <p className="text-xs">{error}</p>
+          <p className="text-xs mt-2 text-amber-600">Make sure the Sage G Drive CSV export is synced and the backend can access it.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const customer = data.customer;
+  const buildItem = data.build_item;
+  const components = data.components || [];
+  const mappingNote = data.mapping_note;
+
+  const fmt = (n: number | null | undefined, currency = 'CAD') =>
+    n != null ? n.toLocaleString('en-CA', { style: 'currency', currency, minimumFractionDigits: 2 }) : '—';
+
+  const pct = (n: number | null | undefined) =>
+    n != null ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—';
+
+  const PRICE_LIST_NAMES: Record<number, string> = { 1: 'Regular', 2: 'Preferred', 3: 'Web Price', 4: 'Master' };
+  const CURRENCY_NAMES: Record<number, string> = { 1: 'CAD', 2: 'USD' };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <span className="text-lg">🏦</span>
+        <h3 className="text-base font-bold text-slate-800">Sage Accounting</h3>
+        <span className="ml-auto text-[10px] text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">READ-ONLY · From G Drive CSV export</span>
+      </div>
+
+      {mappingNote && (
+        <div className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">{mappingNote}</div>
+      )}
+
+      {/* Customer Panel */}
+      {customer ? (
+        <div className="rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white">
+            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Sage Customer — READ-ONLY</p>
+            <p className="text-base font-bold truncate">{customer.sName}</p>
+            <p className="text-xs opacity-80">{customer.sCity}{customer.sProvState ? `, ${customer.sProvState}` : ''}{customer.sCountry ? ` · ${customer.sCountry}` : ''}</p>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* YTD Sales */}
+            <div className="bg-white rounded-lg p-3 border border-orange-100">
+              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">YTD Sales</p>
+              <p className="text-lg font-bold text-slate-900 tabular-nums">{fmt(customer.dAmtYtd, CURRENCY_NAMES[customer.lCurrncyId] || 'CAD')}</p>
+              <p className={`text-xs font-semibold mt-0.5 ${(customer.yoy_change_pct ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {pct(customer.yoy_change_pct)} vs last yr
+              </p>
+            </div>
+            {/* Prior Year */}
+            <div className="bg-white rounded-lg p-3 border border-orange-100">
+              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Prior Year</p>
+              <p className="text-base font-bold text-slate-700 tabular-nums">{fmt(customer.dLastYrAmt, CURRENCY_NAMES[customer.lCurrncyId] || 'CAD')}</p>
+              <p className="text-xs text-slate-400 mt-0.5">Last fiscal yr</p>
+            </div>
+            {/* Credit */}
+            <div className="bg-white rounded-lg p-3 border border-orange-100">
+              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Credit Limit</p>
+              <p className="text-base font-bold text-slate-700 tabular-nums">{fmt(customer.dCrLimit, CURRENCY_NAMES[customer.lCurrncyId] || 'CAD')}</p>
+              {customer.credit_utilization_pct != null && (
+                <div className="mt-1.5">
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${customer.credit_utilization_pct >= 90 ? 'bg-red-500' : customer.credit_utilization_pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(customer.credit_utilization_pct, 100)}%` }} />
+                  </div>
+                  <p className={`text-[10px] mt-0.5 font-semibold ${customer.credit_utilization_pct >= 90 ? 'text-red-600' : customer.credit_utilization_pct >= 70 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {customer.credit_utilization_pct.toFixed(1)}% utilized
+                  </p>
+                </div>
+              )}
+            </div>
+            {/* Terms */}
+            <div className="bg-white rounded-lg p-3 border border-orange-100">
+              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Terms</p>
+              <p className="text-base font-bold text-slate-700">{customer.nNetDay ? `Net ${customer.nNetDay}` : '—'}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {PRICE_LIST_NAMES[customer.lPrcListId] ?? 'Regular'} · {CURRENCY_NAMES[customer.lCurrncyId] ?? 'CAD'}
+              </p>
+            </div>
+          </div>
+          {/* Extra info row */}
+          <div className="px-4 pb-3 flex flex-wrap gap-4 text-xs text-slate-600">
+            {customer.sPhone1 && <span><span className="text-slate-400">Phone:</span> {customer.sPhone1}</span>}
+            {customer.sEmail && <span><span className="text-slate-400">Email:</span> {customer.sEmail}</span>}
+            {customer.dtLastSal && <span><span className="text-slate-400">Last Sale:</span> {customer.dtLastSal}</span>}
+            {customer.dtSince && <span><span className="text-slate-400">Customer Since:</span> {customer.dtSince}</span>}
+          </div>
+
+          {/* Recent Sage SOs */}
+          {customer.recent_orders && customer.recent_orders.length > 0 && (
+            <div className="border-t border-orange-200 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-700 mb-2">Recent Sage Sales Orders</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-orange-100/60">
+                      <th className="text-left px-2 py-1.5 font-semibold text-slate-600">SO #</th>
+                      <th className="text-left px-2 py-1.5 font-semibold text-slate-600">Date</th>
+                      <th className="text-left px-2 py-1.5 font-semibold text-slate-600">Ship Date</th>
+                      <th className="text-right px-2 py-1.5 font-semibold text-slate-600">Total</th>
+                      <th className="text-left px-2 py-1.5 font-semibold text-slate-600">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customer.recent_orders.slice(0, 10).map((so: any, i: number) => (
+                      <tr key={i} className="border-t border-orange-100 hover:bg-orange-50">
+                        <td className="px-2 py-1.5 font-mono text-orange-700 font-semibold">{so.sSONum || '—'}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{so.dtSODate || '—'}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{so.dtShipDate || '—'}</td>
+                        <td className="px-2 py-1.5 text-right font-mono font-semibold">{fmt(so.dTotal)}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${so.bQuote ? 'bg-slate-100 text-slate-600' : so.nFilled >= 2 ? 'bg-emerald-100 text-emerald-700' : so.nFilled === 1 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {so.bQuote ? 'Quote' : so.nFilled >= 2 ? 'Filled' : so.nFilled === 1 ? 'Partial' : 'Open'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+          <p className="font-medium">No Sage customer found</p>
+          <p className="text-xs mt-1">{customerName ? `Searched for: "${customerName}"` : 'No customer name on this MO'}</p>
+        </div>
+      )}
+
+      {/* Build Item Pricing */}
+      {buildItem && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 mb-3">Sage Finished Good Pricing</p>
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="font-mono text-sm font-bold text-blue-700">{buildItem.sPartCode}</span>
+            <span className="text-sm text-slate-600">{buildItem.sName}</span>
+            <span className="ml-auto text-xs text-slate-500">Stock: {(buildItem.dInStock ?? 0).toLocaleString()} {buildItem.sSellUnit}</span>
+          </div>
+          {buildItem.pricing && buildItem.pricing.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {buildItem.pricing.filter((p: any) => p.price > 0).map((p: any, i: number) => (
+                <div key={i} className="bg-white rounded-lg p-2.5 border border-blue-100 text-center">
+                  <p className="text-[10px] text-slate-500 font-medium">{p.price_list_name}</p>
+                  <p className="text-sm font-bold text-slate-800 tabular-nums">{fmt(p.price, p.currency)}</p>
+                  <p className="text-[10px] text-slate-400">{p.currency}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">No pricing configured in Sage for this item.</p>
+          )}
+        </div>
+      )}
+
+      {/* BOM Component Pricing */}
+      {components.length > 0 && (
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Sage Pricing for BOM Components ({components.length} mapped)</p>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold text-slate-600">Sage Part Code</th>
+                <th className="text-left px-3 py-2 font-semibold text-slate-600">MiSys Item</th>
+                <th className="text-left px-3 py-2 font-semibold text-slate-600">Description</th>
+                <th className="text-right px-3 py-2 font-semibold text-slate-600">Regular (CAD)</th>
+                <th className="text-right px-3 py-2 font-semibold text-slate-600">Preferred (CAD)</th>
+                <th className="text-right px-3 py-2 font-semibold text-slate-600">In Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {components.map((comp: any, i: number) => {
+                const regPrice = (comp.pricing || []).find((p: any) => p.price_list_id === 1 && p.currency_id === 1);
+                const prefPrice = (comp.pricing || []).find((p: any) => p.price_list_id === 2 && p.currency_id === 1);
+                return (
+                  <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono text-blue-600 font-medium">{comp.sPartCode}</td>
+                    <td className="px-3 py-2 font-mono text-slate-600">{comp.misys_item_id}</td>
+                    <td className="px-3 py-2 text-slate-700">{comp.sName}</td>
+                    <td className="px-3 py-2 text-right font-mono">{regPrice ? fmt(regPrice.price) : '—'}</td>
+                    <td className="px-3 py-2 text-right font-mono">{prefPrice ? fmt(prefPrice.price) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{(comp.dInStock ?? 0).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!customer && !buildItem && components.length === 0 && (
+        <div className="rounded-xl border border-slate-200 p-6 text-center text-slate-500">
+          <p className="text-2xl mb-2">🏦</p>
+          <p className="font-medium text-slate-700">No Sage data linked yet</p>
+          <p className="text-sm mt-2">To see pricing and customer data here, confirm item mappings in ERP Portal → Item Mapping.</p>
+        </div>
+      )}
+    </div>
   );
 };
 
