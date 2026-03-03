@@ -139,10 +139,39 @@ export class GDriveDataLoader {
   public async loadAllData(options?: { source?: 'default' | 'full_company_data' | 'live_sql' }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
     const source = options?.source ?? 'default';
     try {
+      // For live_sql: call the bridge directly to avoid loading 250MB through Render's memory.
+      // Render just tells us the bridge URL via /api/live-sql-url, then we fetch directly.
+      if (source === 'live_sql') {
+        console.log('⚡ Live SQL: fetching bridge URL from Render...');
+        const urlRes = await fetch(getApiUrl('/api/live-sql-url'), { method: 'GET' });
+        if (!urlRes.ok) throw new Error('Could not get Live SQL bridge URL from backend');
+        const { url: bridgeUrl, available } = await urlRes.json();
+        if (!available || !bridgeUrl) throw new Error('Live SQL bridge is not available. Make sure the bridge is running on your PC.');
+        console.log(`⚡ Live SQL: calling bridge directly at ${bridgeUrl}`);
+        const bridgeRes = await fetch(`${bridgeUrl}/api/data`, {
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'gzip, deflate', 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(300000)
+        });
+        if (!bridgeRes.ok) throw new Error(`Bridge returned ${bridgeRes.status}`);
+        const result = await bridgeRes.json();
+        if (result.data) {
+          Object.keys(result.data).forEach(fileName => {
+            if (fileName === 'MPS.json') this.loadedData[fileName] = result.data[fileName] ?? { mps_orders: [], summary: { total_orders: 0 } };
+            else if (fileName.endsWith('.json')) this.loadedData[fileName] = result.data[fileName] || [];
+          });
+          this.loadedData.loaded = true;
+        }
+        return {
+          data: result.data || {},
+          folderInfo: result.folderInfo || { folderName: 'MISys Live SQL', syncDate: new Date().toISOString() },
+          source: result.source || 'live_sql',
+          fullCompanyDataReady: result.fullCompanyDataReady ?? true
+        };
+      }
+
       const apiUrl = source === 'full_company_data'
         ? getApiUrl('/api/data?source=full_company_data')
-        : source === 'live_sql'
-        ? getApiUrl('/api/data?source=live_sql')
         : getApiUrl('/api/data');
       console.log('📡 Loading data from backend:', {
         url: apiUrl,

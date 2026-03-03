@@ -4814,6 +4814,16 @@ def mrp_auto_create_po():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/live-sql-url', methods=['GET'])
+def live_sql_url():
+    """Return the current MISys bridge tunnel URL so the frontend can call it directly.
+    This avoids loading 250MB through Render's memory."""
+    bridge_url = os.environ.get('MISYS_LIVE_SQL_URL', '').strip()
+    if bridge_url:
+        return jsonify({"url": bridge_url, "available": True})
+    return jsonify({"url": None, "available": False, "message": "MISYS_LIVE_SQL_URL not configured"})
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint - FAST, doesn't check G: Drive (Cloud Run can't access it)
