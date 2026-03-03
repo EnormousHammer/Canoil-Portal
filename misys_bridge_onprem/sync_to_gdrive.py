@@ -58,13 +58,9 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ('utf-8', 'utf8'):
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-GDRIVE_BASE = Path(r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data")
-
-# Path 1: API Extractions — used by the app's default data load (YYYY-MM-DD_HH-MM folders)
-GDRIVE_API_EXTRACTIONS = GDRIVE_BASE / "API Extractions"
-
-# Path 2: Full Company Data — mirrors the manual MISys export (human-readable folder names)
-GDRIVE_FULL_COMPANY = GDRIVE_BASE / "Full Company Data From Misys"
+GDRIVE_FULL_COMPANY = Path(
+    r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data From Misys"
+)
 
 # How many old folders to keep (older ones are deleted automatically)
 KEEP_LAST_N_FOLDERS = 7
@@ -224,25 +220,6 @@ def main():
 
     _write_manifest(fc_folder, fc_written, total_rows, now)
     print(f"  OK: {fc_written} CSV files written to: {fc_folder_name}")
-
-    # ── SECONDARY: API Extractions (if folder exists — used by app's default load) ──
-    api_folder_name = make_folder_name()
-    if GDRIVE_API_EXTRACTIONS.exists():
-        api_folder = GDRIVE_API_EXTRACTIONS / api_folder_name
-        api_folder.mkdir(parents=True, exist_ok=True)
-        written = 0
-        for table_name, rows in data.items():
-            if not isinstance(rows, list) or not rows:
-                continue
-            aliases = {}
-            defn = tables_def.get(table_name)
-            if isinstance(defn, tuple) and len(defn) >= 2 and isinstance(defn[1], dict):
-                aliases = defn[1]
-            write_table_csv(api_folder, table_name, rows, aliases)
-            written += 1
-        _write_manifest(api_folder, written, total_rows, now)
-        print(f"  OK: {written} files also written to API Extractions: {api_folder_name}")
-        cleanup_old_folders(GDRIVE_API_EXTRACTIONS, KEEP_LAST_N_FOLDERS)
 
     # 4. Cleanup old Full Company Data folders
     print(f"\n[4/4] Cleaning up old folders (keeping last {KEEP_LAST_N_FOLDERS})...")
