@@ -167,7 +167,56 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const [dataSummary, setDataSummary] = useState<DataSummary | null>(null);
   const [enterpriseAnalytics, setEnterpriseAnalytics] = useState<EnterpriseAnalytics | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  // Year-by-year Sage analytics
+  const currentYear = new Date().getFullYear();
+  const [analyticsYear, setAnalyticsYear] = useState<number>(currentYear);
+  const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
+  const [sageKpis, setSageKpis] = useState<any>(null);
+  const [sageMonthly, setSageMonthly] = useState<any[]>([]);
+  const [sageTopCustomers, setSageTopCustomers] = useState<any[]>([]);
+  const [sageBestMovers, setSageBestMovers] = useState<any[]>([]);
+  const [isLoadingSageAnalytics, setIsLoadingSageAnalytics] = useState(false);
+  const [sageAnalyticsError, setSageAnalyticsError] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch year-by-year Sage analytics from backend
+  const loadSageAnalytics = async (year: number) => {
+    setIsLoadingSageAnalytics(true);
+    setSageAnalyticsError(null);
+    try {
+      const [yearsRes, kpisRes, monthlyRes, customersRes, moversRes] = await Promise.all([
+        fetch(getApiUrl('/api/sage/gdrive/analytics/available-years')),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/kpis?year=${year}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/monthly-revenue?year=${year}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/top-customers?limit=15&year=${year}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/best-movers?limit=15&year=${year}`)),
+      ]);
+
+      if (yearsRes.ok) {
+        const y = await yearsRes.json();
+        if (y.years?.length) setAvailableYears(y.years);
+      }
+      if (kpisRes.ok) setSageKpis(await kpisRes.json());
+      if (monthlyRes.ok) {
+        const m = await monthlyRes.json();
+        setSageMonthly(m.months || m.monthly_data || []);
+      }
+      if (customersRes.ok) {
+        const c = await customersRes.json();
+        setSageTopCustomers(c.customers || c.top_customers || []);
+      }
+      if (moversRes.ok) {
+        const mv = await moversRes.json();
+        setSageBestMovers(mv.items || mv.best_movers || []);
+      }
+    } catch (err) {
+      setSageAnalyticsError('Could not load Sage analytics — backend may be offline.');
+    } finally {
+      setIsLoadingSageAnalytics(false);
+    }
+  };
 
   // Generate enterprise analytics from existing data (no API call needed!)
   const generateEnterpriseAnalytics = () => {
@@ -333,7 +382,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     if (activeTab === 'analytics' && !enterpriseAnalytics) {
       generateEnterpriseAnalytics();
     }
+    if (activeTab === 'analytics') {
+      loadSageAnalytics(analyticsYear);
+    }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch Sage analytics when year changes
+  useEffect(() => {
+    if (activeTab === 'analytics') {
+      loadSageAnalytics(analyticsYear);
+    }
+  }, [analyticsYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Interactive handlers
   const handleItemClick = (item: any) => {
@@ -1234,9 +1293,211 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         )}
 
         {activeTab === 'analytics' && (
-          <div className="max-w-7xl mx-auto">
-            {/* CLEAN PROFESSIONAL HEADER */}
-            <div className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 shadow-lg">
+          <div className="max-w-7xl mx-auto space-y-5">
+
+            {/* Header + Year Filter */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Sales Analytics</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Sage 50 invoiced revenue — real accounting data</p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {availableYears.map(y => (
+                  <button key={y} onClick={() => setAnalyticsYear(y)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
+                      analyticsYear === y
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
+                    }`}>
+                    {y === currentYear ? `${y} YTD` : String(y)}
+                  </button>
+                ))}
+                <button onClick={() => loadSageAnalytics(analyticsYear)} disabled={isLoadingSageAnalytics}
+                  className="ml-1 px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSageAnalytics ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {sageAnalyticsError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{sageAnalyticsError}</div>
+            )}
+
+            {isLoadingSageAnalytics && !sageKpis ? (
+              <div className="flex items-center justify-center py-20 gap-3 text-slate-500">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                <span className="text-sm font-medium">Loading {analyticsYear} data…</span>
+              </div>
+            ) : sageKpis ? (
+              <>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                      {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear} Revenue`}
+                    </p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      ${(sageKpis.total_ytd_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                    {sageKpis.yoy_revenue_pct != null && (
+                      <p className={`text-xs mt-1 font-semibold ${sageKpis.yoy_revenue_pct >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {sageKpis.yoy_revenue_pct >= 0 ? '▲' : '▼'} {Math.abs(sageKpis.yoy_revenue_pct)}% vs prior year
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Prior Year</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      ${(sageKpis.total_ly_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Open Sales Orders</p>
+                    <p className="text-2xl font-bold text-slate-900">{sageKpis.open_sales_orders || 0}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      ${(sageKpis.open_so_value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} value
+                    </p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Active Customers</p>
+                    <p className="text-2xl font-bold text-slate-900">{sageKpis.active_customers || 0}</p>
+                  </div>
+                </div>
+
+                {/* Monthly Revenue Chart */}
+                {sageMonthly.length > 0 && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4">Monthly Revenue — {analyticsYear}</h3>
+                    <div className="space-y-2">
+                      {(() => {
+                        const maxRev = Math.max(...sageMonthly.map(m => m.revenue || 0), 1);
+                        return sageMonthly.map((m, i) => {
+                          const pct = ((m.revenue || 0) / maxRev) * 100;
+                          const isMax = m.revenue === maxRev && maxRev > 0;
+                          return (
+                            <div key={i} className="flex items-center gap-3">
+                              <span className="w-8 text-xs text-slate-500 text-right shrink-0">{m.month_name?.slice(0,3)}</span>
+                              <div className="flex-1 bg-slate-100 rounded-full h-7 relative overflow-hidden">
+                                <div className={`h-7 rounded-full flex items-center px-2 transition-all duration-500 ${isMax ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                  style={{ width: `${Math.max(pct, m.revenue > 0 ? 3 : 0)}%` }}>
+                                  {pct > 15 && (
+                                    <span className="text-white text-xs font-semibold">
+                                      ${(m.revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="w-20 text-xs text-slate-600 text-right shrink-0 font-medium">
+                                {pct <= 15 && m.revenue > 0
+                                  ? `$${(m.revenue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                  : `${m.order_count || 0} inv.`}
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Customers + Best Movers */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Top Customers */}
+                  {sageTopCustomers.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4">Top Customers — {analyticsYear}</h3>
+                      <div className="space-y-2">
+                        {sageTopCustomers.slice(0, 10).map((c, i) => {
+                          const maxRev = sageTopCustomers[0]?.dAmtYtd || 1;
+                          const pct = ((c.dAmtYtd || 0) / maxRev) * 100;
+                          return (
+                            <div key={i} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-medium text-slate-800 truncate max-w-[60%]">
+                                  {i + 1}. {c.sName}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {c.yoy_change_pct != null && (
+                                    <span className={`font-semibold ${c.yoy_change_pct >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                      {c.yoy_change_pct >= 0 ? '▲' : '▼'}{Math.abs(c.yoy_change_pct)}%
+                                    </span>
+                                  )}
+                                  <span className="font-bold text-slate-900">${(c.dAmtYtd || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5">
+                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Best Movers */}
+                  {sageBestMovers.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4">Top Products — {analyticsYear}</h3>
+                      <div className="space-y-2">
+                        {sageBestMovers.slice(0, 10).map((item, i) => {
+                          const maxRev = sageBestMovers[0]?.revenue || sageBestMovers[0]?.dAmtYtd || 1;
+                          const rev = item.revenue || item.dAmtYtd || 0;
+                          const pct = (rev / maxRev) * 100;
+                          return (
+                            <div key={i} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-medium text-slate-800 truncate max-w-[65%]">
+                                  {i + 1}. {item.sName || item.name || item.sPartCode}
+                                </span>
+                                <span className="font-bold text-slate-900">
+                                  ${rev.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5">
+                                <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p className="text-sm">No Sage analytics data available for {analyticsYear}.</p>
+              </div>
+            )}
+
+            {/* Divider + MiSys local analytics below */}
+            {enterpriseAnalytics && (
+              <div className="border-t border-slate-200 pt-5">
+                <h3 className="text-sm font-bold text-slate-700 mb-4">MiSys Sales Orders (PDF data)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <p className="text-xs text-slate-500 mb-1">Total Orders</p>
+                    <p className="text-xl font-bold text-slate-900">{enterpriseAnalytics.kpis?.revenue?.total_orders || 0}</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <p className="text-xs text-slate-500 mb-1">Total Value</p>
+                    <p className="text-xl font-bold text-slate-900">
+                      ${(enterpriseAnalytics.kpis?.revenue?.total_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <p className="text-xs text-slate-500 mb-1">Avg Order</p>
+                    <p className="text-xl font-bold text-slate-900">
+                      ${(enterpriseAnalytics.kpis?.revenue?.avg_order_value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {false && <div className="hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-white/20 rounded-lg">
@@ -2206,6 +2467,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 </button>
               </div>
             )}
+            </div>}
           </div>
         )}
 
