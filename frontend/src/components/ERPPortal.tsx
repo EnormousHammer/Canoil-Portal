@@ -16,62 +16,119 @@ interface ERPPortalProps {
   currentUser?: any;
 }
 
-const SECTIONS: { id: ERPSection; label: string; icon: string; color: string }[] = [
-  { id: 'overview', label: 'Overview', icon: '📊', color: 'blue' },
-  { id: 'customers', label: 'Customers', icon: '👥', color: 'indigo' },
-  { id: 'sales-orders', label: 'Sales Orders', icon: '📋', color: 'cyan' },
-  { id: 'shipments', label: 'Shipments', icon: '🚚', color: 'teal' },
-  { id: 'invoices', label: 'Invoices', icon: '💰', color: 'green' },
-  { id: 'approvals', label: 'Approvals', icon: '✅', color: 'amber' },
-  { id: 'mrp', label: 'MRP', icon: '🔧', color: 'violet' },
-  { id: 'qc', label: 'Quality', icon: '🔬', color: 'rose' },
-  { id: 'financials', label: 'Financials', icon: '📈', color: 'emerald' },
-  { id: 'sage-browser', label: 'Sage Browser', icon: '🏦', color: 'orange' },
-  { id: 'sage-analytics', label: 'Sage Analytics', icon: '📊', color: 'amber' },
-  { id: 'item-mapping', label: 'Item Mapping', icon: '🔗', color: 'teal' },
-  { id: 'notifications', label: 'Alerts', icon: '🔔', color: 'yellow' },
-  { id: 'audit-log', label: 'Audit Log', icon: '📜', color: 'slate' },
-  { id: 'admin', label: 'Admin', icon: '⚙️', color: 'gray' },
+const SECTIONS: { id: ERPSection; label: string; icon: string; desc: string }[] = [
+  { id: 'overview',       label: 'Overview',       icon: '◈',  desc: 'System status & summary' },
+  { id: 'customers',      label: 'Customers',      icon: '◎',  desc: 'Sage 50 customer master' },
+  { id: 'sales-orders',   label: 'Sales Orders',   icon: '▤',  desc: 'Active orders' },
+  { id: 'shipments',      label: 'Shipments',      icon: '⬡',  desc: 'Shipping schedule' },
+  { id: 'invoices',       label: 'Invoices',       icon: '◻',  desc: 'Invoice management' },
+  { id: 'approvals',      label: 'Approvals',      icon: '◈',  desc: 'Pending approvals' },
+  { id: 'mrp',            label: 'MRP',            icon: '⬡',  desc: 'Material requirements' },
+  { id: 'qc',             label: 'Quality',        icon: '◎',  desc: 'QC inspections' },
+  { id: 'financials',     label: 'Financials',     icon: '▤',  desc: 'AR / AP / GL views' },
+  { id: 'sage-browser',   label: 'Sage Browser',   icon: '◈',  desc: 'Sage 50 live data' },
+  { id: 'sage-analytics', label: 'Sage Analytics', icon: '▤',  desc: 'Revenue & customer analytics' },
+  { id: 'item-mapping',   label: 'Item Mapping',   icon: '⬡',  desc: 'MiSys ↔ Sage mapping' },
+  { id: 'notifications',  label: 'Alerts',         icon: '◎',  desc: 'System notifications' },
+  { id: 'audit-log',      label: 'Audit Log',      icon: '◻',  desc: 'Activity trail' },
+  { id: 'admin',          label: 'Admin',          icon: '◈',  desc: 'Users & ETL administration' },
+];
+
+const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
+  { label: 'Operations',    ids: ['overview', 'sales-orders', 'shipments', 'invoices'] },
+  { label: 'CRM',           ids: ['customers'] },
+  { label: 'Finance',       ids: ['financials', 'approvals'] },
+  { label: 'Manufacturing', ids: ['mrp', 'qc'] },
+  { label: 'Sage 50',       ids: ['sage-analytics', 'sage-browser', 'item-mapping'] },
+  { label: 'System',        ids: ['notifications', 'audit-log', 'admin'] },
 ];
 
 export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
   const [section, setSection] = useState<ERPSection>('overview');
+  const active = SECTIONS.find(s => s.id === section)!;
 
   return (
-    <div className="space-y-4">
-      {/* Section Nav */}
-      <div className="flex flex-wrap gap-2">
-        {SECTIONS.map(s => (
-          <button
-            key={s.id}
-            onClick={() => setSection(s.id)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition-all
-              ${section === s.id
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-          >
-            <span className="mr-1">{s.icon}</span> {s.label}
-          </button>
-        ))}
+    <div
+      className="flex rounded-2xl overflow-hidden border border-slate-200 shadow-xl"
+      style={{ height: 'calc(100vh - 200px)', minHeight: '640px' }}
+    >
+      {/* ── Sidebar ────────────────────────────────────────────── */}
+      <div className="w-52 flex-shrink-0 flex flex-col bg-slate-950 border-r border-white/5">
+        {/* Brand strip */}
+        <div className="px-5 py-4 border-b border-white/10">
+          <p className="text-[10px] font-bold tracking-[0.18em] text-slate-400 uppercase">ERP Portal</p>
+          <p className="text-[11px] text-slate-600 mt-0.5 tracking-tight">Enterprise System</p>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto scrollbar-enterprise py-2">
+          {NAV_GROUPS.map(group => (
+            <div key={group.label} className="mb-1">
+              <p className="px-5 pt-4 pb-1.5 text-[9px] font-bold tracking-[0.22em] text-slate-600 uppercase select-none">
+                {group.label}
+              </p>
+              {group.ids.map(id => {
+                const s = SECTIONS.find(x => x.id === id)!;
+                const isActive = section === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setSection(id)}
+                    className={`w-full flex items-center gap-2.5 px-5 py-2 text-[13px] font-medium transition-all duration-100 text-left
+                      ${isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`}
+                  >
+                    <span className={`text-[11px] leading-none tabular-nums w-3.5 text-center flex-shrink-0 ${isActive ? 'text-blue-200' : 'text-slate-600'}`}>
+                      {s.icon}
+                    </span>
+                    <span className="truncate tracking-[-0.01em]">{s.label}</span>
+                    {isActive && <div className="ml-auto w-1 h-3.5 rounded-full bg-blue-300/60 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-white/10">
+          <p className="text-[10px] text-slate-700 tracking-tight">Sage G Drive · Read-only</p>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6">
-        {section === 'overview' && <ERPOverview />}
-        {section === 'customers' && <CustomerSection />}
-        {section === 'sales-orders' && <SalesOrderSection data={data} />}
-        {section === 'shipments' && <ShipmentSection />}
-        {section === 'invoices' && <InvoiceSection />}
-        {section === 'approvals' && <ApprovalSection />}
-        {section === 'mrp' && <MRPSection />}
-        {section === 'qc' && <QCSection />}
-        {section === 'financials' && <FinancialSection />}
-        {section === 'sage-browser' && <SageBrowserSection />}
-        {section === 'sage-analytics' && <SageAnalyticsSection />}
-        {section === 'item-mapping' && <ItemMappingSection data={data} />}
-        {section === 'notifications' && <NotificationSection />}
-        {section === 'audit-log' && <AuditLogSection />}
-        {section === 'admin' && <AdminSection />}
+      {/* ── Main Content ───────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
+        {/* Content header bar */}
+        <div className="flex-shrink-0 flex items-center gap-4 px-7 py-4 border-b border-slate-100 bg-white">
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold text-slate-900 tracking-tight leading-tight truncate">
+              {active.label}
+            </h1>
+            <p className="text-[11px] text-slate-400 mt-0.5 tracking-tight">{active.desc}</p>
+          </div>
+        </div>
+
+        {/* Scrollable section body */}
+        <div className="flex-1 overflow-y-auto scrollbar-enterprise">
+          <div className="p-7">
+            {section === 'overview'       && <ERPOverview />}
+            {section === 'customers'      && <CustomerSection />}
+            {section === 'sales-orders'   && <SalesOrderSection data={data} />}
+            {section === 'shipments'      && <ShipmentSection />}
+            {section === 'invoices'       && <InvoiceSection />}
+            {section === 'approvals'      && <ApprovalSection />}
+            {section === 'mrp'            && <MRPSection />}
+            {section === 'qc'             && <QCSection />}
+            {section === 'financials'     && <FinancialSection />}
+            {section === 'sage-browser'   && <SageBrowserSection />}
+            {section === 'sage-analytics' && <SageAnalyticsSection />}
+            {section === 'item-mapping'   && <ItemMappingSection data={data} />}
+            {section === 'notifications'  && <NotificationSection />}
+            {section === 'audit-log'      && <AuditLogSection />}
+            {section === 'admin'          && <AdminSection />}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -104,75 +161,177 @@ const ERPOverview: React.FC = () => {
 };
 
 // ============================================================
-// CUSTOMERS (read from Sage G Drive CSV — same source as Sage Analytics)
+// CUSTOMERS (Sage G Drive CSV — read-only)
 // ============================================================
 const CustomerSection: React.FC = () => {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [all, setAll] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [province, setProvince] = useState('');
+  const [currency, setCurrency] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'ytd' | 'lastSale'>('ytd');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState<number>(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const r = await apiGet(`/api/sage/gdrive/customers?search=${encodeURIComponent(search)}&limit=100`);
+    const r = await apiGet('/api/sage/gdrive/customers?limit=500&inactive=true');
     if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
-    setCustomers(r.data?.customers || []);
-    setTotal(r.data?.total ?? (r.data?.customers?.length ?? 0));
+    setAll(r.data?.customers || []);
     setLoading(false);
-  }, [search]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  const provinces = [...new Set(all.map((c: any) => c.sProvState).filter(Boolean))].sort();
+  const currencies = [...new Set(all.map((c: any) => c.sCurrncyId === 2 ? 'USD' : 'CAD').filter(Boolean))].sort();
+
+  const visible = all
+    .filter((c: any) => {
+      if (!showInactive && c.bInactive) return false;
+      if (province && c.sProvState !== province) return false;
+      if (currency) {
+        const cur = c.sCurrncyId === 2 ? 'USD' : 'CAD';
+        if (cur !== currency) return false;
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        return (c.sName || '').toLowerCase().includes(q) ||
+               (c.sCity || '').toLowerCase().includes(q) ||
+               (c.sEmail || '').toLowerCase().includes(q);
+      }
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      if (sortBy === 'ytd') return (b.dAmtYtd ?? 0) - (a.dAmtYtd ?? 0);
+      if (sortBy === 'lastSale') return (b.dtLastSal ?? '') > (a.dtLastSal ?? '') ? 1 : -1;
+      return (a.sName ?? '').localeCompare(b.sName ?? '');
+    });
+
+  const fmt$ = (n: number | null | undefined) =>
+    n != null ? `$${Number(n).toLocaleString('en-CA', { maximumFractionDigits: 0 })}` : '—';
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Customers</h2>
-          <p className="text-xs text-slate-500 mt-0.5">READ-ONLY · Sage 50 G Drive export · {total} customers</p>
+    <div className="flex flex-col gap-4">
+      {/* Filters bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name, city, email…"
+            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 placeholder:text-slate-400"
+          />
         </div>
+
+        <select value={province} onChange={e => setProvince(e.target.value)}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-700">
+          <option value="">All Provinces</option>
+          {provinces.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+
+        <select value={currency} onChange={e => setCurrency(e.target.value)}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-700">
+          <option value="">All Currencies</option>
+          {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-700">
+          <option value="ytd">Sort: YTD Sales ↓</option>
+          <option value="name">Sort: Name A–Z</option>
+          <option value="lastSale">Sort: Last Sale</option>
+        </select>
+
+        <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer select-none px-3 py-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50">
+          <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)}
+            className="w-3.5 h-3.5 rounded accent-blue-600" />
+          Inactive
+        </label>
+
+        <span className="ml-auto text-xs text-slate-400 whitespace-nowrap font-medium">
+          {visible.length} of {all.filter((c: any) => showInactive || !c.bInactive).length}
+        </span>
       </div>
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search by name, city..."
-        className="w-full mb-4 px-4 py-2 border border-slate-200 rounded-xl text-sm" />
+
+      {/* Table */}
       {error ? (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm">
-          <p className="font-semibold">Could not load Sage customers</p>
-          <p className="text-xs mt-1">{error}</p>
-          <button onClick={load} className="mt-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold">Retry</button>
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-5 text-amber-800">
+          <p className="font-semibold text-sm">Could not load Sage customers</p>
+          <p className="text-xs mt-1 text-amber-600">{error}</p>
+          <button onClick={load} className="mt-3 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700">
+            Retry
+          </button>
         </div>
-      ) : loading ? <p className="text-slate-500">Loading...</p> : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                {['Customer', 'City', 'Province', 'Phone', 'Email', 'YTD Sales', 'Credit Limit', 'Terms', 'Last Sale'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">{h}</th>
+      ) : loading ? (
+        <div className="flex items-center gap-3 py-12 text-slate-400 text-sm">
+          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Loading customers from Sage G Drive…
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['Customer', 'Location', 'Contact', 'YTD Sales', 'Prior Yr', 'Credit Limit', 'Terms', 'Last Sale', 'Status'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap first:pl-5">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {customers.map((c: any, i: number) => (
-                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-3 py-2 font-semibold text-slate-800 max-w-[180px] truncate">{c.sName}</td>
-                  <td className="px-3 py-2 text-slate-600">{c.sCity || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500">{c.sProvState || '—'}</td>
-                  <td className="px-3 py-2 text-slate-600">{c.sPhone || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate">{c.sEmail || '—'}</td>
-                  <td className="px-3 py-2 font-mono font-semibold text-emerald-700">
-                    {c.dAmtYtd != null ? `$${Number(c.dAmtYtd).toLocaleString('en-CA', { maximumFractionDigits: 0 })}` : '—'}
+            <tbody className="divide-y divide-slate-100">
+              {visible.slice(0, 200).map((c: any, i: number) => (
+                <tr key={i} className={`hover:bg-blue-50/40 transition-colors ${c.bInactive ? 'opacity-50' : ''}`}>
+                  <td className="px-4 py-2.5 pl-5">
+                    <p className="font-semibold text-slate-800 truncate max-w-[180px]" title={c.sName}>{c.sName}</p>
                   </td>
-                  <td className="px-3 py-2 font-mono text-slate-600">
-                    {c.dCrLimit != null && c.dCrLimit >= 0 ? `$${Number(c.dCrLimit).toLocaleString('en-CA', { maximumFractionDigits: 0 })}` : '—'}
+                  <td className="px-4 py-2.5 text-slate-500">
+                    {[c.sCity, c.sProvState].filter(Boolean).join(', ') || '—'}
                   </td>
-                  <td className="px-3 py-2 text-slate-500">{c.nNetDay ? `Net ${c.nNetDay}` : '—'}</td>
-                  <td className="px-3 py-2 text-slate-500">{c.dtLastSal ? String(c.dtLastSal).substring(0, 10) : '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="text-slate-600 truncate max-w-[160px]">{c.sPhone || '—'}</div>
+                    {c.sEmail && <div className="text-slate-400 text-[11px] truncate max-w-[160px]">{c.sEmail}</div>}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono font-semibold text-emerald-700 whitespace-nowrap">
+                    {fmt$(c.dAmtYtd)}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-slate-400 whitespace-nowrap text-[12px]">
+                    {fmt$(c.dLastYrAmt)}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">
+                    {c.dCrLimit != null && c.dCrLimit >= 0 ? fmt$(c.dCrLimit) : '—'}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">
+                    {c.nNetDay ? `Net ${c.nNetDay}` : '—'}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">
+                    {c.dtLastSal ? String(c.dtLastSal).substring(0, 10) : '—'}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                      c.bInactive ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {c.bInactive ? 'Inactive' : 'Active'}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {customers.length === 0 && <p className="text-center text-slate-400 text-sm py-6">No customers found</p>}
+          {visible.length === 0 && (
+            <div className="text-center py-12 text-slate-400 text-sm">No customers match the current filters</div>
+          )}
+          {visible.length > 200 && (
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-400">
+              Showing 200 of {visible.length} — refine your search to see more
+            </div>
+          )}
         </div>
       )}
     </div>
