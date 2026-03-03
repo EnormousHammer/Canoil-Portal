@@ -1,10 +1,11 @@
 """
 Sage G Drive Data Service
 =========================
-Reads Sage 50 CSV exports from the Google Drive local sync path:
-  G:\\Shared drives\\IT_Automation\\MiSys\\Misys Extracted Data\\Full Company Data From SAGE\\
+Reads Sage 50 CSV exports from either:
+  - LOCAL:  G:\\Shared drives\\IT_Automation\\MiSys\\Misys Extracted Data\\Full Company Data From SAGE\\
+  - CLOUD:  Google Drive API (Render/Cloud Run — no local G: drive access)
 
-Finds the latest subfolder (by mtime), loads key tables with pandas, and caches
+Finds the latest subfolder (by mtime/API), loads key tables with pandas, and caches
 the result in memory. Provides analytics functions used by the portal API.
 
 ╔══════════════════════════════════════════════════════════════════╗
@@ -33,6 +34,7 @@ import json
 import time
 import threading
 from datetime import datetime, date
+from io import BytesIO
 from pathlib import Path
 import pandas as pd
 
@@ -43,6 +45,20 @@ import pandas as pd
 SAGE_GDRIVE_BASE = os.environ.get(
     "SAGE_GDRIVE_BASE",
     r"G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data From SAGE"
+)
+
+# Google Drive API path for cloud environments (Render / Cloud Run)
+SAGE_GDRIVE_DRIVE_PATH = os.environ.get(
+    "SAGE_GDRIVE_DRIVE_PATH",
+    "MiSys/Misys Extracted Data/Full Company Data From SAGE"
+)
+SAGE_SHARED_DRIVE_NAME = os.environ.get("GOOGLE_DRIVE_SHARED_DRIVE_NAME", "IT_Automation")
+
+# Detect cloud environment — same logic as app.py
+IS_CLOUD_ENVIRONMENT = (
+    os.getenv('K_SERVICE') is not None or          # Cloud Run
+    os.getenv('RENDER') is not None or             # Render
+    os.getenv('RENDER_SERVICE_ID') is not None     # Render (alt key)
 )
 
 # Price list IDs from tprclist
@@ -66,13 +82,138 @@ _cache_folder: str = ""
 _cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 3600  # 1 hour — re-read from disk once per hour
 
+# Lazy-initialized Google Drive service for cloud use
+_gds_instance = None
+_gds_lock = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
-# Folder discovery
+# Google Drive API helpers (cloud environment support)
 # ---------------------------------------------------------------------------
 
-def get_latest_folder() -> tuple[str | None, str | None]:
-    """Return (full_path, folder_name) for the most recent Sage export subfolder."""
+def _get_gds():
+    """Lazy-init a GoogleDriveService; returns None if unavailable."""
+    global _gds_instance
+    with _gds_lock:
+        if _gds_instance is not None:
+            return _gds_instance
+        try:
+            from google_drive_service import GoogleDriveService
+            gds = GoogleDriveService()
+            gds.authenticate()
+            if gds.authenticated:
+                _gds_instance = gds
+                print("[sage_gdrive] GoogleDriveService authenticated OK")
+                return gds
+            else:
+                print("[sage_gdrive] GoogleDriveService authentication failed")
+        except Exception as e:
+            print(f"[sage_gdrive] GoogleDriveService init error: {e}")
+    return None
+
+
+def _find_latest_sage_folder_api():
+    """Find the latest Sage export subfolder via Google Drive API.
+    Returns (gds, drive_id, folder_id, folder_name) — folder_name is an error string if gds is None.
+    """
+    gds = _get_gds()
+    if not gds:
+        return None, None, None, "Google Drive service not available"
+    try:
+        drive_id = gds.find_shared_drive(SAGE_SHARED_DRIVE_NAME)
+        if not drive_id:
+            return None, None, None, f"Shared drive '{SAGE_SHARED_DRIVE_NAME}' not found"
+
+        parent_id = gds.find_folder_by_path(drive_id, SAGE_GDRIVE_DRIVE_PATH)
+        if not parent_id:
+            return None, None, None, f"Sage folder path not found in Drive: {SAGE_GDRIVE_DRIVE_PATH}"
+
+        service = gds._get_fresh_service()
+        results = service.files().list(
+            q=f"'{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
+            orderBy="modifiedTime desc",
+            pageSize=5,
+            fields="files(id, name, modifiedTime)",
+            corpora="drive",
+            driveId=drive_id,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+        ).execute()
+
+        folders = results.get("files", [])
+        if not folders:
+            return None, None, None, f"No Sage export subfolders found under {SAGE_GDRIVE_DRIVE_PATH}"
+
+        latest = folders[0]
+        print(f"[sage_gdrive] Latest Sage folder via API: {latest['name']}")
+        return gds, drive_id, latest["id"], latest["name"]
+    except Exception as e:
+        return None, None, None, str(e)
+
+
+def _load_csv_from_api(gds, folder_id, drive_id, table_name):
+    """Download and parse one Sage CSV from Google Drive. Returns pd.DataFrame or None."""
+    try:
+        service = gds._get_fresh_service()
+        for filename in [f"{table_name}.CSV", f"{table_name}.csv", f"{table_name.upper()}.CSV"]:
+            query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+            results = service.files().list(
+                q=query,
+                corpora="drive",
+                driveId=drive_id,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)",
+                pageSize=1,
+            ).execute()
+            files = results.get("files", [])
+            if not files:
+                continue
+            content = gds.download_file(files[0]["id"], filename)
+            if content is None:
+                continue
+            for encoding in ["utf-8", "latin-1", "cp1252"]:
+                try:
+                    df = pd.read_csv(BytesIO(content), encoding=encoding, low_memory=False)
+                    return df
+                except UnicodeDecodeError:
+                    continue
+                except Exception as e:
+                    print(f"[sage_gdrive] Parse error for {filename}: {e}")
+                    return None
+    except Exception as e:
+        print(f"[sage_gdrive] API CSV load error for {table_name}: {e}")
+    return None
+
+
+def _load_via_api():
+    """Load all required Sage tables via Google Drive API (cloud mode).
+    Returns (tables_dict, folder_name_or_error).
+    """
+    gds, drive_id, folder_id, folder_name = _find_latest_sage_folder_api()
+    if gds is None:
+        return {}, folder_name  # folder_name holds the error message here
+
+    print(f"[sage_gdrive] Loading {len(REQUIRED_TABLES)} Sage tables via API from: {folder_name}")
+    t0 = time.time()
+    tables = {}
+    for tbl in REQUIRED_TABLES:
+        df = _load_csv_from_api(gds, folder_id, drive_id, tbl)
+        if df is not None:
+            tables[tbl] = df
+            print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
+        else:
+            print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
+    print(f"[sage_gdrive] API load complete: {len(tables)} tables in {time.time() - t0:.1f}s")
+    return tables, folder_name
+
+
+# ---------------------------------------------------------------------------
+# Folder discovery (local)
+# ---------------------------------------------------------------------------
+
+def get_latest_folder():
+    """Return (full_path, folder_name) for the most recent local Sage export subfolder."""
     base = SAGE_GDRIVE_BASE
     if not os.path.isdir(base):
         return None, f"Sage G Drive base folder not found: {base}"
@@ -94,17 +235,23 @@ def get_latest_folder() -> tuple[str | None, str | None]:
 
 def get_status() -> dict:
     """Return metadata about the Sage G Drive data (folder, row counts, cache age)."""
-    folder_path, folder_name = get_latest_folder()
     result = {
+        "is_cloud": IS_CLOUD_ENVIRONMENT,
         "base_path": SAGE_GDRIVE_BASE,
         "base_exists": os.path.isdir(SAGE_GDRIVE_BASE),
-        "latest_folder": folder_name,
-        "latest_folder_path": folder_path,
+        "drive_path": SAGE_GDRIVE_DRIVE_PATH,
         "cache_loaded": bool(_cache),
         "cache_folder": _cache_folder,
         "cache_age_seconds": round(time.time() - _cache_ts, 0) if _cache_ts else None,
         "row_counts": {},
     }
+    if IS_CLOUD_ENVIRONMENT:
+        result["latest_folder"] = _cache_folder or "not loaded yet"
+        result["latest_folder_path"] = None
+    else:
+        folder_path, folder_name = get_latest_folder()
+        result["latest_folder"] = folder_name
+        result["latest_folder_path"] = folder_path
     if _cache:
         result["row_counts"] = {tbl: len(df) for tbl, df in _cache.items()}
     return result
@@ -163,11 +310,14 @@ def _safe_date(val) -> str | None:
     return s
 
 
-def load_data(force: bool = False) -> tuple[dict, str | None]:
+def load_data(force: bool = False):
     """
     Load (or return cached) Sage G Drive tables.
     Returns (tables_dict, error_message).
     tables_dict keys = table names (e.g. 'tcustomr'), values = pd.DataFrame.
+
+    On cloud environments (Render/Cloud Run) the Google Drive API is used.
+    On local environments the G: drive path is used, with API fallback.
     """
     global _cache, _cache_ts, _cache_folder
 
@@ -176,11 +326,29 @@ def load_data(force: bool = False) -> tuple[dict, str | None]:
         if _cache and not force and (now - _cache_ts) < CACHE_TTL_SECONDS:
             return _cache, None
 
+        # ── CLOUD: must use Google Drive API ──────────────────────────────
+        if IS_CLOUD_ENVIRONMENT:
+            tables, result = _load_via_api()
+            if not tables:
+                return {}, f"[Cloud] Sage API load failed: {result}"
+            _cache = tables
+            _cache_ts = time.time()
+            _cache_folder = result  # result is folder_name on success
+            return tables, None
+
+        # ── LOCAL: try G: drive, fall back to API ─────────────────────────
         folder_path, folder_name = get_latest_folder()
         if not folder_path:
-            return {}, folder_name  # folder_name is the error message
+            print(f"[sage_gdrive] G: drive unavailable ({folder_name}), trying Google Drive API…")
+            tables, result = _load_via_api()
+            if not tables:
+                return {}, f"G: drive not found and API fallback failed: {result}"
+            _cache = tables
+            _cache_ts = time.time()
+            _cache_folder = result
+            return tables, None
 
-        print(f"[sage_gdrive] Loading from folder: {folder_name}")
+        print(f"[sage_gdrive] Loading from local folder: {folder_name}")
         t0 = time.time()
 
         tables = {}
