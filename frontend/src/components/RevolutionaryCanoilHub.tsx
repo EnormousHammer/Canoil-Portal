@@ -218,6 +218,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const { toasts, dismissToast, addToast, success: toastSuccess, error: toastError, info: toastInfo, warning: toastWarning } = useToasts();
   
   const [activeSection, setActiveSection] = useState('dashboard');
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeSection !== 'dashboard') {
+      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [activeSection]);
+
   const [poSortField, setPoSortField] = useState<string>('Order Date');
   const [poSortDirection, setPoSortDirection] = useState<'asc' | 'desc'>('desc');
   const [moSortField, setMoSortField] = useState<string>('Order Date');
@@ -2237,7 +2245,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         )}
 
         {/* CONTENT SECTIONS */}
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto" ref={contentRef}>
           
           {/* Dashboard */}
           {activeSection === 'dashboard' && (
