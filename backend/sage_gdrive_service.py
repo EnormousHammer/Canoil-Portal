@@ -737,26 +737,121 @@ def get_sales_orders(search: str = None, customer_id: int = None,
 # Analytics
 # ---------------------------------------------------------------------------
 
-def get_top_customers(limit: int = 25) -> dict:
+def get_available_years() -> list:
+    """Return list of years found in titrec (transaction journal), sorted descending."""
+    df = _tables().get("titrec")
+    if df is None or df.empty or "dtASDate" not in df.columns:
+        return [datetime.now().year]
+    dates = df["dtASDate"].dropna().astype(str)
+    years = sorted(
+        set(int(d[:4]) for d in dates if len(d) >= 4 and d[:4].isdigit()),
+        reverse=True,
+    )
+    return years if years else [datetime.now().year]
+
+
+def _customer_revenue_from_titrec(year: int) -> dict:
+    """Aggregate per-customer revenue from titrec for a given year."""
+    df = _tables().get("titrec")
+    if df is None or df.empty:
+        return {}
+    rows = df[df["dtASDate"].fillna("").astype(str).str.startswith(str(year))].copy()
+    if rows.empty or "lCusId" not in rows.columns or "dInvAmt" not in rows.columns:
+        return {}
+    rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0.0)
+    rows["_cid"] = pd.to_numeric(rows["lCusId"], errors="coerce").fillna(0).astype(int)
+    grouped = rows.groupby("_cid")["_amt"].sum()
+    return {int(cid): float(v) for cid, v in grouped.items() if int(cid) != 0}
+
+
+def _item_stats_from_titrline(year: int) -> dict:
+    """Aggregate per-item revenue/qty/cogs from titrline for a given year via titrec join."""
+    tables = _tables()
+    lines = tables.get("titrline")
+    if lines is None or lines.empty or "lInventId" not in lines.columns:
+        return {}
+
+    trec = tables.get("titrec")
+    lines = lines.copy()
+
+    # Filter by year — join via lTransId → titrec.lId if possible, else use dtASDate on lines
+    if trec is not None and not trec.empty and "dtASDate" in trec.columns and "lId" in trec.columns:
+        year_ids = set(
+            pd.to_numeric(
+                trec[trec["dtASDate"].fillna("").astype(str).str.startswith(str(year))]["lId"],
+                errors="coerce",
+            ).fillna(0).astype(int).tolist()
+        )
+        if "lTransId" in lines.columns:
+            lines = lines[
+                pd.to_numeric(lines["lTransId"], errors="coerce").fillna(0).astype(int).isin(year_ids)
+            ]
+    elif "dtASDate" in lines.columns:
+        lines = lines[lines["dtASDate"].fillna("").astype(str).str.startswith(str(year))]
+
+    if lines.empty:
+        return {}
+
+    lines["_rev"] = pd.to_numeric(lines.get("dAmt", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+    lines["_qty"] = pd.to_numeric(lines.get("dQty", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+    lines["_cogs"] = pd.to_numeric(lines.get("dCost", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+    lines["_invId"] = pd.to_numeric(lines["lInventId"], errors="coerce").fillna(0).astype(int)
+
+    grouped = lines.groupby("_invId").agg(
+        total_revenue=("_rev", "sum"),
+        total_qty=("_qty", "sum"),
+        total_cogs=("_cogs", "sum"),
+        txn_count=("_rev", "count"),
+    ).reset_index()
+
+    return {
+        int(r["_invId"]): {
+            "total_revenue": round(float(r["total_revenue"]), 2),
+            "total_qty": round(float(r["total_qty"]), 2),
+            "total_cogs": round(float(r["total_cogs"]), 2),
+            "txn_count": int(r["txn_count"]),
+        }
+        for _, r in grouped.iterrows()
+        if int(r["_invId"]) != 0
+    }
+
+
+def get_top_customers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank customers by YTD sales (dAmtYtd from tcustomr).
-    Also includes prior year, YoY change %, credit utilization.
+    Rank customers by YTD sales.
+    - current year (or None): uses dAmtYtd / dLastYrAmt from tcustomr (Sage's own fields)
+    - any other year: aggregates from titrec transaction journal
     """
+    current_year = datetime.now().year
+    use_sage_fields = (year is None or year == current_year)
+
     df = _tables().get("tcustomr")
     if df is None or df.empty:
         return {"customers": [], "error": "tcustomr not loaded"}
 
     rows = df[df["bInactive"].fillna(0) == 0].copy() if "bInactive" in df.columns else df.copy()
 
+    # For non-current years, pull revenue from transaction journal
+    txn_rev: dict = {}
+    if not use_sage_fields:
+        txn_rev = _customer_revenue_from_titrec(year)
+
     result = []
     for _, r in rows.iterrows():
-        ytd = _safe_float(r.get("dAmtYtd"))
-        ly = _safe_float(r.get("dLastYrAmt"))
+        cid = int(r.get("lId", 0) or 0)
         credit = _safe_float(r.get("dCrLimit"))
+        if use_sage_fields:
+            ytd = _safe_float(r.get("dAmtYtd"))
+            ly = _safe_float(r.get("dLastYrAmt"))
+        else:
+            ytd = txn_rev.get(cid, 0.0)
+            # prior year for YoY
+            prev_txn = _customer_revenue_from_titrec(year - 1) if year else {}
+            ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
             continue
         result.append({
-            "lId": int(r.get("lId", 0) or 0),
+            "lId": cid,
             "sName": _safe_str(r.get("sName")),
             "sCity": _safe_str(r.get("sCity")),
             "sProvState": _safe_str(r.get("sProvState")),
@@ -772,19 +867,20 @@ def get_top_customers(limit: int = 25) -> dict:
         })
 
     result.sort(key=lambda x: x["dAmtYtd"], reverse=True)
-    return {"customers": result[:limit], "total": len(result)}
+    return {"customers": result[:limit], "total": len(result), "year": year or current_year}
 
 
-def get_best_movers(limit: int = 25) -> dict:
+def get_best_movers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank inventory items by YTD units sold (dYTDUntSld from tinvext).
-    Includes revenue, COGS, margin estimate.
+    Rank inventory items by units sold.
+    - current year (or None): uses dYTDUntSld from tinvext (Sage's own fields)
+    - any other year: aggregates from titrline transaction lines
     """
+    current_year = datetime.now().year
+    use_sage_fields = (year is None or year == current_year)
+
     tables = _tables()
-    ext = tables.get("tinvext")
     inv = tables.get("tinvent")
-    if ext is None or ext.empty:
-        return {"items": [], "error": "tinvext not loaded"}
 
     # Build item name map
     name_map: dict[int, dict] = {}
@@ -797,35 +893,68 @@ def get_best_movers(limit: int = 25) -> dict:
                 "sSellUnit": _safe_str(r.get("sSellUnit")),
             }
 
-    result = []
-    for _, r in ext.iterrows():
-        iid = int(r.get("lInventId", 0) or 0)
-        ytd_units = _safe_float(r.get("dYTDUntSld"))
-        ytd_rev = _safe_float(r.get("dYTDAmtSld"))
-        ly_units = _safe_float(r.get("dPrUntSld"))
-        ly_rev = _safe_float(r.get("dPrAmtSld"))
-        ytd_cogs = _safe_float(r.get("dYTDCOGS"))
-        if ytd_units <= 0 and ly_units <= 0:
-            continue
-        item_info = name_map.get(iid, {})
-        margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
-        result.append({
-            "lInventId": iid,
-            "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
-            "sName": item_info.get("sName", ""),
-            "sSellUnit": item_info.get("sSellUnit", ""),
-            "dYTDUntSld": round(ytd_units, 2),
-            "dPrUntSld": round(ly_units, 2),
-            "dYTDAmtSld": round(ytd_rev, 2),
-            "dPrAmtSld": round(ly_rev, 2),
-            "dYTDCOGS": round(ytd_cogs, 2),
-            "estimated_margin_pct": margin,
-            "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
-            "dtLastSold": _safe_date(r.get("dtLastSold")),
-        })
+    if use_sage_fields:
+        ext = tables.get("tinvext")
+        if ext is None or ext.empty:
+            return {"items": [], "error": "tinvext not loaded"}
+        result = []
+        for _, r in ext.iterrows():
+            iid = int(r.get("lInventId", 0) or 0)
+            ytd_units = _safe_float(r.get("dYTDUntSld"))
+            ytd_rev = _safe_float(r.get("dYTDAmtSld"))
+            ly_units = _safe_float(r.get("dPrUntSld"))
+            ly_rev = _safe_float(r.get("dPrAmtSld"))
+            ytd_cogs = _safe_float(r.get("dYTDCOGS"))
+            if ytd_units <= 0 and ly_units <= 0:
+                continue
+            item_info = name_map.get(iid, {})
+            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
+            result.append({
+                "lInventId": iid,
+                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
+                "sName": item_info.get("sName", ""),
+                "sSellUnit": item_info.get("sSellUnit", ""),
+                "dYTDUntSld": round(ytd_units, 2),
+                "dPrUntSld": round(ly_units, 2),
+                "dYTDAmtSld": round(ytd_rev, 2),
+                "dPrAmtSld": round(ly_rev, 2),
+                "dYTDCOGS": round(ytd_cogs, 2),
+                "estimated_margin_pct": margin,
+                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
+                "dtLastSold": _safe_date(r.get("dtLastSold")),
+            })
+    else:
+        # Use transaction lines
+        stats = _item_stats_from_titrline(year)
+        prev_stats = _item_stats_from_titrline(year - 1)
+        result = []
+        for iid, s in stats.items():
+            if s["total_revenue"] <= 0:
+                continue
+            item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
+            py = prev_stats.get(iid, {})
+            ytd_rev = s["total_revenue"]
+            ytd_cogs = s["total_cogs"]
+            ly_units = py.get("total_qty", 0.0)
+            ytd_units = s["total_qty"]
+            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
+            result.append({
+                "lInventId": iid,
+                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
+                "sName": item_info.get("sName", ""),
+                "sSellUnit": item_info.get("sSellUnit", ""),
+                "dYTDUntSld": round(ytd_units, 2),
+                "dPrUntSld": round(ly_units, 2),
+                "dYTDAmtSld": round(ytd_rev, 2),
+                "dPrAmtSld": round(py.get("total_revenue", 0.0), 2),
+                "dYTDCOGS": round(ytd_cogs, 2),
+                "estimated_margin_pct": margin,
+                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
+                "dtLastSold": None,
+            })
 
     result.sort(key=lambda x: x["dYTDUntSld"], reverse=True)
-    return {"items": result[:limit], "total": len(result)}
+    return {"items": result[:limit], "total": len(result), "year": year or current_year}
 
 
 def get_monthly_revenue(year: int = None) -> dict:
@@ -945,15 +1074,14 @@ def get_ar_aging() -> dict:
     return {"aging": result[:50], "total_ar": round(grand_total, 2), "total_customers": len(result)}
 
 
-def get_sales_by_product(limit: int = 25) -> dict:
+def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
     """
-    Aggregate titrline by lInventId to compute revenue per product (YTD from invoiced lines).
+    Aggregate titrline by lInventId to compute revenue per product.
+    - year=None → all-time (all transaction lines)
+    - year=YYYY → filter to that year via titrec join
     """
-    tables = _tables()
-    lines = tables.get("titrline")
-    inv = tables.get("tinvent")
-    if lines is None or lines.empty:
-        return {"products": [], "error": "titrline not loaded"}
+    current_year = datetime.now().year
+    inv = _tables().get("tinvent")
 
     name_map: dict[int, dict] = {}
     if inv is not None and not inv.empty:
@@ -961,31 +1089,41 @@ def get_sales_by_product(limit: int = 25) -> dict:
             iid = int(r.get("lId", 0) or 0)
             name_map[iid] = {"sPartCode": _safe_str(r.get("sPartCode")), "sName": _safe_str(r.get("sName"))}
 
-    if "lInventId" not in lines.columns:
-        return {"products": [], "error": "lInventId column missing from titrline"}
-
-    lines = lines.copy()
-    lines["_rev"] = pd.to_numeric(lines.get("dAmt", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
-    lines["_qty"] = pd.to_numeric(lines.get("dQty", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
-    lines["_cogs"] = pd.to_numeric(lines.get("dCost", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
-    lines["_invId"] = pd.to_numeric(lines["lInventId"], errors="coerce").fillna(0).astype(int)
-
-    grouped = lines.groupby("_invId").agg(
-        total_revenue=("_rev", "sum"),
-        total_qty=("_qty", "sum"),
-        total_cogs=("_cogs", "sum"),
-        txn_count=("_rev", "count"),
-    ).reset_index()
+    if year is not None:
+        stats = _item_stats_from_titrline(year)
+    else:
+        # All-time: use full titrline without year filter
+        tables = _tables()
+        lines = tables.get("titrline")
+        if lines is None or lines.empty:
+            return {"products": [], "error": "titrline not loaded"}
+        if "lInventId" not in lines.columns:
+            return {"products": [], "error": "lInventId column missing from titrline"}
+        lines = lines.copy()
+        lines["_rev"] = pd.to_numeric(lines.get("dAmt", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+        lines["_qty"] = pd.to_numeric(lines.get("dQty", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+        lines["_cogs"] = pd.to_numeric(lines.get("dCost", pd.Series(0.0, index=lines.index)), errors="coerce").fillna(0.0)
+        lines["_invId"] = pd.to_numeric(lines["lInventId"], errors="coerce").fillna(0).astype(int)
+        grouped = lines.groupby("_invId").agg(
+            total_revenue=("_rev", "sum"), total_qty=("_qty", "sum"),
+            total_cogs=("_cogs", "sum"), txn_count=("_rev", "count"),
+        ).reset_index()
+        stats = {
+            int(r["_invId"]): {
+                "total_revenue": round(float(r["total_revenue"]), 2),
+                "total_qty": round(float(r["total_qty"]), 2),
+                "total_cogs": round(float(r["total_cogs"]), 2),
+                "txn_count": int(r["txn_count"]),
+            }
+            for _, r in grouped.iterrows() if int(r["_invId"]) != 0
+        }
 
     result = []
-    for _, r in grouped.iterrows():
-        iid = int(r["_invId"])
-        if iid == 0:
-            continue
-        rev = float(r["total_revenue"])
+    for iid, s in stats.items():
+        rev = s["total_revenue"]
         if rev <= 0:
             continue
-        cogs = float(r["total_cogs"])
+        cogs = s["total_cogs"]
         info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": ""})
         margin = round((rev - cogs) / rev * 100, 1) if rev > 0 else None
         result.append({
@@ -993,18 +1131,25 @@ def get_sales_by_product(limit: int = 25) -> dict:
             "sPartCode": info["sPartCode"],
             "sName": info["sName"],
             "total_revenue": round(rev, 2),
-            "total_qty": round(float(r["total_qty"]), 2),
+            "total_qty": round(s["total_qty"], 2),
             "total_cogs": round(cogs, 2),
             "estimated_margin_pct": margin,
-            "txn_count": int(r["txn_count"]),
+            "txn_count": s["txn_count"],
         })
 
     result.sort(key=lambda x: x["total_revenue"], reverse=True)
-    return {"products": result[:limit], "total": len(result)}
+    return {"products": result[:limit], "total": len(result), "year": year, "all_time": year is None}
 
 
-def get_dashboard_kpis() -> dict:
-    """Return summary KPIs for the Sage Analytics dashboard header."""
+def get_dashboard_kpis(year: int = None) -> dict:
+    """Return summary KPIs for the Sage Analytics dashboard header.
+    - year=None or current year → uses Sage's own dAmtYtd / dLastYrAmt fields (fast, accurate)
+    - any other year → aggregates from titrec transaction journal
+    """
+    current_year = datetime.now().year
+    use_sage_fields = (year is None or year == current_year)
+    resolved_year = year or current_year
+
     tables = _tables()
 
     # Customer totals
@@ -1015,10 +1160,16 @@ def get_dashboard_kpis() -> dict:
     if cust is not None and not cust.empty:
         active = cust[cust["bInactive"].fillna(0) == 0] if "bInactive" in cust.columns else cust
         active_customers = len(active)
-        total_ytd = float(pd.to_numeric(active["dAmtYtd"], errors="coerce").fillna(0).sum())
-        total_ly = float(pd.to_numeric(active["dLastYrAmt"], errors="coerce").fillna(0).sum())
+        if use_sage_fields:
+            total_ytd = float(pd.to_numeric(active["dAmtYtd"], errors="coerce").fillna(0).sum())
+            total_ly = float(pd.to_numeric(active["dLastYrAmt"], errors="coerce").fillna(0).sum())
+        else:
+            rev_map = _customer_revenue_from_titrec(resolved_year)
+            prev_map = _customer_revenue_from_titrec(resolved_year - 1)
+            total_ytd = sum(rev_map.values())
+            total_ly = sum(prev_map.values())
 
-    # Open SOs
+    # Open SOs — always current (not year-filtered)
     so = tables.get("tsalordr")
     open_sos = 0
     open_so_value = 0.0
@@ -1047,6 +1198,8 @@ def get_dashboard_kpis() -> dict:
         "active_inventory_items": active_items,
         "data_folder": _cache_folder,
         "source": "gdrive",
+        "year": resolved_year,
+        "is_ytd": use_sage_fields and resolved_year == current_year,
     }
 
 

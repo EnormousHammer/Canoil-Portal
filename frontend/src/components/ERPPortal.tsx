@@ -680,7 +680,11 @@ const fmtPct = (n: number | null | undefined) =>
   n != null ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—';
 
 const SageAnalyticsSection: React.FC = () => {
+  const currentYear = new Date().getFullYear();
   const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'movers' | 'revenue' | 'ar-aging' | 'products'>('overview');
+  const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
+  // selectedYear: number = specific year; 0 = "All Time" (only applies to products/revenue tabs)
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [kpis, setKpis] = useState<any>(null);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [bestMovers, setBestMovers] = useState<any[]>([]);
@@ -689,15 +693,28 @@ const SageAnalyticsSection: React.FC = () => {
   const [salesByProduct, setSalesByProduct] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const load = useCallback(async () => {
+  const isCurrentYear = selectedYear === currentYear;
+  // year param for API: omit for "all time" (0), otherwise pass the year
+  const yearQS = (y: number) => y > 0 ? `year=${y}` : '';
+
+  // Fetch available years once on mount
+  useEffect(() => {
+    apiGet('/api/sage/gdrive/analytics/available-years').then(r => {
+      const years: number[] = r.data?.years || [currentYear];
+      setAvailableYears(years);
+    }).catch(() => {});
+  }, []);
+
+  const load = useCallback(async (y: number) => {
     setLoading(true);
     setError(null);
+    // For KPIs and top customers, "All Time" (y=0) defaults to current-year Sage fields
+    const ky = y > 0 ? y : currentYear;
     try {
       const [kpisRes, custRes] = await Promise.all([
-        apiGet('/api/sage/gdrive/analytics/kpis'),
-        apiGet('/api/sage/gdrive/analytics/top-customers?limit=25'),
+        apiGet(`/api/sage/gdrive/analytics/kpis?year=${ky}`),
+        apiGet(`/api/sage/gdrive/analytics/top-customers?limit=25&year=${ky}`),
       ]);
       if (kpisRes.data?.error) { setError(kpisRes.data.error); setLoading(false); return; }
       setKpis(kpisRes.data);
@@ -707,30 +724,39 @@ const SageAnalyticsSection: React.FC = () => {
       setError(String(e));
       setLoading(false);
     }
-  }, []);
+  }, [currentYear]);
 
-  useEffect(() => { load(); }, [load]);
+  // When year changes: clear cached tab data and reload KPIs + customers
+  useEffect(() => {
+    setBestMovers([]);
+    setMonthlyRevenue(null);
+    setSalesByProduct([]);
+    load(selectedYear);
+  }, [selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadTab = useCallback(async (tab: string) => {
-    if (tab === 'movers' && bestMovers.length === 0) {
-      const r = await apiGet('/api/sage/gdrive/analytics/best-movers?limit=25');
+  const loadTab = useCallback(async (tab: string, y: number) => {
+    if (tab === 'movers') {
+      const ky = y > 0 ? y : currentYear;
+      const r = await apiGet(`/api/sage/gdrive/analytics/best-movers?limit=25&year=${ky}`);
       setBestMovers(r.data?.items || []);
     }
     if (tab === 'revenue') {
-      const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${selectedYear}`);
+      const ky = y > 0 ? y : currentYear;
+      const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${ky}`);
       setMonthlyRevenue(r.data);
     }
     if (tab === 'ar-aging' && !arAging) {
       const r = await apiGet('/api/sage/gdrive/analytics/ar-aging');
       setArAging(r.data);
     }
-    if (tab === 'products' && salesByProduct.length === 0) {
-      const r = await apiGet('/api/sage/gdrive/analytics/sales-by-product?limit=25');
+    if (tab === 'products') {
+      const qs = yearQS(y);
+      const r = await apiGet(`/api/sage/gdrive/analytics/sales-by-product?limit=25${qs ? `&${qs}` : ''}`);
       setSalesByProduct(r.data?.products || []);
     }
-  }, [bestMovers, arAging, salesByProduct, selectedYear]);
+  }, [arAging, currentYear]);
 
-  useEffect(() => { loadTab(activeTab); }, [activeTab, loadTab]);
+  useEffect(() => { loadTab(activeTab, selectedYear); }, [activeTab, selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return (
     <div className="flex items-center gap-3 py-12 text-slate-500">
@@ -746,7 +772,7 @@ const SageAnalyticsSection: React.FC = () => {
         <p className="font-semibold mb-1">Sage G Drive data not available</p>
         <p className="text-sm">{error}</p>
         <p className="text-xs mt-2 text-amber-600">Ensure the Sage CSV export is synced to: …/Full Company Data From SAGE/</p>
-        <button onClick={load} className="mt-3 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">
+        <button onClick={() => load(selectedYear)} className="mt-3 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">
           Retry
         </button>
       </div>
@@ -762,21 +788,41 @@ const SageAnalyticsSection: React.FC = () => {
     { id: 'products', label: 'Sales by Product' },
   ] as const;
 
+  // Dynamic column header labels based on selected year
+  const ytdLabel = isCurrentYear ? `${currentYear} YTD` : `${selectedYear > 0 ? selectedYear : currentYear} Total`;
+  const priorLabel = isCurrentYear ? `${currentYear - 1} Total` : `${(selectedYear > 0 ? selectedYear : currentYear) - 1} Total`;
+
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
+      {/* Section header with global year picker */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
         <h2 className="text-2xl font-bold text-slate-800">Sage Analytics</h2>
-        <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">READ-ONLY · G Drive CSV {kpis?.data_folder ? `· ${kpis.data_folder}` : ''}</span>
+        <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+          READ-ONLY · G Drive CSV{kpis?.data_folder ? ` · ${kpis.data_folder}` : ''}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</label>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(Number(e.target.value))}
+            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-sm"
+          >
+            {availableYears.map(y => (
+              <option key={y} value={y}>{y === currentYear ? `${y} (YTD)` : y}</option>
+            ))}
+            <option value={0}>All Time</option>
+          </select>
+        </div>
       </div>
 
       {/* KPI Header */}
       {kpis && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-xl text-white">
-            <p className="text-xs font-medium opacity-80">YTD Revenue</p>
+            <p className="text-xs font-medium opacity-80">{ytdLabel} Revenue</p>
             <p className="text-xl font-bold tabular-nums">{fmt(kpis.total_ytd_revenue)}</p>
             <p className={`text-xs font-semibold mt-1 ${(kpis.yoy_revenue_pct ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>
-              {fmtPct(kpis.yoy_revenue_pct)} vs last yr
+              {fmtPct(kpis.yoy_revenue_pct)} vs {priorLabel}
             </p>
           </div>
           <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-4 rounded-xl text-white">
@@ -789,7 +835,7 @@ const SageAnalyticsSection: React.FC = () => {
             <p className="text-xs opacity-80">{fmt(kpis.open_so_value)} value</p>
           </div>
           <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-4 rounded-xl text-white">
-            <p className="text-xs font-medium opacity-80">Prior Year Revenue</p>
+            <p className="text-xs font-medium opacity-80">{priorLabel} Revenue</p>
             <p className="text-xl font-bold tabular-nums">{fmt(kpis.total_ly_revenue)}</p>
           </div>
         </div>
@@ -809,16 +855,16 @@ const SageAnalyticsSection: React.FC = () => {
       {/* Tab content */}
       {activeTab === 'overview' && (
         <div>
-          <h3 className="text-base font-bold text-slate-700 mb-3">Top 10 Customers by YTD Revenue</h3>
+          <h3 className="text-base font-bold text-slate-700 mb-3">Top 10 Customers — {ytdLabel} Revenue</h3>
           <AnalyticsTable
             data={topCustomers.slice(0, 10)}
             columns={[
               { key: 'rank', label: '#', render: (_: any, i: number) => <span className="font-bold text-slate-500">{i + 1}</span> },
               { key: 'sName', label: 'Customer', render: (v: string) => <span className="font-semibold text-slate-800">{v}</span> },
-              { key: 'dAmtYtd', label: 'YTD Sales', render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
-              { key: 'dLastYrAmt', label: 'Prior Year', render: (v: number) => <span className="font-mono text-slate-600">{fmtFull(v)}</span> },
+              { key: 'dAmtYtd', label: ytdLabel, render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
+              { key: 'dLastYrAmt', label: priorLabel, render: (v: number) => <span className="font-mono text-slate-600">{fmtFull(v)}</span> },
               { key: 'yoy_change_pct', label: 'YoY', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtPct(v)}</span> },
-              { key: 'credit_utilization_pct', label: 'Credit Used', render: (v: number | null, _: any, row: any) => (
+              { key: 'credit_utilization_pct', label: 'Credit Used', render: (v: number | null) => (
                 <div className="flex items-center gap-2">
                   <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${(v ?? 0) >= 90 ? 'bg-red-500' : (v ?? 0) >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
@@ -834,7 +880,7 @@ const SageAnalyticsSection: React.FC = () => {
 
       {activeTab === 'customers' && (
         <div>
-          <h3 className="text-base font-bold text-slate-700 mb-3">All Customers by YTD Revenue</h3>
+          <h3 className="text-base font-bold text-slate-700 mb-3">All Customers — {ytdLabel} Revenue</h3>
           <AnalyticsTable
             data={topCustomers}
             columns={[
@@ -843,8 +889,8 @@ const SageAnalyticsSection: React.FC = () => {
               { key: 'sCity', label: 'City', render: (v: string, _: any, row: any) => <span className="text-slate-500">{v}{row.sProvState ? `, ${row.sProvState}` : ''}</span> },
               { key: 'currency', label: 'Currency' },
               { key: 'price_list', label: 'Price List' },
-              { key: 'dAmtYtd', label: 'YTD Sales', render: (v: number, _: any, row: any) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v, row.currency || 'CAD')}</span> },
-              { key: 'dLastYrAmt', label: 'Prior Year', render: (v: number, _: any, row: any) => <span className="font-mono text-slate-600">{fmtFull(v, row.currency || 'CAD')}</span> },
+              { key: 'dAmtYtd', label: ytdLabel, render: (v: number, _: any, row: any) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v, row.currency || 'CAD')}</span> },
+              { key: 'dLastYrAmt', label: priorLabel, render: (v: number, _: any, row: any) => <span className="font-mono text-slate-600">{fmtFull(v, row.currency || 'CAD')}</span> },
               { key: 'yoy_change_pct', label: 'YoY %', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtPct(v)}</span> },
               { key: 'dCrLimit', label: 'Credit Limit', render: (v: number, _: any, row: any) => <span className="font-mono text-slate-600">{fmtFull(v, row.currency || 'CAD')}</span> },
               { key: 'credit_utilization_pct', label: 'Utilization', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : (v ?? 0) >= 90 ? 'text-red-600' : (v ?? 0) >= 70 ? 'text-amber-600' : 'text-emerald-600'}`}>{v != null ? `${v.toFixed(1)}%` : '—'}</span> },
@@ -857,7 +903,7 @@ const SageAnalyticsSection: React.FC = () => {
 
       {activeTab === 'movers' && (
         <div>
-          <h3 className="text-base font-bold text-slate-700 mb-3">Best Moving Items — YTD Units Sold</h3>
+          <h3 className="text-base font-bold text-slate-700 mb-3">Best Moving Items — {ytdLabel} Units Sold</h3>
           {bestMovers.length === 0 ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
             <AnalyticsTable
               data={bestMovers}
@@ -865,11 +911,11 @@ const SageAnalyticsSection: React.FC = () => {
                 { key: 'rank', label: '#', render: (_: any, i: number) => <span className="font-bold text-slate-500">{i + 1}</span> },
                 { key: 'sPartCode', label: 'Part Code', render: (v: string) => <span className="font-mono font-semibold text-blue-700">{v}</span> },
                 { key: 'sName', label: 'Description', render: (v: string) => <span className="text-slate-700">{v}</span> },
-                { key: 'dYTDUntSld', label: 'YTD Units', render: (v: number, _: any, row: any) => <span className="font-mono font-bold text-slate-800">{v.toLocaleString()} {row.sSellUnit}</span> },
-                { key: 'dPrUntSld', label: 'Prior Yr Units', render: (v: number) => <span className="font-mono text-slate-500">{v.toLocaleString()}</span> },
+                { key: 'dYTDUntSld', label: `${ytdLabel} Units`, render: (v: number, _: any, row: any) => <span className="font-mono font-bold text-slate-800">{v.toLocaleString()} {row.sSellUnit}</span> },
+                { key: 'dPrUntSld', label: `${priorLabel} Units`, render: (v: number) => <span className="font-mono text-slate-500">{v.toLocaleString()}</span> },
                 { key: 'units_yoy_pct', label: 'Units YoY', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtPct(v)}</span> },
-                { key: 'dYTDAmtSld', label: 'YTD Revenue', render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
-                { key: 'dYTDCOGS', label: 'YTD COGS', render: (v: number) => <span className="font-mono text-slate-600">{fmtFull(v)}</span> },
+                { key: 'dYTDAmtSld', label: `${ytdLabel} Revenue`, render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
+                { key: 'dYTDCOGS', label: `${ytdLabel} COGS`, render: (v: number) => <span className="font-mono text-slate-600">{fmtFull(v)}</span> },
                 { key: 'estimated_margin_pct', label: 'Est. Margin', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : v >= 30 ? 'text-emerald-600' : v >= 15 ? 'text-amber-600' : 'text-red-600'}`}>{v != null ? `${v.toFixed(1)}%` : '—'}</span> },
                 { key: 'dtLastSold', label: 'Last Sold' },
               ]}
@@ -881,30 +927,23 @@ const SageAnalyticsSection: React.FC = () => {
       {activeTab === 'revenue' && (
         <div>
           <div className="flex items-center gap-3 mb-4">
-            <h3 className="text-base font-bold text-slate-700">Monthly Revenue</h3>
-            <select
-              value={selectedYear}
-              onChange={e => { setSelectedYear(Number(e.target.value)); setMonthlyRevenue(null); }}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <h3 className="text-base font-bold text-slate-700">
+              Monthly Revenue — {selectedYear > 0 ? selectedYear : currentYear}
+              {isCurrentYear && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">YTD</span>}
+            </h3>
           </div>
           {!monthlyRevenue ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
             <div>
               <div className="mb-4 text-sm text-slate-600">
                 Total {monthlyRevenue.year}: <span className="font-bold text-emerald-700">{fmtFull(monthlyRevenue.total_revenue)}</span>
               </div>
-              {/* Bar chart using CSS */}
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
                 <div className="flex items-end gap-1.5 h-48">
                   {(() => {
                     const maxRev = Math.max(...(monthlyRevenue.months || []).map((m: any) => m.revenue || 0), 1);
                     return (monthlyRevenue.months || []).map((m: any) => {
                       const pct = maxRev > 0 ? (m.revenue / maxRev) * 100 : 0;
-                      const isCurrentMonth = m.month === new Date().getMonth() + 1 && monthlyRevenue.year === new Date().getFullYear();
+                      const isCurrentMonth = m.month === new Date().getMonth() + 1 && monthlyRevenue.year === currentYear;
                       return (
                         <div key={m.month} className="flex-1 flex flex-col items-center gap-1 group relative min-w-0">
                           <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap z-10 pointer-events-none">
@@ -923,7 +962,6 @@ const SageAnalyticsSection: React.FC = () => {
                   })()}
                 </div>
               </div>
-              {/* Table */}
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50">
@@ -952,6 +990,7 @@ const SageAnalyticsSection: React.FC = () => {
       {activeTab === 'ar-aging' && (
         <div>
           <h3 className="text-base font-bold text-slate-700 mb-1">AR Aging</h3>
+          <p className="text-xs text-slate-400 mb-4">Outstanding balances — not filtered by year</p>
           {!arAging ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
             <div>
               <p className="text-sm text-slate-500 mb-4">
@@ -988,7 +1027,9 @@ const SageAnalyticsSection: React.FC = () => {
 
       {activeTab === 'products' && (
         <div>
-          <h3 className="text-base font-bold text-slate-700 mb-3">Sales by Product — from Invoiced Transaction Lines</h3>
+          <h3 className="text-base font-bold text-slate-700 mb-3">
+            Sales by Product — {selectedYear > 0 ? ytdLabel : 'All Time'}
+          </h3>
           {salesByProduct.length === 0 ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
             <AnalyticsTable
               data={salesByProduct}
@@ -996,7 +1037,7 @@ const SageAnalyticsSection: React.FC = () => {
                 { key: 'rank', label: '#', render: (_: any, i: number) => <span className="font-bold text-slate-500">{i + 1}</span> },
                 { key: 'sPartCode', label: 'Part Code', render: (v: string) => <span className="font-mono font-semibold text-blue-700">{v}</span> },
                 { key: 'sName', label: 'Description', render: (v: string) => <span className="text-slate-700">{v}</span> },
-                { key: 'total_revenue', label: 'Revenue', render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
+                { key: 'total_revenue', label: selectedYear > 0 ? `${ytdLabel} Revenue` : 'All-Time Revenue', render: (v: number) => <span className="font-mono font-bold text-emerald-700">{fmtFull(v)}</span> },
                 { key: 'total_qty', label: 'Qty Sold', render: (v: number) => <span className="font-mono">{v.toLocaleString()}</span> },
                 { key: 'total_cogs', label: 'COGS', render: (v: number) => <span className="font-mono text-slate-600">{fmtFull(v)}</span> },
                 { key: 'estimated_margin_pct', label: 'Est. Margin', render: (v: number | null) => <span className={`font-semibold text-xs ${v == null ? 'text-slate-400' : v >= 30 ? 'text-emerald-600' : v >= 15 ? 'text-amber-600' : 'text-red-600'}`}>{v != null ? `${v.toFixed(1)}%` : '—'}</span> },

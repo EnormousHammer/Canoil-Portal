@@ -8309,40 +8309,61 @@ def sage_gdrive_sales_orders():
 
 # -- Sage G Drive Analytics --
 
-@app.route('/api/sage/gdrive/analytics/kpis')
-def sage_gdrive_kpis():
-    """Dashboard KPIs: YTD revenue, active customers, open SOs."""
+@app.route('/api/sage/gdrive/analytics/available-years')
+def sage_gdrive_available_years():
+    """Return list of years with transaction data (from titrec), sorted descending."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
-        return jsonify(s.get_dashboard_kpis())
+        return jsonify({"years": s.get_available_years()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/kpis')
+def sage_gdrive_kpis():
+    """Dashboard KPIs: YTD revenue, active customers, open SOs.
+    Optional ?year=YYYY — defaults to current year (uses Sage YTD fields)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        return jsonify(s.get_dashboard_kpis(year=year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/sage/gdrive/analytics/top-customers')
 def sage_gdrive_top_customers():
-    """Top customers by YTD sales with YoY change and credit utilization."""
+    """Top customers by YTD sales with YoY change and credit utilization.
+    Optional ?year=YYYY — defaults to current year."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
         limit = int(request.args.get('limit', 25))
-        return jsonify(s.get_top_customers(limit=limit))
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        return jsonify(s.get_top_customers(limit=limit, year=year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/sage/gdrive/analytics/best-movers')
 def sage_gdrive_best_movers():
-    """Best-moving items by YTD units sold with revenue and margin."""
+    """Best-moving items by YTD units sold with revenue and margin.
+    Optional ?year=YYYY — defaults to current year."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
         limit = int(request.args.get('limit', 25))
-        return jsonify(s.get_best_movers(limit=limit))
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        return jsonify(s.get_best_movers(limit=limit, year=year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -8374,13 +8395,16 @@ def sage_gdrive_ar_aging():
 
 @app.route('/api/sage/gdrive/analytics/sales-by-product')
 def sage_gdrive_sales_by_product():
-    """Top products by invoiced revenue from transaction lines."""
+    """Top products by invoiced revenue from transaction lines.
+    Optional ?year=YYYY — omit for all-time."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
         limit = int(request.args.get('limit', 25))
-        return jsonify(s.get_sales_by_product(limit=limit))
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        return jsonify(s.get_sales_by_product(limit=limit, year=year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
