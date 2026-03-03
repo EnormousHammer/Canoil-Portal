@@ -6,7 +6,7 @@ import {
   Brain, 
   Send, 
   MessageCircle, 
-  ChevronLeft,
+
   RefreshCw,
   AlertTriangle,
   TrendingUp,
@@ -159,7 +159,7 @@ interface DataSummary {
 }
 
 export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, onItemClick, onNavigate }) => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'insights' | 'analytics' | 'data' | 'production'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'insights' | 'analytics'>('chat');
   const [inputMessage, setInputMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -322,12 +322,18 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     }
   };
 
-  // Generate analytics when switching to analytics tab
+  // Auto-load analytics on mount and when switching to analytics tab
+  useEffect(() => {
+    if (!enterpriseAnalytics && data && Object.keys(data).length > 0) {
+      generateEnterpriseAnalytics();
+    }
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (activeTab === 'analytics' && !enterpriseAnalytics) {
       generateEnterpriseAnalytics();
     }
-  }, [activeTab]);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Interactive handlers
   const handleItemClick = (item: any) => {
@@ -378,17 +384,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Generate comprehensive data summary
+  // Generate data summary and insights together so insights always have the summary available
   useEffect(() => {
     const summary = generateDataSummary();
     setDataSummary(summary);
-  }, [data]);
-
-  // Generate AI insights
-  useEffect(() => {
-    const newInsights = generateAIInsights();
+    const newInsights = generateAIInsights(summary);
     setInsights(newInsights);
-  }, [data]);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cache for processed data to avoid re-scanning every time
   const [processedDataCache, setProcessedDataCache] = useState<{
@@ -494,89 +496,96 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     return dataSummary;
   };
 
-  const generateAIInsights = (): AIInsight[] => {
+  const generateAIInsights = (summary?: DataSummary | null): AIInsight[] => {
     const insights: AIInsight[] = [];
-    
-    // Check if we have cached insights
-    const now = Date.now();
-    if (processedDataCache.dataSummary && (now - processedDataCache.lastProcessed) < 300000) {
-      console.log('✅ Using cached AI insights');
-      return insights; // Return cached insights if available
-    }
-    
-    if (!dataSummary) return insights;
+    const s = summary || dataSummary;
+    if (!s) return insights;
 
     // Sales Order insights
-    if (dataSummary.pendingOrders > 0) {
+    if (s.pendingOrders > 0) {
       insights.push({
         id: 'so-pending-1',
         type: 'warning',
-        title: `${dataSummary.pendingOrders} Pending Sales Orders`,
-        description: `You have ${dataSummary.pendingOrders} sales orders requiring immediate attention. Process them to maintain customer satisfaction.`,
+        title: `${s.pendingOrders} Pending Sales Orders`,
+        description: `You have ${s.pendingOrders} sales orders requiring attention. Use the AI chat to analyze and prioritize them.`,
         impact: 'high',
         confidence: 0.95,
         action: 'Review pending orders',
         category: 'sales',
-        data: { pendingOrders: dataSummary.pendingOrders, totalSOs: dataSummary.salesOrders }
+        data: { pendingOrders: s.pendingOrders, totalSOs: s.salesOrders }
       });
     }
 
-    if (dataSummary.completedOrders > 0) {
+    if (s.completedOrders > 0) {
       insights.push({
         id: 'so-completed-1',
         type: 'success',
-        title: `${dataSummary.completedOrders} Orders Completed`,
-        description: `Excellent! You've successfully completed ${dataSummary.completedOrders} sales orders. Consider analyzing patterns for optimization.`,
+        title: `${s.completedOrders} Orders Completed`,
+        description: `${s.completedOrders} sales orders have been completed. Ask the AI to analyze completion patterns for optimization.`,
         impact: 'medium',
         confidence: 0.9,
         action: 'Analyze completion patterns',
         category: 'sales',
-        data: { completedOrders: dataSummary.completedOrders, totalSOs: dataSummary.salesOrders }
+        data: { completedOrders: s.completedOrders, totalSOs: s.salesOrders }
       });
     }
 
     // Inventory insights
-    if (dataSummary.lowStockItems > 0) {
+    if (s.lowStockItems > 0) {
       insights.push({
         id: 'stock-alert-1',
         type: 'alert',
-        title: `${dataSummary.lowStockItems} Items Below Reorder Point`,
-        description: `${dataSummary.lowStockItems} items are below their reorder point and need immediate restocking to avoid stockouts.`,
+        title: `${s.lowStockItems} Items Below Reorder Point`,
+        description: `${s.lowStockItems} items are below their reorder point and need restocking to avoid stockouts.`,
         impact: 'high',
         confidence: 0.95,
         action: 'Review reorder recommendations',
         category: 'inventory',
-        data: { lowStockItems: dataSummary.lowStockItems, totalItems: dataSummary.items }
+        data: { lowStockItems: s.lowStockItems, totalItems: s.items }
       });
     }
 
     // Financial insights
-    if (dataSummary.totalValue > 0) {
+    if (s.totalValue > 0) {
       insights.push({
         id: 'financial-1',
         type: 'recommendation',
-        title: `$${dataSummary.totalValue.toLocaleString()} Total Order Value`,
-        description: `Your current sales orders represent $${dataSummary.totalValue.toLocaleString()} in total value. Monitor cash flow and payment terms.`,
+        title: `$${s.totalValue.toLocaleString()} Total Order Value`,
+        description: `Current sales orders represent $${s.totalValue.toLocaleString()} in total value. Monitor cash flow and payment terms.`,
         impact: 'medium',
         confidence: 0.9,
         action: 'Review financial projections',
         category: 'financial',
-        data: { totalValue: dataSummary.totalValue, orderCount: dataSummary.salesOrders }
+        data: { totalValue: s.totalValue, orderCount: s.salesOrders }
       });
     }
 
     // Operational insights
-    if (dataSummary.manufacturingOrders > 0) {
+    if (s.manufacturingOrders > 0) {
       insights.push({
         id: 'production-1',
         type: 'recommendation',
-        title: `${dataSummary.manufacturingOrders} Active Manufacturing Orders`,
-        description: `You have ${dataSummary.manufacturingOrders} manufacturing orders in progress. Monitor production schedules and resource allocation.`,
+        title: `${s.manufacturingOrders} Active Manufacturing Orders`,
+        description: `${s.manufacturingOrders} manufacturing orders are in progress. Ask the AI to review production schedules and capacity.`,
         impact: 'medium',
         confidence: 0.85,
         action: 'Review production schedule',
         category: 'production',
-        data: { manufacturingOrders: dataSummary.manufacturingOrders }
+        data: { manufacturingOrders: s.manufacturingOrders }
+      });
+    }
+
+    if (s.items > 0) {
+      insights.push({
+        id: 'inventory-overview',
+        type: 'prediction',
+        title: `${s.items.toLocaleString()} Inventory Items Tracked`,
+        description: `Your inventory contains ${s.items.toLocaleString()} unique items. Ask the AI for a full inventory health analysis.`,
+        impact: 'low',
+        confidence: 1.0,
+        action: 'Analyze inventory health',
+        category: 'inventory',
+        data: { totalItems: s.items }
       });
     }
 
@@ -828,69 +837,58 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="bg-slate-50 rounded-xl">
 
-      {/* Compact Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={onBack}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              
-              <div className="flex items-center space-x-2">
-                <div className="p-1 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-gray-900">AI Command Center</h1>
-                </div>
-              </div>
+      {/* Header — matches app style, no internal back button */}
+      <div className="bg-white rounded-t-xl border border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
+              <Brain className="w-5 h-5 text-white" />
             </div>
-            
-            {/* Data Status */}
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-1 bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                <Wifi className="w-3 h-3" />
-                <span>Connected</span>
-              </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">AI Command Center</h2>
+              <p className="text-xs text-slate-500">Ask anything about your business data — MiSys + Sage 50</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+              <Wifi className="w-3 h-3" />
+              <span>Live</span>
             </div>
           </div>
         </div>
 
-        {/* Compact Navigation Tabs */}
-        <div className="px-4 pb-1">
-          <nav className="flex space-x-1">
-            {[
-              { id: 'chat', label: 'AI Chat', icon: MessageCircle },
-              { id: 'insights', label: 'Insights', icon: Lightbulb },
-              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-              { id: 'production', label: 'Production', icon: Factory },
-              { id: 'data', label: 'Data', icon: Database }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <tab.icon className="w-3 h-3" />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+        {/* Navigation Tabs */}
+        <nav className="flex gap-1">
+          {[
+            { id: 'chat', label: 'AI Chat', icon: MessageCircle },
+            { id: 'insights', label: 'Insights', icon: Lightbulb },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+              }`}
+            >
+              <tab.icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
+              {tab.id === 'insights' && insights.length > 0 && (
+                <span className="ml-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                  {insights.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {/* Main Content */}
-      <div className="p-3">
+      <div className="p-4 border-x border-b border-slate-200 rounded-b-xl bg-white">
         {activeTab === 'chat' && (
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
@@ -982,7 +980,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
               {/* Large Chat Interface */}
               <div className="lg:col-span-4">
-                <div className="bg-white rounded-lg shadow-md border border-gray-200 h-[calc(100vh-120px)] flex flex-col">
+                <div className="bg-white rounded-xl border border-slate-200 h-[calc(100vh-260px)] min-h-[500px] flex flex-col shadow-sm">
                   {/* Compact Chat Header */}
                   <div className="p-2 border-b border-gray-200">
                     <div className="flex items-center justify-between">
@@ -2211,128 +2209,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
           </div>
         )}
 
-        {activeTab === 'data' && (
-          <div className="max-w-6xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Overview</h2>
-              <p className="text-gray-600">Complete overview of all available business data</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.entries(data).map(([key, value]) => (
-                <div key={key} className="bg-white rounded-lg shadow-md p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">{key}</h3>
-                    <Database className="w-6 h-6 text-blue-500" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Records:</span>
-                      <span className="font-medium text-gray-900">
-                        {Array.isArray(value) ? value.length : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Type:</span>
-                      <span className="font-medium text-gray-900">
-                        {Array.isArray(value) ? 'Array' : typeof value}
-                      </span>
-                    </div>
-                    {Array.isArray(value) && value.length > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Sample Fields:</span>
-                        <span className="font-medium text-gray-900 text-xs">
-                          {Object.keys(value[0]).slice(0, 3).join(', ')}
-                          {Object.keys(value[0]).length > 3 && '...'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Production Schedule Section */}
-        {activeTab === 'production' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Production Schedule</h2>
-                  <p className="text-gray-600">Timeline view of manufacturing orders and production planning</p>
-                </div>
-                {/* Full Schedule View button removed to keep Production Schedule outside portal */}
-              </div>
-
-              {/* Production Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <div className="text-2xl font-bold text-blue-700">
-                    {(() => {
-                      const releasedMOs = (data?.['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => 
-                        mo['Released By'] && mo['Released By'] !== ''
-                      );
-                      return releasedMOs.length;
-                    })()}
-                  </div>
-                  <div className="text-sm text-blue-600">Released Orders</div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <div className="text-2xl font-bold text-green-700">
-                    {(() => {
-                      const activeMOs = (data?.['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => 
-                        mo['Released By'] && !mo['Completed']
-                      );
-                      return activeMOs.length;
-                    })()}
-                  </div>
-                  <div className="text-sm text-green-600">In Production</div>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                  <div className="text-2xl font-bold text-purple-700">
-                    {(() => {
-                      const uniqueCustomers = new Set(
-                        (data?.['ManufacturingOrderHeaders.json'] || [])
-                          .filter((mo: any) => mo['Released By'] && mo['Customer'])
-                          .map((mo: any) => mo['Customer'])
-                      );
-                      return uniqueCustomers.size;
-                    })()}
-                  </div>
-                  <div className="text-sm text-purple-600">Active Customers</div>
-                </div>
-              </div>
-
-              {/* Quick Production Overview */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Recent Manufacturing Orders</h3>
-                <div className="space-y-2">
-                  {(data?.['ManufacturingOrderHeaders.json'] || [])
-                    .filter((mo: any) => mo['Released By'] && mo['Customer'])
-                    .slice(0, 5)
-                    .map((mo: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
-                        <div>
-                          <div className="font-medium text-gray-900">MO #{mo['Mfg. Order No.']}</div>
-                          <div className="text-sm text-gray-600">{mo['Customer']}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-900">
-                            {mo['Ordered']?.toLocaleString() || 0} units
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {mo['Release Date'] || 'TBD'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

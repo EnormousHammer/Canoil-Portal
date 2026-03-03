@@ -6591,6 +6591,106 @@ def chat_query():
             raw_data['SalesOrders.json'] = []
             raw_data['TotalOrders'] = 0
         
+        # Load Sage G Drive data (customers, open SOs, AR aging) for complete business context
+        # Cache the computed context for 15 minutes to avoid re-processing on every request
+        global _sage_chat_context_cache, _sage_chat_context_ts
+        sage_context = {}
+        sage_cache_ttl = 900  # 15 minutes
+        current_sage_time = time.time()
+
+        if '_sage_chat_context_cache' not in globals() or '_sage_chat_context_ts' not in globals():
+            _sage_chat_context_cache = {}
+            _sage_chat_context_ts = 0.0
+
+        if _sage_chat_context_cache and (current_sage_time - _sage_chat_context_ts) < sage_cache_ttl:
+            sage_context = _sage_chat_context_cache
+            print(f"⚡ Using cached Sage chat context ({int(current_sage_time - _sage_chat_context_ts)}s old)")
+        elif SAGE_GDRIVE_AVAILABLE and sage_gdrive_service:
+            try:
+                # Top customers by YTD revenue
+                cust_result = sage_gdrive_service.get_customers(inactive=False, limit=500)
+                customers = cust_result.get('customers', [])
+                if customers:
+                    top_customers = sorted(customers, key=lambda c: c.get('dAmtYtd') or 0, reverse=True)[:20]
+                    sage_context['sage_customers'] = {
+                        'total_active': cust_result.get('total', 0),
+                        'top_20_by_ytd_revenue': [
+                            {
+                                'name': c['sName'],
+                                'city': c.get('sCity', ''),
+                                'province': c.get('sProvState', ''),
+                                'ytd_revenue': c.get('dAmtYtd') or 0,
+                                'last_year_revenue': c.get('dLastYrAmt') or 0,
+                                'credit_limit': c.get('dCrLimit') or 0,
+                                'last_sale_date': c.get('dtLastSal', ''),
+                                'terms_days': c.get('nNetDay') or 0,
+                                'currency': 'USD' if c.get('lCurrncyId') == 2 else 'CAD',
+                            }
+                            for c in top_customers
+                        ],
+                        'total_ytd_revenue': sum(c.get('dAmtYtd') or 0 for c in customers),
+                    }
+                    print(f"✅ Sage: {cust_result.get('total', 0)} customers loaded")
+            except Exception as e:
+                print(f"⚠️ Sage customers load failed: {e}")
+
+            try:
+                # Sage sales orders (open/active)
+                so_result = sage_gdrive_service.get_sales_orders(limit=200)
+                sage_sos = so_result.get('sales_orders', [])
+                if sage_sos:
+                    open_sos = [o for o in sage_sos if not o.get('bCleared') and not o.get('bQuote')]
+                    sage_context['sage_sales_orders'] = {
+                        'total': so_result.get('total', 0),
+                        'open_count': len(open_sos),
+                        'open_value': sum(o.get('dTotal') or 0 for o in open_sos),
+                        'sample_open': [
+                            {
+                                'so_number': o.get('sSONum', ''),
+                                'customer': o.get('sCustomerName') or o.get('sName', ''),
+                                'total': o.get('dTotal') or 0,
+                                'order_date': str(o.get('dtSODate', ''))[:10],
+                                'ship_date': str(o.get('dtShipDate', ''))[:10],
+                                'status': 'Filled' if o.get('nFilled') == 2 else 'Partial' if o.get('nFilled') == 1 else 'Open',
+                            }
+                            for o in open_sos[:25]
+                        ],
+                    }
+                    print(f"✅ Sage: {len(sage_sos)} sales orders loaded")
+            except Exception as e:
+                print(f"⚠️ Sage sales orders load failed: {e}")
+
+            try:
+                # AR aging summary
+                ar_result = sage_gdrive_service.get_ar_aging()
+                aging = ar_result.get('aging', [])
+                if aging:
+                    sage_context['sage_ar_aging'] = {
+                        'total_ar': ar_result.get('total_ar', 0),
+                        'total_customers': ar_result.get('total_customers', 0),
+                        'top_balances': [
+                            {
+                                'customer': r.get('sName', ''),
+                                'current': r.get('current') or 0,
+                                'd30': r.get('d30') or 0,
+                                'd60': r.get('d60') or 0,
+                                'd90': r.get('d90') or 0,
+                                'd90plus': r.get('d90plus') or 0,
+                                'total': r.get('total') or 0,
+                            }
+                            for r in aging[:20]
+                        ],
+                    }
+                    print(f"✅ Sage: AR aging loaded — total AR ${ar_result.get('total_ar', 0):,.0f}")
+            except Exception as e:
+                print(f"⚠️ Sage AR aging load failed: {e}")
+
+            # Cache the computed context if we got any data
+            if sage_context:
+                _sage_chat_context_cache = sage_context
+                _sage_chat_context_ts = current_sage_time
+                print(f"✅ Sage chat context cached ({len(sage_context)} sections)")
+
         # Analyze the data for ChatGPT context
         analysis = analyze_inventory_data(raw_data, user_query)
         
@@ -6600,7 +6700,11 @@ def chat_query():
             return jsonify({"error": f"Data analysis failed: {analysis['error']}"}), 500
         
         # Create system prompt with data context
-        system_prompt = f"""You are an UNLIMITED AI assistant for Canoil Canada Ltd. You have complete access to ALL ERP data and can help with ANYTHING related to the business. NO LIMITATIONS.
+        system_prompt = f"""You are a business intelligence AI for Canoil Canada Ltd. You have FULL ACCESS to ALL company data: MiSys ERP (inventory, manufacturing, BOMs, purchase/sales orders from PDFs) AND Sage 50 accounting (customers with YTD revenue, open sales orders, AR aging balances). Use ALL data sources together to give comprehensive, accurate answers.
+
+**DUAL DATA SOURCES — ALWAYS USE BOTH:**
+- **MiSys ERP data** (JSON files): inventory items, manufacturing orders, BOMs, work orders, MPS
+- **Sage 50 accounting data** (CSV exports): customer master with YTD/prior-year revenue, open sales orders, AR aging
 
 UNLIMITED INTELLIGENCE - HELP WITH EVERYTHING:
 You can assist with ANY business question, scenario, or challenge including:
@@ -7096,6 +7200,29 @@ Sales Orders exist as PDF files in Google Drive folders:
 - Total Inventory Items: {len(raw_data.get('Items.json', []))}
 - Total BOM Records: {len(raw_data.get('BillOfMaterialDetails.json', []))}
 - Available Data Files: {list(raw_data.keys())}
+
+**📊 SAGE 50 ACCOUNTING DATA (from Sage G Drive CSV export):**
+{f'''
+CUSTOMERS (Sage 50):
+- Total active customers: {sage_context.get('sage_customers', {}).get('total_active', 'N/A')}
+- Total YTD revenue: ${sage_context.get('sage_customers', {}).get('total_ytd_revenue', 0):,.0f}
+- Top 20 customers by YTD revenue:
+{chr(10).join([f"  {i+1}. {c['name']} ({c.get('city','')}, {c.get('province','')}) — YTD: ${c['ytd_revenue']:,.0f} | Last Year: ${c['last_year_revenue']:,.0f} | Credit Limit: ${c['credit_limit']:,.0f}" for i, c in enumerate(sage_context.get('sage_customers', {}).get('top_20_by_ytd_revenue', []))])}
+
+OPEN SALES ORDERS (Sage 50):
+- Total SOs in Sage: {sage_context.get('sage_sales_orders', {}).get('total', 'N/A')}
+- Open (not cleared) count: {sage_context.get('sage_sales_orders', {}).get('open_count', 'N/A')}
+- Open orders total value: ${sage_context.get('sage_sales_orders', {}).get('open_value', 0):,.0f}
+- Sample open orders:
+{chr(10).join([f"  SO #{o['so_number']} | {o['customer']} | ${o['total']:,.0f} | Order: {o['order_date']} | Ship: {o['ship_date']} | {o['status']}" for o in sage_context.get('sage_sales_orders', {}).get('sample_open', [])])}
+
+AR AGING (Sage 50):
+- Total AR outstanding: ${sage_context.get('sage_ar_aging', {}).get('total_ar', 0):,.0f}
+- Customers with balances: {sage_context.get('sage_ar_aging', {}).get('total_customers', 'N/A')}
+- Top overdue accounts:
+{chr(10).join([f"  {r['customer']} — Current: ${r['current']:,.0f} | 31-60: ${r['d30']:,.0f} | 61-90: ${r['d60']:,.0f} | 90+: ${r['d90plus']:,.0f} | TOTAL: ${r['total']:,.0f}" for r in sage_context.get('sage_ar_aging', {}).get('top_balances', [])])}
+''' if sage_context else ''}
+
 
 **🚨 CRITICAL INSTRUCTION - ENTERPRISE AI AGENT:**
 - AI is configured as an ENTERPRISE-LEVEL BUSINESS INTELLIGENCE AGENT
