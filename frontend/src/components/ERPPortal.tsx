@@ -6,10 +6,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../utils/portalApi';
 
-type ERPSection = 'overview' | 'customers' | 'sales-orders' | 'shipments' |
-  'invoices' | 'approvals' | 'mrp' | 'qc' | 'financials' |
-  'sage-browser' | 'sage-analytics' | 'item-mapping' |
-  'notifications' | 'audit-log' | 'admin';
+type ERPSection = 'overview' | 'customers' | 'sales-orders' |
+  'invoices' | 'financials' |
+  'sage-browser' | 'sage-analytics' | 'item-mapping';
 
 interface ERPPortalProps {
   data?: any;
@@ -20,27 +19,18 @@ const SECTIONS: { id: ERPSection; label: string; icon: string; desc: string }[] 
   { id: 'overview',       label: 'Overview',       icon: '◈',  desc: 'System status & summary' },
   { id: 'customers',      label: 'Customers',      icon: '◎',  desc: 'Sage 50 customer master' },
   { id: 'sales-orders',   label: 'Sales Orders',   icon: '▤',  desc: 'Active orders' },
-  { id: 'shipments',      label: 'Shipments',      icon: '⬡',  desc: 'Shipping schedule' },
-  { id: 'invoices',       label: 'Invoices',       icon: '◻',  desc: 'Invoice management' },
-  { id: 'approvals',      label: 'Approvals',      icon: '◈',  desc: 'Pending approvals' },
-  { id: 'mrp',            label: 'MRP',            icon: '⬡',  desc: 'Material requirements' },
-  { id: 'qc',             label: 'Quality',        icon: '◎',  desc: 'QC inspections' },
+  { id: 'invoices',       label: 'Invoices',       icon: '◻',  desc: 'AR aging' },
   { id: 'financials',     label: 'Financials',     icon: '▤',  desc: 'AR / AP / GL views' },
-  { id: 'sage-browser',   label: 'Sage Browser',   icon: '◈',  desc: 'Sage 50 live data' },
   { id: 'sage-analytics', label: 'Sage Analytics', icon: '▤',  desc: 'Revenue & customer analytics' },
+  { id: 'sage-browser',   label: 'Sage Browser',   icon: '◈',  desc: 'Sage 50 live data' },
   { id: 'item-mapping',   label: 'Item Mapping',   icon: '⬡',  desc: 'MiSys ↔ Sage mapping' },
-  { id: 'notifications',  label: 'Alerts',         icon: '◎',  desc: 'System notifications' },
-  { id: 'audit-log',      label: 'Audit Log',      icon: '◻',  desc: 'Activity trail' },
-  { id: 'admin',          label: 'Admin',          icon: '◈',  desc: 'Users & ETL administration' },
 ];
 
 const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
-  { label: 'Operations',    ids: ['overview', 'sales-orders', 'shipments', 'invoices'] },
+  { label: 'Operations',    ids: ['overview', 'sales-orders', 'invoices'] },
   { label: 'CRM',           ids: ['customers'] },
-  { label: 'Finance',       ids: ['financials', 'approvals'] },
-  { label: 'Manufacturing', ids: ['mrp', 'qc'] },
+  { label: 'Finance',       ids: ['financials'] },
   { label: 'Sage 50',       ids: ['sage-analytics', 'sage-browser', 'item-mapping'] },
-  { label: 'System',        ids: ['notifications', 'audit-log', 'admin'] },
 ];
 
 export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
@@ -115,18 +105,11 @@ export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
             {section === 'overview'       && <ERPOverview />}
             {section === 'customers'      && <CustomerSection />}
             {section === 'sales-orders'   && <SalesOrderSection data={data} />}
-            {section === 'shipments'      && <ShipmentSection />}
             {section === 'invoices'       && <InvoiceSection />}
-            {section === 'approvals'      && <ApprovalSection />}
-            {section === 'mrp'            && <MRPSection />}
-            {section === 'qc'             && <QCSection />}
             {section === 'financials'     && <FinancialSection />}
-            {section === 'sage-browser'   && <SageBrowserSection />}
             {section === 'sage-analytics' && <SageAnalyticsSection />}
+            {section === 'sage-browser'   && <SageBrowserSection />}
             {section === 'item-mapping'   && <ItemMappingSection data={data} />}
-            {section === 'notifications'  && <NotificationSection />}
-            {section === 'audit-log'      && <AuditLogSection />}
-            {section === 'admin'          && <AdminSection />}
           </div>
         </div>
       </div>
@@ -492,16 +475,6 @@ const SalesOrderSection: React.FC<{ data?: any }> = () => {
   );
 };
 
-// ============================================================
-// SHIPMENTS
-// ============================================================
-const ShipmentSection: React.FC = () => (
-  <ComingSoon
-    feature="Shipments"
-    description="Shipping schedules, carrier tracking, and delivery confirmations — linked to Sage 50 sales orders."
-    items={['View scheduled shipments from Sage SO ship dates', 'Carrier tracking integration', 'Delivery confirmation logging', 'Write: create & update shipments — coming soon']}
-  />
-);
 
 // ============================================================
 // INVOICES — AR Aging from Sage G Drive
@@ -593,38 +566,6 @@ const InvoiceSection: React.FC = () => {
   );
 };
 
-// ============================================================
-// APPROVALS
-// ============================================================
-const ApprovalSection: React.FC = () => (
-  <ComingSoon
-    feature="Approval Workflows"
-    description="Multi-level approval routing for purchase orders, sales discounts, and credit limit overrides."
-    items={['SO discount approval routing', 'PO approval workflows', 'Credit limit override requests', 'Approval history & audit trail']}
-  />
-);
-
-// ============================================================
-// MRP
-// ============================================================
-const MRPSection: React.FC = () => (
-  <ComingSoon
-    feature="Material Requirements Planning"
-    description="Automated demand planning based on open sales orders, current Sage 50 inventory levels, and lead times."
-    items={['Auto-calculate material needs from open SOs', 'Compare against Sage 50 stock on hand', 'Generate suggested purchase orders', 'Safety stock & reorder point rules']}
-  />
-);
-
-// ============================================================
-// QC
-// ============================================================
-const QCSection: React.FC = () => (
-  <ComingSoon
-    feature="Quality Control"
-    description="Incoming goods inspection, lot tracking, and non-conformance reporting linked to purchase orders."
-    items={['Incoming inspection checklists on PO receipt', 'Lot traceability from Sage 50', 'Non-conformance reports', 'Certificate of Analysis management']}
-  />
-);
 
 // ============================================================
 // FINANCIALS — uses Sage G Drive for AR; rest coming soon
@@ -800,18 +741,30 @@ const SageAnalyticsSection: React.FC = () => {
         <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
           READ-ONLY · G Drive CSV{kpis?.data_folder ? ` · ${kpis.data_folder}` : ''}
         </span>
-        <div className="ml-auto flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</label>
-          <select
-            value={selectedYear}
-            onChange={e => setSelectedYear(Number(e.target.value))}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-sm"
+        <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+          {availableYears.map(y => (
+            <button
+              key={y}
+              onClick={() => setSelectedYear(y)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
+                selectedYear === y
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-md'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
+              }`}
+            >
+              {y === currentYear ? `${y} YTD` : String(y)}
+            </button>
+          ))}
+          <button
+            onClick={() => setSelectedYear(0)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
+              selectedYear === 0
+                ? 'bg-amber-500 text-white border-amber-500 shadow-md'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
+            }`}
           >
-            {availableYears.map(y => (
-              <option key={y} value={y}>{y === currentYear ? `${y} (YTD)` : y}</option>
-            ))}
-            <option value={0}>All Time</option>
-          </select>
+            All Time
+          </button>
         </div>
       </div>
 
@@ -1586,38 +1539,6 @@ function formatSageValue(v: any): string {
   return String(v);
 }
 
-// ============================================================
-// NOTIFICATIONS
-// ============================================================
-const NotificationSection: React.FC = () => (
-  <ComingSoon
-    feature="Alerts & Notifications"
-    description="Automated alerts for low stock, overdue AR, approaching ship dates, and credit limit breaches — all based on Sage G Drive data."
-    items={['Low stock alerts from Sage 50 inventory', 'Overdue AR notifications from aging data', 'Upcoming ship date reminders', 'Credit limit breach warnings']}
-  />
-);
-
-// ============================================================
-// AUDIT LOG
-// ============================================================
-const AuditLogSection: React.FC = () => (
-  <ComingSoon
-    feature="Audit Log"
-    description="Full activity trail of all ERP portal actions — who viewed, created, or modified what, and when."
-    items={['User action history', 'Data change tracking', 'Export audit reports', 'Filterable by user, action, entity']}
-  />
-);
-
-// ============================================================
-// ADMIN
-// ============================================================
-const AdminSection: React.FC = () => (
-  <ComingSoon
-    feature="Administration"
-    description="User management, role-based access control, and G Drive sync configuration for the ERP portal."
-    items={['Portal user management', 'Role-based access (view / edit / admin)', 'G Drive sync settings & folder configuration', 'ETL schedule management']}
-  />
-);
 
 // ============================================================
 // SHARED UI COMPONENTS

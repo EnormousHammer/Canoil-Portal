@@ -2291,6 +2291,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           )}
 
+          {/* ERP Portal */}
+          {activeSection === 'erp-portal' && (
+            <ERPPortal data={data} currentUser={currentUser} />
+          )}
+
           {/* AI Command Center */}
           {activeSection === 'ai-command' && (
             <AICommandCenter
@@ -11732,14 +11737,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         </div>
       )}
       
-      {/* ERP Portal - Full Enterprise System (Phase 1-4) */}
-      {activeSection === 'erp-portal' && (
-        <div className="max-w-7xl mx-auto">
-          <ERPPortal data={data} currentUser={currentUser} />
-        </div>
-      )}
-
-
       {/* Toast Notifications */}
       <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </>
