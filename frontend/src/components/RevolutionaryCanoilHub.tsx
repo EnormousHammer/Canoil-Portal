@@ -219,10 +219,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   
   const [activeSection, setActiveSection] = useState('dashboard');
   const contentRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (activeSection !== 'dashboard') {
-      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const navBottom = navRef.current
+        ? navRef.current.getBoundingClientRect().bottom + window.scrollY
+        : 0;
+      window.scrollTo({ top: navBottom, behavior: 'instant' as ScrollBehavior });
     }
   }, [activeSection]);
 
@@ -1943,9 +1947,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(99,102,241,0.15),transparent_50%)]"></div>
         </div>
         
-        {/* PREMIUM NAVIGATION - only shown on dashboard */}
-        {activeSection === 'dashboard' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5 max-w-7xl mx-auto mb-6 md:mb-8">
+        {/* PREMIUM NAVIGATION - Colorful 3D Icons Style v7.0 */}
+        <div ref={navRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5 max-w-7xl mx-auto mb-6 md:mb-8">
           
           {/* Dashboard - Active Blue Card Style */}
           <button
@@ -2214,7 +2217,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           </button>
         </div>
-        )}
 
         {/* BREADCRUMB NAVIGATION */}
         {activeSection !== 'dashboard' && (
