@@ -339,75 +339,155 @@ const CustomerSection: React.FC = () => {
 };
 
 // ============================================================
-// SALES ORDERS
+// SHARED: Coming Soon placeholder
 // ============================================================
-const SalesOrderSection: React.FC<{ data?: any }> = ({ data }) => {
-  const [orders, setOrders] = useState<any[]>([]);
+const ComingSoon: React.FC<{ feature: string; description: string; items?: string[] }> = ({ feature, description, items }) => (
+  <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+      <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+      </svg>
+    </div>
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold uppercase tracking-widest mb-3">
+      Coming Soon
+    </span>
+    <h3 className="text-lg font-bold text-slate-800 tracking-tight">{feature}</h3>
+    <p className="text-sm text-slate-500 mt-2 max-w-md leading-relaxed">{description}</p>
+    {items && items.length > 0 && (
+      <ul className="mt-4 space-y-1.5 text-left max-w-xs w-full">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-center gap-2 text-[13px] text-slate-500">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+);
+
+// ============================================================
+// SALES ORDERS (read from Sage G Drive — same source as Customers)
+// ============================================================
+const SalesOrderSection: React.FC<{ data?: any }> = () => {
+  const [all, setAll] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'quote' | 'cleared'>('open');
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ customer_name: '', notes: '', lines: [{ item_no: '', qty_ordered: 1, unit_price: 0 }] });
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await apiGet('/api/sales-orders?limit=50');
-    setOrders(r.data || []);
+    setError(null);
+    const r = await apiGet('/api/sage/gdrive/sales-orders?limit=500');
+    if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
+    setAll(r.data?.sales_orders || []);
+    setTotal(r.data?.total ?? 0);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleCreate = async () => {
-    const payload = {
-      ...form,
-      lines: form.lines.map((l, i) => ({
-        ...l,
-        line_no: i + 1,
-        ext_price: Number(l.qty_ordered) * Number(l.unit_price),
-      })),
-      subtotal: form.lines.reduce((s, l) => s + Number(l.qty_ordered) * Number(l.unit_price), 0),
-      total: form.lines.reduce((s, l) => s + Number(l.qty_ordered) * Number(l.unit_price), 0),
-    };
-    await apiPost('/api/sales-orders', payload);
-    setShowForm(false);
-    load();
+  const visible = all.filter((o: any) => {
+    if (statusFilter === 'open' && (o.bCleared || o.bQuote)) return false;
+    if (statusFilter === 'quote' && !o.bQuote) return false;
+    if (statusFilter === 'cleared' && !o.bCleared) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (o.sSONum || '').toLowerCase().includes(q) ||
+             (o.sCustomerName || '').toLowerCase().includes(q) ||
+             (o.sName || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const fmt$ = (n: number | null | undefined, cId?: number) => {
+    if (n == null) return '—';
+    const cur = cId === 2 ? 'USD' : 'CAD';
+    return n.toLocaleString('en-CA', { style: 'currency', currency: cur, maximumFractionDigits: 0 });
   };
 
-  const addLine = () => setForm({ ...form, lines: [...form.lines, { item_no: '', qty_ordered: 1, unit_price: 0 }] });
+  const soStatus = (o: any) => {
+    if (o.bQuote) return { label: 'Quote', cls: 'bg-blue-100 text-blue-700' };
+    if (o.bCleared) return { label: 'Cleared', cls: 'bg-slate-100 text-slate-500' };
+    if (o.nFilled === 2) return { label: 'Filled', cls: 'bg-emerald-100 text-emerald-700' };
+    if (o.nFilled === 1) return { label: 'Partial', cls: 'bg-amber-100 text-amber-700' };
+    return { label: 'Open', cls: 'bg-cyan-100 text-cyan-700' };
+  };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Sales Orders</h2>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-semibold hover:bg-cyan-500">
-          + New SO
-        </button>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SO#, customer…"
+            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 placeholder:text-slate-400" />
+        </div>
+        {(['all', 'open', 'quote', 'cleared'] as const).map(s => (
+          <button key={s} onClick={() => setStatusFilter(s)}
+            className={`px-3 py-2 text-sm rounded-lg font-medium transition-colors capitalize ${
+              statusFilter === s ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {s}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-slate-400 font-medium">{visible.length} of {total}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded">
+          Read-only · Sage G Drive
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
+          Write coming soon
+        </span>
       </div>
-      {showForm && (
-        <div className="mb-4 p-4 bg-slate-50 rounded-xl space-y-3">
-          <input value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })}
-            placeholder="Customer Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-          <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-            placeholder="Notes" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-slate-700">Lines:</p>
-            {form.lines.map((l, i) => (
-              <div key={i} className="flex gap-2">
-                <input value={l.item_no} onChange={e => { const nl = [...form.lines]; nl[i] = { ...l, item_no: e.target.value }; setForm({ ...form, lines: nl }); }}
-                  placeholder="Item No." className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                <input type="number" value={l.qty_ordered} onChange={e => { const nl = [...form.lines]; nl[i] = { ...l, qty_ordered: +e.target.value }; setForm({ ...form, lines: nl }); }}
-                  placeholder="Qty" className="w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-                <input type="number" value={l.unit_price} onChange={e => { const nl = [...form.lines]; nl[i] = { ...l, unit_price: +e.target.value }; setForm({ ...form, lines: nl }); }}
-                  placeholder="Price" className="w-28 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-              </div>
-            ))}
-            <button onClick={addLine} className="text-sm text-blue-600 hover:underline">+ Add Line</button>
-          </div>
-          <button onClick={handleCreate} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold">Create SO</button>
+
+      {error ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-5 text-amber-800 text-sm">
+          <p className="font-semibold">Could not load Sage sales orders</p>
+          <p className="text-xs mt-1 text-amber-600">{error}</p>
+          <button onClick={load} className="mt-3 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold">Retry</button>
+        </div>
+      ) : loading ? (
+        <div className="flex items-center gap-3 py-12 text-slate-400 text-sm">
+          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Loading sales orders from Sage G Drive…
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['SO #', 'Customer', 'SO Date', 'Ship Date', 'Total', 'Status', 'Shipper'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap first:pl-5">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {visible.slice(0, 200).map((o: any, i: number) => {
+                const st = soStatus(o);
+                return (
+                  <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5 pl-5 font-mono font-semibold text-blue-700">{o.sSONum || '—'}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800 max-w-[180px] truncate">{o.sCustomerName || o.sName || '—'}</td>
+                    <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{o.dtSODate ? String(o.dtSODate).substring(0, 10) : '—'}</td>
+                    <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{o.dtShipDate ? String(o.dtShipDate).substring(0, 10) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono font-semibold text-emerald-700 whitespace-nowrap">{fmt$(o.dTotal, o.lCurrncyId)}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${st.cls}`}>{st.label}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-400 text-[12px]">{o.sShipper || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {visible.length === 0 && <div className="text-center py-12 text-slate-400 text-sm">No orders match the current filters</div>}
         </div>
       )}
-      {loading ? <p className="text-slate-500">Loading...</p> :
-        <DataTable data={orders} columns={['so_no', 'customer_name', 'status', 'total', 'order_date', 'source']} />
-      }
     </div>
   );
 };
@@ -415,43 +495,100 @@ const SalesOrderSection: React.FC<{ data?: any }> = ({ data }) => {
 // ============================================================
 // SHIPMENTS
 // ============================================================
-const ShipmentSection: React.FC = () => {
-  const [shipments, setShipments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    apiGet('/api/shipments?limit=50').then(r => { setShipments(r.data || []); setLoading(false); });
-  }, []);
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Shipments</h2>
-      {loading ? <p className="text-slate-500">Loading...</p> :
-        <DataTable data={shipments} columns={['id', 'so_no', 'status', 'carrier', 'tracking_no', 'ship_date']} />
-      }
-    </div>
-  );
-};
+const ShipmentSection: React.FC = () => (
+  <ComingSoon
+    feature="Shipments"
+    description="Shipping schedules, carrier tracking, and delivery confirmations — linked to Sage 50 sales orders."
+    items={['View scheduled shipments from Sage SO ship dates', 'Carrier tracking integration', 'Delivery confirmation logging', 'Write: create & update shipments — coming soon']}
+  />
+);
 
 // ============================================================
-// INVOICES
+// INVOICES — AR Aging from Sage G Drive
 // ============================================================
 const InvoiceSection: React.FC = () => {
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [arAging, setArAging] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     setLoading(true);
-    apiGet('/api/invoices?limit=50').then(r => { setInvoices(r.data || []); setLoading(false); });
+    setError(null);
+    const r = await apiGet('/api/sage/gdrive/analytics/ar-aging');
+    if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
+    setArAging(r.data);
+    setLoading(false);
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
+  const fmtFull = (n: number | null | undefined) =>
+    n != null ? n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 2 }) : '—';
+
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Invoices</h2>
-      {loading ? <p className="text-slate-500">Loading...</p> :
-        <DataTable data={invoices} columns={['invoice_no', 'so_no', 'status', 'total', 'invoice_date', 'due_date']} />
-      }
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded">
+          Read-only · Sage G Drive · AR Aging
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
+          Invoice management coming soon
+        </span>
+      </div>
+
+      {error ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-5 text-amber-800 text-sm">
+          <p className="font-semibold">Could not load AR aging from Sage G Drive</p>
+          <p className="text-xs mt-1 text-amber-600">{error}</p>
+          <button onClick={load} className="mt-3 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold">Retry</button>
+        </div>
+      ) : loading ? (
+        <div className="flex items-center gap-3 py-12 text-slate-400 text-sm">
+          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Loading AR aging from Sage G Drive…
+        </div>
+      ) : arAging ? (
+        <div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-xl text-white">
+              <p className="text-xs font-medium opacity-80">Total AR Outstanding</p>
+              <p className="text-xl font-bold tabular-nums">{fmtFull(arAging.total_ar)}</p>
+            </div>
+            <div className="bg-gradient-to-br from-slate-700 to-slate-800 p-4 rounded-xl text-white">
+              <p className="text-xs font-medium opacity-80">Customers with Balance</p>
+              <p className="text-xl font-bold">{arAging.total_customers ?? '—'}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {['Customer', 'Current (0–30)', '31–60 Days', '61–90 Days', '91–120 Days', '120+ Days', 'Total'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap first:pl-5">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(arAging.aging || []).map((row: any, i: number) => (
+                  <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5 pl-5 font-semibold text-slate-800 max-w-[200px] truncate">{row.sName}</td>
+                    <td className="px-4 py-2.5 font-mono text-slate-600 whitespace-nowrap">{row.current ? fmtFull(row.current) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-amber-700 whitespace-nowrap">{row.d30 ? fmtFull(row.d30) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-orange-700 whitespace-nowrap">{row.d60 ? fmtFull(row.d60) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-red-600 whitespace-nowrap">{row.d90 ? fmtFull(row.d90) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-red-700 font-bold whitespace-nowrap">{row.d90plus ? fmtFull(row.d90plus) : '—'}</td>
+                    <td className="px-4 py-2.5 font-mono font-bold text-slate-800 whitespace-nowrap">{fmtFull(row.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!(arAging.aging?.length) && <div className="text-center py-12 text-slate-400 text-sm">No AR data found</div>}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -459,290 +596,75 @@ const InvoiceSection: React.FC = () => {
 // ============================================================
 // APPROVALS
 // ============================================================
-const ApprovalSection: React.FC = () => {
-  const [pending, setPending] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-
-  useEffect(() => {
-    apiGet('/api/approvals/pending').then(r => setPending(r.data || []));
-    apiGet('/api/approvals/history?limit=20').then(r => setHistory(r.data || []));
-  }, []);
-
-  const handleAction = async (id: number, action: 'approve' | 'reject') => {
-    await apiPost(`/api/approvals/${id}/${action}`, { comments: '' });
-    const r = await apiGet('/api/approvals/pending');
-    setPending(r.data || []);
-  };
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Approval Inbox</h2>
-      {pending.length === 0 ? (
-        <p className="text-slate-500">No pending approvals</p>
-      ) : (
-        <div className="space-y-2">
-          {pending.map((a: any) => (
-            <div key={a.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-200">
-              <div>
-                <span className="font-semibold text-sm">{a.entity_type} {a.entity_id}</span>
-                <span className="ml-2 text-xs text-slate-500">{a.rule_description || ''}</span>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => handleAction(a.id, 'approve')} className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-semibold">Approve</button>
-                <button onClick={() => handleAction(a.id, 'reject')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold">Reject</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <h3 className="text-lg font-bold text-slate-700 mt-6 mb-2">History</h3>
-      <DataTable data={history} columns={['entity_type', 'entity_id', 'status', 'decided_by', 'decided_at']} />
-    </div>
-  );
-};
+const ApprovalSection: React.FC = () => (
+  <ComingSoon
+    feature="Approval Workflows"
+    description="Multi-level approval routing for purchase orders, sales discounts, and credit limit overrides."
+    items={['SO discount approval routing', 'PO approval workflows', 'Credit limit override requests', 'Approval history & audit trail']}
+  />
+);
 
 // ============================================================
 // MRP
 // ============================================================
-const MRPSection: React.FC = () => {
-  const [latestRun, setLatestRun] = useState<any>(null);
-  const [running, setRunning] = useState(false);
-
-  useEffect(() => {
-    apiGet('/api/mrp/latest').then(r => setLatestRun(r.data || null));
-  }, []);
-
-  const runMRP = async () => {
-    setRunning(true);
-    const r = await apiPost('/api/mrp/run');
-    setLatestRun(r.data);
-    setRunning(false);
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Material Requirements Planning</h2>
-        <button onClick={runMRP} disabled={running}
-          className="px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-500 disabled:opacity-50">
-          {running ? 'Running...' : 'Run MRP'}
-        </button>
-      </div>
-      {latestRun ? (
-        <div>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <StatusCard title="Run ID" value={`#${latestRun.id || '?'}`} color="violet" />
-            <StatusCard title="Status" value={latestRun.status || 'N/A'} color="green" />
-            <StatusCard title="Planned Orders" value={String(latestRun.planned_order_count || 0)} color="blue" />
-          </div>
-          {latestRun.planned_orders && (
-            <DataTable data={latestRun.planned_orders}
-              columns={['item_no', 'qty', 'need_date', 'order_date', 'supplier_no', 'status']} />
-          )}
-        </div>
-      ) : <p className="text-slate-500">No MRP runs yet. Click "Run MRP" to generate planned orders.</p>}
-    </div>
-  );
-};
+const MRPSection: React.FC = () => (
+  <ComingSoon
+    feature="Material Requirements Planning"
+    description="Automated demand planning based on open sales orders, current Sage 50 inventory levels, and lead times."
+    items={['Auto-calculate material needs from open SOs', 'Compare against Sage 50 stock on hand', 'Generate suggested purchase orders', 'Safety stock & reorder point rules']}
+  />
+);
 
 // ============================================================
 // QC
 // ============================================================
-const QCSection: React.FC = () => {
-  const [inspections, setInspections] = useState<any[]>([]);
-
-  useEffect(() => {
-    apiGet('/api/inspections/pending').then(r => setInspections(r.data || []));
-  }, []);
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Quality Control</h2>
-      {inspections.length === 0 ? (
-        <p className="text-slate-500">No pending inspections</p>
-      ) : (
-        <DataTable data={inspections} columns={['id', 'item_no', 'po_no', 'lot_no', 'status', 'created_at']} />
-      )}
-    </div>
-  );
-};
+const QCSection: React.FC = () => (
+  <ComingSoon
+    feature="Quality Control"
+    description="Incoming goods inspection, lot tracking, and non-conformance reporting linked to purchase orders."
+    items={['Incoming inspection checklists on PO receipt', 'Lot traceability from Sage 50', 'Non-conformance reports', 'Certificate of Analysis management']}
+  />
+);
 
 // ============================================================
-// FINANCIALS
+// FINANCIALS — uses Sage G Drive for AR; rest coming soon
 // ============================================================
 const FinancialSection: React.FC = () => {
-  const [arData, setArData] = useState<any>(null);
-  const [apData, setApData] = useState<any>(null);
-  const [tab, setTab] = useState<'ar' | 'ap' | 'gl' | 'margins' | 'reports'>('ar');
-
-  useEffect(() => {
-    apiGet('/api/financial/ar-aging').then(r => setArData(r.data));
-    apiGet('/api/financial/ap-aging').then(r => setApData(r.data));
-  }, []);
-
+  const [tab, setTab] = useState<'ar' | 'margins' | 'gl' | 'reports'>('ar');
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Financial Views</h2>
-      <div className="flex gap-2 mb-4">
-        {(['ar', 'ap', 'gl', 'margins', 'reports'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${tab === t ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
-            {t === 'margins' ? 'Margin Analysis' : t.toUpperCase()}
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { id: 'ar', label: 'AR Aging', live: true },
+          { id: 'margins', label: 'Margin Analysis', live: false },
+          { id: 'gl', label: 'GL Summary', live: false },
+          { id: 'reports', label: 'Month-End Reports', live: false },
+        ] as const).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              tab === t.id ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {t.label}
+            {!t.live && <span className="text-[9px] font-bold uppercase tracking-widest text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">Soon</span>}
           </button>
         ))}
       </div>
-      {tab === 'ar' && arData && (
-        <div>
-          <div className="grid grid-cols-5 gap-3 mb-4">
-            {Object.entries(arData.buckets || {}).map(([k, v]) => (
-              <StatusCard key={k} title={k === '120_plus' ? '120+' : k === 'current' ? 'Current' : `${k} days`}
-                value={`$${(Number(v) || 0).toLocaleString()}`} color="green" />
-            ))}
-          </div>
-          <p className="text-sm text-slate-600">Total Outstanding: <strong>${(arData.total_outstanding || 0).toLocaleString()}</strong></p>
-        </div>
+      {tab === 'ar' && <InvoiceSection />}
+      {tab === 'margins' && (
+        <ComingSoon feature="Margin Analysis" description="Gross margin by order, product, and customer calculated from Sage 50 invoice and COGS data."
+          items={['Margin by sales order', 'Margin by product line', 'Margin by customer']} />
       )}
-      {tab === 'ap' && apData && (
-        <div>
-          <div className="grid grid-cols-5 gap-3 mb-4">
-            {Object.entries(apData.buckets || {}).map(([k, v]) => (
-              <StatusCard key={k} title={k === '120_plus' ? '120+' : k === 'current' ? 'Current' : `${k} days`}
-                value={`$${(Number(v) || 0).toLocaleString()}`} color="orange" />
-            ))}
-          </div>
-          <p className="text-sm text-slate-600">Total Outstanding: <strong>${(apData.total_outstanding || 0).toLocaleString()}</strong></p>
-        </div>
+      {tab === 'gl' && (
+        <ComingSoon feature="GL Summary" description="General ledger summary pulled from Sage 50 — assets, liabilities, revenue, and expenses."
+          items={['Balance sheet summary', 'Income statement view', 'Period comparisons']} />
       )}
-      {tab === 'gl' && <GLView />}
-      {tab === 'margins' && <MarginDashboard />}
-      {tab === 'reports' && <ReportsView />}
-    </div>
-  );
-};
-
-const MarginDashboard: React.FC = () => {
-  const [view, setView] = useState<'by-order' | 'by-product' | 'by-customer'>('by-order');
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    const ep = view === 'by-customer' ? '/api/costing/margin/customer' : `/api/costing/margin/${view}`;
-    apiGet(ep).then(r => { setData(r.data); setLoading(false); });
-  }, [view]);
-
-  const items = view === 'by-order' ? (data?.orders || [])
-    : view === 'by-product' ? (data?.products || [])
-    : (data?.customers || []);
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-4">
-        {(['by-order', 'by-product', 'by-customer'] as const).map(v => (
-          <button key={v} onClick={() => setView(v)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold capitalize ${
-              view === v ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}>
-            {v.replace('-', ' ')}
-          </button>
-        ))}
-      </div>
-      {loading ? <p className="text-slate-500">Loading margin data...</p> : (
-        <div>
-          <p className="text-xs text-slate-500 mb-3">{items.length} records</p>
-          {items.length === 0 ? (
-            <p className="text-sm text-slate-400">No margin data available yet. Create Sales Orders first.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    {view === 'by-order' && <><th className="px-3 py-2 text-left text-xs font-semibold">SO#</th><th className="px-3 py-2 text-left text-xs font-semibold">Customer</th><th className="px-3 py-2 text-right text-xs font-semibold">Revenue</th><th className="px-3 py-2 text-right text-xs font-semibold">COGS</th><th className="px-3 py-2 text-right text-xs font-semibold">Margin</th><th className="px-3 py-2 text-right text-xs font-semibold">Margin %</th></>}
-                    {view === 'by-product' && <><th className="px-3 py-2 text-left text-xs font-semibold">Item</th><th className="px-3 py-2 text-right text-xs font-semibold">Revenue</th><th className="px-3 py-2 text-right text-xs font-semibold">Shipped</th><th className="px-3 py-2 text-right text-xs font-semibold">Unit Cost</th><th className="px-3 py-2 text-right text-xs font-semibold">COGS</th><th className="px-3 py-2 text-right text-xs font-semibold">Margin</th><th className="px-3 py-2 text-right text-xs font-semibold">Margin %</th></>}
-                    {view === 'by-customer' && <><th className="px-3 py-2 text-left text-xs font-semibold">Customer</th><th className="px-3 py-2 text-right text-xs font-semibold">Orders</th><th className="px-3 py-2 text-right text-xs font-semibold">Revenue</th></>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.slice(0, 50).map((row: any, i: number) => (
-                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                      {view === 'by-order' && <>
-                        <td className="px-3 py-2 text-xs font-mono">{row.so_no}</td>
-                        <td className="px-3 py-2 text-xs">{row.customer_name}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.revenue || 0).toLocaleString()}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.cogs || 0).toLocaleString()}</td>
-                        <td className={`px-3 py-2 text-xs text-right font-semibold ${(row.margin || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${(row.margin || 0).toLocaleString()}</td>
-                        <td className={`px-3 py-2 text-xs text-right ${(row.margin_pct || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{row.margin_pct}%</td>
-                      </>}
-                      {view === 'by-product' && <>
-                        <td className="px-3 py-2 text-xs font-mono">{row.item_no}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.total_revenue || 0).toLocaleString()}</td>
-                        <td className="px-3 py-2 text-xs text-right">{row.total_shipped}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.unit_cost || 0).toFixed(4)}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.cogs || 0).toLocaleString()}</td>
-                        <td className={`px-3 py-2 text-xs text-right font-semibold ${(row.margin || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${(row.margin || 0).toLocaleString()}</td>
-                        <td className={`px-3 py-2 text-xs text-right ${(row.margin_pct || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{row.margin_pct}%</td>
-                      </>}
-                      {view === 'by-customer' && <>
-                        <td className="px-3 py-2 text-xs">{row.customer_name}</td>
-                        <td className="px-3 py-2 text-xs text-right">{row.order_count}</td>
-                        <td className="px-3 py-2 text-xs text-right">${(row.total_revenue || 0).toLocaleString()}</td>
-                      </>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {tab === 'reports' && (
+        <ComingSoon feature="Month-End Reports" description="Automated month-end financial packages generated from Sage 50 G Drive data."
+          items={['AR/AP aging summaries', 'Revenue by month', 'Inventory valuation snapshots']} />
       )}
     </div>
   );
 };
 
-const GLView: React.FC = () => {
-  const [gl, setGl] = useState<any>(null);
-  useEffect(() => { apiGet('/api/financial/gl-summary').then(r => setGl(r.data)); }, []);
-  if (!gl) return <p className="text-slate-500">Loading GL...</p>;
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <StatusCard title="Total Assets" value={`$${(gl.total_assets || 0).toLocaleString()}`} color="green" />
-        <StatusCard title="Total Liabilities" value={`$${(gl.total_liabilities || 0).toLocaleString()}`} color="red" />
-        <StatusCard title="Total Revenue" value={`$${(gl.total_revenue || 0).toLocaleString()}`} color="blue" />
-        <StatusCard title="Total Expenses" value={`$${(gl.total_expenses || 0).toLocaleString()}`} color="amber" />
-      </div>
-    </div>
-  );
-};
-
-const ReportsView: React.FC = () => {
-  const [report, setReport] = useState<any>(null);
-  const year = new Date().getFullYear();
-  const month = new Date().getMonth() + 1;
-
-  const loadMonthEnd = async () => {
-    const r = await apiGet(`/api/reports/month-end?year=${year}&month=${month}`);
-    setReport(r.data);
-  };
-
-  return (
-    <div>
-      <button onClick={loadMonthEnd} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold mb-4">
-        Generate Month-End Package ({year}-{String(month).padStart(2, '0')})
-      </button>
-      {report && (
-        <div className="space-y-3">
-          {Object.entries(report.sections || {}).map(([k, v]) => (
-            <div key={k} className="p-3 bg-slate-50 rounded-xl">
-              <h4 className="text-sm font-bold text-slate-700 mb-1">{k.replace(/_/g, ' ').toUpperCase()}</h4>
-              <pre className="text-xs text-slate-600 whitespace-pre-wrap">{JSON.stringify(v, null, 2)}</pre>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ============================================================
 // SAGE ANALYTICS (from G Drive CSV export)
@@ -1626,101 +1548,35 @@ function formatSageValue(v: any): string {
 // ============================================================
 // NOTIFICATIONS
 // ============================================================
-const NotificationSection: React.FC = () => {
-  const [notifs, setNotifs] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-
-  useEffect(() => {
-    apiGet('/api/notifications?unread_only=true').then(r => setNotifs(r.data || []));
-    apiGet('/api/alert-rules').then(r => setRules(r.data || []));
-  }, []);
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Notifications & Alerts</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-lg font-bold text-slate-700 mb-2">Unread ({notifs.length})</h3>
-          {notifs.length === 0 ? <p className="text-slate-500 text-sm">All caught up!</p> :
-            notifs.map((n: any) => (
-              <div key={n.id} className="p-3 mb-2 bg-yellow-50 rounded-xl border border-yellow-200">
-                <p className="text-sm font-semibold">{n.title}</p>
-                <p className="text-xs text-slate-600">{n.message}</p>
-              </div>
-            ))
-          }
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-700 mb-2">Alert Rules ({rules.length})</h3>
-          <DataTable data={rules} columns={['id', 'rule_type', 'description', 'is_active']} />
-        </div>
-      </div>
-    </div>
-  );
-};
+const NotificationSection: React.FC = () => (
+  <ComingSoon
+    feature="Alerts & Notifications"
+    description="Automated alerts for low stock, overdue AR, approaching ship dates, and credit limit breaches — all based on Sage G Drive data."
+    items={['Low stock alerts from Sage 50 inventory', 'Overdue AR notifications from aging data', 'Upcoming ship date reminders', 'Credit limit breach warnings']}
+  />
+);
 
 // ============================================================
 // AUDIT LOG
 // ============================================================
-const AuditLogSection: React.FC = () => {
-  const [entries, setEntries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    apiGet('/api/audit-log?limit=50').then(r => {
-      const d = r.data;
-      setEntries(d?.entries || d || []);
-      setLoading(false);
-    });
-  }, []);
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Audit Log</h2>
-      {loading ? <p className="text-slate-500">Loading...</p> :
-        <DataTable data={entries} columns={['ts', 'user_email', 'action', 'entity_type', 'entity_id']} />
-      }
-    </div>
-  );
-};
+const AuditLogSection: React.FC = () => (
+  <ComingSoon
+    feature="Audit Log"
+    description="Full activity trail of all ERP portal actions — who viewed, created, or modified what, and when."
+    items={['User action history', 'Data change tracking', 'Export audit reports', 'Filterable by user, action, entity']}
+  />
+);
 
 // ============================================================
 // ADMIN
 // ============================================================
-const AdminSection: React.FC = () => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [etlStatus, setEtlStatus] = useState<any>(null);
-
-  useEffect(() => {
-    apiGet('/api/admin/users').then(r => setUsers(r.data || []));
-    apiGet('/api/admin/etl/status').then(r => setEtlStatus(r.data));
-  }, []);
-
-  const triggerETL = async () => {
-    await apiPost('/api/admin/etl/run');
-    setTimeout(() => apiGet('/api/admin/etl/status').then(r => setEtlStatus(r.data)), 2000);
-  };
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">Administration</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-lg font-bold text-slate-700 mb-2">Portal Users</h3>
-          <DataTable data={users} columns={['id', 'email', 'display_name', 'role', 'is_active']} />
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-700 mb-2">ETL Status</h3>
-          <pre className="text-xs bg-slate-50 p-3 rounded-xl whitespace-pre-wrap">{JSON.stringify(etlStatus, null, 2)}</pre>
-          <button onClick={triggerETL} className="mt-3 px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-semibold">
-            Trigger ETL Run
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+const AdminSection: React.FC = () => (
+  <ComingSoon
+    feature="Administration"
+    description="User management, role-based access control, and G Drive sync configuration for the ERP portal."
+    items={['Portal user management', 'Role-based access (view / edit / admin)', 'G Drive sync settings & folder configuration', 'ETL schedule management']}
+  />
+);
 
 // ============================================================
 // SHARED UI COMPONENTS
