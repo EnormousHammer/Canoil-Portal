@@ -9036,8 +9036,11 @@ def api_month_end():
 def api_approvals_pending():
     if not workflow_service:
         return jsonify([])
-    user = auth_service.get_current_user() if auth_service else {}
-    return jsonify(workflow_service.get_pending(user_role=user.get("role")))
+    try:
+        user = auth_service.get_current_user() if auth_service else {}
+        return jsonify(workflow_service.get_pending(user_role=user.get("role")))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/approvals/<int:approval_id>/approve', methods=['POST'])
 def api_approve(approval_id):
@@ -9240,10 +9243,13 @@ def api_create_invoice_from_shipment(shipment_id):
 def api_list_invoices():
     if not invoice_service:
         return jsonify([])
-    return jsonify(invoice_service.list_invoices(
-        status=request.args.get("status"),
-        customer_id=request.args.get("customer_id", type=int),
-    ))
+    try:
+        return jsonify(invoice_service.list_invoices(
+            status=request.args.get("status"),
+            customer_id=request.args.get("customer_id", type=int),
+        ))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/invoices/<int:invoice_id>')
 def api_get_invoice(invoice_id):

@@ -104,55 +104,77 @@ const ERPOverview: React.FC = () => {
 };
 
 // ============================================================
-// CUSTOMERS
+// CUSTOMERS (read from Sage G Drive CSV — same source as Sage Analytics)
 // ============================================================
 const CustomerSection: React.FC = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', contact: '', email: '', phone: '', address: '', city: '', province: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState<number>(0);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await apiGet(`/api/customers?search=${search}&limit=50`);
-    setCustomers(r.data || []);
+    setError(null);
+    const r = await apiGet(`/api/sage/gdrive/customers?search=${encodeURIComponent(search)}&limit=100`);
+    if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
+    setCustomers(r.data?.customers || []);
+    setTotal(r.data?.total ?? (r.data?.customers?.length ?? 0));
     setLoading(false);
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleCreate = async () => {
-    await apiPost('/api/customers', form);
-    setShowForm(false);
-    setForm({ name: '', contact: '', email: '', phone: '', address: '', city: '', province: '' });
-    load();
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Customers</h2>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-500">
-          + New Customer
-        </button>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Customers</h2>
+          <p className="text-xs text-slate-500 mt-0.5">READ-ONLY · Sage 50 G Drive export · {total} customers</p>
+        </div>
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search customers..."
+        placeholder="Search by name, city..."
         className="w-full mb-4 px-4 py-2 border border-slate-200 rounded-xl text-sm" />
-      {showForm && (
-        <div className="mb-4 p-4 bg-slate-50 rounded-xl space-y-2">
-          {(['name', 'contact', 'email', 'phone', 'address', 'city', 'province'] as const).map(f => (
-            <input key={f} value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })}
-              placeholder={f.charAt(0).toUpperCase() + f.slice(1)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-          ))}
-          <button onClick={handleCreate} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold">Save</button>
+      {error ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm">
+          <p className="font-semibold">Could not load Sage customers</p>
+          <p className="text-xs mt-1">{error}</p>
+          <button onClick={load} className="mt-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold">Retry</button>
+        </div>
+      ) : loading ? <p className="text-slate-500">Loading...</p> : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {['Customer', 'City', 'Province', 'Phone', 'Email', 'YTD Sales', 'Credit Limit', 'Terms', 'Last Sale'].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c: any, i: number) => (
+                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-3 py-2 font-semibold text-slate-800 max-w-[180px] truncate">{c.sName}</td>
+                  <td className="px-3 py-2 text-slate-600">{c.sCity || '—'}</td>
+                  <td className="px-3 py-2 text-slate-500">{c.sProvState || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{c.sPhone || '—'}</td>
+                  <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate">{c.sEmail || '—'}</td>
+                  <td className="px-3 py-2 font-mono font-semibold text-emerald-700">
+                    {c.dAmtYtd != null ? `$${Number(c.dAmtYtd).toLocaleString('en-CA', { maximumFractionDigits: 0 })}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-slate-600">
+                    {c.dCrLimit != null && c.dCrLimit >= 0 ? `$${Number(c.dCrLimit).toLocaleString('en-CA', { maximumFractionDigits: 0 })}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-500">{c.nNetDay ? `Net ${c.nNetDay}` : '—'}</td>
+                  <td className="px-3 py-2 text-slate-500">{c.dtLastSal ? String(c.dtLastSal).substring(0, 10) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {customers.length === 0 && <p className="text-center text-slate-400 text-sm py-6">No customers found</p>}
         </div>
       )}
-      {loading ? <p className="text-slate-500">Loading...</p> :
-        <DataTable data={customers} columns={['id', 'name', 'contact', 'email', 'phone', 'city']} />
-      }
     </div>
   );
 };
