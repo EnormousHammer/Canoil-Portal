@@ -232,16 +232,17 @@ function App() {
     }
   };
 
-  // Function to refresh/sync data (primary source: MISys Full Company Data export)
-  const handleRefreshData = async (options?: { source?: 'default' | 'full_company_data' }) => {
+  // Function to refresh/sync data (primary source: MISys Full Company Data export or Live SQL)
+  const handleRefreshData = async (options?: { source?: 'default' | 'full_company_data' | 'live_sql' }) => {
     const source = options?.source ?? 'default';
-    console.log('🔄 Refreshing data...', source === 'full_company_data' ? '(Full Company Data)' : '');
+    const sourceLabel = source === 'full_company_data' ? '(Full Company Data)' : source === 'live_sql' ? '(Live SQL)' : '';
+    console.log('🔄 Refreshing data...', sourceLabel);
     setShowSyncNotification(false);
     const gdriveLoader = GDriveDataLoader.getInstance();
     
     try {
-      const result = await gdriveLoader.loadAllData({ source: source === 'full_company_data' ? 'full_company_data' : undefined });
-      if (source === 'full_company_data' && result.fullCompanyDataReady === false && result.data) {
+      const result = await gdriveLoader.loadAllData({ source: source === 'default' ? undefined : source });
+      if ((source === 'full_company_data' || source === 'live_sql') && result.fullCompanyDataReady === false && result.data) {
         const mpsUrl = getApiUrl('/api/mps');
         const mpsData = await fetch(mpsUrl).then(r => r.ok ? r.json() : { mps_orders: [], summary: { total_orders: 0 } }).catch(() => ({ mps_orders: [], summary: { total_orders: 0 } }));
         setData({ ...result.data, 'MPS.json': mpsData, loaded: true });

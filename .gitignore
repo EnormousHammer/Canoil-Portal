@@ -68,3 +68,7 @@ desktop.ini
 
 # Keep the templates
 !frontend/Templates/
+# MISys bridge binary
+misys_bridge_onprem/cloudflared.exe
+misys_bridge_onprem/.env
+

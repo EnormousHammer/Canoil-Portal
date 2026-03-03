@@ -2411,6 +2411,78 @@ def get_all_data():
                 "fullCompanyDataReady": False,
                 "message": err_msg or "Full Company Data folder not found or converter error",
             })
+
+        # Explicit Live SQL requested - real-time MISys SQL Server (no manual export)
+        # Cloud: fetch from MISYS_LIVE_SQL_URL (on-prem bridge). Local: use misys_service directly.
+        if data_source_param == 'live_sql':
+            live_err = "Live SQL unavailable"
+            full_data = None
+            bridge_url = os.environ.get('MISYS_LIVE_SQL_URL', '').strip()
+            if bridge_url:
+                try:
+                    r = requests.get(f"{bridge_url.rstrip('/')}/api/data", timeout=120)
+                    if r.ok:
+                        j = r.json()
+                        full_data = j.get('data')
+                        if full_data is not None:
+                            full_data = _merge_portal_store(full_data)
+                            file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                            return jsonify({
+                                "data": full_data,
+                                "folderInfo": j.get("folderInfo", {"folderName": "MISys Live SQL", "syncDate": datetime.now().isoformat(), "folder": "192.168.1.11/CANOILCA", "fileCount": file_count}),
+                                "LoadTimestamp": datetime.now().isoformat(),
+                                "source": "live_sql",
+                                "fullCompanyDataReady": True,
+                            })
+                    else:
+                        live_err = f"Bridge returned {r.status_code}: {r.text[:200]}"
+                except Exception as e:
+                    live_err = f"Bridge fetch failed: {e}"
+            if full_data is None:
+                try:
+                    import misys_service
+                except ImportError:
+                    try:
+                        from . import misys_service
+                    except ImportError:
+                        misys_service = None
+                if misys_service and getattr(misys_service, 'PYMSSQL_AVAILABLE', False):
+                    full_data, live_err = misys_service.load_all_data()
+                    if full_data is not None:
+                        full_data = _merge_portal_store(full_data)
+                        file_count = sum(1 for v in full_data.values() if isinstance(v, list) and len(v) > 0)
+                        return jsonify({
+                            "data": full_data,
+                            "folderInfo": {
+                                "folderName": "MISys Live SQL",
+                                "syncDate": datetime.now().isoformat(),
+                                "lastModified": datetime.now().isoformat(),
+                                "folder": "192.168.1.11/CANOILCA",
+                                "created": datetime.now().isoformat(),
+                                "size": "N/A",
+                                "fileCount": file_count,
+                            },
+                            "LoadTimestamp": datetime.now().isoformat(),
+                            "source": "live_sql",
+                            "fullCompanyDataReady": True,
+                        })
+            empty_data = get_empty_app_data_structure()
+            return jsonify({
+                "data": empty_data,
+                "folderInfo": {
+                    "folderName": "MISys Live SQL",
+                    "syncDate": datetime.now().isoformat(),
+                    "lastModified": datetime.now().isoformat(),
+                    "folder": "192.168.1.11/CANOILCA",
+                    "created": datetime.now().isoformat(),
+                    "size": "0",
+                    "fileCount": 0,
+                },
+                "LoadTimestamp": datetime.now().isoformat(),
+                "source": "live_sql (unavailable)",
+                "fullCompanyDataReady": False,
+                "message": live_err,
+            })
         
         # Default load (no ?source or any other value): prefer Full Company Data when available so MISys export "just works"
         if data_source_param != 'default':

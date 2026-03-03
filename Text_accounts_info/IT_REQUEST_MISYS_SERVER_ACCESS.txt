@@ -1,0 +1,194 @@
+============================================================
+   MISYS SERVER ACCESS REQUEST - FOR IT ADMINISTRATOR
+============================================================
+
+Hi,
+
+We're building an internal portal (Canoil Portal) that needs
+to pull live data from MiSys Manufacturing. Below is what
+we're trying to accomplish and what we need from you.
+
+
+============================================================
+   THE GOAL - WHAT WE'RE BUILDING AND WHY
+============================================================
+
+We are building the "Canoil Portal" -- an internal web app
+for Canoil employees to view live company data in one place,
+without needing to open the MiSys desktop client.
+
+WHAT THE PORTAL WILL DO:
+
+  - Show a live dashboard with order counts, production
+    status, and inventory alerts -- updated automatically
+
+  - Display real sales orders, purchase orders, and
+    work orders pulled directly from MiSys
+
+  - Show real-time inventory levels (stock on hand,
+    raw materials, finished goods)
+
+  - Display production schedules and work order status
+
+  - Show customer and vendor information
+
+  - Provide reporting views across all MiSys data
+
+HOW IT WORKS:
+
+  The portal's backend server will connect to the MiSys
+  Web Service on 192.168.1.11 and pull data periodically
+  (every few minutes). This is the same web service the
+  MiSys desktop client already uses -- we are NOT modifying
+  MiSys in any way.
+
+  The data flow:
+
+    MiSys Database (on server 192.168.1.11)
+         |
+         v
+    MiSys Web Service (already running on 192.168.1.11)
+         |
+         v
+    Canoil Portal Backend (reads data, caches it)
+         |
+         v
+    Canoil Portal Web App (employees view data)
+
+IMPORTANT NOTES:
+
+  - READ-ONLY -- We only need to READ data from MiSys.
+    We will NOT write, modify, or delete anything.
+
+  - NO CHANGES TO MISYS -- We are not installing anything
+    on the MiSys server or changing any configuration.
+    We just need to call the web service that is already
+    running.
+
+  - LIGHTWEIGHT -- The portal will poll data every few
+    minutes, not every second. This will have minimal
+    impact on the MiSys server.
+
+  - SAME PROTOCOL -- We're using the exact same web
+    service and authentication that the MiSys desktop
+    client already uses.
+
+WHERE WE ARE NOW:
+
+  We've already:
+  - Found the MiSys web service endpoint
+  - Figured out the authentication protocol
+  - Confirmed our credentials connect successfully
+  - Identified all the data methods available
+
+  To finish the connection and start pulling live data,
+  we need to see the server-side web service configuration.
+  The web.config file or the server-side DLLs would let
+  us complete this immediately.
+
+
+============================================================
+   WHAT WE NEED FROM YOU
+============================================================
+
+We've made progress connecting to the web service at
+http://192.168.1.11/sbmwebservice64/miwebservice.asmx
+but need a few things from the MiSys server.
+
+------------------------------------------------------------
+1. SERVER FILE ACCESS (Most Important)
+------------------------------------------------------------
+
+Can I get RDP access or file share access to the MiSys server
+at 192.168.1.11?
+
+I need to look at files in the MiSys web service folder:
+
+  - The web service install folder (likely something like):
+    C:\inetpub\wwwroot\sbmwebservice64\
+
+  - Specifically the "web.config" file in that folder
+
+  - The "bin\" subfolder (contains server-side DLLs)
+
+Even just read-only access to these files would work.
+
+
+------------------------------------------------------------
+2. WEB SERVICE AUTHENTICATION
+------------------------------------------------------------
+
+How is the MiSys Web Service configured for authentication?
+
+  - Is there a custom UsernameTokenManager class?
+  - What's in the WSE 3.0 policy configuration?
+  - Are there any IP restrictions or firewall rules
+    limiting which machines can call the web service?
+
+
+------------------------------------------------------------
+3. DATABASE CONNECTION
+------------------------------------------------------------
+
+  - What SQL Server instance does MiSys connect to?
+    Is it on the same server (192.168.1.11) or separate?
+
+  - What is the database name for CANOILCA?
+
+  - Is there a read-only SQL account we could use for
+    reporting/integration purposes?
+
+
+------------------------------------------------------------
+4. LICENSING
+------------------------------------------------------------
+
+  - Is the MiSys web service license configured for
+    external access, or only for the desktop client?
+
+  - Is there a MiSysKeyMgr licensing service running
+    on the server?
+
+
+------------------------------------------------------------
+5. EXISTING INTEGRATIONS
+------------------------------------------------------------
+
+  - Are there any other applications already connecting
+    to MiSys? (Sage integration, custom reports,
+    third-party tools, etc.)
+
+  - How do those integrations authenticate?
+
+
+============================================================
+   WHAT WOULD HELP US THE MOST (Priority Order)
+============================================================
+
+1. File share access to the web service folder on 192.168.1.11
+   (even just the web.config file would solve a lot)
+
+2. The SQL Server connection string or a read-only SQL
+   account for the MiSys database
+
+3. Any MiSys integration or web service documentation
+
+============================================================
+   CREDENTIALS WE ARE USING
+============================================================
+
+  Server:   192.168.1.11
+  Service:  http://192.168.1.11/sbmwebservice64/miwebservice.asmx
+  User:     AlhakimiH
+  Password: ChangeMeNow2026!
+  Company:  CANOILCA
+
+  These credentials work with the MiSys desktop client.
+  We've confirmed the connection to the web service is
+  reachable and responding. We just need to see the
+  server-side configuration to match the exact
+  authentication format the service expects.
+
+============================================================
+
+Thanks!

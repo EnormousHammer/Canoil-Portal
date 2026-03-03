@@ -1,0 +1,152 @@
+================================================================================
+  MISYS WEB SERVICE - DIRECT ACCESS DETAILS
+  Last Updated: March 2, 2026
+================================================================================
+
+PURPOSE:
+  MiSys Manufacturing ERP has a SOAP web service (ASMX) that allows direct
+  access to MiSys data via API calls. This is an alternative to the CSV export
+  method currently used by the portal. The web service runs on the same server
+  as Sage 50.
+
+================================================================================
+  CONNECTION DETAILS
+================================================================================
+
+  Web Service URL:  http://192.168.1.11/sbmwebservice64/miwebservice.asmx
+  Server IP:        192.168.1.11 (same server as Sage 50 MySQL on port 13540)
+  Protocol:         SOAP / ASMX (Microsoft .NET Web Service)
+  
+  Credential Set 1:
+    Username:       AlhakimiH
+    Password:       ChangeMeNow2026!
+
+  Credential Set 2:
+    Username:       Haron  (also try HARON - matches LastUser in MiSys config)
+    Password:       NoPassword123!
+
+================================================================================
+  NETWORK REQUIREMENTS
+================================================================================
+
+  - Must be on the same LAN as the server (192.168.1.11)
+  - The web service runs on standard HTTP port 80
+  - No VPN or tunnel currently configured for remote access
+  - The WSDL can be viewed by appending ?WSDL to the URL:
+    http://192.168.1.11/sbmwebservice64/miwebservice.asmx?WSDL
+
+================================================================================
+  CONTEXT
+================================================================================
+
+  - MiSys Manufacturing is the ERP system used by Canoil Canada Ltd.
+  - Currently, the portal reads MiSys data from CSV exports ("Full Company Data")
+    stored on Google Drive under:
+    G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\Full Company Data From Misys
+  - This web service could potentially be used for LIVE data access instead of
+    relying on periodic CSV exports.
+  - The web service is hosted via IIS on the same Windows server that runs
+    Sage 50 (MySQL on port 13540).
+
+================================================================================
+  RELATED CONNECTIONS ON SAME SERVER (192.168.1.11)
+================================================================================
+
+  Sage 50 MySQL:
+    Host:     192.168.1.11
+    Port:     13540
+    User:     sysadmin
+    Password: (see backend/.env -> SAGE_DB_PASSWORD)
+    Database: simply
+    Access:   READ-ONLY
+
+================================================================================
+  AUTHENTICATION PROTOCOL (confirmed March 2, 2026)
+================================================================================
+
+  The web service uses:
+  - WS-Addressing (2004 namespace): REQUIRED for all calls
+    Namespace: http://schemas.xmlsoap.org/ws/2004/08/addressing
+  - WS-Security UsernameToken: REQUIRED for authentication
+    Namespace: http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd
+
+  Authentication is NOT HTTP Basic Auth or NTLM.
+  Credentials go in the SOAP Header as a WS-Security UsernameToken.
+
+================================================================================
+  KNOWN ISSUES (as of March 2, 2026)
+================================================================================
+
+  ** SERVER-SIDE BUG: UsernameToken processing is broken **
+
+  The MiSys server crashes with "Index was outside the bounds of the array"
+  whenever ANY UsernameToken is submitted - regardless of credentials.
+
+  Diagnostic summary:
+    - No Security header     -> "security header not present" (correct behavior)
+    - Timestamp only         -> "UsernameToken is expected" (correct behavior)
+    - Empty UsernameToken    -> "Invalid security token" (correct behavior)
+    - ANY username+password  -> SERVER CRASH: "Index was outside the bounds"
+    - Wrong password (test/test) -> SAME CRASH
+
+  This means:
+    1. The web service IS running and the WSDL loads correctly
+    2. WS-Addressing headers work correctly
+    3. WS-Security Timestamp processing works correctly
+    4. The UsernameToken validation code has an internal server error
+    5. Credentials CANNOT be verified until the server bug is fixed
+
+  DEFINITIVE PROOF (March 2, 2026):
+    - Used the EXACT SAME WSE 3.0 DLL (Microsoft.Web.Services3) from GAC
+    - Created proxy inheriting from WebServicesClientProtocol (same as MiSys client)
+    - Added UsernameToken via RequestSoapContext.Security.Tokens.Add()
+    - Tested ALL password options: SendPlainText, SendHashed, SendNone
+    - Tested ALL known users: ADMIN/password (sample), HARON, AlhakimiH
+    - ALL combinations crash with "Index was outside the bounds of the array"
+    - The MiSys default ADMIN/password account also crashes
+
+  Likely cause:
+    - MiSys WSE 3.0 CustomUsernameTokenManager has a broken dependency
+    - The MiSys SQL Server instance (MSSQL12.MISYSSBMSE) may be down
+    - The authentication database/store the server references may be down
+    - WSE configuration on the server may be corrupted
+
+  Resolution:
+    - Check if the MiSys SQL Server instance (MISYSSBMSE) is running on 192.168.1.11
+    - Check IIS Application Pool for sbmwebservice64 is running
+    - Check IIS logs and Windows Event Viewer for full .NET stack traces
+    - May need to restart the MiSys web service / IIS / SQL Server
+    - Contact MiSys support (802.457.4600) if issue persists
+
+  MiSys client config found at:
+    C:\Program Files (x86)\MISys\MISys SBM\MISys SBM 6.4 Client\MISys.SBM.exe.config
+    - UserNames: ADMIN, HARON
+    - Companies: MISAMPCO (sample), CANOILCA (production)
+    - ServerURL: http://192.168.1.11/sbmwebservice64/miwebservice.asmx
+    - LastUser: HARON, LastCompany: CANOILCA
+
+================================================================================
+  PREVIOUS CREDENTIAL HISTORY
+================================================================================
+
+  - Credentials were reported as not working in a prior session.
+  - Updated credentials (March 2, 2026): AlhakimiH / ChangeMeNow2026!
+  - Credentials may be correct but CANNOT be verified due to server bug above.
+
+================================================================================
+  HOW TO TEST
+================================================================================
+
+  1. Open browser and navigate to:
+     http://192.168.1.11/sbmwebservice64/miwebservice.asmx
+  
+  2. This should show the ASMX test page listing all available SOAP methods.
+  
+  3. To see the WSDL (service definition):
+     http://192.168.1.11/sbmwebservice64/miwebservice.asmx?WSDL
+
+  4. To call methods programmatically (Python example):
+     - Use 'zeep' or 'suds-community' library for SOAP
+     - Or use 'requests' with raw XML payloads
+
+================================================================================

@@ -136,11 +136,13 @@ export class GDriveDataLoader {
     }
   }
 
-  public async loadAllData(options?: { source?: 'default' | 'full_company_data' }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
+  public async loadAllData(options?: { source?: 'default' | 'full_company_data' | 'live_sql' }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
     const source = options?.source ?? 'default';
     try {
       const apiUrl = source === 'full_company_data'
         ? getApiUrl('/api/data?source=full_company_data')
+        : source === 'live_sql'
+        ? getApiUrl('/api/data?source=live_sql')
         : getApiUrl('/api/data');
       console.log('📡 Loading data from backend:', {
         url: apiUrl,
@@ -201,6 +203,7 @@ export class GDriveDataLoader {
       
       const result = await response.json();
       const isFullCompanyDataRequest = source === 'full_company_data';
+      const isLiveSqlRequest = source === 'live_sql';
       const fullCompanyDataReady = result.fullCompanyDataReady === true;
 
       // When Full Company Data is requested and backend returns framework "not ready" empty shape, accept it (app shows "not ready" state)
