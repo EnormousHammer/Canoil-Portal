@@ -1,0 +1,83 @@
+============================================================
+  MISys -> Google Drive Sync
+  Canoil Canada Ltd.
+============================================================
+
+WHAT THIS DOES:
+  Pulls all data from the MISys SQL Server and saves it
+  to Google Drive. The Canoil Portal web app automatically
+  uses the new data on its next load.
+
+------------------------------------------------------------
+HOW TO RUN (takes about 90 seconds):
+------------------------------------------------------------
+
+  1. Make sure you are connected to the office network
+     OR connected to the VPN (OpenVPN).
+
+  2. Make sure Google Drive is running and G: drive is mounted.
+     (Look for the Google Drive icon in the system tray)
+
+  3. Double-click: RUN_SYNC.bat
+
+  4. Wait for it to finish. When you see "DONE" it worked.
+
+  5. Refresh the Canoil Portal app in your browser.
+     It will automatically show the fresh data.
+
+------------------------------------------------------------
+REQUIREMENTS (one-time setup):
+------------------------------------------------------------
+
+  - Python 3.8 or newer
+    Download: https://python.org (check "Add Python to PATH")
+
+  - SQL Server Native Client 11.0
+    (Already installed on most office computers)
+
+  - Google Drive for Desktop
+    (G: drive must be mounted and signed in)
+
+  - VPN or office network access to 192.168.1.11
+
+------------------------------------------------------------
+SCHEDULE IT AUTOMATICALLY:
+------------------------------------------------------------
+
+  To run every night without touching anything:
+
+  1. Open Windows Task Scheduler (search in Start menu)
+  2. Create Basic Task
+  3. Name: "MISys Google Drive Sync"
+  4. Trigger: Daily at 11:00 PM
+  5. Action: Start a program
+       Program:   python
+       Arguments: -X utf8 "FULL_PATH_TO\sync_to_gdrive.py"
+       Start in:  FULL_PATH_TO\misys_bridge_onprem\
+
+------------------------------------------------------------
+TROUBLESHOOTING:
+------------------------------------------------------------
+
+  "Connection failed" 
+    -> Check VPN is connected, or you're on office network
+
+  "Output base folder not found"
+    -> G: drive is not mounted. Open Google Drive for Desktop.
+
+  "pyodbc not installed"
+    -> Run: pip install pyodbc
+
+  Data looks old in the app
+    -> Check what folder was created in:
+       G:\Shared drives\IT_Automation\MiSys\Misys Extracted Data\API Extractions\
+       Should see a folder named today's date (e.g. 2026-03-03_11-54)
+
+------------------------------------------------------------
+SUPPORT:
+------------------------------------------------------------
+
+  Contact IT if you have questions.
+  Connection settings are in the .env file in this folder.
+
+============================================================
