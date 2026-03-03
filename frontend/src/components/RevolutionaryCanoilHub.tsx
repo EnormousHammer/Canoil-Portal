@@ -1943,7 +1943,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(99,102,241,0.15),transparent_50%)]"></div>
         </div>
         
-        {/* PREMIUM NAVIGATION - Colorful 3D Icons Style v7.0 */}
+        {/* PREMIUM NAVIGATION - only shown on dashboard */}
+        {activeSection === 'dashboard' && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5 max-w-7xl mx-auto mb-6 md:mb-8">
           
           {/* Dashboard - Active Blue Card Style */}
@@ -2213,6 +2214,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
             </div>
           </button>
         </div>
+        )}
 
         {/* BREADCRUMB NAVIGATION */}
         {activeSection !== 'dashboard' && (
