@@ -5561,6 +5561,90 @@ def full_company_data_preview():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/raw-tables', methods=['GET'])
+def raw_tables_summary():
+    """
+    Return a summary of all MISys tables in the latest Full Company Data folder.
+    Response: { folder, tables: { TABLE_NAME: row_count, ... } }
+    """
+    try:
+        from raw_tables_loader import load_raw_tables, get_table_summary, find_latest_folder
+        from pathlib import Path
+
+        folder = find_latest_folder(GDRIVE_FULL_COMPANY_DATA_BASE)
+        if not folder:
+            return jsonify({"error": "No Full Company Data folder found", "path": GDRIVE_FULL_COMPANY_DATA_BASE}), 404
+
+        tables, err = load_raw_tables(folder)
+        if err:
+            return jsonify({"error": err}), 500
+
+        return jsonify({
+            "folder": folder.name,
+            "path": str(folder),
+            "tableCount": len(tables),
+            "tables": get_table_summary(tables),
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/raw-tables/<table_name>', methods=['GET'])
+def raw_table_data(table_name):
+    """
+    Return all rows for a specific MISys table from the latest Full Company Data folder.
+    Query params:
+      ?limit=N    max rows to return (default: all)
+      ?offset=N   skip first N rows (default: 0)
+    Response: { table, folder, rowCount, columns, rows }
+    """
+    try:
+        from raw_tables_loader import load_raw_tables, find_latest_folder
+        from pathlib import Path
+
+        table_key = table_name.upper()
+        limit  = request.args.get("limit",  type=int, default=None)
+        offset = request.args.get("offset", type=int, default=0)
+
+        folder = find_latest_folder(GDRIVE_FULL_COMPANY_DATA_BASE)
+        if not folder:
+            return jsonify({"error": "No Full Company Data folder found"}), 404
+
+        tables, err = load_raw_tables(folder)
+        if err:
+            return jsonify({"error": err}), 500
+
+        if table_key not in tables:
+            available = sorted(tables.keys())
+            return jsonify({
+                "error": f"Table '{table_key}' not found in latest folder",
+                "available": available,
+                "folder": folder.name,
+            }), 404
+
+        rows = tables[table_key]
+        total = len(rows)
+        if offset:
+            rows = rows[offset:]
+        if limit is not None:
+            rows = rows[:limit]
+
+        columns = list(rows[0].keys()) if rows else []
+        return jsonify({
+            "table":    table_key,
+            "folder":   folder.name,
+            "rowCount": total,
+            "offset":   offset,
+            "limit":    limit,
+            "columns":  columns,
+            "rows":     rows,
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/enterprise/so-service/refresh', methods=['POST'])
 def refresh_so_cache():
     """Trigger incremental SO cache refresh"""
