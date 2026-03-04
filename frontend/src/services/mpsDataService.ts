@@ -357,7 +357,7 @@ export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
           // Aggregate quantities for duplicate components
           const existing = materialsMap.get(componentNo)!;
           existing.required_qty += detail['Required Qty.'] || 0;
-          existing.released_qty += detail['Released Qty.'] || 0;
+          existing.released_qty += detail['Released'] || detail['Released Qty.'] || 0;
           existing.completed_qty += detail['Completed'] || 0;
           existing.material_cost += detail['Material Cost'] || 0;
         } else {
@@ -376,8 +376,8 @@ export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
             line: materialsMap.size + 1,
             component_item_no: componentNo,
             component_description: itemInfo?.['Description'] || detail['Non-stocked Item Description'] || '',
-            required_qty: detail['Required Qty.'] || 0,
-            released_qty: detail['Released Qty.'] || 0,
+            required_qty: detail['Required Quantity'] || detail['Required Qty.'] || 0,
+            released_qty: detail['Released'] || detail['Released Qty.'] || 0,
             completed_qty: detail['Completed'] || 0,
             material_cost: detail['Material Cost'] || 0,
             wip: wip,
@@ -404,33 +404,38 @@ export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
         }
       }
 
+      // Google Sheet column layout (verified against live data 2026-03-04):
+      // 0=#  1=SO  2=MO  3=WC  4=Status  5=Product  6=C(customer)  7=Packaging
+      // 8=Req.  9=Ready  10=Planned  11=Actual  12=Promised  13=Start
+      // 14=End  15=Dur  16=DTC  17=Action Items  18=M
       const order: MPSOrder = {
         line_number: String(row[0] ?? '').trim() || '',
         so_number: soNumber,
         mo_number: moNumber,
-        wip: String(row[3] ?? '').trim() || '',
-        work_center: String(row[4] ?? '').trim() || 'Unassigned',
-        status: String(row[5] ?? '').trim() || '',
-        product: String(row[6] ?? '').trim() || '',
-        customer_code: String(row[7] ?? '').trim() || '',
-        packaging: String(row[8] ?? '').trim() || '',
-        required: parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0,
-        ready: parseFloat(String(row[10] ?? '').replace(/[^0-9.]/g, '')) || 0,
-        planned_pct: String(row[11] ?? '').trim() || '0%',
+        wip: '',                                                      // No dedicated WIP column in current sheet
+        work_center: String(row[3] ?? '').trim() || 'Unassigned',    // col 3 = WC
+        status: String(row[4] ?? '').trim() || '',                   // col 4 = Status
+        product: String(row[5] ?? '').trim() || '',                  // col 5 = Product (contains "Company - Desc")
+        customer_code: String(row[6] ?? '').trim() || '',            // col 6 = C (usually empty)
+        packaging: String(row[7] ?? '').trim() || '',                // col 7 = Packaging
+        required: parseFloat(String(row[8] ?? '').replace(/[^0-9.]/g, '')) || 0,  // col 8 = Req.
+        ready: parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0,     // col 9 = Ready
+        planned_pct: String(row[10] ?? '').trim() || '0%',           // col 10 = Planned
         actual_pct: (() => {
-          const csvPct = String(row[12] ?? '').trim();
+          const csvPct = String(row[11] ?? '').trim();                // col 11 = Actual %
           if (csvPct && parseFloat(csvPct) > 0) return csvPct;
-          const req = parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0;
-          const rdy = parseFloat(String(row[10] ?? '').replace(/[^0-9.]/g, '')) || 0;
+          // Fallback: calculate from required/ready
+          const req = parseFloat(String(row[8] ?? '').replace(/[^0-9.]/g, '')) || 0;
+          const rdy = parseFloat(String(row[9] ?? '').replace(/[^0-9.]/g, '')) || 0;
           if (req > 0) return `${Math.min(Math.round((rdy / req) * 100), 100)}%`;
           return '0%';
         })(),
-        promised_date: String(row[13] ?? '').trim() || '',
-        start_date: String(row[14] ?? '').trim() || '',
-        end_date: String(row[15] ?? '').trim() || '',
-        duration: parseFloat(row[16]) || 0,
-        dtc: parseFloat(row[17]) || 0,
-        action_items: String(row[18] ?? '').trim() || '',
+        promised_date: String(row[12] ?? '').trim() || '',           // col 12 = Promised
+        start_date: String(row[13] ?? '').trim() || '',              // col 13 = Start
+        end_date: String(row[14] ?? '').trim() || '',                // col 14 = End
+        duration: parseFloat(row[15]) || 0,                          // col 15 = Dur
+        dtc: parseFloat(row[16]) || 0,                               // col 16 = DTC
+        action_items: String(row[17] ?? '').trim() || '',            // col 17 = Action Items
         
         // Enriched MO data from MISys
         mo_data: moData ? {

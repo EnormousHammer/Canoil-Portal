@@ -168,7 +168,9 @@ export function ProductionScheduleMPS() {
 
   const isOrderAtRisk = useCallback((order: MPSOrder): boolean => {
     if (order.status.toLowerCase().includes('shortage')) return true;
-    if (order.dtc != null && order.dtc <= 2) return true;
+    // Only flag if DTC is a real positive value ≤ 2 — a missing/zero DTC means
+    // no schedule data, not that the order is almost due.
+    if (order.dtc != null && order.dtc > 0 && order.dtc <= 2) return true;
     const promised = parseDate(order.promised_date || order.promised || '');
     if (promised) {
       const today = new Date();
@@ -196,8 +198,8 @@ export function ProductionScheduleMPS() {
     if (filterShortageOnly) list = list.filter(o => o.status.toLowerCase().includes('shortage'));
     if (filterAtRiskOnly) list = list.filter(o => isOrderAtRisk(o));
     if (filterCustomer) list = list.filter(o => {
-      const fromProd = o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '';
-      const cust = fromProd || o.so_data?.customer || o.mo_data?.customer || o.customer_code || '';
+      const m = o.product.match(/^(.+?)\s*-\s+/);
+      const cust = (m ? m[1].trim() : '') || o.mo_data?.customer || o.so_data?.customer || o.customer_code || '';
       return cust.toLowerCase().includes(filterCustomer.toLowerCase());
     });
     if (filterWorkCenter) list = list.filter(o => o.work_center === filterWorkCenter);
@@ -219,8 +221,8 @@ export function ProductionScheduleMPS() {
     const wcs = new Set(orders.map(o => o.work_center).filter(Boolean));
     const customers = new Map<string, number>();
     orders.forEach(o => {
-      const fromProduct = o.product.includes(' - ') ? o.product.split(' - ')[0].trim() : '';
-      const name = fromProduct || o.so_data?.customer || o.mo_data?.customer || o.customer_code || 'Other';
+      const m = o.product.match(/^(.+?)\s*-\s+/);
+      const name = (m ? m[1].trim() : '') || o.mo_data?.customer || o.so_data?.customer || o.customer_code || 'Other';
       if (name) customers.set(name, (customers.get(name) || 0) + 1);
     });
     return {
@@ -232,9 +234,8 @@ export function ProductionScheduleMPS() {
   const customerLegend = useMemo(() => {
     const customers = new Map<string, { bg: string; count: number }>();
     filteredOrders.forEach(order => {
-      let customerName = order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '';
-      if (!customerName) customerName = order.so_data?.customer || order.mo_data?.customer || '';
-      if (!customerName) customerName = order.customer_code || 'Other';
+      const m = order.product.match(/^(.+?)\s*-\s+/);
+      let customerName = (m ? m[1].trim() : '') || order.mo_data?.customer || order.so_data?.customer || order.customer_code || 'Other';
       if (customerName.length > 20) customerName = customerName.substring(0, 20) + '...';
       const colors = getCustomerColor(order.product);
       const existing = customers.get(customerName);
@@ -245,11 +246,13 @@ export function ProductionScheduleMPS() {
   }, [filteredOrders]);
 
   const getCustomerName = useCallback((order: MPSOrder) => {
-    // Product field is most reliable for company name: "CompanyName - ProductDesc - ..."
-    const fromProduct = order.product.includes(' - ') ? order.product.split(' - ')[0].trim() : '';
+    // Product field format is "CompanyName - ProductDesc" or "CompanyName- ProductDesc"
+    // Use a regex that handles both "Company - " and "Company- " (no space before hyphen)
+    const match = order.product.match(/^(.+?)\s*-\s+/);
+    const fromProduct = match ? match[1].trim() : '';
     return fromProduct ||
-      order.so_data?.customer ||
       order.mo_data?.customer ||
+      order.so_data?.customer ||
       order.customer_code || '';
   }, []);
 
