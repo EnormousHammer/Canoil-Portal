@@ -438,10 +438,14 @@ def _enrich_items_from_miilocqt(skeleton):
         items = skeleton.get("Items.json") or []
         if not items or not ilocqt:
             return
+        def _str(v):
+            return str(v).strip() if v is not None else ""
+
         # Build item_no -> list of rows
         by_item = {}
         for row in ilocqt:
-            item_no = (row.get("Item No.") or row.get("itemId") or row.get("Item No") or row.get("ItemId") or row.get("ItemNumber") or row.get("ItemNo") or "").strip()
+            raw = row.get("Item No.") or row.get("itemId") or row.get("Item No") or row.get("ItemId") or row.get("ItemNumber") or row.get("ItemNo") or ""
+            item_no = _str(raw)
             if not item_no:
                 continue
             key = item_no.upper()
@@ -457,17 +461,18 @@ def _enrich_items_from_miilocqt(skeleton):
 
         enriched = 0
         for item in items:
-            item_no = (item.get("Item No.") or item.get("itemId") or item.get("Item No") or item.get("ItemId") or item.get("ItemNumber") or item.get("ItemNo") or "").strip()
+            raw = item.get("Item No.") or item.get("itemId") or item.get("Item No") or item.get("ItemId") or item.get("ItemNumber") or item.get("ItemNo") or ""
+            item_no = _str(raw)
             if not item_no or item_no.upper() not in by_item:
                 continue
             rows = by_item[item_no.upper()]
             # Latest per location (by Date ISO or Date)
             latest_by_loc = {}
             for r in rows:
-                loc = (r.get("Location No.") or r.get("locId") or r.get("Location No") or r.get("LocationId") or r.get("LocNo") or "").strip()
+                loc = _str(r.get("Location No.") or r.get("locId") or r.get("Location No") or r.get("LocationId") or r.get("LocNo") or "")
                 if not loc:
                     continue
-                date_key = (r.get("Date ISO") or r.get("dateISO") or r.get("Date") or "").strip()
+                date_key = _str(r.get("Date ISO") or r.get("dateISO") or r.get("Date") or "")
                 on_hand = _safe_float(r.get("On Hand") or r.get("qStk") or r.get("Qty On Hand") or r.get("qtyOnHand") or r.get("Quantity On Hand"))
                 wip = _safe_float(r.get("WIP") or r.get("qWip") or r.get("qtyWip"))
                 reserve = _safe_float(r.get("Reserve") or r.get("qRes") or r.get("qtyAlloc") or r.get("qtyReserve"))
