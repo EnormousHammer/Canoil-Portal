@@ -122,23 +122,47 @@ export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
 const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavigate }) => {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMsg, setLoadingMsg] = useState('Checking data…');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const fetchStatus = async () => {
     const r = await apiGet('/api/sage/gdrive/status');
-    setStatus(r.data);
+    return r.data;
+  };
+
+  const triggerLoad = async () => {
+    await apiPost('/api/sage/gdrive/load', {});
+  };
+
+  const load = async (autoLoadIfEmpty = true) => {
+    setLoading(true);
+    setLoadingMsg('Checking data…');
+    const st = await fetchStatus();
+    // If cache is empty, auto-trigger a load so user sees real numbers immediately
+    if (autoLoadIfEmpty && (!st?.cache_loaded || !st?.row_counts || Object.keys(st.row_counts || {}).length === 0)) {
+      setLoadingMsg('Loading Sage data from Google Drive… (first load takes ~30s)');
+      await triggerLoad();
+      const st2 = await fetchStatus();
+      setStatus(st2);
+    } else {
+      setStatus(st);
+    }
+    setLoadedAt(new Date());
     setLoading(false);
   };
 
   const forceRefresh = async () => {
     setRefreshing(true);
-    await apiGet('/api/sage/gdrive/load');
-    await load();
+    setLoadingMsg('Refreshing from Google Drive…');
+    await triggerLoad();
+    const st = await fetchStatus();
+    setStatus(st);
+    setLoadedAt(new Date());
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rc = status?.row_counts || {};
   const folder = status?.cache_folder || status?.latest_folder || '—';
@@ -187,14 +211,12 @@ const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavi
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <div className="flex items-center gap-3 text-slate-500">
-          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          Loading Sage data…
-        </div>
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <svg className="w-8 h-8 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+        <p className="text-sm text-slate-500 text-center max-w-xs">{loadingMsg}</p>
       </div>
     );
   }
@@ -220,30 +242,36 @@ const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavi
       </div>
 
       {/* Data source info bar */}
-      <div className="flex items-center gap-6 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
-          <span className="text-slate-500">Data Source:</span>
-          <span className="font-semibold text-slate-800">Sage 50 G Drive Export</span>
+          <span className="font-semibold text-slate-800">Sage 50 · G Drive Export</span>
         </div>
-        <div className="h-4 w-px bg-slate-200" />
-        <div className="flex items-center gap-2">
-          <span className="text-slate-500">Folder:</span>
-          <span className="font-medium text-slate-700">{folderDate}</span>
-        </div>
-        {ageLabel && (
+        {folderDate !== '—' && (
           <>
             <div className="h-4 w-px bg-slate-200" />
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Cached:</span>
-              <span className="font-medium text-slate-700">{ageLabel}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400">Export folder:</span>
+              <span className="font-medium text-slate-700">{folderDate}</span>
+            </div>
+          </>
+        )}
+        {loadedAt && (
+          <>
+            <div className="h-4 w-px bg-slate-200" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400">Last loaded:</span>
+              <span className="font-medium text-slate-700">
+                {loadedAt.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' })}
+                {ageLabel && ageLabel !== 'Just now' && <span className="text-slate-400 ml-1">({ageLabel})</span>}
+              </span>
             </div>
           </>
         )}
         <div className="h-4 w-px bg-slate-200" />
-        <div className="flex items-center gap-2">
-          <span className="text-slate-500">Mode:</span>
-          <span className="font-medium text-slate-700">{status?.is_cloud ? 'Cloud (Google Drive API)' : 'Local (G: Drive)'}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400">Mode:</span>
+          <span className="font-medium text-slate-700">{status?.is_cloud ? 'Cloud' : 'Local G: Drive'}</span>
         </div>
       </div>
 
