@@ -6536,21 +6536,36 @@ def chat_query():
                 }
             })
         
-        # Get the latest data
-        latest_folder, error = get_latest_folder()
-        if error:
-            return jsonify({"error": f"Cannot access data: {error}"}), 500
-        
-        folder_path = os.path.join(GDRIVE_BASE, latest_folder)
-        
-        # Load current data
+        # Use frontend-provided data when available (same data user sees in main app)
         raw_data = {}
-        json_files = glob.glob(os.path.join(folder_path, "*.json"))
+        frontend_data = data.get('data')
+        _metadata_keys = frozenset(('folderInfo', 'LoadTimestamp', 'source', 'message', 'folder', 'size', 'fileCount', 'created', 'syncDate', 'lastModified', 'fullCompanyDataReady'))
+        if frontend_data and isinstance(frontend_data, dict):
+            for k, v in frontend_data.items():
+                if k in _metadata_keys:
+                    continue
+                if isinstance(v, list) and len(v) > 0:
+                    raw_data[k] = v
+                elif isinstance(v, dict) and len(v) > 0:
+                    raw_data[k] = v
+            if raw_data:
+                total_rec = sum(len(v) if isinstance(v, list) else 1 for v in raw_data.values())
+                print(f"✅ Chat using frontend data: {list(raw_data.keys())} ({total_rec} records)")
         
-        for json_file in json_files:
-            file_name = os.path.basename(json_file)
-            file_data = load_json_file(json_file)
-            raw_data[file_name] = file_data
+        # Fallback: load from API Extractions folder when no frontend data
+        if not raw_data:
+            latest_folder, error = get_latest_folder()
+            if error:
+                return jsonify({"error": f"Cannot access data: {error}"}), 500
+            
+            folder_path = os.path.join(GDRIVE_BASE, latest_folder)
+            json_files = glob.glob(os.path.join(folder_path, "*.json"))
+            
+            for json_file in json_files:
+                file_name = os.path.basename(json_file)
+                file_data = load_json_file(json_file)
+                raw_data[file_name] = file_data
+            print(f"📂 Chat loaded from folder: {folder_path} ({len(raw_data)} files)")
         
         # CRITICAL FIX: Load Sales Orders data from separate G: Drive location
         print("RETRY: Loading Sales Orders for ChatGPT analysis...")

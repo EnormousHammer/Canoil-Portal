@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, FileText, Package, Building2, DollarSign, Calendar, MapPin, Phone, Mail, ExternalLink, Info } from 'lucide-react';
+import { Brain, FileText, Package, Building2, DollarSign, Calendar, MapPin, Phone, Mail, ExternalLink, Info, User } from 'lucide-react';
 
 interface InteractiveChatMessageProps {
   message: {
@@ -39,41 +39,69 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
 
 
   const parseAndRenderContent = (content: string) => {
-    // Split content into sections
-    const sections = content.split(/\*\*(.*?)\*\*/g);
+    // Match AI response format: **QUERY TYPE: X** followed by - **Label:** value blocks
+    const queryTypeMatch = content.match(/^\s*\*\*QUERY TYPE:\s*(.+?)\*\*/i);
     const elements: React.ReactNode[] = [];
-    
-    for (let i = 0; i < sections.length; i++) {
-      const section = sections[i];
-      
-      if (i % 2 === 1) {
-        // This is a header (between **)
-        elements.push(
-          <div key={i} className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-lg border-b border-gray-200 pb-2">
-            {getHeaderIcon(section)}
-            <span>{section}</span>
-          </div>
-        );
-      } else {
-        // This is content - check if it's an items list
-        if (section.includes('1.') && section.includes('2.') && section.includes('3.')) {
-          // This looks like an items list - format it properly
+
+    if (queryTypeMatch) {
+      const queryType = queryTypeMatch[1].trim();
+      let rest = content.slice(queryTypeMatch[0].length).trim();
+
+      elements.push(
+        <div key="query-type" className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-base border-b-2 border-violet-200 pb-3">
+          {getHeaderIcon(queryType)}
+          <span>{queryType}</span>
+        </div>
+      );
+
+      // Parse "- **Label:** value" blocks (value runs until next "- **" or end)
+      const blockRegex = /-\s*\*\*([^:*]+):\*\*\s*([\s\S]*?)(?=-\s*\*\*|$)/g;
+      let blockMatch;
+      const blocks: Array<{ label: string; value: string }> = [];
+      while ((blockMatch = blockRegex.exec(rest)) !== null) {
+        blocks.push({ label: blockMatch[1].trim(), value: blockMatch[2].trim() });
+      }
+
+      if (blocks.length > 0) {
+        blocks.forEach((block, idx) => {
           elements.push(
-            <div key={i} className="mb-4">
-              {renderItemsList(section)}
+            <div key={`block-${idx}`} className="mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{block.label}</div>
+              <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                {block.value.includes('1.') && block.value.includes('2.') ? renderItemsList(block.value) : renderInteractiveContent(block.value)}
+              </div>
             </div>
           );
-        } else {
-          // Regular content
+        });
+      } else {
+        elements.push(
+          <div key="rest" className="text-sm leading-relaxed text-slate-700">
+            {renderInteractiveContent(rest)}
+          </div>
+        );
+      }
+    } else {
+      // Fallback: original **header** / content parsing
+      const sections = content.split(/\*\*(.*?)\*\*/g);
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+        if (i % 2 === 1) {
+          elements.push(
+            <div key={i} className="font-bold text-slate-800 mb-3 flex items-center gap-2 text-base border-b border-slate-200 pb-2">
+              {getHeaderIcon(section)}
+              <span>{section}</span>
+            </div>
+          );
+        } else if (section.trim()) {
           elements.push(
             <div key={i} className="mb-3 leading-relaxed">
-              {renderInteractiveContent(section)}
+              {section.includes('1.') && section.includes('2.') && section.includes('3.') ? renderItemsList(section) : renderInteractiveContent(section)}
             </div>
           );
         }
       }
     }
-    
+
     return elements;
   };
 
@@ -88,11 +116,11 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
       
       if (number && itemContent && number.match(/^\d+\.\s$/)) {
         formattedItems.push(
-          <div key={i} className="flex items-start gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+          <div key={i} className="flex items-start gap-3 mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="flex-shrink-0 w-8 h-8 bg-violet-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
               {number.replace('.', '').trim()}
             </div>
-            <div className="flex-1 pt-1">
+            <div className="flex-1 pt-0.5">
               {renderInteractiveContent(itemContent)}
             </div>
           </div>
@@ -107,14 +135,17 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     if (header.includes('ORDER DETAILS') || header.includes('SALES ORDER')) {
       return <FileText className="w-4 h-4 text-blue-600" />;
     }
-    if (header.includes('ITEMS') || header.includes('PRODUCTS')) {
+    if (header.includes('ITEMS') || header.includes('PRODUCTS') || header.includes('INVENTORY') || header.includes('STOCK')) {
       return <Package className="w-4 h-4 text-green-600" />;
     }
     if (header.includes('CUSTOMER')) {
       return <Building2 className="w-4 h-4 text-purple-600" />;
     }
-    if (header.includes('FINANCIAL') || header.includes('TOTAL')) {
+    if (header.includes('FINANCIAL') || header.includes('TOTAL') || header.includes('AR ') || header.includes('METRICS')) {
       return <DollarSign className="w-4 h-4 text-emerald-600" />;
+    }
+    if (header.includes('QUERY TYPE') || header.includes('MANUFACTURING') || header.includes('MO ')) {
+      return <Info className="w-4 h-4 text-violet-600" />;
     }
     return null;
   };
@@ -259,67 +290,75 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     return elements.length > 0 ? elements : content;
   };
 
+  const isUser = message.type === 'user';
+  const AvatarEl = (
+    <div
+      className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+        isUser
+          ? 'bg-slate-600 text-white'
+          : 'bg-gradient-to-r from-violet-500 to-indigo-600 text-white shadow-sm'
+      }`}
+    >
+      {isUser ? (
+        <User className="w-4 h-4" />
+      ) : (
+        <Brain className="w-4 h-4" />
+      )}
+    </div>
+  );
+
   return (
-    <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
+    <div className={`flex items-start gap-3 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+      {AvatarEl}
       <div
-        className={`max-w-5xl px-6 py-4 rounded-xl ${
-          message.type === 'user'
-            ? 'bg-gradient-to-r from-purple-500 to-blue-600 text-white shadow-lg'
-            : 'bg-white border border-gray-200 shadow-md text-gray-900'
+        className={`max-w-[90%] sm:max-w-3xl px-5 py-4 rounded-2xl ${
+          isUser
+            ? 'bg-slate-700 text-white shadow-md'
+            : 'bg-white border border-slate-200 shadow-sm text-slate-800'
         }`}
       >
-        <div className="flex items-start space-x-3">
-          {message.type === 'assistant' && (
-            <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <Brain className="w-4 h-4 text-white" />
-            </div>
-          )}
-          
-          <div className="flex-1 min-w-0">
-            {message.type === 'assistant' ? (
-              <div className="space-y-3">
-                {parseAndRenderContent(message.content)}
-              </div>
-            ) : (
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-            )}
-            
-            {/* Sources */}
-            {message.sources && message.sources.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="flex flex-wrap gap-2">
-                  {message.sources.map((source, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-md"
-                    >
-                      <FileText className="w-3 h-3 mr-1" />
-                      {source}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Confidence indicator for assistant messages */}
-            {message.type === 'assistant' && message.confidence && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Confidence: {Math.round(message.confidence * 100)}%</span>
-                </div>
-                <span className="text-gray-400">•</span>
-                <span>{message.timestamp.toLocaleTimeString()}</span>
-              </div>
-            )}
+        {message.type === 'assistant' ? (
+          <div className="space-y-4 text-sm leading-relaxed">
+            {parseAndRenderContent(message.content)}
           </div>
-          
-          {message.type === 'user' && (
-            <div className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-white font-semibold text-sm">U</span>
+        ) : (
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        )}
+
+        {/* Sources */}
+        {message.sources && message.sources.length > 0 && (
+          <div className={`mt-3 pt-3 ${isUser ? 'border-white/20' : 'border-slate-200'} border-t`}>
+            <div className="flex flex-wrap gap-2">
+              {message.sources.map((source, index) => (
+                <span
+                  key={index}
+                  className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${
+                    isUser ? 'bg-white/15 text-white/90' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <FileText className="w-3 h-3 mr-1" />
+                  {source}
+                </span>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Confidence + timestamp for assistant */}
+        {message.type === 'assistant' && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+            {message.confidence && (
+              <>
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  <span>{Math.round(message.confidence * 100)}%</span>
+                </div>
+                <span>·</span>
+              </>
+            )}
+            <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -143,13 +143,15 @@ interface AIInsight {
   impact: 'high' | 'medium' | 'low';
   confidence: number;
   action?: string;
+  query?: string;  // Chat query to send when action is clicked
   data?: any;
-  category: 'sales' | 'inventory' | 'production' | 'logistics' | 'financial' | 'operational';
+  category: 'sales' | 'inventory' | 'production' | 'logistics' | 'financial' | 'operational' | 'procurement';
 }
 
 interface DataSummary {
   salesOrders: number;
   manufacturingOrders: number;
+  openPurchaseOrders: number;
   items: number;
   customers: number;
   lowStockItems: number;
@@ -174,6 +176,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
   const [sageKpis, setSageKpis] = useState<any>(null);
   const [sageMonthly, setSageMonthly] = useState<any[]>([]);
+  const [sageMonthlyMeta, setSageMonthlyMeta] = useState<{ year?: number; total_revenue?: number } | null>(null);
   const [sageTopCustomers, setSageTopCustomers] = useState<any[]>([]);
   const [sageBestMovers, setSageBestMovers] = useState<any[]>([]);
   const [sageArAging, setSageArAging] = useState<any>(null);
@@ -186,13 +189,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const loadSageAnalytics = async (year: number) => {
     setIsLoadingSageAnalytics(true);
     setSageAnalyticsError(null);
+    const yearParam = year > 0 ? year : currentYear; // All Time (0) uses current year
     try {
       const [yearsRes, kpisRes, monthlyRes, customersRes, moversRes, arRes] = await Promise.all([
         fetch(getApiUrl('/api/sage/gdrive/analytics/available-years')),
-        fetch(getApiUrl(`/api/sage/gdrive/analytics/kpis?year=${year}`)),
-        fetch(getApiUrl(`/api/sage/gdrive/analytics/monthly-revenue?year=${year}`)),
-        fetch(getApiUrl(`/api/sage/gdrive/analytics/top-customers?limit=15&year=${year}`)),
-        fetch(getApiUrl(`/api/sage/gdrive/analytics/best-movers?limit=15&year=${year}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/kpis?year=${yearParam}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/monthly-revenue?year=${yearParam}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/top-customers?limit=15&year=${yearParam}`)),
+        fetch(getApiUrl(`/api/sage/gdrive/analytics/best-movers?limit=15&year=${yearParam}`)),
         fetch(getApiUrl('/api/sage/gdrive/analytics/ar-aging')),
       ]);
 
@@ -204,6 +208,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       if (monthlyRes.ok) {
         const m = await monthlyRes.json();
         setSageMonthly(m.months || m.monthly_data || []);
+        setSageMonthlyMeta({ year: m.year, total_revenue: m.total_revenue });
       }
       if (customersRes.ok) {
         const c = await customersRes.json();
@@ -466,28 +471,21 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   });
 
   const generateDataSummary = (): DataSummary => {
-    // Check if we have cached data that's still valid (5 minutes)
     const now = Date.now();
-    if (processedDataCache.dataSummary && (now - processedDataCache.lastProcessed) < 300000) {
-      console.log('✅ Using cached AI data summary');
-      return processedDataCache.dataSummary;
-    }
+    // Always compute fresh when called — cache can return stale data when data prop changes
+    console.log('🔄 Processing AI data summary...');
 
-    console.log('🔄 Processing fresh AI data summary...');
-    
-    // Get REAL Sales Orders from PDF-extracted data
+    // Get REAL Sales Orders from PDF-extracted + parsed sources
     const realSalesOrders = data['RealSalesOrders'] || [];
+    const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
     const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-    
-    // ALSO check for other possible SO data sources
     const soInProduction = data['SalesOrders_InProduction'] || [];
     const soCompleted = data['SalesOrders_Completed'] || [];
     const soCancelled = data['SalesOrders_Cancelled'] || [];
     const soNew = data['SalesOrders_New'] || [];
     const soScheduled = data['SalesOrders_Scheduled'] || [];
-    
-    // Calculate total Sales Orders from ALL PDF sources
-    let allSalesOrders: any[] = [...realSalesOrders, ...soInProduction, ...soCompleted, ...soCancelled, ...soNew, ...soScheduled];
+
+    let allSalesOrders: any[] = [...realSalesOrders, ...parsedSalesOrders, ...soInProduction, ...soCompleted, ...soCancelled, ...soNew, ...soScheduled];
     
     // Add Sales Orders from folder status (if available)
     if (typeof salesOrdersByStatus === 'object') {
@@ -509,18 +507,19 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     allSalesOrders = uniqueSalesOrders;
     
     const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
-    // Status '2' = Closed/Completed — exclude those, only count Status '0' (Open) and '1' (Released/Active)
     const activeMoHeaders = moHeaders.filter((mo: any) => String(mo.Status ?? mo['Status'] ?? '2') !== '2');
+    const poHeaders = data['PurchaseOrders.json'] || [];
+    const openPOs = poHeaders.filter((po: any) => String(po.Status ?? po['Status'] ?? '2') === '1');
     const items = data['Items.json'] || [];
     
     // Calculate unique customers from active MO headers only
     const uniqueCustomers = new Set(activeMoHeaders.map((mo: any) => mo.Customer).filter(Boolean)).size;
     
-    // Calculate low stock items
+    // Calculate low stock items (Items.json uses Reorder Level, fallback to Minimum)
     const lowStockItems = items.filter((item: any) => {
-      const stock = parseFloat(item['Stock'] || 0);
-      const reorderPoint = parseFloat(item['Reorder Point'] || 0);
-      return stock <= reorderPoint && reorderPoint > 0;
+      const stock = parseFloat(item['Stock'] || item.Stock || 0);
+      const reorderLevel = parseFloat(item['Reorder Level'] || item['Reorder Point'] || item.Minimum || 0);
+      return stock <= reorderLevel && reorderLevel > 0;
     }).length;
 
     // Calculate order statuses from REAL PDF Sales Orders
@@ -542,6 +541,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     const dataSummary = {
       salesOrders: allSalesOrders.length,
       manufacturingOrders: activeMoHeaders.length,
+      openPurchaseOrders: openPOs.length,
       items: items.length,
       customers: uniqueCustomers,
       lowStockItems,
@@ -565,16 +565,65 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     const s = summary || dataSummary;
     if (!s) return insights;
 
-    // Sales Order insights
+    // Low stock — always show if any (high priority)
+    if (s.lowStockItems > 0) {
+      insights.push({
+        id: 'stock-alert-1',
+        type: 'alert',
+        title: `${s.lowStockItems} Items Below Reorder Level`,
+        description: `${s.lowStockItems} items need restocking. Ask the AI for the list with stock and reorder quantities.`,
+        impact: 'high',
+        confidence: 0.95,
+        action: 'Get low stock list',
+        query: 'Which items are below reorder level? Give me the list with stock and reorder quantities.',
+        category: 'inventory',
+        data: { lowStockItems: s.lowStockItems, totalItems: s.items }
+      });
+    }
+
+    // Active MOs
+    if (s.manufacturingOrders > 0) {
+      insights.push({
+        id: 'production-1',
+        type: 'recommendation',
+        title: `${s.manufacturingOrders} Active Manufacturing Orders`,
+        description: `${s.manufacturingOrders} MOs in progress. Ask for details by build item.`,
+        impact: 'medium',
+        confidence: 0.95,
+        action: 'List active MOs',
+        query: 'How many active manufacturing orders do we have? List them by build item.',
+        category: 'production',
+        data: { manufacturingOrders: s.manufacturingOrders }
+      });
+    }
+
+    // Open POs
+    if (s.openPurchaseOrders > 0) {
+      insights.push({
+        id: 'po-open-1',
+        type: 'recommendation',
+        title: `${s.openPurchaseOrders} Open Purchase Orders`,
+        description: `${s.openPurchaseOrders} POs awaiting delivery. Ask for breakdown by supplier.`,
+        impact: 'medium',
+        confidence: 0.95,
+        action: 'List open POs',
+        query: 'How many open purchase orders do we have? List by supplier.',
+        category: 'procurement',
+        data: { openPOs: s.openPurchaseOrders }
+      });
+    }
+
+    // Sales orders (from PDF data)
     if (s.pendingOrders > 0) {
       insights.push({
         id: 'so-pending-1',
         type: 'warning',
         title: `${s.pendingOrders} Pending Sales Orders`,
-        description: `You have ${s.pendingOrders} sales orders requiring attention. Use the AI chat to analyze and prioritize them.`,
+        description: `${s.pendingOrders} sales orders in progress from PDF data.`,
         impact: 'high',
-        confidence: 0.95,
-        action: 'Review pending orders',
+        confidence: 0.9,
+        action: 'View pending orders',
+        query: 'List our pending sales orders with customer and value.',
         category: 'sales',
         data: { pendingOrders: s.pendingOrders, totalSOs: s.salesOrders }
       });
@@ -584,70 +633,43 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       insights.push({
         id: 'so-completed-1',
         type: 'success',
-        title: `${s.completedOrders} Orders Completed`,
-        description: `${s.completedOrders} sales orders have been completed. Ask the AI to analyze completion patterns for optimization.`,
-        impact: 'medium',
+        title: `${s.completedOrders} Completed Orders`,
+        description: `${s.completedOrders} sales orders completed.`,
+        impact: 'low',
         confidence: 0.9,
-        action: 'Analyze completion patterns',
+        action: 'View completed',
+        query: 'How many sales orders have we completed? What is the total value?',
         category: 'sales',
         data: { completedOrders: s.completedOrders, totalSOs: s.salesOrders }
       });
     }
 
-    // Inventory insights
-    if (s.lowStockItems > 0) {
-      insights.push({
-        id: 'stock-alert-1',
-        type: 'alert',
-        title: `${s.lowStockItems} Items Below Reorder Point`,
-        description: `${s.lowStockItems} items are below their reorder point and need restocking to avoid stockouts.`,
-        impact: 'high',
-        confidence: 0.95,
-        action: 'Review reorder recommendations',
-        category: 'inventory',
-        data: { lowStockItems: s.lowStockItems, totalItems: s.items }
-      });
-    }
-
-    // Financial insights
     if (s.totalValue > 0) {
       insights.push({
         id: 'financial-1',
         type: 'recommendation',
         title: `$${s.totalValue.toLocaleString()} Total Order Value`,
-        description: `Current sales orders represent $${s.totalValue.toLocaleString()} in total value. Monitor cash flow and payment terms.`,
+        description: `Sales orders total $${s.totalValue.toLocaleString()} from PDF data.`,
         impact: 'medium',
         confidence: 0.9,
-        action: 'Review financial projections',
+        action: 'Order value details',
+        query: 'What is the total value of our sales orders?',
         category: 'financial',
         data: { totalValue: s.totalValue, orderCount: s.salesOrders }
       });
     }
 
-    // Operational insights
-    if (s.manufacturingOrders > 0) {
-      insights.push({
-        id: 'production-1',
-        type: 'recommendation',
-        title: `${s.manufacturingOrders} Active Manufacturing Orders`,
-        description: `${s.manufacturingOrders} manufacturing orders are in progress. Ask the AI to review production schedules and capacity.`,
-        impact: 'medium',
-        confidence: 0.85,
-        action: 'Review production schedule',
-        category: 'production',
-        data: { manufacturingOrders: s.manufacturingOrders }
-      });
-    }
-
+    // Inventory overview
     if (s.items > 0) {
       insights.push({
         id: 'inventory-overview',
         type: 'prediction',
-        title: `${s.items.toLocaleString()} Inventory Items Tracked`,
-        description: `Your inventory contains ${s.items.toLocaleString()} unique items. Ask the AI for a full inventory health analysis.`,
+        title: `${s.items.toLocaleString()} Inventory Items`,
+        description: `${s.items.toLocaleString()} items in MiSys. Ask for stock levels or item lookup.`,
         impact: 'low',
         confidence: 1.0,
-        action: 'Analyze inventory health',
+        action: 'Inventory value',
+        query: 'What is our total inventory value? Use Items.json stock and standard cost.',
         category: 'inventory',
         data: { totalItems: s.items }
       });
@@ -739,7 +761,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       const requestBody = {
         query: currentInput,
         dateContext: dateContext,
-        dataSources: dataSourcesSummary  // Tell AI what data sources are available
+        dataSources: dataSourcesSummary,
+        data: data  // Pass actual data so chat uses same data as main app (Full Company Data / Live SQL)
       };
       
       console.log('🚀 SENDING REQUEST:');
@@ -804,74 +827,46 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
   const quickActions = [
     { 
-      title: "Sales Analysis", 
-      description: "Analyze sales performance and trends",
-      icon: TrendingUp,
-      action: "Analyze our sales performance and identify trends",
-      category: "sales"
+      title: "Active MOs", 
+      description: "List active manufacturing orders",
+      icon: Factory,
+      action: "How many active manufacturing orders do we have? List them by build item.",
+      category: "production"
     },
     { 
-      title: "Inventory Status", 
-      description: "Check stock levels and reorder points",
+      title: "Low Stock", 
+      description: "Items below reorder level",
       icon: Package,
-      action: "Show me inventory status and low stock items",
+      action: "Which items are below reorder level? Give me the list with stock and reorder quantities.",
       category: "inventory"
     },
     { 
-      title: "Production Schedule", 
-      description: "Review manufacturing orders and schedules",
-      icon: Factory,
-      action: "What's our current production schedule and capacity?",
-      category: "production"
+      title: "Open POs", 
+      description: "Open purchase orders",
+      icon: ShoppingCart,
+      action: "How many open purchase orders do we have? List by supplier.",
+      category: "procurement"
     },
     { 
-      title: "Customer Insights", 
-      description: "Analyze customer data and relationships",
+      title: "Top Customers", 
+      description: "From Sage invoiced data",
       icon: Users,
-      action: "Analyze our customer base and top customers",
+      action: "Who are our top customers by revenue this year? Use the Sage data.",
       category: "sales"
     },
     { 
-      title: "Financial Overview", 
-      description: "Review financial metrics and projections",
+      title: "Inventory Value", 
+      description: "Total stock value",
       icon: DollarSign,
-      action: "Give me a financial overview of our business",
+      action: "What is our total inventory value? Use Items.json stock and standard cost.",
+      category: "inventory"
+    },
+    { 
+      title: "AR Aging", 
+      description: "Accounts receivable summary",
+      icon: DollarSign,
+      action: "What is our accounts receivable aging? Current, 30-60, 60-90, 90+ days.",
       category: "financial"
-    },
-    { 
-      title: "BOM Analysis", 
-      description: "Analyze bill of materials and costs",
-      icon: Calculator,
-      action: "Analyze our BOM costs and material requirements",
-      category: "production"
-    },
-    { 
-      title: "Comprehensive Reports", 
-      description: "Generate detailed business reports and analytics",
-      icon: FileText,
-      action: "Generate a comprehensive business report with all key metrics, trends, and insights",
-      category: "reports"
-    },
-    { 
-      title: "Trends Analysis", 
-      description: "Analyze trends across all business areas",
-      icon: TrendingUp,
-      action: "Analyze trends across sales, inventory, production, and purchasing for the last 6 months",
-      category: "reports"
-    },
-    { 
-      title: "MO Analysis", 
-      description: "Analyze manufacturing orders and production",
-      icon: Factory,
-      action: "Analyze all manufacturing orders, production status, and capacity utilization",
-      category: "production"
-    },
-    { 
-      title: "PO Analysis", 
-      description: "Analyze purchase orders and procurement",
-      icon: ShoppingCart,
-      action: "Analyze all purchase orders, supplier performance, and procurement trends",
-      category: "procurement"
     }
   ];
 
@@ -892,10 +887,23 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       case 'sales': return <ShoppingCart className="w-4 h-4" />;
       case 'inventory': return <Package className="w-4 h-4" />;
       case 'production': return <Factory className="w-4 h-4" />;
+      case 'procurement': return <ShoppingCart className="w-4 h-4" />;
       case 'logistics': return <Truck className="w-4 h-4" />;
       case 'financial': return <DollarSign className="w-4 h-4" />;
       case 'operational': return <Settings className="w-4 h-4" />;
       default: return <Activity className="w-4 h-4" />;
+    }
+  };
+
+  const handleInsightAction = (insight: AIInsight) => {
+    if (insight.query) {
+      setActiveTab('chat');
+      setInputMessage(insight.query);
+      // Focus and optionally send after a brief delay so user sees it
+      setTimeout(() => {
+        const input = document.querySelector('input[placeholder*="Ask"]') as HTMLInputElement;
+        input?.focus();
+      }, 100);
     }
   };
 
@@ -987,11 +995,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                 'Content-Type': 'application/json',
                               },
                               body: JSON.stringify({
-                                query: action.action,  // Backend expects 'query' not 'message'
+                                query: action.action,
                                 dateContext: {
                                   currentDate: new Date().toISOString().split('T')[0],
                                   currentDateTime: new Date().toISOString()
-                                }
+                                },
+                                data: data  // Same data as main app (Full Company Data / Live SQL)
                               })
                             });
                             
@@ -1044,53 +1053,54 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
               {/* Large Chat Interface */}
               <div className="lg:col-span-4">
-                <div className="bg-white rounded-xl border border-slate-200 h-[calc(100vh-260px)] min-h-[500px] flex flex-col shadow-sm">
-                  {/* Compact Chat Header */}
-                  <div className="p-2 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
-                          <Brain className="w-3 h-3 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-900">AI Assistant</h3>
-                        </div>
+                <div className="bg-slate-50/30 rounded-xl border border-slate-200 h-[calc(100vh-260px)] min-h-[500px] flex flex-col shadow-sm overflow-hidden">
+                  {/* Chat Header */}
+                  <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-r from-violet-500 to-indigo-600 rounded-full flex items-center justify-center shadow-sm">
+                        <Brain className="w-4 h-4 text-white" />
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            setProcessedDataCache({
-                              allSalesOrders: [],
-                              dataSummary: null,
-                              lastProcessed: 0
-                            });
-                            console.log('🗑️ AI Command cache cleared');
-                          }}
-                          className="text-xs text-gray-500 hover:text-gray-700 flex items-center space-x-1"
-                          title="Clear AI cache"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          <span>Clear Cache</span>
-                        </button>
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-xs text-gray-500">Online</span>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-800">AI Assistant</h3>
+                        <p className="text-[10px] text-slate-500">Connected to your data</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setProcessedDataCache({
+                            allSalesOrders: [],
+                            dataSummary: null,
+                            lastProcessed: 0
+                          });
+                          console.log('🗑️ AI Command cache cleared');
+                        }}
+                        className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 transition-colors"
+                        title="Clear AI cache"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Clear Cache</span>
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-xs text-slate-500">Online</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                     {messages.length === 0 ? (
                       <div className="text-center py-8">
                         <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
                           <Brain className="w-8 h-8 text-white" />
                         </div>
-                        <h4 className="text-lg font-bold text-gray-900 mb-2">
-                          Welcome to AI Command Center
+                        <h4 className="text-lg font-bold text-slate-900 mb-2">
+                          AI Command Center
                         </h4>
-                        <p className="text-gray-600 mb-4 max-w-md mx-auto">
-                          Ask me anything about your business data. I have access to ALL your data sources 
-                          including sales orders, inventory, production schedules, and customer information.
+                        <p className="text-slate-600 mb-4 max-w-md mx-auto text-sm">
+                          Ask questions about your real data — inventory, MOs, POs, customers. 
+                          I only report what&apos;s in your MiSys and Sage data, no made-up analysis.
                         </p>
                         
                         {/* Data Summary Display */}
@@ -1169,11 +1179,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           </div>
                         </div>
                         
-                        <div className="bg-gray-50 rounded-lg p-4 max-w-sm mx-auto">
-                          <div className="text-sm text-gray-600 mb-2">Try asking:</div>
-                          <div className="text-gray-900 font-medium text-sm">"Analyze all our sales orders performance"</div>
-                          <div className="text-gray-900 font-medium text-sm">"Show me detailed sales order analysis"</div>
-                          <div className="text-gray-900 font-medium text-sm">"What are our top customers by order value?"</div>
+                        <div className="bg-slate-100 rounded-lg p-4 max-w-md mx-auto">
+                          <div className="text-sm text-slate-600 mb-2">Ask about real data:</div>
+                          <div className="text-slate-800 font-medium text-sm">"How many active manufacturing orders?"</div>
+                          <div className="text-slate-800 font-medium text-sm">"Which items are below reorder level?"</div>
+                          <div className="text-slate-800 font-medium text-sm">"Top customers by revenue this year"</div>
                         </div>
                       </div>
                     ) : (
@@ -1189,12 +1199,18 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       ))
                     )}
                     {isProcessing && (
-                      <div className="flex justify-start mb-4">
-                        <div className="bg-gray-100 text-gray-900 px-4 py-3 rounded-2xl">
-                          <div className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-r from-violet-500 to-indigo-600 text-white shadow-sm">
+                          <Brain className="w-4 h-4" />
+                        </div>
+                        <div className="bg-white border border-slate-200 shadow-sm px-4 py-3 rounded-2xl">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-500 font-medium">Thinking</span>
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1203,8 +1219,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   </div>
 
                   {/* Input */}
-                  <div className="p-4 border-t border-gray-200">
-                    <div className="flex space-x-3">
+                  <div className="p-4 border-t border-slate-200 bg-slate-50/50">
+                    <div className="flex gap-3">
                       <div className="flex-1 relative">
                         <input
                           type="text"
@@ -1212,15 +1228,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           onChange={(e) => setInputMessage(e.target.value)}
                           onKeyPress={handleKeyPress}
                           placeholder="Ask me anything about your business data..."
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-white pr-11 text-slate-800 placeholder-slate-400 transition-shadow"
                           disabled={isProcessing}
                         />
-                        <Search className="absolute right-3 top-3.5 w-5 h-5 text-gray-400" />
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
                       <button
                         onClick={handleSendMessage}
                         disabled={!inputMessage.trim() || isProcessing}
-                        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center"
+                        className="px-5 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center shrink-0"
                       >
                         {isProcessing ? (
                           <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1229,19 +1245,18 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         )}
                       </button>
                     </div>
-                    
-                    {/* Quick Suggestions */}
+                    {/* Quick Suggestions — concrete queries only */}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
-                        "Show me sales trends",
-                        "What's our inventory status?",
-                        "Analyze production capacity",
-                        "Customer insights"
+                        "How many active MOs?",
+                        "Items below reorder level",
+                        "Open POs by supplier",
+                        "Top customers by revenue"
                       ].map((suggestion, index) => (
                         <button
                           key={index}
                           onClick={() => setInputMessage(suggestion)}
-                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 rounded-full text-sm transition-colors"
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-600 hover:text-violet-700 rounded-lg text-sm transition-colors"
                         >
                           {suggestion}
                         </button>
@@ -1257,43 +1272,52 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         {activeTab === 'insights' && (
           <div className="max-w-6xl mx-auto">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Business Insights</h2>
-              <p className="text-gray-600">AI-powered insights from your business data</p>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Insights</h2>
+              <p className="text-slate-600">From your real MiSys and Sage data</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {insights.map((insight) => (
-                <div
-                  key={insight.id}
-                  className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-2">
-                      {getInsightIcon(insight.type)}
-                      <span className="text-sm font-medium text-gray-600 flex items-center">
-                        {getCategoryIcon(insight.category)}
-                        <span className="ml-1 capitalize">{insight.category}</span>
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-gray-900">
-                        {Math.round(insight.confidence * 100)}% confidence
+            {insights.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
+                <Lightbulb className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">No insights yet</h3>
+                <p className="text-slate-500 max-w-md mx-auto text-sm">
+                  Insights appear when you have data loaded — low stock items, active MOs, open POs, sales orders.
+                  Check that data is loaded in the portal.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {insights.map((insight) => (
+                  <div
+                    key={insight.id}
+                    className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        {getInsightIcon(insight.type)}
+                        <span className="text-xs font-medium text-slate-500 flex items-center gap-1 capitalize">
+                          {getCategoryIcon(insight.category)}
+                          {insight.category}
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-500 capitalize">{insight.impact} impact</div>
+                      <span className="text-xs text-slate-400">{Math.round(insight.confidence * 100)}%</span>
                     </div>
+
+                    <h3 className="text-base font-semibold text-slate-900 mb-2">{insight.title}</h3>
+                    <p className="text-sm text-slate-600 mb-4">{insight.description}</p>
+
+                    {insight.query && (
+                      <button
+                        onClick={() => handleInsightAction(insight)}
+                        className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm font-medium"
+                      >
+                        {insight.action || 'Ask in Chat'}
+                      </button>
+                    )}
                   </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{insight.title}</h3>
-                  <p className="text-gray-600 mb-4">{insight.description}</p>
-
-                  {insight.action && (
-                    <button className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">
-                      {insight.action}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1319,6 +1343,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       {y === currentYear ? `${y} YTD` : String(y)}
                     </button>
                   ))}
+                  <button onClick={() => setAnalyticsYear(0)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
+                      analyticsYear === 0
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
+                    }`}>
+                    All Time
+                  </button>
                   <button onClick={() => loadSageAnalytics(analyticsYear)} disabled={isLoadingSageAnalytics}
                     className="ml-1 px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1">
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSageAnalytics ? 'animate-spin' : ''}`} />
@@ -1333,7 +1365,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               {isLoadingSageAnalytics && !sageKpis ? (
                 <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span className="text-sm font-medium">Loading {analyticsYear} data…</span>
+                  <span className="text-sm font-medium">Loading {analyticsYear > 0 ? analyticsYear : 'All Time'} data…</span>
                 </div>
               ) : sageKpis ? (
                 <>
@@ -1341,7 +1373,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                        {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear} Revenue`}
+                        {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear > 0 ? analyticsYear : 'All Time'} Revenue`}
                       </p>
                       <p className="text-2xl font-bold text-slate-900">
                         ${(sageKpis.total_ytd_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -1379,7 +1411,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   {/* Monthly Revenue Chart */}
                   {sageMonthly.length > 0 && (
                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-bold text-slate-800 mb-4">Monthly Revenue — {analyticsYear}</h3>
+                      <h3 className="text-sm font-bold text-slate-800 mb-1">Monthly Revenue — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
+                      <div className="mb-4 text-sm text-slate-600">
+                        Total {(sageMonthlyMeta?.year ?? analyticsYear || currentYear)}: <span className="font-bold text-emerald-700">${(sageMonthlyMeta?.total_revenue ?? sageMonthly.reduce((s, m) => s + (m.revenue || 0), 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
                       <div className="space-y-2">
                         {(() => {
                           const maxRev = Math.max(...sageMonthly.map(m => m.revenue || 0), 1);
@@ -1449,7 +1484,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {sageTopCustomers.length > 0 && (
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Customers — {analyticsYear}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Customers — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
                         <div className="space-y-2">
                           {sageTopCustomers.slice(0, 10).map((c, i) => {
                             const maxRev = sageTopCustomers[0]?.dAmtYtd || 1;
@@ -1481,7 +1516,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
                     {sageBestMovers.length > 0 && (
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Products — {analyticsYear}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Products — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
                         <div className="space-y-2">
                           {sageBestMovers.slice(0, 10).map((item, i) => {
                             const maxRev = sageBestMovers[0]?.revenue || sageBestMovers[0]?.dAmtYtd || 1;
@@ -1511,7 +1546,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               ) : (
                 <div className="text-center py-10 text-slate-400">
                   <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">No Sage data available for {analyticsYear}. Try a different year.</p>
+                  <p className="text-sm">No Sage data available for {analyticsYear > 0 ? analyticsYear : 'All Time'}. Try a different year.</p>
                 </div>
               )}
             </div>
