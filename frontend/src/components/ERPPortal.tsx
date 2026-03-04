@@ -26,6 +26,7 @@ const SECTIONS: { id: ERPSection; label: string; icon: string; desc: string }[] 
 ];
 
 const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
+  { label: 'Overview',      ids: ['overview'] },
   { label: 'Operations',    ids: ['sales-orders'] },
   { label: 'CRM',           ids: ['customers'] },
   { label: 'Finance',       ids: ['financials'] },
@@ -33,7 +34,7 @@ const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
 ];
 
 export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
-  const [section, setSection] = useState<ERPSection>('sales-orders');
+  const [section, setSection] = useState<ERPSection>('overview');
   const active = SECTIONS.find(s => s.id === section)!;
 
   return (
@@ -101,7 +102,7 @@ export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
         {/* Scrollable section body */}
         <div className="flex-1 overflow-y-auto scrollbar-enterprise">
           <div className="p-7">
-            {section === 'overview'       && <ERPOverview />}
+            {section === 'overview'       && <ERPOverview onNavigate={setSection} />}
             {section === 'customers'      && <CustomerSection />}
             {section === 'sales-orders'   && <SalesOrderSection data={data} />}
             {section === 'financials'     && <FinancialSection />}
@@ -118,25 +119,175 @@ export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
 // ============================================================
 // OVERVIEW
 // ============================================================
-const ERPOverview: React.FC = () => {
+const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavigate }) => {
   const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    apiGet('/api/db/status').then(r => setStatus(r.data));
-  }, []);
+  const load = async () => {
+    setLoading(true);
+    const r = await apiGet('/api/sage/gdrive/status');
+    setStatus(r.data);
+    setLoading(false);
+  };
+
+  const forceRefresh = async () => {
+    setRefreshing(true);
+    await apiGet('/api/sage/gdrive/load');
+    await load();
+    setRefreshing(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const rc = status?.row_counts || {};
+  const folder = status?.cache_folder || status?.latest_folder || '—';
+  // Try to parse the folder name as a date (e.g. "2024-11-15" or "Nov 15 2024")
+  const folderDate = folder && folder !== '—' ? (() => {
+    try {
+      const d = new Date(folder);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch { /* ignore */ }
+    return folder;
+  })() : '—';
+
+  const ageSeconds = status?.cache_age_seconds;
+  const ageLabel = ageSeconds != null
+    ? ageSeconds < 120 ? 'Just now'
+    : ageSeconds < 3600 ? `${Math.floor(ageSeconds / 60)} min ago`
+    : ageSeconds < 86400 ? `${Math.floor(ageSeconds / 3600)}h ago`
+    : `${Math.floor(ageSeconds / 86400)}d ago`
+    : null;
+
+  const tables: { label: string; key: string; color: string; icon: string }[] = [
+    { label: 'Customers',         key: 'tcustomr', color: 'blue',   icon: '◎' },
+    { label: 'Sales Orders',      key: 'tsalordr', color: 'emerald',icon: '▤' },
+    { label: 'Inventory Items',   key: 'tinvent',  color: 'violet', icon: '⬡' },
+    { label: 'Vendors',           key: 'tvendor',  color: 'orange', icon: '◈' },
+    { label: 'SO Line Items',     key: 'tsoline',  color: 'teal',   icon: '≡' },
+    { label: 'Transactions',      key: 'titrec',   color: 'pink',   icon: '⬤' },
+    { label: 'Transaction Lines', key: 'titrline', color: 'rose',   icon: '≋' },
+    { label: 'AR Transactions',   key: 'tcustr',   color: 'amber',  icon: '◑' },
+    { label: 'Price Records',     key: 'tinvprc',  color: 'indigo', icon: '◇' },
+    { label: 'Stock by Location', key: 'tinvbyln', color: 'cyan',   icon: '◫' },
+  ];
+
+  const colorMap: Record<string, string> = {
+    blue:    'bg-blue-50 border-blue-200 text-blue-700',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    violet:  'bg-violet-50 border-violet-200 text-violet-700',
+    orange:  'bg-orange-50 border-orange-200 text-orange-700',
+    teal:    'bg-teal-50 border-teal-200 text-teal-700',
+    pink:    'bg-pink-50 border-pink-200 text-pink-700',
+    rose:    'bg-rose-50 border-rose-200 text-rose-700',
+    amber:   'bg-amber-50 border-amber-200 text-amber-700',
+    indigo:  'bg-indigo-50 border-indigo-200 text-indigo-700',
+    cyan:    'bg-cyan-50 border-cyan-200 text-cyan-700',
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="flex items-center gap-3 text-slate-500">
+          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Loading Sage data…
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-4">ERP Portal Overview</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatusCard title="Database" value={status?.connected ? 'Connected' : 'Not Connected'}
-          color={status?.connected ? 'green' : 'red'} />
-        <StatusCard title="Sage 50" value="Read-Only" color="blue" />
-        <StatusCard title="Auth" value="JWT Active" color="indigo" />
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Canoil Canada</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Sage 50 · Read-Only Data Snapshot</p>
+        </div>
+        <button
+          onClick={forceRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 transition-all"
+        >
+          <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {refreshing ? 'Refreshing…' : 'Refresh Data'}
+        </button>
       </div>
-      <p className="mt-4 text-sm text-slate-500">
-        All portal data is written to PostgreSQL. Sage 50 is strictly read-only.
-      </p>
+
+      {/* Data source info bar */}
+      <div className="flex items-center gap-6 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+          <span className="text-slate-500">Data Source:</span>
+          <span className="font-semibold text-slate-800">Sage 50 G Drive Export</span>
+        </div>
+        <div className="h-4 w-px bg-slate-200" />
+        <div className="flex items-center gap-2">
+          <span className="text-slate-500">Folder:</span>
+          <span className="font-medium text-slate-700">{folderDate}</span>
+        </div>
+        {ageLabel && (
+          <>
+            <div className="h-4 w-px bg-slate-200" />
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500">Cached:</span>
+              <span className="font-medium text-slate-700">{ageLabel}</span>
+            </div>
+          </>
+        )}
+        <div className="h-4 w-px bg-slate-200" />
+        <div className="flex items-center gap-2">
+          <span className="text-slate-500">Mode:</span>
+          <span className="font-medium text-slate-700">{status?.is_cloud ? 'Cloud (Google Drive API)' : 'Local (G: Drive)'}</span>
+        </div>
+      </div>
+
+      {/* Record counts grid */}
+      <div>
+        <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase mb-3">Loaded Records</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {tables.map(t => {
+            const count = rc[t.key];
+            const cls = colorMap[t.color] || colorMap.blue;
+            return (
+              <div key={t.key} className={`flex flex-col gap-1 p-4 rounded-xl border ${cls}`}>
+                <span className="text-lg leading-none">{t.icon}</span>
+                <span className="text-2xl font-bold mt-1 tabular-nums">
+                  {count != null ? count.toLocaleString() : <span className="text-slate-300 text-base">—</span>}
+                </span>
+                <span className="text-xs font-medium opacity-75">{t.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Quick nav */}
+      <div>
+        <p className="text-xs font-semibold tracking-widest text-slate-400 uppercase mb-3">Jump To</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Sales Orders', desc: `${(rc['tsalordr'] || 0).toLocaleString()} orders`, id: 'sales-orders', color: 'hover:border-emerald-400 hover:bg-emerald-50' },
+            { label: 'Customers',    desc: `${(rc['tcustomr'] || 0).toLocaleString()} accounts`, id: 'customers', color: 'hover:border-blue-400 hover:bg-blue-50' },
+            { label: 'Financials',   desc: 'AR aging & invoices', id: 'financials', color: 'hover:border-pink-400 hover:bg-pink-50' },
+            { label: 'Sage Analytics', desc: 'Revenue & trends', id: 'sage-analytics', color: 'hover:border-violet-400 hover:bg-violet-50' },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id as ERPSection)}
+              className={`flex flex-col items-start gap-1 p-4 bg-white border-2 border-slate-100 rounded-xl transition-all ${item.color}`}
+            >
+              <span className="text-sm font-semibold text-slate-800">{item.label}</span>
+              <span className="text-xs text-slate-500">{item.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
