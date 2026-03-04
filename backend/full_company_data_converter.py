@@ -351,8 +351,10 @@ def _read_table(content, file_name, is_bytes=False):
         else:
             return None
         df = df.fillna("")
-        # Normalize column names: strip, and try export-style (no space) vs display (with space)
-        cols = {c: c.strip() for c in df.columns}
+        # Normalize column names: strip whitespace AND the UTF-8 BOM (\ufeff) that MiSys
+        # CSVs include at the start of the first column. Without this, 'itemId' arrives as
+        # '\ufeffitemId' and never matches the rename map, so Item No. / costs are lost.
+        cols = {c: c.strip().lstrip('\ufeff') for c in df.columns}
         df = df.rename(columns=cols)
         return df.to_dict(orient="records")
     except Exception as e:
@@ -361,10 +363,10 @@ def _read_table(content, file_name, is_bytes=False):
 
 
 def _normalize_col(s):
-    """Normalize column name for matching: strip, lower, collapse spaces."""
+    """Normalize column name for matching: strip BOM + whitespace, lower, collapse spaces."""
     if s is None or not isinstance(s, str):
         return ""
-    return " ".join(s.strip().lower().split())
+    return " ".join(s.strip().lstrip('\ufeff').lower().split())
 
 
 def _apply_column_map(rows, column_map):
