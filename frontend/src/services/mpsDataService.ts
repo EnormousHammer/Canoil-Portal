@@ -87,10 +87,14 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     if (!hasFilters) return cached;
     const moSet = new Set((filters!.moNumbers || []).map(n => String(n).trim().toUpperCase()));
     const soSet = new Set((filters!.soNumbers || []).map(n => String(n).trim().toUpperCase()));
+    // MISys stores MO numbers zero-padded (e.g. '000000000003852') but the MPS
+    // sheet uses the short form ('3852'). Normalize by stripping leading zeros
+    // before comparing so the filter doesn't reject every record.
+    const matchMO = (raw: string) => { const n = raw.replace(/^0+/, ''); return moSet.has(raw) || moSet.has(n); };
     return {
       items: cached.items,
-      moHeaders: moSet.size ? cached.moHeaders.filter((mo: any) => moSet.has(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moHeaders,
-      moDetails: moSet.size ? cached.moDetails.filter((d: any) => moSet.has(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moDetails,
+      moHeaders: moSet.size ? cached.moHeaders.filter((mo: any) => matchMO(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moHeaders,
+      moDetails: moSet.size ? cached.moDetails.filter((d: any) => matchMO(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moDetails,
       salesOrders: soSet.size ? cached.salesOrders.filter((so: any) => soSet.has(String(so['SO No.'] ?? so['SO_No'] ?? so['Order No.'] ?? '').trim().toUpperCase())) : cached.salesOrders,
     };
   }
@@ -135,11 +139,12 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     if (hasFilters && filters) {
       const moSet = new Set((filters.moNumbers || []).map((n) => String(n).trim().toUpperCase()));
       const soSet = new Set((filters.soNumbers || []).map((n) => String(n).trim().toUpperCase()));
+      const matchMO2 = (raw: string) => { const n = raw.replace(/^0+/, ''); return moSet.has(raw) || moSet.has(n); };
       if (moSet.size) {
         result = {
           ...result,
-          moHeaders: result.moHeaders.filter((mo: any) => moSet.has(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())),
-          moDetails: result.moDetails.filter((d: any) => moSet.has(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())),
+          moHeaders: result.moHeaders.filter((mo: any) => matchMO2(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())),
+          moDetails: result.moDetails.filter((d: any) => matchMO2(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())),
         };
       }
       if (soSet.size) {
@@ -284,34 +289,24 @@ export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
     }
     
     // Build lookup maps
+    // Key MOH by normalized MO number so lookups match MPS sheet (no leading zeros)
     const moMap = new Map<string, any>();
     misysData.moHeaders.forEach(mo => {
-      const moNo = mo['Mfg. Order No.'] || mo['MO No.'] || mo['MO_No'];
-      if (moNo) {
-        // Normalize MO number (remove leading zeros for matching)
-        const normalizedMO = String(moNo).replace(/^0+/, '');
-        moMap.set(normalizedMO, mo);
-        moMap.set(String(moNo), mo); // Also store original
-      }
+      const moNo = mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? mo['MO No.'] ?? mo['MO_No'];
+      if (!moNo) return;
+      const key = String(moNo).replace(/^0+/, '') || String(moNo);
+      moMap.set(key, mo);
     });
     
-    // Build MO Details map (materials by MO)
+    // Build MO Details map (materials by MO) — keyed by NORMALIZED (no leading zeros)
+    // so it matches MO numbers from the MPS sheet regardless of padding.
     const moDetailsMap = new Map<string, any[]>();
     misysData.moDetails.forEach(detail => {
-      const moNo = detail['Mfg. Order No.'] || detail['MO No.'];
-      if (moNo) {
-        const normalizedMO = String(moNo).replace(/^0+/, '');
-        if (!moDetailsMap.has(normalizedMO)) {
-          moDetailsMap.set(normalizedMO, []);
-        }
-        moDetailsMap.get(normalizedMO)!.push(detail);
-        
-        // Also store with original key
-        if (!moDetailsMap.has(String(moNo))) {
-          moDetailsMap.set(String(moNo), []);
-        }
-        moDetailsMap.get(String(moNo))!.push(detail);
-      }
+      const moNo = detail['Mfg. Order No.'] ?? detail['Mfg Order No.'] ?? detail['MO No.'];
+      if (!moNo) return;
+      const key = String(moNo).replace(/^0+/, '') || String(moNo);
+      if (!moDetailsMap.has(key)) moDetailsMap.set(key, []);
+      moDetailsMap.get(key)!.push(detail);
     });
     
     const itemMap = new Map<string, any>();
