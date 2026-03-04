@@ -1065,8 +1065,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   {/* Chat Header */}
                   <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-md ring-2 ring-white">
-                        <Brain className="w-4 h-4 text-white" strokeWidth={2.5} />
+                      <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center shadow-sm">
+                        <Brain className="w-4 h-4 text-white" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-slate-800">AI Assistant</h3>
@@ -1207,17 +1207,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       ))
                     )}
                     {isProcessing && (
-                      <div className="flex items-start gap-4 mb-5">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-2 ring-white shadow-md">
-                          <Brain className="w-5 h-5" strokeWidth={2.5} />
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-slate-700 shadow-sm">
+                          <Brain className="w-4 h-4 text-white" />
                         </div>
-                        <div className="bg-white border border-slate-200/80 shadow-sm px-5 py-4 rounded-2xl">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-slate-600 font-medium">Thinking</span>
-                            <div className="flex gap-1.5">
-                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3 shadow-sm">
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <span>Thinking</span>
+                            <div className="flex gap-1">
+                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                           </div>
                         </div>
