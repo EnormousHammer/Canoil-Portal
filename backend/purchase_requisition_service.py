@@ -1372,6 +1372,8 @@ def get_item_master(item_no):
                     'stocking_units': item.get('Stocking Units', 'EA'),
                     'units_conversion_factor': conv_factor,  # Stocking units per purchasing unit
                     'recent_cost': item.get('Recent Cost', 0),
+                    'standard_cost': item.get('Standard Cost', 0),
+                    'average_cost': item.get('Average Cost', 0),
                     'order_lead_days': item.get('Order Lead (Days)', 7),
                     'reorder_quantity': item.get('Reorder Quantity', 0),
                     'minimum': item.get('Minimum', 0),
@@ -2016,11 +2018,19 @@ def create_pr_from_bom():
                     last_po_date = recent_prices[0].get('order_date', '')
                     last_po_supplier = recent_prices[0].get('supplier_no', '')  # Capture supplier from PO!
                 else:
-                    # Fallback to item master recent cost
-                    # MISys Recent Cost is per STOCKING unit (e.g. per kg). PR needs per PURCHASING unit (e.g. per drum).
-                    # Convert: per_drum = per_kg * conversion_factor (kg per drum)
+                    # Fallback to item master costs — try every available cost field in priority order.
+                    # MISys costs are per STOCKING unit (e.g. per kg); multiply by conversion_factor to get per PURCHASING unit (e.g. per drum).
+                    inv_data = get_inventory_data(item_no)
                     item_data = get_item_master(item_no)
-                    raw_cost = item_data.get('recent_cost', 0) if item_data else 0
+                    raw_cost = 0
+                    if inv_data:
+                        raw_cost = (inv_data.get('recent_cost') or
+                                    inv_data.get('average_cost') or
+                                    inv_data.get('landed_cost') or 0)
+                    if not raw_cost and item_data:
+                        raw_cost = (item_data.get('recent_cost') or
+                                    item_data.get('average_cost') or
+                                    item_data.get('standard_cost') or 0)
                     try:
                         recent_cost = float(raw_cost) if raw_cost is not None else 0
                     except (TypeError, ValueError):
@@ -2932,9 +2942,11 @@ def generate_requisition():
                     last_po_date = item_pricing.get('order_date', '')
                 elif inventory_data:
                     conversion_factor = inventory_data.get('units_conversion_factor', 1)
-                    recent_cost = inventory_data.get('recent_cost', 0)
+                    raw_cost = (inventory_data.get('recent_cost') or
+                                inventory_data.get('average_cost') or
+                                inventory_data.get('landed_cost') or 0)
                     conv = conversion_factor if conversion_factor and conversion_factor > 0 else 1
-                    unit_price = float(recent_cost or 0) * float(conv)
+                    unit_price = float(raw_cost or 0) * float(conv)
                 if inventory_data:
                     current_stock = inventory_data.get('stock', 0)
                     if not unit or unit == 'EA':
