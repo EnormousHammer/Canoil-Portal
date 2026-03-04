@@ -1421,7 +1421,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                       <h3 className="text-sm font-bold text-slate-800 mb-1">Monthly Revenue — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
                       <div className="mb-4 text-sm text-slate-600">
-                        Total {(sageMonthlyMeta?.year ?? analyticsYear || currentYear)}: <span className="font-bold text-emerald-700">${(sageMonthlyMeta?.total_revenue ?? sageMonthly.reduce((s, m) => s + (m.revenue || 0), 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        Total {(sageMonthlyMeta?.year ?? (analyticsYear || currentYear))}: <span className="font-bold text-emerald-700">${(sageMonthlyMeta?.total_revenue ?? sageMonthly.reduce((s, m) => s + (m.revenue || 0), 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                       <div className="space-y-2">
                         {(() => {
