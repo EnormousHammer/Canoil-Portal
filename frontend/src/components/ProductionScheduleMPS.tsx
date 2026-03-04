@@ -474,7 +474,7 @@ export function ProductionScheduleMPS() {
               <span className="text-slate-500 text-xs">orders</span>
             </div>
             <button
-              onClick={() => setFilterShortageOnly(!filterShortageOnly)}
+              onClick={() => { setFilterShortageOnly(v => !v); setFilterAtRiskOnly(false); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
                 filterShortageOnly
                   ? 'bg-red-600 text-white border-red-600 shadow-sm'
@@ -491,7 +491,7 @@ export function ProductionScheduleMPS() {
               </span>
             </button>
             <button
-              onClick={() => setFilterAtRiskOnly(!filterAtRiskOnly)}
+              onClick={() => { setFilterAtRiskOnly(v => !v); setFilterShortageOnly(false); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
                 filterAtRiskOnly
                   ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
