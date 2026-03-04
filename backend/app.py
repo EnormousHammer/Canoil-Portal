@@ -4839,6 +4839,51 @@ def live_sql_url():
     return jsonify({"url": None, "available": False, "message": "MISYS_LIVE_SQL_URL not configured"})
 
 
+@app.route('/api/debug/column-mapping', methods=['GET'])
+def debug_column_mapping():
+    """Return REAL column names from loaded CSVs (no guessing). Use these to fix mapping."""
+    try:
+        from full_company_data_converter import _RAW_CSV_HEADERS
+    except ImportError:
+        try:
+            from .full_company_data_converter import _RAW_CSV_HEADERS
+        except Exception:
+            _RAW_CSV_HEADERS = {}
+
+    try:
+        data = _data_cache
+        if not data:
+            data, _ = get_data_for_export()
+        items = data.get("Items.json") or data.get("MIITEM.json") or [] if data else []
+        ilocqt = data.get("MIILOCQT.json") or [] if data else []
+        sample_item = items[0] if items else {}
+        sample_ilocqt = ilocqt[0] if ilocqt else {}
+        items_with_stock = sum(1 for i in items if safe_float(i.get("Stock", i.get("totQStk", 0))) > 0)
+
+        resp = {
+            "raw_csv_headers": dict(_RAW_CSV_HEADERS),
+            "items_count": len(items),
+            "miilocqt_count": len(ilocqt),
+            "items_with_stock_gt_zero": items_with_stock,
+            "items_sample_keys": list(sample_item.keys()) if sample_item else [],
+            "items_sample_stock_fields": {
+                k: sample_item.get(k) for k in ("Stock", "totQStk", "On Hand", "WIP", "Reserve", "On Order", "totQOrd")
+                if k in sample_item
+            },
+            "miilocqt_sample_keys": list(sample_ilocqt.keys()) if sample_ilocqt else [],
+            "miilocqt_sample_qty_fields": {
+                k: sample_ilocqt.get(k) for k in ("On Hand", "qStk", "Qty On Hand", "qtyOnHand", "Item No.", "itemId", "Location No.", "locId")
+                if k in sample_ilocqt
+            },
+        }
+        if not _RAW_CSV_HEADERS:
+            resp["warning"] = "Raw headers empty - reload /api/data (clear cache) to capture REAL CSV column names"
+        return jsonify(resp)
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint - FAST, doesn't check G: Drive (Cloud Run can't access it)

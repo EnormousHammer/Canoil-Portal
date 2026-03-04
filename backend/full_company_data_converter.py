@@ -18,9 +18,13 @@ FULL_COMPANY_MAPPINGS = {
     # Single output: Items.json (Full Company Data canonical item source)
     "MIITEM": (
         ["Items.json"],
-        {"itemId": "Item No.", "descr": "Description", "xdesc": "Extended Description", "ref": "Part No.", "type": "Item Type", "uOfM": "Stocking Units",
-         "poUOfM": "Purchasing Units", "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision", "lead": "Lead (Days)",
+        {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "ItemId": "Item No.", "ItemNumber": "Item No.", "ItemNo": "Item No.",
+         "descr": "Description", "Description": "Description", "xdesc": "Extended Description", "ref": "Part No.", "type": "Item Type", "Item Type": "Item Type",
+         "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units",
+         "uConvFact": "Units Conversion Factor", "revId": "Current BOM Revision", "lead": "Lead (Days)",
          "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order",
+         "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock", "Quantity on Hand": "Stock", "qtyOnHand": "Stock",
+         "WIP": "WIP", "Reserve": "Reserve", "On Order": "On Order", "Qty On Order": "On Order", "qtyOnOrder": "On Order",
          "minLvl": "Minimum", "maxLvl": "Maximum", "ordLvl": "Reorder Level", "ordQty": "Reorder Quantity", "lotSz": "Lot Size", "variance": "Variance",
          "minQty": "Minimum", "maxQty": "Maximum", "reordPoint": "Reorder Level", "reordQty": "Reorder Quantity",
          "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost", "itemCost": "Unit Cost",
@@ -209,10 +213,16 @@ FULL_COMPANY_MAPPINGS = {
     ),
     # --- Item popup: extra tables so modal has full data ---
     # MIILOCQT: on-hand by item+location (and date)
+    # MISys export may use DB names (itemId, locId, qStk) or display names (Item No., Qty On Hand)
     "MIILOCQT": (
         ["MIILOCQT.json"],
-        {"itemId": "Item No.", "locId": "Location No.", "dateISO": "Date ISO", "date": "Date",
+        {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "ItemId": "Item No.", "ItemNumber": "Item No.", "ItemNo": "Item No.",
+         "locId": "Location No.", "Location No": "Location No.", "Location No.": "Location No.", "LocId": "Location No.", "LocationId": "Location No.", "LocNo": "Location No.",
+         "dateISO": "Date ISO", "date": "Date", "Date ISO": "Date ISO", "Date": "Date",
          "qStk": "On Hand", "qWip": "WIP", "qRes": "Reserve", "qOrd": "On Order",
+         "qtyOnHand": "On Hand", "Qty On Hand": "On Hand", "Quantity On Hand": "On Hand", "On Hand": "On Hand", "dQtyOnHand": "On Hand",
+         "qtyWip": "WIP", "WIP": "WIP", "qtyAlloc": "Reserve", "qtyReserve": "Reserve", "Reserve": "Reserve",
+         "qtyOnOrder": "On Order", "Qty On Order": "On Order", "On Order": "On Order", "dQtyOnOrd": "On Order",
          "cStd": "Standard Cost", "cLast": "Recent Cost", "cAvg": "Average Cost"},
     ),
     # MIBINQ: on-hand by item+location+bin
@@ -313,6 +323,9 @@ FULL_COMPANY_MAPPINGS = {
 
 # Case-insensitive file stem lookup: MIITEM.CSV, miitem.csv, MiItem.Csv all use MIITEM mapping
 _STEM_TO_KEY = {k.upper(): k for k in FULL_COMPANY_MAPPINGS}
+
+# REAL column names from loaded CSVs (no guessing) - populated during load
+_RAW_CSV_HEADERS = {}
 # Alternate file stems so MISys exports named e.g. LotSerialHistory.csv or SLTH.csv still load
 for _alt, _main in [
     ("SLTH", "MISLTH"), ("LOTSERIALHISTORY", "MISLTH"), ("SERIALLOTTRACKINGHISTORY", "MISLTH"),
@@ -406,6 +419,9 @@ def _load_single_file_local(folder_path, fname):
         return None
     if not rows:
         return None
+    # Capture REAL column names before mapping (for debugging / correct mapping)
+    if mapping_key in ("MIITEM", "MIILOCQT", "MIILOC", "Item", "Items"):
+        _RAW_CSV_HEADERS[mapping_key] = list(rows[0].keys())
     keys, column_map = FULL_COMPANY_MAPPINGS[mapping_key]
     rows = _apply_column_map(rows, column_map)
     return (mapping_key, keys, rows, fname)
@@ -425,7 +441,7 @@ def _enrich_items_from_miilocqt(skeleton):
         # Build item_no -> list of rows
         by_item = {}
         for row in ilocqt:
-            item_no = (row.get("Item No.") or row.get("itemId") or "").strip()
+            item_no = (row.get("Item No.") or row.get("itemId") or row.get("Item No") or row.get("ItemId") or row.get("ItemNumber") or row.get("ItemNo") or "").strip()
             if not item_no:
                 continue
             key = item_no.upper()
@@ -441,21 +457,21 @@ def _enrich_items_from_miilocqt(skeleton):
 
         enriched = 0
         for item in items:
-            item_no = (item.get("Item No.") or item.get("itemId") or "").strip()
+            item_no = (item.get("Item No.") or item.get("itemId") or item.get("Item No") or item.get("ItemId") or item.get("ItemNumber") or item.get("ItemNo") or "").strip()
             if not item_no or item_no.upper() not in by_item:
                 continue
             rows = by_item[item_no.upper()]
             # Latest per location (by Date ISO or Date)
             latest_by_loc = {}
             for r in rows:
-                loc = (r.get("Location No.") or r.get("locId") or "").strip()
+                loc = (r.get("Location No.") or r.get("locId") or r.get("Location No") or r.get("LocationId") or r.get("LocNo") or "").strip()
                 if not loc:
                     continue
                 date_key = (r.get("Date ISO") or r.get("dateISO") or r.get("Date") or "").strip()
-                on_hand = _safe_float(r.get("On Hand") or r.get("qStk"))
-                wip = _safe_float(r.get("WIP") or r.get("qWip"))
-                reserve = _safe_float(r.get("Reserve") or r.get("qRes"))
-                on_order = _safe_float(r.get("On Order") or r.get("qOrd"))
+                on_hand = _safe_float(r.get("On Hand") or r.get("qStk") or r.get("Qty On Hand") or r.get("qtyOnHand") or r.get("Quantity On Hand"))
+                wip = _safe_float(r.get("WIP") or r.get("qWip") or r.get("qtyWip"))
+                reserve = _safe_float(r.get("Reserve") or r.get("qRes") or r.get("qtyAlloc") or r.get("qtyReserve"))
+                on_order = _safe_float(r.get("On Order") or r.get("qOrd") or r.get("Qty On Order") or r.get("qtyOnOrder") or r.get("dQtyOnOrd"))
                 if loc not in latest_by_loc or date_key > (latest_by_loc[loc]["_date"] or ""):
                     latest_by_loc[loc] = {
                         "onHand": on_hand, "wip": wip, "reserve": reserve, "onOrder": on_order, "_date": date_key
@@ -564,6 +580,9 @@ def _load_single_file_drive(drive_service, drive_id, finfo):
         return None
     if not rows:
         return None
+    # Capture REAL column names before mapping (for debugging / correct mapping)
+    if mapping_key in ("MIITEM", "MIILOCQT", "MIILOC", "Item", "Items"):
+        _RAW_CSV_HEADERS[mapping_key] = list(rows[0].keys())
     keys, column_map = FULL_COMPANY_MAPPINGS[mapping_key]
     rows = _apply_column_map(rows, column_map)
     return (mapping_key, keys, rows, fname)
