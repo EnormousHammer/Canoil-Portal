@@ -2667,23 +2667,64 @@ def get_item_details(item_no):
 
 @pr_service.route('/api/pr/item-pricing/<item_no>', methods=['GET'])
 def get_item_pricing(item_no):
-    """Get recent purchase prices for an item"""
+    """Get the best available unit price for an item.
+
+    Priority:
+      1. Most-recent PO line (per purchasing unit — most accurate)
+      2. Recent Cost from item master  (MiSys auto-updates cLast on every PO receipt)
+      3. Average Cost → Landed Cost → Standard Cost as further fallbacks
+    Also returns full cost breakdown for transparency.
+    """
     try:
+        inv_data   = get_inventory_data(item_no)
+        item_data  = get_item_master(item_no)
         recent_prices = get_recent_purchase_price(item_no, 5)
-        
-        if not recent_prices:
-            return jsonify({
-                "item_no": item_no,
-                "recent_prices": [],
-                "message": "No recent purchase history found"
-            })
-        
+
+        # --- Source 1: PO history (per purchasing unit) ---
+        po_price   = recent_prices[0]['unit_price'] if recent_prices else 0
+
+        # --- Source 2+: item master cost fields (per stocking unit × conversion) ---
+        conv = 1.0
+        if inv_data:
+            conv = float(inv_data.get('units_conversion_factor') or 1) or 1.0
+
+        def _parse(v):
+            if v is None: return 0.0
+            try: return float(v)
+            except (TypeError, ValueError):
+                try: return float(str(v).replace('$','').replace(',','').strip())
+                except: return 0.0
+
+        rc  = _parse(inv_data.get('recent_cost')   if inv_data else 0) * conv
+        ac  = _parse(inv_data.get('average_cost')  if inv_data else 0) * conv
+        lc  = _parse(inv_data.get('landed_cost')   if inv_data else 0) * conv
+        sc  = _parse(item_data.get('standard_cost') if item_data else 0) * conv
+
+        # Best price in priority order
+        best_price = po_price or rc or ac or lc or sc or 0
+
         return jsonify({
             "item_no": item_no,
+            "latest_price": best_price,
+            "price_source": (
+                "PO history" if po_price else
+                "Recent Cost (item master)" if rc else
+                "Average Cost (item master)" if ac else
+                "Landed Cost (item master)" if lc else
+                "Standard Cost (item master)" if sc else
+                "none — no cost data found"
+            ),
+            "cost_breakdown": {
+                "po_last_price":    po_price,
+                "recent_cost":      rc,
+                "average_cost":     ac,
+                "landed_cost":      lc,
+                "standard_cost":    sc,
+                "conversion_factor": conv
+            },
             "recent_prices": recent_prices,
-            "latest_price": recent_prices[0]['unit_price'] if recent_prices else 0
         })
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
