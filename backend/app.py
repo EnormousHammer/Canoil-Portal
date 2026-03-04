@@ -6083,24 +6083,24 @@ def check_changes():
         return jsonify({"error": str(e)}), 500
 
 def analyze_inventory_data(data, query):
-    """Analyze inventory data to answer user queries"""
+    """Analyze inventory data to answer user queries. Uses Items.json/MIITEM.json, MOH/MIMOH, POH/MIPOH."""
     try:
-        # Extract relevant data structures - Items.json from Full Company Data (MIITEM.CSV)
-        customalert5_items = data.get('Items.json', [])
-        bom_headers = data.get('BillsOfMaterial.json', [])
-        bom_details = data.get('BillOfMaterialDetails.json', [])
-        mo_headers = data.get('ManufacturingOrderHeaders.json', [])
-        mo_details = data.get('ManufacturingOrderDetails.json', [])
-        po_headers = data.get('PurchaseOrders.json', [])
-        po_details = data.get('PurchaseOrderDetails.json', [])
+        # Extract relevant data - support both Full Company Data and API Extractions key names
+        customalert5_items = data.get('Items.json') or data.get('MIITEM.json') or []
+        bom_headers = data.get('BillsOfMaterial.json') or data.get('MIBOMH.json') or []
+        bom_details = data.get('BillOfMaterialDetails.json') or data.get('MIBOMD.json') or []
+        mo_headers = data.get('ManufacturingOrderHeaders.json') or data.get('MIMOH.json') or []
+        mo_details = data.get('ManufacturingOrderDetails.json') or data.get('MIMOMD.json') or []
+        po_headers = data.get('PurchaseOrders.json') or data.get('MIPOH.json') or []
+        po_details = data.get('PurchaseOrderDetails.json') or data.get('MIPOD.json') or []
         
-        # Create a comprehensive data summary for ChatGPT
+        # Create a comprehensive data summary for ChatGPT (Status: '0'=open, '1'=released, '2'=closed)
         data_summary = {
             "total_items": len(customalert5_items),
-            "items_with_stock": len([item for item in customalert5_items if safe_float(item.get("Stock", 0)) > 0]),
+            "items_with_stock": len([item for item in customalert5_items if safe_float(item.get("Stock", item.get("Quantity on Hand", 0))) > 0]),
             "total_boms": len(bom_headers),
             "active_manufacturing_orders": len([mo for mo in mo_headers if str(mo.get("Status", "2")) not in ["2"]]),
-            "active_purchase_orders": len([po for po in po_headers if po.get("Status", 0) == 1]),
+            "active_purchase_orders": len([po for po in po_headers if str(po.get("Status", "2")) == "1"]),
         }
         
         # Sample some data for context
@@ -6122,8 +6122,8 @@ def analyze_inventory_data(data, query):
 def find_item_usage_and_availability(data, item_description_or_no, quantity_needed=None):
     """Find detailed information about item usage and availability"""
     try:
-        # Use Items.json from Full Company Data for item data
-        customalert5_items = data.get('Items.json', [])
+        # Use Items.json or MIITEM.json from Full Company Data for item data
+        customalert5_items = data.get('Items.json') or data.get('MIITEM.json') or []
         bom_details = data.get('BillOfMaterialDetails.json', [])
         mo_headers = data.get('ManufacturingOrderHeaders.json', [])
         mo_details = data.get('ManufacturingOrderDetails.json', [])
@@ -6567,44 +6567,33 @@ def chat_query():
                 raw_data[file_name] = file_data
             print(f"📂 Chat loaded from folder: {folder_path} ({len(raw_data)} files)")
         
-        # CRITICAL FIX: Load Sales Orders data from separate G: Drive location
-        print("RETRY: Loading Sales Orders for ChatGPT analysis...")
-        sales_orders_data = load_sales_orders()
-        if sales_orders_data:
-            raw_data.update(sales_orders_data)
-            total_so_count = sales_orders_data.get('TotalOrders', 0)
-            print(f"SUCCESS: ChatGPT now has access to {total_so_count} real Sales Orders")
+        # Sales Orders: use frontend data when provided, else load from backend
+        using_frontend_data = bool(frontend_data and raw_data)
+        has_frontend_sales = bool(
+            (frontend_data or {}).get('RealSalesOrders') or
+            (frontend_data or {}).get('ParsedSalesOrders.json') or
+            (frontend_data or {}).get('SalesOrdersByStatus')
+        )
+        if using_frontend_data and has_frontend_sales:
+            print("✅ Using sales order data from frontend (RealSalesOrders / ParsedSalesOrders / SalesOrdersByStatus)")
         else:
-            print("ERROR: WARNING: No Sales Orders data available for ChatGPT")
-        
-        # Load real SO data from PDFs for detailed analysis (cached for performance)
-        print("RETRY: Loading real SO data from PDFs...")
-        
-        # Check if we have cached PDF data (to avoid reloading 56 PDFs every request)
-        global cached_pdf_data, pdf_cache_time
-        current_time = time.time()
-        
-        # Cache for 5 minutes (300 seconds)
-        if 'cached_pdf_data' not in globals() or 'pdf_cache_time' not in globals() or (current_time - pdf_cache_time) > 300:
-            print("📥 Loading fresh PDF data (cache expired or first load)...")
-            cached_pdf_data = load_real_so_data()
-            pdf_cache_time = current_time
-            if cached_pdf_data:
-                print(f"SUCCESS: Cached {len(cached_pdf_data)} real SO records from PDFs")
-            else:
-                print("⚠️ No real SO PDF data found")
-        else:
-            print(f"⚡ Using cached PDF data ({len(cached_pdf_data) if cached_pdf_data else 0} records)")
-        
-        if cached_pdf_data:
-            raw_data['RealSalesOrders'] = cached_pdf_data
-            # Debug: Show sample data
-            if len(cached_pdf_data) > 0:
-                sample = cached_pdf_data[0]
-                print(f"📋 Sample SO: #{sample.get('so_number', 'N/A')} - {sample.get('customer_name', 'N/A')} - ${sample.get('total_amount', 0)}")
-        else:
-            raw_data['SalesOrders.json'] = []
-            raw_data['TotalOrders'] = 0
+            print("RETRY: Loading Sales Orders for ChatGPT analysis...")
+            sales_orders_data = load_sales_orders()
+            if sales_orders_data:
+                raw_data.update(sales_orders_data)
+                print(f"SUCCESS: ChatGPT now has access to {sales_orders_data.get('TotalOrders', 0)} real Sales Orders")
+            if not raw_data.get('RealSalesOrders') and not raw_data.get('ParsedSalesOrders.json'):
+                global cached_pdf_data, pdf_cache_time
+                current_time = time.time()
+                if 'cached_pdf_data' not in globals() or 'pdf_cache_time' not in globals() or (current_time - pdf_cache_time) > 300:
+                    cached_pdf_data = load_real_so_data()
+                    pdf_cache_time = current_time
+                if cached_pdf_data:
+                    raw_data['RealSalesOrders'] = cached_pdf_data
+                    print(f"SUCCESS: Cached {len(cached_pdf_data)} real SO records from PDFs")
+                else:
+                    raw_data['SalesOrders.json'] = raw_data.get('SalesOrders.json', [])
+                    raw_data['TotalOrders'] = raw_data.get('TotalOrders', 0)
         
         # Load Sage G Drive data (customers, open SOs, AR aging) for complete business context
         # Cache the computed context for 15 minutes to avoid re-processing on every request
@@ -7211,9 +7200,9 @@ Sales Orders exist as PDF files in Google Drive folders:
 **TOTAL REAL SALES ORDERS FROM PDF FILES:** {total_so_from_pdf + total_so_by_status}
 
 **OTHER DATA TOTALS:**
-- Total Manufacturing Orders: {len(raw_data.get('ManufacturingOrderHeaders.json', []))}
-- Total Inventory Items: {len(raw_data.get('Items.json', []))}
-- Total BOM Records: {len(raw_data.get('BillOfMaterialDetails.json', []))}
+- Total Manufacturing Orders: {len(raw_data.get('ManufacturingOrderHeaders.json') or raw_data.get('MIMOH.json') or [])}
+- Total Inventory Items: {len(raw_data.get('Items.json') or raw_data.get('MIITEM.json') or [])}
+- Total BOM Records: {len(raw_data.get('BillOfMaterialDetails.json') or raw_data.get('MIBOMD.json') or [])}
 - Available Data Files: {list(raw_data.keys())}
 
 **📊 SAGE 50 ACCOUNTING DATA (from Sage G Drive CSV export):**

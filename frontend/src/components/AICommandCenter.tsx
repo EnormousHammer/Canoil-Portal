@@ -247,7 +247,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                            data['SalesOrders.json'] ||
                            [];
       
-      const inventoryItems = data['Items.json'] || [];
+      const inventoryItems = data['Items.json'] || data['MIITEM.json'] || [];
       const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
       const poOrders = data['PurchaseOrders.json'] || [];
       
@@ -506,19 +506,19 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     // Use the unique sales orders for calculations
     allSalesOrders = uniqueSalesOrders;
     
-    const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
+    const moHeaders = data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || [];
     const activeMoHeaders = moHeaders.filter((mo: any) => String(mo.Status ?? mo['Status'] ?? '2') !== '2');
-    const poHeaders = data['PurchaseOrders.json'] || [];
+    const poHeaders = data['PurchaseOrders.json'] || data['MIPOH.json'] || [];
     const openPOs = poHeaders.filter((po: any) => String(po.Status ?? po['Status'] ?? '2') === '1');
-    const items = data['Items.json'] || [];
+    const items = data['Items.json'] || data['MIITEM.json'] || [];
     
     // Calculate unique customers from active MO headers only
     const uniqueCustomers = new Set(activeMoHeaders.map((mo: any) => mo.Customer).filter(Boolean)).size;
     
-    // Calculate low stock items (Items.json uses Reorder Level, fallback to Minimum)
+    // Calculate low stock items (Items.json/MIITEM: Reorder Level, fallback to Minimum; Stock or Quantity on Hand)
     const lowStockItems = items.filter((item: any) => {
-      const stock = parseFloat(item['Stock'] || item.Stock || 0);
-      const reorderLevel = parseFloat(item['Reorder Level'] || item['Reorder Point'] || item.Minimum || 0);
+      const stock = parseFloat(item['Stock'] || item.Stock || item['Quantity on Hand'] || 0);
+      const reorderLevel = parseFloat(item['Reorder Level'] || item['Reorder Point'] || item.ordLvl || item.Minimum || 0);
       return stock <= reorderLevel && reorderLevel > 0;
     }).length;
 
@@ -708,8 +708,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     // Build data sources summary - tell AI what data is available
     const dataSourcesSummary = {
       inventory: {
-        available: !!(data['Items.json'] && data['Items.json'].length > 0),
-        count: data['Items.json']?.length || 0,
+        available: !!((data['Items.json']?.length > 0) || (data['MIITEM.json']?.length > 0)),
+        count: (data['Items.json']?.length || 0) || (data['MIITEM.json']?.length || 0),
         sources: ['Items.json', 'MIITEM.json', 'MIILOC.json'].filter(key => data[key]?.length > 0)
       },
       salesOrders: {
@@ -722,13 +722,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         sources: ['SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'ParsedSalesOrders.json'].filter(key => data[key]?.length > 0)
       },
       manufacturingOrders: {
-        available: !!(data['ManufacturingOrderHeaders.json']?.length > 0 || data['ManufacturingOrderDetails.json']?.length > 0),
-        count: (data['ManufacturingOrderHeaders.json']?.length || 0) + (data['ManufacturingOrderDetails.json']?.length || 0),
+        available: !!((data['ManufacturingOrderHeaders.json']?.length > 0) || (data['ManufacturingOrderDetails.json']?.length > 0) || (data['MIMOH.json']?.length > 0) || (data['MIMOMD.json']?.length > 0)),
+        count: (data['ManufacturingOrderHeaders.json']?.length || data['MIMOH.json']?.length || 0) + (data['ManufacturingOrderDetails.json']?.length || data['MIMOMD.json']?.length || 0),
         sources: ['ManufacturingOrderHeaders.json', 'ManufacturingOrderDetails.json', 'MIMOH.json', 'MIMOMD.json'].filter(key => data[key]?.length > 0)
       },
       purchaseOrders: {
-        available: !!(data['PurchaseOrders.json']?.length > 0 || data['PurchaseOrderDetails.json']?.length > 0),
-        count: (data['PurchaseOrders.json']?.length || 0) + (data['PurchaseOrderDetails.json']?.length || 0),
+        available: !!((data['PurchaseOrders.json']?.length > 0) || (data['PurchaseOrderDetails.json']?.length > 0) || (data['MIPOH.json']?.length > 0) || (data['MIPOD.json']?.length > 0)),
+        count: (data['PurchaseOrders.json']?.length || data['MIPOH.json']?.length || 0) + (data['PurchaseOrderDetails.json']?.length || data['MIPOD.json']?.length || 0),
         sources: ['PurchaseOrders.json', 'PurchaseOrderDetails.json', 'MIPOH.json', 'MIPOD.json'].filter(key => data[key]?.length > 0)
       },
       boms: {
@@ -1162,15 +1162,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                     <div className="text-gray-600">Sales Orders</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-green-200">
-                                    <div className="font-bold text-green-600">{(data['Items.json'] || []).length.toLocaleString()}</div>
+                                    <div className="font-bold text-green-600">{(data['Items.json'] || data['MIITEM.json'] || []).length.toLocaleString()}</div>
                                     <div className="text-gray-600">Inventory Items</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-purple-200">
-                                    <div className="font-bold text-purple-600">{(data['ManufacturingOrderHeaders.json'] || []).filter((mo: any) => String(mo.Status ?? '2') !== '2').length.toLocaleString()}</div>
+                                    <div className="font-bold text-purple-600">{(data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []).filter((mo: any) => String(mo.Status ?? '2') !== '2').length.toLocaleString()}</div>
                                     <div className="text-gray-600">Active MOs</div>
                                   </div>
                                   <div className="bg-white rounded p-2 text-center border border-orange-200">
-                                    <div className="font-bold text-orange-600">{(data['PurchaseOrders.json'] || []).length.toLocaleString()}</div>
+                                    <div className="font-bold text-orange-600">{(data['PurchaseOrders.json'] || data['MIPOH.json'] || []).length.toLocaleString()}</div>
                                     <div className="text-gray-600">Purchase Orders</div>
                                   </div>
                                 </>
@@ -1553,17 +1553,19 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
             {/* ── SECTION 2: MISYS OPERATIONS DASHBOARD ────────────── */}
             {(() => {
-              const allMOs = (data['ManufacturingOrderHeaders.json'] || []) as any[];
+              const allMOs = (data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []) as any[];
               const activeMOs = allMOs.filter((mo: any) => String(mo.Status ?? '2') !== '2');
-              const allPOs = (data['PurchaseOrders.json'] || []) as any[];
+              const allPOs = (data['PurchaseOrders.json'] || data['MIPOH.json'] || []) as any[];
               const openPOs = allPOs.filter((po: any) => String(po.Status ?? '2') === '1');
-              const allItems = (data['Items.json'] || []) as any[];
-              const itemsWithStock = allItems.filter((i: any) => parseFloat(i.Stock || 0) > 0);
+              const allItems = (data['Items.json'] || data['MIITEM.json'] || []) as any[];
+              const getStock = (i: any) => parseFloat(i.Stock || i['Quantity on Hand'] || 0);
+              const getReorderLevel = (i: any) => parseFloat(i['Reorder Level'] || i['Reorder Point'] || i.ordLvl || 0);
+              const itemsWithStock = allItems.filter((i: any) => getStock(i) > 0);
               const belowReorder = allItems.filter((i: any) =>
-                parseFloat(i.Stock || 0) < parseFloat(i['Reorder Level'] || 0) && parseFloat(i['Reorder Level'] || 0) > 0
+                getStock(i) < getReorderLevel(i) && getReorderLevel(i) > 0
               );
               const inventoryValue = allItems.reduce((sum: number, i: any) =>
-                sum + parseFloat(i.Stock || 0) * parseFloat(i['Standard Cost'] || 0), 0
+                sum + getStock(i) * parseFloat(i['Standard Cost'] || i['Unit Cost'] || 0), 0
               );
 
               // Top active MOs by build item
@@ -1593,8 +1595,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               // Top low stock items
               const lowStockItems = belowReorder
                 .sort((a: any, b: any) => {
-                  const gapA = parseFloat(a['Reorder Level'] || 0) - parseFloat(a.Stock || 0);
-                  const gapB = parseFloat(b['Reorder Level'] || 0) - parseFloat(b.Stock || 0);
+                  const gapA = getReorderLevel(a) - getStock(a);
+                  const gapB = getReorderLevel(b) - getStock(b);
                   return gapB - gapA;
                 })
                 .slice(0, 10);
