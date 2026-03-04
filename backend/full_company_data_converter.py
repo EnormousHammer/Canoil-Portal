@@ -33,7 +33,7 @@ FULL_COMPANY_MAPPINGS = {
         {"itemId": "Item No.", "descr": "Description", "type": "Item Type", "uOfM": "Stocking Units",
          "poUOfM": "Purchasing Units", "totQStk": "Stock", "totQWip": "WIP", "totQRes": "Reserve", "totQOrd": "On Order"},
     ),
-    # Alternate file names so export works whether you have Item.csv, Items.csv, MIITEM.csv, or CustomAlert5.csv
+    # Alternate file names so export works (Item.csv, Items.csv, MIITEM.csv)
     "Items": (
         ["Items.json"],
         {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
@@ -41,25 +41,6 @@ FULL_COMPANY_MAPPINGS = {
          "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
          "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "Stocking Unit": "Stocking Units", "UOM": "Stocking Units",
          "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units", "Purchasing Unit": "Purchasing Units",
-         "totQStk": "Stock", "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock",
-         "totQWip": "WIP", "WIP": "WIP", "totQRes": "Reserve", "Reserve": "Reserve",
-         "totQOrd": "On Order", "On Order": "On Order", "Qty On Order": "On Order",
-         "minLvl": "Minimum", "minQty": "Minimum", "Minimum": "Minimum", "maxLvl": "Maximum", "maxQty": "Maximum", "Maximum": "Maximum",
-         "ordLvl": "Reorder Level", "reordPoint": "Reorder Level", "Reorder Level": "Reorder Level",
-         "ordQty": "Reorder Quantity", "reordQty": "Reorder Quantity", "Reorder Quantity": "Reorder Quantity", "Reorder Qty": "Reorder Quantity", "lotSz": "Lot Size",
-         "cLast": "Recent Cost", "cStd": "Standard Cost", "cAvg": "Average Cost", "cLand": "Landed Cost",
-         "stdCost": "Standard Cost", "Standard Cost": "Standard Cost", "avgCost": "Average Cost", "Average Cost": "Average Cost",
-         "unitCost": "Unit Cost", "Unit Cost": "Unit Cost", "Recent Cost": "Recent Cost", "Last Cost": "Recent Cost",
-         "landedCost": "Landed Cost", "Landed Cost": "Landed Cost", "status": "Status", "locId": "Location No.", "suplId": "Supplier No.", "mfgId": "Manufacturer No."},
-    ),
-    "CustomAlert5": (
-        ["Items.json"],
-        {"itemId": "Item No.", "Item No": "Item No.", "Item No.": "Item No.", "Item Number": "Item No.",
-         "descr": "Description", "Description": "Description", "Desc": "Description",
-         "type": "Item Type", "Item Type": "Item Type", "Type": "Item Type",
-         "uOfM": "Stocking Units", "Stocking Units": "Stocking Units", "Stocking Unit": "Stocking Units", "UOM": "Stocking Units",
-         "poUOfM": "Purchasing Units", "Purchasing Units": "Purchasing Units", "Purchasing Unit": "Purchasing Units",
-         "uConvFact": "Units Conversion Factor", "Units Conversion Factor": "Units Conversion Factor",
          "totQStk": "Stock", "Stock": "Stock", "On Hand": "Stock", "Qty On Hand": "Stock",
          "totQWip": "WIP", "WIP": "WIP", "totQRes": "Reserve", "Reserve": "Reserve",
          "totQOrd": "On Order", "On Order": "On Order", "Qty On Order": "On Order",
@@ -430,6 +411,72 @@ def _load_single_file_local(folder_path, fname):
     return (mapping_key, keys, rows, fname)
 
 
+def _enrich_items_from_miilocqt(skeleton):
+    """
+    Aggregate MIILOCQT by item (latest per location, then sum) and overwrite
+    Stock, WIP, Reserve, On Order in Items.json. Ensures aggregated stock matches
+    the By Location table when MIILOCQT has data.
+    """
+    try:
+        ilocqt = skeleton.get("MIILOCQT.json") or []
+        items = skeleton.get("Items.json") or []
+        if not items or not ilocqt:
+            return
+        # Build item_no -> list of rows
+        by_item = {}
+        for row in ilocqt:
+            item_no = (row.get("Item No.") or row.get("itemId") or "").strip()
+            if not item_no:
+                continue
+            key = item_no.upper()
+            if key not in by_item:
+                by_item[key] = []
+            by_item[key].append(row)
+        # For each item, take latest per location, then sum
+        def _safe_float(v):
+            try:
+                return float(v) if v is not None and str(v).strip() != "" else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        enriched = 0
+        for item in items:
+            item_no = (item.get("Item No.") or item.get("itemId") or "").strip()
+            if not item_no or item_no.upper() not in by_item:
+                continue
+            rows = by_item[item_no.upper()]
+            # Latest per location (by Date ISO or Date)
+            latest_by_loc = {}
+            for r in rows:
+                loc = (r.get("Location No.") or r.get("locId") or "").strip()
+                if not loc:
+                    continue
+                date_key = (r.get("Date ISO") or r.get("dateISO") or r.get("Date") or "").strip()
+                on_hand = _safe_float(r.get("On Hand") or r.get("qStk"))
+                wip = _safe_float(r.get("WIP") or r.get("qWip"))
+                reserve = _safe_float(r.get("Reserve") or r.get("qRes"))
+                on_order = _safe_float(r.get("On Order") or r.get("qOrd"))
+                if loc not in latest_by_loc or date_key > (latest_by_loc[loc]["_date"] or ""):
+                    latest_by_loc[loc] = {
+                        "onHand": on_hand, "wip": wip, "reserve": reserve, "onOrder": on_order, "_date": date_key
+                    }
+            if not latest_by_loc:
+                continue
+            tot_on_hand = sum(v["onHand"] for v in latest_by_loc.values())
+            tot_wip = sum(v["wip"] for v in latest_by_loc.values())
+            tot_reserve = sum(v["reserve"] for v in latest_by_loc.values())
+            tot_on_order = sum(v["onOrder"] for v in latest_by_loc.values())
+            item["Stock"] = tot_on_hand
+            item["WIP"] = tot_wip
+            item["Reserve"] = tot_reserve
+            item["On Order"] = tot_on_order
+            enriched += 1
+        if enriched > 0:
+            print(f"[full_company_data_converter] Enriched {enriched} items with MIILOCQT stock totals")
+    except Exception as e:
+        print(f"[full_company_data_converter] _enrich_items_from_miilocqt: {e}")
+
+
 def load_from_folder(folder_path):
     """
     Load Full Company Data from a local folder. Returns (data_dict, None) or (None, error_message).
@@ -457,6 +504,7 @@ def load_from_folder(folder_path):
                 print(f"[full_company_data_converter] loaded {fname} -> {len(rows)} rows -> {keys}")
         if loaded_stems:
             print(f"[full_company_data_converter] Loaded export files: {', '.join(sorted(set(loaded_stems)))}")
+        _enrich_items_from_miilocqt(skeleton)
         return skeleton, None
     except Exception as e:
         import traceback
@@ -561,6 +609,7 @@ def load_from_drive_api(drive_service, drive_id, folder_path=None, folder_id=Non
                 print(f"[full_company_data_converter] loaded {fname} -> {len(rows)} rows -> {keys}")
         if loaded_stems:
             print(f"[full_company_data_converter] Loaded export files: {', '.join(sorted(set(loaded_stems)))}")
+        _enrich_items_from_miilocqt(skeleton)
         return skeleton, None
     except Exception as e:
         import traceback

@@ -84,7 +84,7 @@ const transformDataToCards = (data: any[], type: string): DataCard[] => {
   return data.map((item, index) => {
     switch (type) {
       case 'inventory':
-        // Use EXACT field names from CustomAlert5.json (SMART_PRIMARY_SOURCES.ITEMS)
+        // Use EXACT field names from Items.json (Full Company Data MISys)
         const stock = parseStockValue(item["Stock"]);
         const reorderLevel = parseStockValue(item["Reorder Level"]) || parseStockValue(item["Minimum"]);
         const recentCost = parseCostValue(item["Recent Cost"]);

@@ -634,7 +634,7 @@ def get_latest_folder():
 def load_items():
     """
     Load items (item master with Item Type, etc). Uses Full Company Data (MIITEM, Items)
-    - NOT CustomAlert5 which can be old. PREFERS app data cache. When cache empty,
+    - Uses Full Company Data (Items.json). PREFERS app data cache. When cache empty,
     loads Full Company Data (same as app) - NOT API Extractions.
     """
     cache = _get_app_data_cache()
@@ -754,7 +754,7 @@ def load_po_data(po_number):
 def get_inventory_data(item_no):
     """Get current inventory data for an item from Full Company Data (MIITEM, Items).
     
-    Uses Full Company Data - NOT CustomAlert5 which can be old.
+    Uses Full Company Data (Items.json from MISys folder).
     PREFERS app data cache. When cache empty, loads Full Company Data (same as app).
     """
     try:
@@ -1281,7 +1281,7 @@ def get_current_bom_revision(item_no):
     """
     try:
         # 1. Try item master from Full Company Data - Current BOM Revision (MISys "revision being used")
-        # Use MIITEM/Items - NOT CustomAlert5 which can be old
+        # Use MIITEM/Items from Full Company Data MISys
         item_sources = []
         cache = _get_app_data_cache()
         if cache:

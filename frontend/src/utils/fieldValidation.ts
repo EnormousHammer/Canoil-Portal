@@ -1,8 +1,8 @@
-// Production-grade field validation for CustomAlert5.json
+// Production-grade field validation for Items.json (Full Company Data MISys)
 // Ensures EXACT field name matching for business-critical data
 
 /**
- * EXACT field names from CustomAlert5.json (2025-09-03)
+ * EXACT field names from Items.json (Full Company Data MISys)
  * ⚠️ CRITICAL: These are verified against production data - DO NOT MODIFY
  */
 export const CUSTOMALERT5_EXACT_FIELDS = [
@@ -84,7 +84,7 @@ export const CORE_ITEM_FIELDS = {
 } as const;
 
 /**
- * Validates that a CustomAlert5 item has all required fields
+ * Validates that an Items.json item has all required fields
  * @param item The item object to validate
  * @returns ValidationResult with success status and any missing fields
  */
@@ -122,7 +122,7 @@ export function validateCustomAlert5Item(item: any): ValidationResult {
 }
 
 /**
- * Type-safe getter for CustomAlert5 item fields
+ * Type-safe getter for Items.json item fields
  * Ensures exact field name matching at compile time
  */
 export function getItemField<T extends CustomAlert5FieldName>(
@@ -171,7 +171,7 @@ export function getItemFieldAsString(
 }
 
 /**
- * Validates CustomAlert5 data array
+ * Validates Items.json data array
  */
 export function validateCustomAlert5Data(data: any[]): {
   isValid: boolean;

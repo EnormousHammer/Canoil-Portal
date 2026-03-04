@@ -30,7 +30,7 @@ export function getLocationOwner(location: string): string {
 }
 
 export interface ItemWithLocation {
-  // Core item data from CustomAlert5 - EXACT PRODUCTION FIELD NAMES
+  // Core item data from Items.json (Full Company Data MISys) - EXACT PRODUCTION FIELD NAMES
   "Item No.": string;
   "Description": string;
   "Item Type": string;
@@ -59,13 +59,13 @@ export interface ItemWithLocation {
 
 /**
  * Get complete item data with location information
- * Combines CustomAlert5 (primary) with MIILOC (enhanced locations)
+ * Combines Items.json (primary) with MIILOC (enhanced locations)
  */
 export function getItemWithLocations(itemNo: string, data: any): ItemWithLocation | null {
   const customAlert5Items = data['Items.json'] || [];
   const milocData = data['MIILOC.json'] || [];
   
-  // Find the primary item data from CustomAlert5
+  // Find the primary item data from Items.json
   const primaryItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
   if (!primaryItem) return null;
   
@@ -137,13 +137,13 @@ export function getItemCost(itemNo: string, data: any): number {
 
 /**
  * Get stock by location for an item
- * SMART: Match CustomAlert5 item with MIILOC locations by Item No.
+ * SMART: Match Items.json item with MIILOC locations by Item No.
  */
 export function getItemStockByLocation(itemNo: string, data: any): Array<{location: string, stock: number, pickSequence?: string}> {
   const milocData = data['MIILOC.json'] || [];
   const customAlert5Items = data['Items.json'] || [];
   
-  // Get the main item from CustomAlert5
+  // Get the main item from Items.json
   const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
   
   if (milocData.length > 0) {
@@ -161,7 +161,7 @@ export function getItemStockByLocation(itemNo: string, data: any): Array<{locati
     }
   }
   
-  // Fallback: Use CustomAlert5 data with Pick Sequence as location
+  // Fallback: Use Items.json data with Pick Sequence as location
   if (mainItem && parseFloat(mainItem["Stock"] || 0) > 0) {
     return [{
       location: mainItem["Pick Sequence"] || 'Main Location',
@@ -174,14 +174,14 @@ export function getItemStockByLocation(itemNo: string, data: any): Array<{locati
 }
 
 /**
- * Legacy function support - NOW USES CustomAlert5 as primary source
+ * Legacy function support - NOW USES Items.json as primary source
  * This function is called with MIILOC data but MIILOC might not exist
- * Better to get stock from CustomAlert5 directly
+ * Better to get stock from Items.json directly
  * @deprecated Use getTotalItemStock instead
  */
 export function getItemStock(itemNo: string, milocData: any[]): {total: number} {
   // IMPORTANT: milocData might be empty or not exist
-  // This function is called from BOM component but we should use CustomAlert5 stock instead
+  // This function is called from BOM component but we should use Items.json stock instead
   
   if (Array.isArray(milocData) && milocData.length > 0) {
     // Try MIILOC first if data exists
@@ -194,7 +194,7 @@ export function getItemStock(itemNo: string, milocData: any[]): {total: number} 
     }
   }
   
-  // FALLBACK: Return 0 and let calling code use CustomAlert5 instead
+  // FALLBACK: Return 0 and let calling code use Items.json instead
   // The BOM component should use getTotalItemStock for real stock
   console.warn(`⚠️ getItemStock: No MIILOC data for ${itemNo}, use getTotalItemStock instead`);
   return { total: 0 };
@@ -208,7 +208,7 @@ export function getItemStock(itemNo: string, milocData: any[]): {total: number} 
  * Get stock breakdown by ownership (Canoil vs Customer)
  * Returns separate totals for Canoil stock and customer stock
  * 
- * Uses Pick Sequence from CustomAlert5.json as the location identifier
+ * Uses Pick Sequence from Items.json as the location identifier
  * - 62TODD, HOME = Canoil stock
  * - BRO, LANXESS, etc. = Customer stock (stored at Canoil but owned by customer)
  */
@@ -227,7 +227,7 @@ export function getStockByOwnership(itemNo: string, data: any): {
   let itemLocation = '';
   const customerBreakdown: Array<{location: string, stock: number}> = [];
   
-  // FIRST: Try to get from CustomAlert5 using Pick Sequence as location
+  // FIRST: Try to get from Items.json using Pick Sequence as location
   const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
   if (mainItem) {
     const stock = parseFloat(mainItem["Stock"] || 0);

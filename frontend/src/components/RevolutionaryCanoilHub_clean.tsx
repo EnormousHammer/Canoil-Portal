@@ -1635,7 +1635,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             
                             const statusInfo = getStatusInfo(mo['Status']);
                             
-                            // Get item cost data from CustomAlert5.json
+                            // Get item cost data from Items.json (Full Company Data MISys)
                             const itemData = (data['Items.json'] || []).find((item: any) => 
                               item['Item No.'] === mo['Build Item No.']
                             );

@@ -26,7 +26,7 @@ export type MOComponentView = {
   reserveQty: number;
   completedQty: number;
   shortageQty: number;
-  /** Available stock from CustomAlert5 / Items */
+  /** Available stock from Items.json (Full Company Data MISys) */
   availableStock: number;
   /** Shortage vs available: max(0, remaining - availableStock) */
   shortage: number;

@@ -51,7 +51,7 @@ export function getRealItemCost(data: any, itemNo: string): number {
 }
 
 /**
- * GET ITEM STOCK - Uses CustomAlert5.json "Stock" field
+ * GET ITEM STOCK - Uses Items.json "Stock" field (Full Company Data MISys)
  */
 export function getRealItemStock(data: any, itemNo: string): number {
   const itemData = getRealItemData(data, itemNo);

@@ -91,7 +91,7 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     const data = responseData.data || responseData;
     
     let result: MISysData = {
-      // CustomAlert5.json has the REAL stock data (Stock, WIP, Reserve, On Order)
+      // Items.json has the REAL stock data (Stock, WIP, Reserve, On Order - enriched from MIILOCQT)
       items: data['Items.json'] || [],
       moHeaders: data['ManufacturingOrderHeaders.json'] || [],
       moDetails: data['ManufacturingOrderDetails.json'] || [],
@@ -323,8 +323,8 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
           existing.completed_qty += detail['Completed'] || 0;
           existing.material_cost += detail['Material Cost'] || 0;
         } else {
-          // New component - use CustomAlert5 fields for stock
-          // CustomAlert5 uses: Stock, WIP, Reserve, On Order (as strings like '0.000000')
+          // New component - use Items.json fields for stock
+          // Items.json uses: Stock, WIP, Reserve, On Order (as strings like '0.000000')
           const parseNum = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
           
           const stockOnHand = parseNum(itemInfo?.['Stock'] ?? itemInfo?.['Quantity On Hand'] ?? 0);
@@ -344,7 +344,7 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
             material_cost: detail['Material Cost'] || 0,
             wip: wip,
             source_location: detail['Source Location'] || '',
-            // Stock info from CustomAlert5
+            // Stock info from Items.json
             stock_on_hand: stockOnHand,
             stock_available: stockAvailable,
             stock_committed: reserve,
@@ -427,7 +427,7 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
         // Materials/components used in this MO
         materials: materials,
         
-        // Build item stock info - use CustomAlert5 fields (values are strings)
+        // Build item stock info - use Items.json fields (values are strings)
         item_data: buildItemData ? (() => {
           const parseNum = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
           const stock = parseNum(buildItemData['Stock'] ?? buildItemData['Quantity On Hand'] ?? 0);

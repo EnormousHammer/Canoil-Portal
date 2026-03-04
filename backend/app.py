@@ -2261,6 +2261,11 @@ def _load_full_company_data_csv_only(folder_path):
                     loaded += 1
                     print(f"📂 Loaded {stem}.CSV -> {app_key}: {len(rows)} records")
         if loaded > 0:
+            try:
+                from full_company_data_converter import _enrich_items_from_miilocqt
+            except ImportError:
+                from .full_company_data_converter import _enrich_items_from_miilocqt
+            _enrich_items_from_miilocqt(data)
             return data, None
         return None, "No CSV files loaded"
     except Exception as e:
@@ -6086,7 +6091,7 @@ def analyze_inventory_data(data, query):
     """Analyze inventory data to answer user queries. Uses Items.json/MIITEM.json, MOH/MIMOH, POH/MIPOH."""
     try:
         # Extract relevant data - support both Full Company Data and API Extractions key names
-        customalert5_items = data.get('Items.json') or data.get('MIITEM.json') or []
+        items_data = data.get('Items.json') or data.get('MIITEM.json') or []
         bom_headers = data.get('BillsOfMaterial.json') or data.get('MIBOMH.json') or []
         bom_details = data.get('BillOfMaterialDetails.json') or data.get('MIBOMD.json') or []
         mo_headers = data.get('ManufacturingOrderHeaders.json') or data.get('MIMOH.json') or []
@@ -6096,15 +6101,15 @@ def analyze_inventory_data(data, query):
         
         # Create a comprehensive data summary for ChatGPT (Status: '0'=open, '1'=released, '2'=closed)
         data_summary = {
-            "total_items": len(customalert5_items),
-            "items_with_stock": len([item for item in customalert5_items if safe_float(item.get("Stock", item.get("Quantity on Hand", 0))) > 0]),
+            "total_items": len(items_data),
+            "items_with_stock": len([item for item in items_data if safe_float(item.get("Stock", item.get("Quantity on Hand", 0))) > 0]),
             "total_boms": len(bom_headers),
             "active_manufacturing_orders": len([mo for mo in mo_headers if str(mo.get("Status", "2")) not in ["2"]]),
             "active_purchase_orders": len([po for po in po_headers if str(po.get("Status", "2")) == "1"]),
         }
         
         # Sample some data for context
-        sample_items = customalert5_items[:3] if customalert5_items else []
+        sample_items = items_data[:3] if items_data else []
         sample_boms = bom_headers[:3] if bom_headers else []
         sample_mos = mo_headers[:3] if mo_headers else []
         
@@ -6123,14 +6128,14 @@ def find_item_usage_and_availability(data, item_description_or_no, quantity_need
     """Find detailed information about item usage and availability"""
     try:
         # Use Items.json or MIITEM.json from Full Company Data for item data
-        customalert5_items = data.get('Items.json') or data.get('MIITEM.json') or []
+        items_data = data.get('Items.json') or data.get('MIITEM.json') or []
         bom_details = data.get('BillOfMaterialDetails.json', [])
         mo_headers = data.get('ManufacturingOrderHeaders.json', [])
         mo_details = data.get('ManufacturingOrderDetails.json', [])
         
-        # Find the item - CustomAlert5 has all item info AND stock info
+        # Find the item - Items.json (Full Company Data MISys) has all item info and stock
         target_item = None
-        for item in customalert5_items:
+        for item in items_data:
             if (item_description_or_no.lower() in (item.get("Description", "").lower()) or 
                 item_description_or_no.upper() == item.get("Item No.", "").upper()):
                 target_item = item
@@ -6141,8 +6146,8 @@ def find_item_usage_and_availability(data, item_description_or_no, quantity_need
         
         item_no = target_item.get("Item No.", "")
         
-        # Stock information is ALREADY in CustomAlert5 - no need for separate lookup
-        stock_info = target_item  # CustomAlert5 has all stock fields: Stock, WIP, Reserve, On Order
+        # Stock information is in Items.json (enriched from MIILOCQT)
+        stock_info = target_item  # Items.json has all stock fields: Stock, WIP, Reserve, On Order (enriched from MIILOCQT)
         
         # Find where this item is used in BOMs
         used_in_boms = []
@@ -6310,7 +6315,7 @@ def get_product_analytics_data(data, query):
         # COST ANALYTICS - Extract from Purchase Orders and Items
         cost_by_product = {}
         
-        # Get costs from items (CustomAlert5 has Recent Cost, Standard Cost, Unit Cost)
+        # Get costs from items (Items.json has Recent Cost, Standard Cost, Unit Cost)
         for item in items:
             item_no = item.get('Item No.', '')
             recent_cost = safe_float(item.get('Recent Cost', 0))
@@ -7561,7 +7566,7 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
             print(f"SEARCH: Searching for: '{search_term}' with type: '{search_type}'")
             matching_items = []
             
-            # Search ALL JSON files, not just CustomAlert5.json
+            # Search ALL JSON files, not just Items.json
             for file_name, file_data in raw_data.items():
                 if isinstance(file_data, list):
                     print(f"SEARCH: Searching in {file_name} ({len(file_data)} records)")

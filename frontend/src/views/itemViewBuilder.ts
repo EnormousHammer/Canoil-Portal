@@ -58,7 +58,7 @@ export type ItemCostHistoryRow = {
 export type ItemView = {
   itemNo: string;
   description: string;
-  /** From CustomAlert5/Items - build item desc when modal shows build item */
+  /** From Items.json (Full Company Data MISys) - build item desc when modal shows build item */
   stock: number;
   wip: number;
   reserve: number;

@@ -1481,10 +1481,10 @@ Be precise with item numbers and quantities. If unsure, include it in special_in
         """
         try:
             items = po_data.get('items', [])
-            customalert5_data = inventory_data.get('Items.json', [])
+            items_data = inventory_data.get('Items.json', [])
             
             print(f"\n📊 === STOCK CHECK: {len(items)} items ===")
-            print(f"   Items records: {len(customalert5_data)}")
+            print(f"   Items records: {len(items_data)}")
             
             stock_analysis = []
             insufficient_items = []
@@ -1497,7 +1497,7 @@ Be precise with item numbers and quantities. If unsure, include it in special_in
                 print(f"   └─ Need: {qty_needed}")
                 
                 # Check Items.json
-                ca5_item = next((i for i in customalert5_data if i.get('Item No.', '').strip().upper() == item_no), None)
+                ca5_item = next((i for i in items_data if i.get('Item No.', '').strip().upper() == item_no), None)
                 
                 if ca5_item:
                     print(f"   └─ ✅ Found in Items")
