@@ -678,34 +678,31 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     return insights;
   };
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputMessage,
-      timestamp: new Date(),
-      category: 'general'
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    const currentInput = inputMessage;
-    setInputMessage('');
-    setIsProcessing(true);
-
-    // Add current date context for AI
+  // Build chat request body (shared by main send + Quick Actions) — ensures full context: ALL data, dateContext, dataSources
+  const buildChatRequestBody = (query: string) => {
     const currentDate = new Date();
     const dateContext = {
-      currentDate: currentDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      currentDate: currentDate.toISOString().split('T')[0],
       currentDateTime: currentDate.toISOString(),
       currentTime: currentDate.toLocaleTimeString(),
       currentDayOfWeek: currentDate.toLocaleDateString('en-US', { weekday: 'long' }),
       currentMonth: currentDate.toLocaleDateString('en-US', { month: 'long' }),
       currentYear: currentDate.getFullYear()
     };
-
-    // Build data sources summary - tell AI what data is available
+    const realSalesCount = (data['RealSalesOrders']?.length || 0) +
+      (Object.values(data['SalesOrdersByStatus'] || {}).flat().length || 0) +
+      (data['SalesOrders_InProduction']?.length || 0) + (data['SalesOrders_Completed']?.length || 0) +
+      (data['SalesOrders_Cancelled']?.length || 0) + (data['SalesOrders_New']?.length || 0) +
+      (data['SalesOrders_Scheduled']?.length || 0);
+    const salesSourcesList = [
+      'RealSalesOrders', 'ParsedSalesOrders.json', 'SalesOrdersByStatus',
+      'SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json',
+      'SalesOrders_InProduction', 'SalesOrders_Completed', 'SalesOrders_Cancelled',
+      'SalesOrders_New', 'SalesOrders_Scheduled'
+    ].filter(key => {
+      const v = data[key];
+      return v && (Array.isArray(v) ? v.length > 0 : typeof v === 'object' && Object.keys(v).length > 0);
+    });
     const dataSourcesSummary = {
       inventory: {
         available: !!((data['Items.json']?.length > 0) || (data['MIITEM.json']?.length > 0)),
@@ -713,13 +710,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         sources: ['Items.json', 'MIITEM.json', 'MIILOC.json'].filter(key => data[key]?.length > 0)
       },
       salesOrders: {
-        available: !!(data['SalesOrderHeaders.json']?.length > 0 || data['SalesOrderDetails.json']?.length > 0 || 
-                    data['SalesOrders.json']?.length > 0 || data['ParsedSalesOrders.json']?.length > 0),
-        count: (data['SalesOrderHeaders.json']?.length || 0) + 
-                (data['SalesOrderDetails.json']?.length || 0) + 
-                (data['SalesOrders.json']?.length || 0) + 
-                (data['ParsedSalesOrders.json']?.length || 0),
-        sources: ['SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'ParsedSalesOrders.json'].filter(key => data[key]?.length > 0)
+        available: !!(realSalesCount > 0 || data['SalesOrderHeaders.json']?.length > 0 ||
+          data['SalesOrderDetails.json']?.length > 0 || data['SalesOrders.json']?.length > 0 ||
+          data['ParsedSalesOrders.json']?.length > 0),
+        count: realSalesCount || (data['SalesOrderHeaders.json']?.length || 0) +
+          (data['SalesOrderDetails.json']?.length || 0) +
+          (data['SalesOrders.json']?.length || 0) +
+          (data['ParsedSalesOrders.json']?.length || 0),
+        sources: salesSourcesList.length ? salesSourcesList : ['SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'ParsedSalesOrders.json'].filter(key => data[key]?.length > 0)
       },
       manufacturingOrders: {
         available: !!((data['ManufacturingOrderHeaders.json']?.length > 0) || (data['ManufacturingOrderDetails.json']?.length > 0) || (data['MIMOH.json']?.length > 0) || (data['MIMOMD.json']?.length > 0)),
@@ -751,19 +749,36 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         count: data['MPS.json']?.mps_orders?.length || data['MPS.json']?.summary?.total_orders || 0,
         sources: ['MPS.json'].filter(key => data[key])
       },
-      allAvailableFiles: Object.keys(data).filter(key => 
-        data[key] && 
+      allAvailableFiles: Object.keys(data).filter(key =>
+        data[key] &&
         (Array.isArray(data[key]) ? data[key].length > 0 : typeof data[key] === 'object' && Object.keys(data[key]).length > 0)
-      )
+      ),
+      // Explicit note: backend loads Sage + G Drive data server-side when available
+      sageData: 'Available server-side (customers, open SOs, AR aging)',
+      googleDriveData: 'Available server-side (MiSys, Sales Orders PDFs)'
+    };
+    return { query, dateContext, dataSources: dataSourcesSummary, data };
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: inputMessage,
+      timestamp: new Date(),
+      category: 'general'
     };
 
+    setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputMessage;
+    setInputMessage('');
+    setIsProcessing(true);
+
+    const requestBody = buildChatRequestBody(currentInput);
+
     try {
-      const requestBody = {
-        query: currentInput,
-        dateContext: dateContext,
-        dataSources: dataSourcesSummary,
-        data: data  // Pass actual data so chat uses same data as main app (Full Company Data / Live SQL)
-      };
       
       console.log('🚀 SENDING REQUEST:');
       console.log('URL:', getApiUrl('/api/chat'));
@@ -994,14 +1009,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               headers: {
                                 'Content-Type': 'application/json',
                               },
-                              body: JSON.stringify({
-                                query: action.action,
-                                dateContext: {
-                                  currentDate: new Date().toISOString().split('T')[0],
-                                  currentDateTime: new Date().toISOString()
-                                },
-                                data: data  // Same data as main app (Full Company Data / Live SQL)
-                              })
+                              body: JSON.stringify(buildChatRequestBody(action.action))
                             });
                             
                             if (!response.ok) {
@@ -1057,8 +1065,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   {/* Chat Header */}
                   <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gradient-to-r from-violet-500 to-indigo-600 rounded-full flex items-center justify-center shadow-sm">
-                        <Brain className="w-4 h-4 text-white" />
+                      <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-md ring-2 ring-white">
+                        <Brain className="w-4 h-4 text-white" strokeWidth={2.5} />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-slate-800">AI Assistant</h3>
@@ -1199,17 +1207,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       ))
                     )}
                     {isProcessing && (
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-r from-violet-500 to-indigo-600 text-white shadow-sm">
-                          <Brain className="w-4 h-4" />
+                      <div className="flex items-start gap-4 mb-5">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-2 ring-white shadow-md">
+                          <Brain className="w-5 h-5" strokeWidth={2.5} />
                         </div>
-                        <div className="bg-white border border-slate-200 shadow-sm px-4 py-3 rounded-2xl">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 font-medium">Thinking</span>
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <div className="bg-white border border-slate-200/80 shadow-sm px-5 py-4 rounded-2xl">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-600 font-medium">Thinking</span>
+                            <div className="flex gap-1.5">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                           </div>
                         </div>

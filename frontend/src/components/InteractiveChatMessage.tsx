@@ -293,28 +293,28 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
   const isUser = message.type === 'user';
   const AvatarEl = (
     <div
-      className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+      className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white shadow-md ${
         isUser
-          ? 'bg-slate-600 text-white'
-          : 'bg-gradient-to-r from-violet-500 to-indigo-600 text-white shadow-sm'
+          ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+          : 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white'
       }`}
     >
       {isUser ? (
-        <User className="w-4 h-4" />
+        <User className="w-5 h-5" strokeWidth={2.5} />
       ) : (
-        <Brain className="w-4 h-4" />
+        <Brain className="w-5 h-5" strokeWidth={2.5} />
       )}
     </div>
   );
 
   return (
-    <div className={`flex items-start gap-3 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex items-start gap-4 mb-5 ${isUser ? 'flex-row-reverse' : ''}`}>
       {AvatarEl}
       <div
-        className={`max-w-[90%] sm:max-w-3xl px-5 py-4 rounded-2xl ${
+        className={`max-w-[90%] sm:max-w-3xl px-5 py-4 rounded-2xl shadow-sm ${
           isUser
-            ? 'bg-slate-700 text-white shadow-md'
-            : 'bg-white border border-slate-200 shadow-sm text-slate-800'
+            ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white'
+            : 'bg-white border border-slate-200/80 text-slate-800'
         }`}
       >
         {message.type === 'assistant' ? (
@@ -327,16 +327,16 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
 
         {/* Sources */}
         {message.sources && message.sources.length > 0 && (
-          <div className={`mt-3 pt-3 ${isUser ? 'border-white/20' : 'border-slate-200'} border-t`}>
+          <div className={`mt-4 pt-3 ${isUser ? 'border-white/25' : 'border-slate-200'} border-t`}>
             <div className="flex flex-wrap gap-2">
               {message.sources.map((source, index) => (
                 <span
                   key={index}
-                  className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${
-                    isUser ? 'bg-white/15 text-white/90' : 'bg-slate-100 text-slate-600'
+                  className={`inline-flex items-center px-2.5 py-1 text-xs rounded-lg font-medium ${
+                    isUser ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  <FileText className="w-3 h-3 mr-1" />
+                  <FileText className="w-3 h-3 mr-1.5 flex-shrink-0" />
                   {source}
                 </span>
               ))}
@@ -346,7 +346,7 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
 
         {/* Confidence + timestamp for assistant */}
         {message.type === 'assistant' && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
             {message.confidence && (
               <>
                 <div className="flex items-center gap-1">
