@@ -240,12 +240,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     setIsLoadingAnalytics(true);
     
     try {
-      // Try multiple data sources for sales orders
-      let realSalesOrders = data['RealSalesOrders'] || 
-                           data['ParsedSalesOrders.json'] || 
-                           data['SalesOrderHeaders.json'] ||
-                           data['SalesOrders.json'] ||
-                           [];
+      // Combine all sales order sources — prefer GDrive folder-scanned SOs as most complete
+      let realSalesOrders = [
+        ...(data['SalesOrders.json'] || []),
+        ...(data['RealSalesOrders'] || []),
+        ...(data['ParsedSalesOrders.json'] || []),
+        ...(data['SalesOrderHeaders.json'] || []),
+      ];
       
       const inventoryItems = data['Items.json'] || data['MIITEM.json'] || [];
       const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
@@ -475,7 +476,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     // Always compute fresh when called — cache can return stale data when data prop changes
     console.log('🔄 Processing AI data summary...');
 
-    // Get REAL Sales Orders from PDF-extracted + parsed sources
+    // Get ALL Sales Orders from every available source
     const realSalesOrders = data['RealSalesOrders'] || [];
     const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
     const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
@@ -484,8 +485,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     const soCancelled = data['SalesOrders_Cancelled'] || [];
     const soNew = data['SalesOrders_New'] || [];
     const soScheduled = data['SalesOrders_Scheduled'] || [];
-
-    let allSalesOrders: any[] = [...realSalesOrders, ...parsedSalesOrders, ...soInProduction, ...soCompleted, ...soCancelled, ...soNew, ...soScheduled];
+    // PRIMARY: Google Drive folder-scanned SOs (most reliable count)
+    const gdriveSalesOrders = data['SalesOrders.json'] || [];
+    
+    let allSalesOrders: any[] = [...realSalesOrders, ...parsedSalesOrders, ...soInProduction, ...soCompleted, ...soCancelled, ...soNew, ...soScheduled, ...gdriveSalesOrders];
     
     // Add Sales Orders from folder status (if available)
     if (typeof salesOrdersByStatus === 'object') {
@@ -496,12 +499,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       });
     }
     
-    // Remove duplicates based on SO number
-    const uniqueSalesOrders = allSalesOrders.filter((so, index, self) => 
-      index === self.findIndex(s => (s.so_number || s.soNumber || s['SO Number']) === (so.so_number || so.soNumber || so['SO Number']))
+    // Remove duplicates based on SO number (handle all naming conventions)
+    const getSoNum = (so: any) =>
+      so.so_number || so.soNumber || so['SO Number'] || so.SO_Number || so.so_no || so['SO#'] || '';
+    const uniqueSalesOrders = allSalesOrders.filter((so, index, self) =>
+      getSoNum(so) === '' || index === self.findIndex(s => getSoNum(s) === getSoNum(so))
     );
     
-    console.log(`📊 AI Summary - TOTAL Sales Orders found: ${uniqueSalesOrders.length} orders`);
+    console.log(`📊 AI Summary - TOTAL Sales Orders found: ${uniqueSalesOrders.length} orders (GDrive: ${gdriveSalesOrders.length}, PDF: ${realSalesOrders.length}, Parsed: ${parsedSalesOrders.length})`);
     
     // Use the unique sales orders for calculations
     allSalesOrders = uniqueSalesOrders;
@@ -714,9 +719,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
           data['SalesOrderDetails.json']?.length > 0 || data['SalesOrders.json']?.length > 0 ||
           data['ParsedSalesOrders.json']?.length > 0),
         count: realSalesCount || (data['SalesOrderHeaders.json']?.length || 0) +
-          (data['SalesOrderDetails.json']?.length || 0) +
-          (data['SalesOrders.json']?.length || 0) +
-          (data['ParsedSalesOrders.json']?.length || 0),
+                (data['SalesOrderDetails.json']?.length || 0) + 
+                (data['SalesOrders.json']?.length || 0) + 
+                (data['ParsedSalesOrders.json']?.length || 0),
         sources: salesSourcesList.length ? salesSourcesList : ['SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'ParsedSalesOrders.json'].filter(key => data[key]?.length > 0)
       },
       manufacturingOrders: {
@@ -749,8 +754,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         count: data['MPS.json']?.mps_orders?.length || data['MPS.json']?.summary?.total_orders || 0,
         sources: ['MPS.json'].filter(key => data[key])
       },
-      allAvailableFiles: Object.keys(data).filter(key =>
-        data[key] &&
+      allAvailableFiles: Object.keys(data).filter(key => 
+        data[key] && 
         (Array.isArray(data[key]) ? data[key].length > 0 : typeof data[key] === 'object' && Object.keys(data[key]).length > 0)
       ),
       // Explicit note: backend loads Sage + G Drive data server-side when available
@@ -932,15 +937,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
           <div className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
               <Brain className="w-5 h-5 text-white" />
-            </div>
-            <div>
+                </div>
+                <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">AI Command Center</h2>
               <p className="text-xs text-slate-500">Ask anything about your business data — MiSys + Sage 50</p>
-            </div>
-          </div>
+                </div>
+              </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">
-              <Wifi className="w-3 h-3" />
+                <Wifi className="w-3 h-3" />
               <span>Live</span>
             </div>
           </div>
@@ -948,30 +953,30 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
         {/* Navigation Tabs */}
         <nav className="flex gap-1">
-          {[
-            { id: 'chat', label: 'AI Chat', icon: MessageCircle },
-            { id: 'insights', label: 'Insights', icon: Lightbulb },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+            {[
+              { id: 'chat', label: 'AI Chat', icon: MessageCircle },
+              { id: 'insights', label: 'Insights', icon: Lightbulb },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                  activeTab === tab.id
+                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-              }`}
-            >
+                }`}
+              >
               <tab.icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
+                <span>{tab.label}</span>
               {tab.id === 'insights' && insights.length > 0 && (
                 <span className="ml-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
                   {insights.length}
                 </span>
               )}
-            </button>
-          ))}
-        </nav>
+              </button>
+            ))}
+          </nav>
       </div>
 
       {/* Main Content */}
@@ -1067,28 +1072,28 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                     <div className="flex items-center gap-2">
                       <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center shadow-sm">
                         <Brain className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
+                        </div>
+                        <div>
                         <h3 className="text-sm font-semibold text-slate-800">AI Assistant</h3>
                         <p className="text-[10px] text-slate-500">Connected to your data</p>
+                        </div>
                       </div>
-                    </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => {
-                          setProcessedDataCache({
-                            allSalesOrders: [],
-                            dataSummary: null,
-                            lastProcessed: 0
-                          });
-                          console.log('🗑️ AI Command cache cleared');
-                        }}
+                        <button
+                          onClick={() => {
+                            setProcessedDataCache({
+                              allSalesOrders: [],
+                              dataSummary: null,
+                              lastProcessed: 0
+                            });
+                            console.log('🗑️ AI Command cache cleared');
+                          }}
                         className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 transition-colors"
-                        title="Clear AI cache"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Clear Cache</span>
-                      </button>
+                          title="Clear AI cache"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Clear Cache</span>
+                        </button>
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                         <span className="text-xs text-slate-500">Online</span>
@@ -1122,46 +1127,36 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               console.log('🔍 ParsedSalesOrders.json:', data['ParsedSalesOrders.json']?.length || 0);
                               console.log('🔍 SalesOrdersByStatus:', typeof data['SalesOrdersByStatus'], data['SalesOrdersByStatus']);
                               
-                              // Collect all sales orders from various sources
-                              let allSalesOrders = [];
+                              // Collect all sales orders from ALL sources
+                              const _getSoNum = (so: any) =>
+                                so.so_number || so.soNumber || so['SO Number'] || so.SO_Number || so.so_no || so['SO#'] || '';
+                              let allSalesOrders: any[] = [];
                               
-                              // Primary source: RealSalesOrders
-                              if (data['RealSalesOrders']?.length) {
-                                allSalesOrders.push(...data['RealSalesOrders']);
-                              }
-                              
-                              // Secondary source: ParsedSalesOrders.json (from cache)
-                              if (data['ParsedSalesOrders.json']?.length) {
-                                allSalesOrders.push(...data['ParsedSalesOrders.json']);
-                              }
-                              
-                              // Tertiary: Status-based arrays
+                              // Google Drive folder-scanned SOs (primary)
+                              if (data['SalesOrders.json']?.length) allSalesOrders.push(...data['SalesOrders.json']);
+                              // PDF-parsed SOs
+                              if (data['RealSalesOrders']?.length) allSalesOrders.push(...data['RealSalesOrders']);
+                              if (data['ParsedSalesOrders.json']?.length) allSalesOrders.push(...data['ParsedSalesOrders.json']);
+                              // Status-bucketed SOs
                               if (data['SalesOrders_InProduction']?.length) allSalesOrders.push(...data['SalesOrders_InProduction']);
                               if (data['SalesOrders_Completed']?.length) allSalesOrders.push(...data['SalesOrders_Completed']);
                               if (data['SalesOrders_Cancelled']?.length) allSalesOrders.push(...data['SalesOrders_Cancelled']);
                               if (data['SalesOrders_New']?.length) allSalesOrders.push(...data['SalesOrders_New']);
                               if (data['SalesOrders_Scheduled']?.length) allSalesOrders.push(...data['SalesOrders_Scheduled']);
-                              
-                              // Quaternary: SalesOrdersByStatus object
+                              // SalesByStatus object
                               if (data['SalesOrdersByStatus'] && typeof data['SalesOrdersByStatus'] === 'object') {
                                 Object.values(data['SalesOrdersByStatus']).forEach((orders: any) => {
-                                  if (Array.isArray(orders)) {
-                                    allSalesOrders.push(...orders);
-                                  }
+                                  if (Array.isArray(orders)) allSalesOrders.push(...orders);
                                 });
                               }
                               
-                              // Remove duplicates based on SO number
-                              const uniqueSalesOrders = allSalesOrders.filter((so, index, self) => 
-                                index === self.findIndex(s => {
-                                  const soNum1 = s.so_number || s.soNumber || s['SO Number'] || s.SO_Number;
-                                  const soNum2 = so.so_number || so.soNumber || so['SO Number'] || so.SO_Number;
-                                  return soNum1 === soNum2;
-                                })
+                              // Remove duplicates
+                              const uniqueSalesOrders = allSalesOrders.filter((so, index, self) =>
+                                _getSoNum(so) === '' || index === self.findIndex(s => _getSoNum(s) === _getSoNum(so))
                               );
                               
                               const salesOrdersCount = uniqueSalesOrders.length;
-                              console.log('✅ Total unique Sales Orders:', salesOrdersCount);
+                              console.log('✅ AI panel SO count:', salesOrdersCount, '(GDrive:', data['SalesOrders.json']?.length || 0, ')');
                               
                               return (
                                 <>
@@ -1294,22 +1289,22 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {insights.map((insight) => (
-                  <div
-                    key={insight.id}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {insights.map((insight) => (
+                <div
+                  key={insight.id}
                     className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow"
-                  >
+                >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        {getInsightIcon(insight.type)}
+                      {getInsightIcon(insight.type)}
                         <span className="text-xs font-medium text-slate-500 flex items-center gap-1 capitalize">
-                          {getCategoryIcon(insight.category)}
+                        {getCategoryIcon(insight.category)}
                           {insight.category}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-400">{Math.round(insight.confidence * 100)}%</span>
+                      </span>
                     </div>
+                      <span className="text-xs text-slate-400">{Math.round(insight.confidence * 100)}%</span>
+                  </div>
 
                     <h3 className="text-base font-semibold text-slate-900 mb-2">{insight.title}</h3>
                     <p className="text-sm text-slate-600 mb-4">{insight.description}</p>
@@ -1320,11 +1315,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm font-medium"
                       >
                         {insight.action || 'Ask in Chat'}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
             )}
           </div>
         )}
@@ -1336,10 +1331,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
             <div className="space-y-4">
               {/* Header + Year Filter */}
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
+                  <div>
                   <h2 className="text-xl font-bold text-slate-900">Financial Analytics</h2>
                   <p className="text-sm text-slate-500 mt-0.5">Sage 50 — invoiced revenue, AR aging, customers</p>
-                </div>
+                  </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {availableYears.map(y => (
                     <button key={y} onClick={() => setAnalyticsYear(y)}
@@ -1362,9 +1357,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <button onClick={() => loadSageAnalytics(analyticsYear)} disabled={isLoadingSageAnalytics}
                     className="ml-1 px-3 py-1.5 rounded-lg text-sm font-semibold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1">
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSageAnalytics ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
+                </button>
               </div>
+            </div>
 
               {sageAnalyticsError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{sageAnalyticsError}</div>
@@ -1374,7 +1369,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
                   <RefreshCw className="w-5 h-5 animate-spin" />
                   <span className="text-sm font-medium">Loading {analyticsYear > 0 ? analyticsYear : 'All Time'} data…</span>
-                </div>
+              </div>
               ) : sageKpis ? (
                 <>
                   {/* KPI Cards row */}
@@ -1391,7 +1386,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           {sageKpis.yoy_revenue_pct >= 0 ? '▲' : '▼'} {Math.abs(sageKpis.yoy_revenue_pct)}% vs prior year
                         </p>
                       )}
-                    </div>
+                      </div>
                     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Prior Year Revenue</p>
                       <p className="text-2xl font-bold text-slate-900">
@@ -1403,8 +1398,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       <p className="text-2xl font-bold text-slate-900">{sageKpis.open_sales_orders || 0}</p>
                       <p className="text-xs text-slate-500 mt-1">
                         ${(sageKpis.open_so_value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} value
-                      </p>
-                    </div>
+                        </p>
+                      </div>
                     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Active Customers</p>
                       <p className="text-2xl font-bold text-slate-900">{sageKpis.active_customers || 0}</p>
@@ -1413,8 +1408,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           AR: ${(sageArAging.total_ar || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </p>
                       )}
-                    </div>
                   </div>
+                </div>
 
                   {/* Monthly Revenue Chart */}
                   {sageMonthly.length > 0 && (
@@ -1429,7 +1424,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           return sageMonthly.map((m, i) => {
                             const pct = ((m.revenue || 0) / maxRev) * 100;
                             const isMax = m.revenue === maxRev && maxRev > 0;
-                            return (
+                          return (
                               <div key={i} className="flex items-center gap-3">
                                 <span className="w-8 text-xs text-slate-500 text-right shrink-0">{m.month_name?.slice(0,3)}</span>
                                 <div className="flex-1 bg-slate-100 rounded-full h-7 relative overflow-hidden">
@@ -1438,17 +1433,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                     {pct > 15 && (
                                       <span className="text-white text-xs font-semibold">
                                         ${(m.revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                      </span>
+                                  </span>
                                     )}
-                                  </div>
                                 </div>
+                              </div>
                                 <span className="w-24 text-xs text-slate-600 text-right shrink-0 font-medium">
                                   {pct <= 15 && m.revenue > 0
                                     ? `$${(m.revenue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                                     : `${m.order_count || 0} inv.`}
                                 </span>
-                              </div>
-                            );
+                            </div>
+                          );
                           });
                         })()}
                       </div>
@@ -1463,7 +1458,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         <span className="text-sm font-bold text-slate-900">
                           Total AR: ${(sageArAging.total_ar || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </span>
-                      </div>
+                          </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {[
                           { label: 'Current (0–30d)', key: 'current', color: 'bg-emerald-500' },
@@ -1481,12 +1476,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                 ${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                               </p>
                               <p className="text-xs text-slate-400">{pct}% of total</p>
-                            </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
+                )}
 
                   {/* Top Customers + Best Products */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1510,17 +1505,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                       </span>
                                     )}
                                     <span className="font-bold text-slate-900">${(c.dAmtYtd || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                  </div>
-                                </div>
+                                    </div>
+                                    </div>
                                 <div className="w-full bg-slate-100 rounded-full h-1.5">
                                   <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
                                 </div>
                               </div>
                             );
                           })}
-                        </div>
                       </div>
-                    )}
+                    </div>
+                  )}
 
                     {sageBestMovers.length > 0 && (
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
@@ -1539,25 +1534,25 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                   <span className="font-bold text-slate-900">
                                     ${rev.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                   </span>
-                                </div>
+                                    </div>
                                 <div className="w-full bg-slate-100 rounded-full h-1.5">
                                   <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
                                 </div>
                               </div>
                             );
                           })}
-                        </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                </div>
                 </>
               ) : (
                 <div className="text-center py-10 text-slate-400">
                   <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <p className="text-sm">No Sage data available for {analyticsYear > 0 ? analyticsYear : 'All Time'}. Try a different year.</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
             {/* ── SECTION 2: MISYS OPERATIONS DASHBOARD ────────────── */}
             {(() => {
@@ -1611,10 +1606,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
               return (
                 <div className="border-t border-slate-200 pt-6 space-y-4">
-                  <div>
+                          <div>
                     <h2 className="text-xl font-bold text-slate-900">Operations Dashboard</h2>
                     <p className="text-sm text-slate-500 mt-0.5">MiSys ERP — manufacturing, procurement & inventory</p>
-                  </div>
+                          </div>
 
                   {/* Operations KPI Cards */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1624,26 +1619,26 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       <p className="text-xs text-slate-500 mt-1">
                         {activeMOs.filter((mo: any) => String(mo.Status) === '1').length} released, {activeMOs.filter((mo: any) => String(mo.Status) === '0').length} open
                       </p>
-                    </div>
+                            </div>
                     <div className="bg-white border border-blue-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Open POs</p>
                       <p className="text-2xl font-bold text-slate-900">{openPOs.length}</p>
                       <p className="text-xs text-slate-500 mt-1">{topSuppliers.length} suppliers</p>
-                    </div>
+                          </div>
                     <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Inventory Value</p>
                       <p className="text-2xl font-bold text-slate-900">
                         ${(inventoryValue / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })}K
                       </p>
                       <p className="text-xs text-slate-500 mt-1">{itemsWithStock.length} items in stock</p>
-                    </div>
+                          </div>
                     <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-1">Low Stock Alerts</p>
                       <p className="text-2xl font-bold text-red-600">{belowReorder.length}</p>
                       <p className="text-xs text-slate-500 mt-1">below reorder level</p>
-                    </div>
-                  </div>
-
+                        </div>
+                      </div>
+                      
                   {/* Active MOs + Open POs side by side */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {/* Active MOs by product */}
@@ -1651,28 +1646,28 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                         <h3 className="text-sm font-bold text-slate-800 mb-1">Active Manufacturing Orders</h3>
                         <p className="text-xs text-slate-400 mb-4">by build item — {activeMOs.length} total active</p>
-                        <div className="space-y-2">
+                          <div className="space-y-2">
                           {topMOs.map(([item, stats], i) => {
                             const maxCount = topMOs[0][1].count;
                             const pct = (stats.count / maxCount) * 100;
-                            return (
+                                return (
                               <div key={i} className="space-y-0.5">
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="font-medium text-slate-800 truncate max-w-[65%]">{item}</span>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <span className="text-slate-500">{stats.qty.toLocaleString(undefined, { maximumFractionDigits: 0 })} units</span>
                                     <span className="font-bold text-violet-700">{stats.count} MO{stats.count > 1 ? 's' : ''}</span>
-                                  </div>
-                                </div>
+                                      </div>
+                                            </div>
                                 <div className="w-full bg-slate-100 rounded-full h-1.5">
                                   <div className="bg-violet-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            </div>
+                          )}
 
                     {/* Open POs by supplier */}
                     {topSuppliers.length > 0 && (
@@ -1683,36 +1678,36 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           {topSuppliers.map(([supplier, count], i) => {
                             const maxCount = topSuppliers[0][1];
                             const pct = (count / maxCount) * 100;
-                            return (
+                                return (
                               <div key={i} className="space-y-0.5">
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="font-medium text-slate-800 truncate max-w-[70%]">{supplier}</span>
                                   <span className="font-bold text-blue-700 shrink-0">{count} PO{count > 1 ? 's' : ''}</span>
-                                </div>
+                                          </div>
                                 <div className="w-full bg-slate-100 rounded-full h-1.5">
                                   <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            </div>
+                          )}
                   </div>
 
                   {/* Inventory Health — Low Stock */}
                   {lowStockItems.length > 0 && (
                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                       <div className="flex items-center justify-between mb-4">
-                        <div>
+                      <div>
                           <h3 className="text-sm font-bold text-slate-800">Low Stock Alerts</h3>
                           <p className="text-xs text-slate-400 mt-0.5">{belowReorder.length} items below reorder level — top {lowStockItems.length} shown</p>
-                        </div>
+                      </div>
                         <div className="text-right">
                           <p className="text-xs text-slate-500">Total inventory</p>
                           <p className="text-sm font-bold text-slate-900">{allItems.length} items · {itemsWithStock.length} in stock</p>
+                    </div>
                         </div>
-                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
@@ -1739,7 +1734,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                   <td className="py-1.5 px-3 text-right">
                                     <span className={`font-semibold ${stock === 0 ? 'text-red-600' : 'text-orange-500'}`}>
                                       {stock.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                                    </span>
+                      </span>
                                   </td>
                                   <td className="py-1.5 px-3 text-right text-slate-600">
                                     {reorder.toLocaleString(undefined, { maximumFractionDigits: 1 })}
@@ -1750,20 +1745,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                   <td className="py-1.5 pl-3 text-right">
                                     <span className={`font-semibold ${onOrder > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                       {onOrder > 0 ? onOrder.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'}
-                                    </span>
+                      </span>
                                   </td>
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
-                      </div>
                     </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </div>
               );
-            })()}
-          </div>
+                    })()}
+                  </div>
         )}
 
       </div>

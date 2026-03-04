@@ -577,6 +577,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Create Proforma Invoice */}
               <button 
+                onClick={() => onNavigate('orders')}
                 className="group relative flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-slate-100 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-0.5"
               >
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
@@ -591,6 +592,7 @@ export const CleanEnterpriseDashboard: React.FC<CleanEnterpriseDashboardProps> =
 
               {/* Create Purchase Requisition */}
               <button 
+                onClick={() => onNavigate('inventory')}
                 className="group relative flex items-center gap-4 p-5 rounded-2xl bg-white border-2 border-slate-100 hover:border-orange-400 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-300 hover:-translate-y-0.5"
               >
                 <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl shadow-lg shadow-orange-500/20 group-hover:shadow-orange-500/40 transition-shadow">

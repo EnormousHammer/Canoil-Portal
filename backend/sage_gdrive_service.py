@@ -1104,35 +1104,37 @@ def get_ar_aging() -> dict:
     """
     Compute AR aging from tcustr (customer transaction journal).
     Groups outstanding balances into 0-30, 31-60, 61-90, 90+ day buckets.
+    Falls back to titrec (invoice header table) if tcustr yields $0.
     """
     tables = _tables()
     cust_df = tables.get("tcustr")
     cname_df = tables.get("tcustomr")
-    if cust_df is None or cust_df.empty:
-        return {"aging": [], "error": "tcustr not loaded"}
 
+    # Build customer name map
     cust_name_map: dict[int, str] = {}
     if cname_df is not None and not cname_df.empty and "lId" in cname_df.columns:
         for _, r in cname_df[["lId", "sName"]].iterrows():
             cust_name_map[int(r["lId"] or 0)] = _safe_str(r["sName"])
 
+    # ── Diagnostic logging ─────────────────────────────────────────────────────
+    if cust_df is not None and not cust_df.empty:
+        print(f"[ar_aging] tcustr loaded: {len(cust_df)} rows, columns: {list(cust_df.columns)[:20]}")
+    else:
+        print("[ar_aging] tcustr is None or empty — falling back to titrec")
+
     today = date.today()
     buckets: dict[int, dict] = {}
 
-    for _, r in cust_df.iterrows():
-        cid = int(r.get("lCusId", 0) or 0)
-        amt = _safe_float(r.get("dCurrntBal") or r.get("dBalance") or 0)
+    def _add_to_bucket(cid: int, amt: float, dt_str: str):
+        """Add outstanding amount to the correct aging bucket for a customer."""
         if amt == 0:
-            continue
-        dt_str = _safe_date(r.get("dtDate") or r.get("dtDueDate"))
+            return
         age = 999
         if dt_str and len(dt_str) >= 10:
             try:
-                txn_date = date.fromisoformat(dt_str[:10])
-                age = (today - txn_date).days
+                age = (today - date.fromisoformat(dt_str[:10])).days
             except Exception:
                 pass
-
         if cid not in buckets:
             buckets[cid] = {"lCusId": cid, "sName": cust_name_map.get(cid, f"ID:{cid}"),
                             "current": 0.0, "d30": 0.0, "d60": 0.0, "d90": 0.0, "d90plus": 0.0, "total": 0.0}
@@ -1148,12 +1150,90 @@ def get_ar_aging() -> dict:
         else:
             buckets[cid]["d90plus"] += amt
 
+    # ── Primary: tcustr ────────────────────────────────────────────────────────
+    if cust_df is not None and not cust_df.empty:
+        cols = set(cust_df.columns)
+        # Try several possible column names for outstanding balance
+        bal_col = next((c for c in ["dBalance", "dCurrntBal", "dAmtDue", "dAmtOwing",
+                                     "dOutstanding", "dBal", "dOpenBal"] if c in cols), None)
+        # Try possible column names for due/transaction date
+        date_col = next((c for c in ["dtDueDate", "dtDate", "dtInvDate", "dtTxDate"] if c in cols), None)
+        # Customer ID column
+        cid_col = next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in cols), None)
+
+        print(f"[ar_aging] tcustr columns detected → balance:{bal_col}, date:{date_col}, cid:{cid_col}")
+
+        if bal_col and cid_col:
+            for _, r in cust_df.iterrows():
+                cid = int(r.get(cid_col, 0) or 0)
+                # Some Sage exports store invoice amount in one col and applied in another
+                if bal_col in cols:
+                    amt = _safe_float(r.get(bal_col, 0))
+                else:
+                    # Compute outstanding = dAmt - dApplied
+                    raw_amt = _safe_float(r.get("dAmt", 0) or r.get("dInvAmt", 0))
+                    applied = _safe_float(r.get("dApplied", 0) or r.get("dPaid", 0))
+                    amt = raw_amt - applied
+                dt_str = _safe_date(r.get(date_col) if date_col else None)
+                _add_to_bucket(cid, amt, dt_str or "")
+        else:
+            # No balance column found — try dAmt - dApplied
+            print("[ar_aging] No balance column found in tcustr — trying dAmt-dApplied")
+            amt_col = next((c for c in ["dAmt", "dInvAmt"] if c in cols), None)
+            applied_col = next((c for c in ["dApplied", "dPaid", "dAmtPaid"] if c in cols), None)
+            cid_col = cid_col or next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in cols), None)
+            date_col = date_col or next((c for c in ["dtDueDate", "dtDate"] if c in cols), None)
+            if amt_col and cid_col:
+                for _, r in cust_df.iterrows():
+                    cid = int(r.get(cid_col, 0) or 0)
+                    raw_amt = _safe_float(r.get(amt_col, 0))
+                    applied = _safe_float(r.get(applied_col, 0)) if applied_col else 0.0
+                    amt = raw_amt - applied
+                    dt_str = _safe_date(r.get(date_col) if date_col else None)
+                    _add_to_bucket(cid, amt, dt_str or "")
+
+    # ── Fallback: titrec (invoice transaction headers) ─────────────────────────
+    # If tcustr gave $0, try computing AR from open invoices in titrec
+    grand_total_check = sum(b["total"] for b in buckets.values())
+    if grand_total_check == 0:
+        print("[ar_aging] tcustr gave $0 — falling back to titrec for open invoices")
+        titrec_df = tables.get("titrec")
+        if titrec_df is not None and not titrec_df.empty:
+            t_cols = set(titrec_df.columns)
+            print(f"[ar_aging] titrec columns: {list(t_cols)[:25]}")
+            # Look for invoice amount and balance due columns
+            inv_col = next((c for c in ["dInvAmt", "dAmt", "dTotalAmt"] if c in t_cols), None)
+            paid_col = next((c for c in ["dAmtPaid", "dApplied", "dPaid", "dPayAmt"] if c in t_cols), None)
+            bal_due_col = next((c for c in ["dBalDue", "dBalance", "dAmtDue"] if c in t_cols), None)
+            due_col = next((c for c in ["dtDueDate", "dtDate", "dtASDate"] if c in t_cols), None)
+            cid_col = next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in t_cols), None)
+            # Only look at invoice-type transactions (positive amounts)
+            if inv_col and cid_col:
+                rows = titrec_df.copy()
+                rows["_inv"] = pd.to_numeric(rows[inv_col], errors="coerce").fillna(0)
+                rows = rows[rows["_inv"] > 0]  # invoices only (not payments)
+                if bal_due_col and bal_due_col in t_cols:
+                    rows["_bal"] = pd.to_numeric(rows[bal_due_col], errors="coerce").fillna(0)
+                elif paid_col and paid_col in t_cols:
+                    rows["_paid"] = pd.to_numeric(rows[paid_col], errors="coerce").fillna(0)
+                    rows["_bal"] = rows["_inv"] - rows["_paid"]
+                else:
+                    rows["_bal"] = rows["_inv"]  # assume all unpaid if no payment column
+                rows = rows[rows["_bal"] > 0]  # only open/partially-open invoices
+                print(f"[ar_aging] titrec: {len(rows)} open invoices found")
+                for _, r in rows.iterrows():
+                    cid = int(r.get(cid_col, 0) or 0)
+                    amt = _safe_float(r.get("_bal", 0))
+                    dt_str = _safe_date(r.get(due_col) if due_col else None)
+                    _add_to_bucket(cid, amt, dt_str or "")
+
     result = sorted(buckets.values(), key=lambda x: abs(x["total"]), reverse=True)
     for row in result:
         for k in ["current", "d30", "d60", "d90", "d90plus", "total"]:
             row[k] = round(row[k], 2)
 
     grand_total = sum(r["total"] for r in result)
+    print(f"[ar_aging] Final AR aging: {len(result)} customers, total_ar=${grand_total:,.2f}")
     return {"aging": result[:50], "total_ar": round(grand_total, 2), "total_customers": len(result)}
 
 

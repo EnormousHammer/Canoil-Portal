@@ -6148,37 +6148,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           )}
 
           {/* Intelligence Section */}
-          {activeSection === 'intelligence' && (
-            <div className="space-y-6">
-              {/* SO Performance Monitor */}
-              <SOPerformanceMonitor 
-                data={data}
-                onRefresh={() => {
-                  // Trigger data refresh
-                  window.location.reload();
-                }}
-              />
-              
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-6">
-                <h2 className="text-3xl font-bold text-slate-900 flex items-center mb-6">
-                  🧠 Business Intelligence
-                  <span className="ml-3 text-sm font-normal text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
-                    AI Analytics & Insights
-                  </span>
-                </h2>
-                <div className="text-center py-12">
-                  <p className="text-gray-600">Advanced Business Intelligence Dashboard</p>
-                  <p className="text-sm text-gray-500 mt-2">AI-powered analytics and insights coming soon</p>
-                  <button 
-                    onClick={() => onNavigate && onNavigate('ai-command')}
-                    className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    Go to AI Command Center
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection === 'intelligence' && (() => { setActiveSection('ai-command'); return null; })()}
 
           {/* OLD LOGISTICS SECTION - DISABLED */}
           {false && (

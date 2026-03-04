@@ -8588,6 +8588,32 @@ def sage_gdrive_ar_aging():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/sage/gdrive/debug/columns')
+def sage_gdrive_debug_columns():
+    """Diagnostic: return column names for key Sage tables to help debug field mapping."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        import sage_gdrive_service as _sgs
+        tables = _sgs._tables()
+        result = {}
+        for tname in ["tcustr", "titrec", "tcustomr", "tsalordr"]:
+            df = tables.get(tname)
+            if df is not None and not df.empty:
+                result[tname] = {
+                    "rows": len(df),
+                    "columns": list(df.columns),
+                    "sample": df.head(2).to_dict(orient="records") if len(df) > 0 else []
+                }
+            else:
+                result[tname] = {"rows": 0, "columns": [], "error": "not loaded or empty"}
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
+
 @app.route('/api/sage/gdrive/analytics/sales-by-product')
 def sage_gdrive_sales_by_product():
     """Top products by invoiced revenue from transaction lines.
