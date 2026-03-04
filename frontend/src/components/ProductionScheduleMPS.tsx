@@ -5,7 +5,7 @@ import {
   LayoutList, BarChart3, Package, Wrench, ChevronUp, Clock, ExternalLink,
   Eye, FileText, Activity
 } from 'lucide-react';
-import { fetchMPSData, openSalesOrder, getSOUrl } from '../services/mpsDataService';
+import { fetchMPSData, invalidateMPSCache, openSalesOrder, getSOUrl } from '../services/mpsDataService';
 import { MPSOrder } from '../types/mps';
 import { format, addDays, startOfWeek, differenceInDays, parseISO, isValid } from 'date-fns';
 import { exportToCSV, exportToJSON, exportToExcel, exportFullDataToJSON, exportMaterialsToCSV } from '../services/exportService';
@@ -117,11 +117,12 @@ export function ProductionScheduleMPS() {
   const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
   const [collapsedWCs, setCollapsedWCs] = useState<Set<string>>(new Set());
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchMPSData();
+      if (force) invalidateMPSCache();
+      const data = await fetchMPSData(force);
       setOrders(data);
       setLastUpdated(new Date());
       setSecondsSinceUpdate(0);
@@ -449,10 +450,10 @@ export function ProductionScheduleMPS() {
             </div>
 
             <button
-              onClick={loadData}
+              onClick={() => loadData(true)}
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-              title="Refresh now"
+              title="Force refresh from server"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -821,450 +822,431 @@ export function ProductionScheduleMPS() {
       {selectedOrder && (() => {
         const actualPct = parseFloat(selectedOrder.actual_pct) || 0;
         const remaining = Math.max(0, selectedOrder.required - (selectedOrder.ready || 0));
-        const customerName = selectedOrder.so_data?.customer || selectedOrder.mo_data?.customer || selectedOrder.product.split(' - ')[0] || 'Unknown';
+        const customerName = getCustomerName(selectedOrder);
         const colors = getCustomerColor(selectedOrder.product);
+        const badge = getStatusBadge(selectedOrder.status);
+        const hasMaterials = (selectedOrder.materials?.filter(m => m.required_qty > 0).length || 0) > 0;
+        const hasShortage = selectedOrder.materials?.some(m => {
+          const r = Math.max(0, m.required_qty - m.completed_qty);
+          const a = m.stock_on_hand + (m.wip || 0);
+          return a < r && r > 0 && (m.wip || 0) === 0;
+        });
 
         return (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
-            <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
-              {/* Modal header */}
-              <div className={`${colors.bg} px-6 py-4 flex-shrink-0`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
-                        <div className="text-white/60 text-[10px] uppercase">Sales Order</div>
-                        <div className="text-white text-lg font-bold">{selectedOrder.so_number}</div>
-                        <div className="flex gap-1 mt-1">
-                          <button
-                            onClick={() => { const url = getSOUrl(selectedOrder.so_number); if (url) { setPdfUrl(url); setShowPdfViewer(true); } }}
-                            className="text-[10px] bg-blue-500/30 hover:bg-blue-500/50 text-blue-300 px-2 py-0.5 rounded flex items-center gap-0.5"
-                          >
-                            <Eye className="w-3 h-3" /> View
-                          </button>
-                          <button
-                            onClick={() => openSalesOrder(selectedOrder.so_number)}
-                            className="text-[10px] bg-slate-500/30 hover:bg-slate-500/50 text-slate-300 px-2 py-0.5 rounded flex items-center gap-0.5"
-                          >
-                            <ExternalLink className="w-3 h-3" /> Tab
-                          </button>
-                        </div>
-                      </div>
-                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
-                        <div className="text-white/60 text-[10px] uppercase">Mfg Order</div>
-                        <div className="text-white text-lg font-bold">{selectedOrder.mo_number}</div>
-                      </div>
-                      <div className="bg-black/30 px-3 py-1.5 rounded-lg">
-                        <div className="text-white/60 text-[10px] uppercase">Work Center</div>
-                        <div className="text-white text-lg font-bold">{selectedOrder.work_center}</div>
-                      </div>
-                      <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
-                        selectedOrder.status.toLowerCase().includes('shortage') ? 'bg-red-600 text-white' :
-                        selectedOrder.status.toLowerCase().includes('released') ? 'bg-green-600 text-white' :
-                        'bg-black/30 text-white'
-                      }`}>
-                        {selectedOrder.status}
-                      </span>
+              {/* ── Colored header band ── */}
+              <div className={`${colors.bg} px-6 py-5 flex-shrink-0`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    {/* Customer name + product */}
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h2 className={`text-2xl font-black tracking-tight ${colors.text}`}>{customerName || 'Unknown Customer'}</h2>
+                      {selectedOrder.action_items && (
+                        <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> ACTION
+                        </span>
+                      )}
                     </div>
-                    <h2 className={`text-xl font-bold ${colors.text}`}>{customerName}</h2>
-                    <p className={`${colors.text} opacity-90 text-sm`}>{selectedOrder.product}</p>
+                    <p className={`${colors.text} opacity-90 text-sm font-medium truncate`}>{selectedOrder.product}</p>
                     {selectedOrder.packaging && (
                       <span className={`${colors.text} opacity-70 text-xs flex items-center gap-1 mt-0.5`}>
                         <Package className="w-3 h-3" /> {selectedOrder.packaging}
                       </span>
                     )}
+
+                    {/* Order IDs row */}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <div className="bg-black/20 rounded-lg px-3 py-1.5">
+                        <div className={`${colors.text} opacity-60 text-[10px] uppercase font-semibold`}>Sales Order</div>
+                        <div className={`${colors.text} text-base font-bold font-mono`}>{selectedOrder.so_number}</div>
+                        <div className="flex gap-1 mt-1">
+                          <button
+                            onClick={() => { const url = getSOUrl(selectedOrder.so_number); if (url) { setPdfUrl(url); setShowPdfViewer(true); } }}
+                            className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-0.5 rounded flex items-center gap-0.5"
+                          >
+                            <Eye className="w-3 h-3" /> View SO
+                          </button>
+                          <button
+                            onClick={() => openSalesOrder(selectedOrder.so_number)}
+                            className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-0.5 rounded flex items-center gap-0.5"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Open
+                          </button>
+                        </div>
+                      </div>
+                      <div className="bg-black/20 rounded-lg px-3 py-1.5">
+                        <div className={`${colors.text} opacity-60 text-[10px] uppercase font-semibold`}>Mfg Order</div>
+                        <div className={`${colors.text} text-base font-bold font-mono`}>{selectedOrder.mo_number}</div>
+                      </div>
+                      <div className="bg-black/20 rounded-lg px-3 py-1.5">
+                        <div className={`${colors.text} opacity-60 text-[10px] uppercase font-semibold`}>Work Center</div>
+                        <div className={`${colors.text} text-base font-bold`}>{selectedOrder.work_center}</div>
+                      </div>
+                      <span className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
+                        selectedOrder.status.toLowerCase().includes('shortage') ? 'bg-red-600 text-white' :
+                        selectedOrder.status.toLowerCase().includes('released') ? 'bg-green-600 text-white' :
+                        selectedOrder.status.toLowerCase().includes('complete') ? 'bg-emerald-600 text-white' :
+                        'bg-black/25 text-white'
+                      }`}>
+                        {badge.icon && <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />}
+                        {selectedOrder.status}
+                      </span>
+                    </div>
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="text-white/70 hover:text-white bg-black/20 rounded-full p-2">
+                  <button onClick={() => setSelectedOrder(null)} className="text-white/80 hover:text-white bg-black/20 hover:bg-black/30 rounded-full p-2 flex-shrink-0 transition-colors">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6 flex-1 overflow-y-auto">
+              {/* ── Scrollable body ── */}
+              <div className="flex-1 overflow-y-auto bg-gray-50">
 
-                {/* Progress section */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Activity className="w-5 h-5 text-blue-400" />
-                      Production Progress
-                    </h3>
-                    <span className="text-slate-400 text-sm">Work Center: <span className="text-white font-bold">{selectedOrder.work_center}</span></span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="col-span-1 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-center border border-slate-700">
-                      <div className={`text-6xl font-black ${
-                        actualPct >= 100 ? 'text-green-400' :
-                        actualPct >= 75 ? 'text-blue-400' :
-                        actualPct >= 50 ? 'text-yellow-400' :
-                        actualPct > 0 ? 'text-orange-400' : 'text-slate-500'
-                      }`}>
-                        {Math.round(actualPct)}%
-                      </div>
-                      <div className="text-slate-400 text-sm mt-1">ACTUAL COMPLETE</div>
-                      <div className="mt-3 w-full bg-slate-700 rounded-full h-3">
-                        <div
-                          className={`h-3 rounded-full transition-all ${getProgressColor(actualPct)}`}
-                          style={{ width: `${Math.min(actualPct, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="col-span-2 grid grid-cols-3 gap-3">
-                      <div className="bg-slate-800 rounded-xl p-4 text-center border border-slate-700">
-                        <div className="text-slate-500 text-xs mb-1">REQUIRED</div>
-                        <div className="text-3xl font-bold text-white">{selectedOrder.required}</div>
-                        <div className="text-slate-500 text-xs">{selectedOrder.packaging || 'units'}</div>
-                      </div>
-                      <div className="bg-green-500/10 rounded-xl p-4 text-center border border-green-500/30">
-                        <div className="text-green-400 text-xs mb-1">READY</div>
-                        <div className="text-3xl font-bold text-green-400">{selectedOrder.ready || 0}</div>
-                        <div className="text-green-400/50 text-xs">completed</div>
-                      </div>
-                      <div className="bg-yellow-500/10 rounded-xl p-4 text-center border border-yellow-500/30">
-                        <div className="text-yellow-400 text-xs mb-1">REMAINING</div>
-                        <div className="text-3xl font-bold text-yellow-400">{remaining}</div>
-                        <div className="text-yellow-400/50 text-xs">to make</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Schedule */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-blue-400" />
-                    Schedule
-                  </h3>
-                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <div className="text-center flex-1">
-                        <div className="text-slate-500 text-xs">START</div>
-                        <div className="text-white font-semibold">{selectedOrder.start_date || '\u2014'}</div>
-                      </div>
-                      <div className="flex-1 px-4">
-                        <div className="h-2 bg-slate-700 rounded-full relative">
-                          <div className={`h-2 rounded-full ${colors.bg}`} style={{ width: `${actualPct}%` }} />
-                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-900 px-2 py-0.5 rounded text-xs text-white">
-                            {selectedOrder.duration ? `${selectedOrder.duration} days` : '\u2014'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-center flex-1">
-                        <div className="text-slate-500 text-xs">END</div>
-                        <div className="text-white font-semibold">{selectedOrder.end_date || '\u2014'}</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-700">
-                      <div className="text-center">
-                        <div className="text-slate-500 text-xs">PROMISED TO CUSTOMER</div>
-                        <div className="text-yellow-400 font-bold text-lg">{selectedOrder.promised_date || '\u2014'}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-slate-500 text-xs">DAYS TO COMPLETE</div>
-                        <div className={`font-bold text-lg ${
-                          selectedOrder.dtc <= 1 ? 'text-red-400' :
-                          selectedOrder.dtc <= 3 ? 'text-yellow-400' : 'text-green-400'
-                        }`}>
-                          {selectedOrder.dtc ? `${selectedOrder.dtc} days` : '\u2014'}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-slate-500 text-xs">PLANNED</div>
-                        <div className="text-blue-400 font-bold text-lg">{selectedOrder.planned_pct}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* MO Details */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold text-purple-400 mb-3 flex items-center gap-2">
-                    <Wrench className="w-5 h-5" />
-                    Manufacturing Order
-                  </h3>
-                  {selectedOrder.mo_data ? (
-                    <div className="bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
-                      <div className="grid grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <div className="text-slate-500 text-xs">MO Number</div>
-                          <div className="text-purple-300 font-mono font-bold text-lg">{selectedOrder.mo_data.mo_no}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Build Item</div>
-                          <div className="text-white font-mono">{selectedOrder.mo_data.item_no}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Status</div>
-                          <div className="text-white font-semibold">{selectedOrder.mo_data.status || '\u2014'}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Priority</div>
-                          <div className="text-white">{selectedOrder.mo_data.priority || '\u2014'}</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                          <div className="text-slate-500 text-xs">ORDERED</div>
-                          <div className="text-2xl font-bold text-white">{selectedOrder.mo_data.qty_ordered}</div>
-                        </div>
-                        <div className="bg-green-500/10 rounded-lg p-3 text-center border border-green-500/20">
-                          <div className="text-green-400 text-xs">COMPLETED</div>
-                          <div className="text-2xl font-bold text-green-400">{selectedOrder.mo_data.qty_completed}</div>
-                        </div>
-                        <div className="bg-yellow-500/10 rounded-lg p-3 text-center border border-yellow-500/20">
-                          <div className="text-yellow-400 text-xs">REMAINING</div>
-                          <div className="text-2xl font-bold text-yellow-400">{selectedOrder.mo_data.qty_remaining}</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <div className="text-slate-500 text-xs">Order Date</div>
-                          <div className="text-white">{selectedOrder.mo_data.order_date || '\u2014'}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Start Date</div>
-                          <div className="text-white">{selectedOrder.mo_data.start_date || '\u2014'}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Release Date</div>
-                          <div className="text-white">{selectedOrder.mo_data.release_date || '\u2014'}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-xs">Due Date</div>
-                          <div className="text-yellow-400 font-semibold">{selectedOrder.mo_data.due_date || '\u2014'}</div>
-                        </div>
-                      </div>
-                      {(selectedOrder.mo_data.customer || selectedOrder.mo_data.notes) && (
-                        <div className="mt-4 pt-4 border-t border-purple-500/20">
-                          {selectedOrder.mo_data.customer && (
-                            <div className="mb-2">
-                              <span className="text-slate-500 text-sm">Customer: </span>
-                              <span className="text-white">{selectedOrder.mo_data.customer}</span>
-                            </div>
-                          )}
-                          {selectedOrder.mo_data.notes && (
-                            <div className="bg-slate-800/50 rounded-lg p-2 text-sm text-slate-300">{selectedOrder.mo_data.notes}</div>
-                          )}
-                        </div>
-                      )}
-                      {(selectedOrder.mo_data.total_material_cost > 0 || selectedOrder.mo_data.total_labor_cost > 0) && (
-                        <div className="mt-4 pt-4 border-t border-purple-500/20 flex gap-6 text-sm">
-                          <div>
-                            <span className="text-slate-500">Material Cost: </span>
-                            <span className="text-white font-semibold">${selectedOrder.mo_data.total_material_cost.toFixed(2)}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Labor Cost: </span>
-                            <span className="text-white font-semibold">${selectedOrder.mo_data.total_labor_cost.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">No MO data available from MISys</div>
-                  )}
-                </div>
-
-                {/* Materials / BOM */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
-                      <Package className="w-5 h-5" />
-                      Bill of Materials
-                    </h3>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400 text-sm">{selectedOrder.materials?.length || 0} unique components</span>
-                      {selectedOrder.materials && selectedOrder.materials.length > 0 && (
-                        <button
-                          onClick={() => exportMaterialsToCSV(selectedOrder!)}
-                          className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
-                        >
-                          <Download className="w-3 h-3" /> Export Materials
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {selectedOrder.materials && selectedOrder.materials.length > 0 ? (
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-700/50">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">#</th>
-                            <th className="px-3 py-2 text-left text-xs text-slate-300 font-semibold">COMPONENT</th>
-                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">NEED</th>
-                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">ISSUED</th>
-                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">LEFT</th>
-                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">STOCK</th>
-                            <th className="px-3 py-2 text-right text-xs text-slate-300 font-semibold">WIP</th>
-                            <th className="px-3 py-2 text-center text-xs text-slate-300 font-semibold">STATUS</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-700/50">
-                          {selectedOrder.materials.filter(m => m.required_qty > 0).map((mat, idx) => {
-                            const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
-                            const availableTotal = mat.stock_on_hand + (mat.wip || 0);
-                            const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
-                            const isInProgress = (mat.wip || 0) > 0;
-                            const isDone = mat.completed_qty >= mat.required_qty;
-                            const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
-                            return (
-                              <tr key={idx} className={`${isShort ? 'bg-red-500/10' : ''} hover:bg-slate-700/30`}>
-                                <td className="px-3 py-2 text-slate-500 text-xs">{idx + 1}</td>
-                                <td className="px-3 py-2">
-                                  <div className="text-white font-mono text-sm font-medium">{mat.component_item_no}</div>
-                                  {mat.component_description && (
-                                    <div className="text-slate-500 text-xs truncate max-w-[250px]">{mat.component_description}</div>
-                                  )}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className="text-white">{mat.required_qty.toLocaleString()}</span>
-                                  <span className="text-slate-500 text-xs ml-1">{mat.unit}</span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className={`font-medium ${isDone ? 'text-green-400' : 'text-blue-400'}`}>
-                                    {mat.completed_qty.toLocaleString()}
-                                  </span>
-                                  <span className="text-slate-500 text-xs ml-1">({pctComplete}%)</span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className={`font-bold ${remainingNeeded === 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                                    {remainingNeeded.toLocaleString()}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className={`font-medium ${mat.stock_on_hand >= remainingNeeded ? 'text-green-400' : 'text-red-400'}`}>
-                                    {mat.stock_on_hand.toLocaleString()}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className={`font-medium ${mat.wip > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                                    {mat.wip > 0 ? mat.wip.toLocaleString() : '-'}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  {isDone ? (
-                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">DONE</span>
-                                  ) : isInProgress ? (
-                                    <span className="bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded text-xs font-medium">IN WIP</span>
-                                  ) : isShort ? (
-                                    <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-medium">SHORT {(remainingNeeded - availableTotal).toLocaleString()}</span>
-                                  ) : remainingNeeded === 0 ? (
-                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">ALL ISSUED</span>
-                                  ) : (
-                                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-medium">READY</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      <div className="bg-slate-700/30 px-3 py-2 flex justify-between items-center text-sm border-t border-slate-700">
-                        <span className="text-slate-400">
-                          {selectedOrder.materials.filter(m => m.completed_qty >= m.required_qty).length} of {selectedOrder.materials.filter(m => m.required_qty > 0).length} complete
-                          {selectedOrder.materials.some(m => (m.wip || 0) > 0) &&
-                            <span className="text-cyan-400 ml-2"> - {selectedOrder.materials.filter(m => (m.wip || 0) > 0).length} in WIP</span>
-                          }
-                        </span>
-                        <span className={`font-bold ${
-                          selectedOrder.materials.some(m => {
-                            const r = Math.max(0, m.required_qty - m.completed_qty);
-                            const a = m.stock_on_hand + (m.wip || 0);
-                            return a < r && r > 0 && (m.wip || 0) === 0;
-                          }) ? 'text-red-400' : 'text-green-400'
-                        }`}>
-                          {selectedOrder.materials.some(m => {
-                            const r = Math.max(0, m.required_qty - m.completed_qty);
-                            const a = m.stock_on_hand + (m.wip || 0);
-                            return a < r && r > 0 && (m.wip || 0) === 0;
-                          }) ? 'Material Shortage' : 'Materials OK'}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-800/30 rounded-xl p-6 text-center text-slate-500">No material data available</div>
-                  )}
-                </div>
-
-                {/* Finished Good Inventory */}
-                {selectedOrder.item_data && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-bold text-green-400 mb-2 flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" /> Finished Good Stock
-                    </h3>
-                    <div className="bg-green-500/5 rounded-xl p-4 border border-green-500/20">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <div className="text-white font-mono font-bold">{selectedOrder.item_data.item_no}</div>
-                          <div className="text-slate-400 text-sm">{selectedOrder.item_data.description}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-slate-500 text-xs">Unit Cost</div>
-                          <div className="text-white font-semibold">${selectedOrder.item_data.recent_cost?.toFixed(2) || '0.00'}</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3 text-center">
-                        <div className="bg-slate-800/50 rounded-lg p-2">
-                          <div className="text-xs text-slate-500">ON HAND</div>
-                          <div className="text-lg font-bold text-white">{selectedOrder.item_data.qty_on_hand}</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-2">
-                          <div className="text-xs text-slate-500">AVAILABLE</div>
-                          <div className={`text-lg font-bold ${(selectedOrder.item_data.qty_available ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {selectedOrder.item_data.qty_available ?? 0}
-                          </div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-2">
-                          <div className="text-xs text-slate-500">COMMITTED</div>
-                          <div className="text-lg font-bold text-orange-400">{selectedOrder.item_data.qty_committed}</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-2">
-                          <div className="text-xs text-slate-500">ON ORDER</div>
-                          <div className="text-lg font-bold text-blue-400">{selectedOrder.item_data.qty_on_order}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SO Info */}
-                {selectedOrder.so_data && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
-                      <FileText className="w-4 h-4" /> Sales Order
-                    </h3>
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 flex justify-between">
-                      <div>
-                        <div className="text-slate-500 text-xs">Customer</div>
-                        <div className="text-white font-semibold">{selectedOrder.so_data.customer}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-500 text-xs">Order Date</div>
-                        <div className="text-white">{selectedOrder.so_data.order_date || '\u2014'}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-500 text-xs">Ship Date</div>
-                        <div className="text-white">{selectedOrder.so_data.ship_date || '\u2014'}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-500 text-xs">SO Status</div>
-                        <div className="text-white">{selectedOrder.so_data.status || '\u2014'}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Items */}
+                {/* Action required banner */}
                 {selectedOrder.action_items && (
-                  <div className="p-4 bg-red-500/10 rounded-xl border border-red-500/30">
-                    <div className="text-red-400 font-bold mb-2 flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5" />
-                      Action Required
+                  <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-red-700 font-semibold text-sm">Action Required</div>
+                      <div className="text-red-600 text-sm">{selectedOrder.action_items}</div>
                     </div>
-                    <div className="text-white">{selectedOrder.action_items}</div>
                   </div>
                 )}
+
+                <div className="p-6 space-y-5">
+
+                  {/* ── Progress + Quantities ── */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-blue-500" /> Production Progress
+                      </h3>
+                      <span className="text-slate-500 text-sm">Work Center: <span className="text-slate-800 font-bold">{selectedOrder.work_center}</span></span>
+                    </div>
+
+                    {/* Big progress percentage */}
+                    <div className="flex items-stretch gap-4">
+                      <div className="flex flex-col items-center justify-center bg-slate-50 rounded-xl p-5 w-36 flex-shrink-0 border border-slate-200">
+                        <div className={`text-5xl font-black ${
+                          actualPct >= 100 ? 'text-green-600' :
+                          actualPct >= 75 ? 'text-blue-600' :
+                          actualPct >= 50 ? 'text-yellow-500' :
+                          actualPct > 0 ? 'text-orange-500' : 'text-slate-400'
+                        }`}>{Math.round(actualPct)}%</div>
+                        <div className="text-slate-500 text-xs mt-1 text-center font-medium uppercase tracking-wide">Complete</div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                          <div className={`h-2 rounded-full ${getProgressColor(actualPct)}`} style={{ width: `${Math.min(actualPct, 100)}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="flex-1 grid grid-cols-3 gap-3">
+                        <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-200">
+                          <div className="text-slate-400 text-xs font-semibold uppercase mb-1">Required</div>
+                          <div className="text-2xl font-bold text-slate-800">{selectedOrder.required.toLocaleString()}</div>
+                          <div className="text-slate-400 text-xs">{selectedOrder.packaging || 'units'}</div>
+                        </div>
+                        <div className="bg-green-50 rounded-xl p-4 text-center border border-green-200">
+                          <div className="text-green-600 text-xs font-semibold uppercase mb-1">Ready</div>
+                          <div className="text-2xl font-bold text-green-700">{(selectedOrder.ready || 0).toLocaleString()}</div>
+                          <div className="text-green-400 text-xs">completed</div>
+                        </div>
+                        <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-200">
+                          <div className="text-amber-600 text-xs font-semibold uppercase mb-1">Remaining</div>
+                          <div className="text-2xl font-bold text-amber-700">{remaining.toLocaleString()}</div>
+                          <div className="text-amber-400 text-xs">to make</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Schedule timeline */}
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-center">
+                          <div className="text-slate-400 text-xs uppercase font-semibold">Start</div>
+                          <div className="text-slate-700 font-semibold text-sm">{selectedOrder.start_date || '—'}</div>
+                        </div>
+                        <div className="flex-1 mx-4">
+                          <div className="h-1.5 bg-gray-200 rounded-full">
+                            <div className={`h-1.5 rounded-full ${colors.bg}`} style={{ width: `${Math.min(actualPct, 100)}%` }} />
+                          </div>
+                          {selectedOrder.duration > 0 && (
+                            <div className="text-center text-xs text-slate-400 mt-1">{selectedOrder.duration} days total</div>
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <div className="text-slate-400 text-xs uppercase font-semibold">End</div>
+                          <div className="text-slate-700 font-semibold text-sm">{selectedOrder.end_date || '—'}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3">
+                        <div className="bg-amber-50 rounded-lg p-3 text-center border border-amber-100">
+                          <div className="text-amber-500 text-xs font-semibold uppercase">Promised Date</div>
+                          <div className="text-amber-700 font-bold">{selectedOrder.promised_date || '—'}</div>
+                        </div>
+                        <div className={`rounded-lg p-3 text-center border ${
+                          selectedOrder.dtc <= 1 ? 'bg-red-50 border-red-100' :
+                          selectedOrder.dtc <= 3 ? 'bg-amber-50 border-amber-100' : 'bg-green-50 border-green-100'
+                        }`}>
+                          <div className="text-slate-400 text-xs font-semibold uppercase">Days to Complete</div>
+                          <div className={`font-bold ${
+                            selectedOrder.dtc <= 1 ? 'text-red-600' :
+                            selectedOrder.dtc <= 3 ? 'text-amber-600' : 'text-green-600'
+                          }`}>{selectedOrder.dtc ? `${selectedOrder.dtc}d` : '—'}</div>
+                        </div>
+                        <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-100">
+                          <div className="text-blue-500 text-xs font-semibold uppercase">Planned %</div>
+                          <div className="text-blue-700 font-bold">{selectedOrder.planned_pct || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Manufacturing Order ── */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-purple-500" /> Manufacturing Order
+                    </h3>
+                    {selectedOrder.mo_data ? (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                          {[
+                            { label: 'MO Number', value: selectedOrder.mo_data.mo_no, mono: true, accent: 'text-purple-600' },
+                            { label: 'Build Item', value: selectedOrder.mo_data.item_no, mono: true, accent: '' },
+                            { label: 'MO Status', value: selectedOrder.mo_data.status || '—', mono: false, accent: '' },
+                            { label: 'Priority', value: selectedOrder.mo_data.priority || '—', mono: false, accent: '' },
+                          ].map(({ label, value, mono, accent }) => (
+                            <div key={label} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                              <div className="text-slate-400 text-xs font-semibold uppercase mb-1">{label}</div>
+                              <div className={`font-semibold text-sm ${accent || 'text-slate-800'} ${mono ? 'font-mono' : ''}`}>{value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                          <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-200">
+                            <div className="text-slate-400 text-xs font-semibold uppercase">Ordered</div>
+                            <div className="text-xl font-bold text-slate-800">{selectedOrder.mo_data.qty_ordered?.toLocaleString()}</div>
+                          </div>
+                          <div className="bg-green-50 rounded-xl p-3 text-center border border-green-200">
+                            <div className="text-green-600 text-xs font-semibold uppercase">Completed</div>
+                            <div className="text-xl font-bold text-green-700">{selectedOrder.mo_data.qty_completed?.toLocaleString()}</div>
+                          </div>
+                          <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-200">
+                            <div className="text-amber-600 text-xs font-semibold uppercase">Remaining</div>
+                            <div className="text-xl font-bold text-amber-700">{selectedOrder.mo_data.qty_remaining?.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                          {[
+                            { label: 'Order Date', value: selectedOrder.mo_data.order_date },
+                            { label: 'Start Date', value: selectedOrder.mo_data.start_date },
+                            { label: 'Release Date', value: selectedOrder.mo_data.release_date },
+                            { label: 'Due Date', value: selectedOrder.mo_data.due_date, accent: 'text-amber-600 font-semibold' },
+                          ].map(({ label, value, accent }) => (
+                            <div key={label} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                              <div className="text-slate-400 text-xs font-semibold uppercase mb-1">{label}</div>
+                              <div className={`text-sm ${accent || 'text-slate-700'}`}>{value || '—'}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {(selectedOrder.mo_data.total_material_cost > 0 || selectedOrder.mo_data.total_labor_cost > 0) && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex gap-6 text-sm">
+                            <div><span className="text-slate-400">Material Cost: </span><span className="text-slate-800 font-semibold">${selectedOrder.mo_data.total_material_cost.toFixed(2)}</span></div>
+                            <div><span className="text-slate-400">Labor Cost: </span><span className="text-slate-800 font-semibold">${selectedOrder.mo_data.total_labor_cost.toFixed(2)}</span></div>
+                          </div>
+                        )}
+                        {selectedOrder.mo_data.notes && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-slate-700">
+                            <span className="font-semibold text-blue-600">Notes: </span>{selectedOrder.mo_data.notes}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-6 text-slate-400">
+                        <Wrench className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No MO data available from MISys</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Bill of Materials ── */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-blue-500" /> Bill of Materials
+                        <span className="text-slate-400 font-normal text-sm">({selectedOrder.materials?.filter(m => m.required_qty > 0).length || 0} components)</span>
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {hasShortage && (
+                          <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Material Shortage
+                          </span>
+                        )}
+                        {!hasShortage && hasMaterials && (
+                          <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-full">Materials OK</span>
+                        )}
+                        {selectedOrder.materials && selectedOrder.materials.length > 0 && (
+                          <button
+                            onClick={() => exportMaterialsToCSV(selectedOrder!)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors"
+                          >
+                            <Download className="w-3 h-3" /> Export
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {hasMaterials ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+                              <th className="px-3 py-2.5 text-left w-8">#</th>
+                              <th className="px-3 py-2.5 text-left">Component</th>
+                              <th className="px-3 py-2.5 text-right">Need</th>
+                              <th className="px-3 py-2.5 text-right">Issued</th>
+                              <th className="px-3 py-2.5 text-right">Left</th>
+                              <th className="px-3 py-2.5 text-right">Stock</th>
+                              <th className="px-3 py-2.5 text-right">WIP</th>
+                              <th className="px-3 py-2.5 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(selectedOrder.materials ?? []).filter(m => m.required_qty > 0).map((mat, idx) => {
+                              const remainingNeeded = Math.max(0, mat.required_qty - mat.completed_qty);
+                              const availableTotal = mat.stock_on_hand + (mat.wip || 0);
+                              const isShort = availableTotal < remainingNeeded && remainingNeeded > 0 && (mat.wip || 0) === 0;
+                              const isInProgress = (mat.wip || 0) > 0;
+                              const isDone = mat.completed_qty >= mat.required_qty;
+                              const pctComplete = mat.required_qty > 0 ? Math.round((mat.completed_qty / mat.required_qty) * 100) : 0;
+                              return (
+                                <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${isShort ? 'bg-red-50/60' : ''}`}>
+                                  <td className="px-3 py-2.5 text-slate-400 text-xs">{idx + 1}</td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="text-slate-800 font-mono text-sm font-semibold">{mat.component_item_no}</div>
+                                    {mat.component_description && (
+                                      <div className="text-slate-400 text-xs truncate max-w-[240px]">{mat.component_description}</div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className="text-slate-700 font-medium">{mat.required_qty.toLocaleString()}</span>
+                                    <span className="text-slate-400 text-xs ml-1">{mat.unit}</span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className={`font-medium ${isDone ? 'text-green-600' : 'text-blue-600'}`}>
+                                      {mat.completed_qty.toLocaleString()}
+                                    </span>
+                                    <span className="text-slate-400 text-xs ml-1">({pctComplete}%)</span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className={`font-semibold ${remainingNeeded === 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                                      {remainingNeeded.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className={`font-medium ${mat.stock_on_hand >= remainingNeeded ? 'text-green-600' : 'text-red-500'}`}>
+                                      {mat.stock_on_hand.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className={`font-medium ${mat.wip > 0 ? 'text-cyan-600' : 'text-slate-300'}`}>
+                                      {mat.wip > 0 ? mat.wip.toLocaleString() : '–'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    {isDone ? (
+                                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">Done</span>
+                                    ) : isInProgress ? (
+                                      <span className="bg-cyan-100 text-cyan-700 px-2 py-0.5 rounded-full text-xs font-semibold">In WIP</span>
+                                    ) : isShort ? (
+                                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                        Short {(remainingNeeded - availableTotal).toLocaleString()}
+                                      </span>
+                                    ) : remainingNeeded === 0 ? (
+                                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">All Issued</span>
+                                    ) : (
+                                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold">Ready</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        <div className="px-4 py-2.5 bg-slate-50 border-t border-gray-100 flex justify-between items-center text-xs text-slate-500">
+                          <span>
+                            {(selectedOrder.materials ?? []).filter(m => m.completed_qty >= m.required_qty).length} of {(selectedOrder.materials ?? []).filter(m => m.required_qty > 0).length} components complete
+                            {(selectedOrder.materials ?? []).some(m => (m.wip || 0) > 0) && (
+                              <span className="text-cyan-600 ml-2 font-medium">· {(selectedOrder.materials ?? []).filter(m => (m.wip || 0) > 0).length} in WIP</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No material data available</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Finished Good Stock ── */}
+                  {selectedOrder.item_data && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                      <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-green-500" /> Finished Good Inventory
+                      </h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <div className="text-slate-800 font-mono font-bold text-base">{selectedOrder.item_data.item_no}</div>
+                          <div className="text-slate-500 text-sm">{selectedOrder.item_data.description}</div>
+                        </div>
+                        {(selectedOrder.item_data.recent_cost ?? 0) > 0 && (
+                          <div className="text-right">
+                            <div className="text-slate-400 text-xs font-semibold uppercase">Unit Cost</div>
+                            <div className="text-slate-800 font-semibold">${selectedOrder.item_data.recent_cost?.toFixed(2)}</div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        {[
+                          { label: 'On Hand', value: selectedOrder.item_data.qty_on_hand, cls: 'bg-slate-50 border-slate-200 text-slate-800' },
+                          { label: 'Available', value: selectedOrder.item_data.qty_available ?? 0, cls: (selectedOrder.item_data.qty_available ?? 0) > 0 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-600' },
+                          { label: 'Committed', value: selectedOrder.item_data.qty_committed, cls: 'bg-orange-50 border-orange-200 text-orange-700' },
+                          { label: 'On Order', value: selectedOrder.item_data.qty_on_order, cls: 'bg-blue-50 border-blue-200 text-blue-700' },
+                        ].map(({ label, value, cls }) => (
+                          <div key={label} className={`rounded-xl p-3 text-center border ${cls}`}>
+                            <div className="text-xs font-semibold uppercase opacity-70 mb-1">{label}</div>
+                            <div className="text-xl font-bold">{value?.toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Sales Order Info ── */}
+                  {selectedOrder.so_data && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                      <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-slate-500" /> Sales Order Details
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                          { label: 'Customer', value: selectedOrder.so_data.customer },
+                          { label: 'Order Date', value: selectedOrder.so_data.order_date || '—' },
+                          { label: 'Ship Date', value: selectedOrder.so_data.ship_date || '—' },
+                          { label: 'SO Status', value: selectedOrder.so_data.status || '—' },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                            <div className="text-slate-400 text-xs font-semibold uppercase mb-1">{label}</div>
+                            <div className="text-slate-800 font-medium text-sm">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
               </div>
             </div>
           </div>

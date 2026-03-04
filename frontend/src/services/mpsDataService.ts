@@ -60,11 +60,41 @@ export function openSalesOrder(soNumber: string): void {
   if (url) window.open(url, '_blank');
 }
 
+// ── Frontend data cache (avoids re-fetching 86MB every 30s) ────────────────
+// The backend has a 1-hour cache; this frontend cache prevents redundant
+// network transfers between the 30s poll intervals.
+interface MISysCacheEntry { data: MISysData; timestamp: number; }
+let _misysCacheEntry: MISysCacheEntry | null = null;
+const MISYS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface MPSCacheEntry { orders: MPSOrder[]; timestamp: number; }
+let _mpsCacheEntry: MPSCacheEntry | null = null;
+const MPS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes (MPS CSV changes less often)
+
+export function invalidateMPSCache() {
+  _misysCacheEntry = null;
+  _mpsCacheEntry = null;
+}
+
 export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers?: string[] }): Promise<MISysData> {
-  // Don't use frontend cache - always fetch fresh data from backend
-  // Backend has its own cache mechanism with shorter duration
-  // This ensures we get the latest MISys data when MPS updates
-  
+  // Check in-memory cache first — avoids re-fetching the full 86 MB payload on
+  // every 30s poll. Cache is invalidated when the user manually refreshes.
+  const now = Date.now();
+  if (_misysCacheEntry && (now - _misysCacheEntry.timestamp) < MISYS_CACHE_TTL_MS) {
+    const cached = _misysCacheEntry.data;
+    // Apply filters to cached data if needed
+    const hasFilters = filters && (filters.moNumbers?.length || filters.soNumbers?.length);
+    if (!hasFilters) return cached;
+    const moSet = new Set((filters!.moNumbers || []).map(n => String(n).trim().toUpperCase()));
+    const soSet = new Set((filters!.soNumbers || []).map(n => String(n).trim().toUpperCase()));
+    return {
+      items: cached.items,
+      moHeaders: moSet.size ? cached.moHeaders.filter((mo: any) => moSet.has(String(mo['Mfg. Order No.'] ?? mo['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moHeaders,
+      moDetails: moSet.size ? cached.moDetails.filter((d: any) => moSet.has(String(d['Mfg. Order No.'] ?? d['Mfg Order No.'] ?? '').trim().toUpperCase())) : cached.moDetails,
+      salesOrders: soSet.size ? cached.salesOrders.filter((so: any) => soSet.has(String(so['SO No.'] ?? so['SO_No'] ?? so['Order No.'] ?? '').trim().toUpperCase())) : cached.salesOrders,
+    };
+  }
+
   try {
     const hasFilters = filters && (filters.moNumbers?.length || filters.soNumbers?.length);
     
@@ -74,8 +104,9 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
       console.log('📦 Fetching all MISys data...');
     }
     
-    // Backend /api/data only supports GET. Use query params for cache-busting; filter client-side if needed.
-    const apiUrl = `${CANOIL_API}?force_refresh=true&t=${Date.now()}`;
+    // Use a single cache-busting param; backend has a 1-hour cache so we
+    // don't need force_refresh — the backend will serve from cache on subsequent calls.
+    const apiUrl = `${CANOIL_API}?t=${Date.now()}`;
     const response = await fetch(apiUrl, {
       method: 'GET',
       cache: 'no-store',
@@ -90,13 +121,17 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
     // API might return data directly or nested under 'data' key
     const data = responseData.data || responseData;
     
-    let result: MISysData = {
+    // Populate full cache before applying filters
+    const fullResult: MISysData = {
       // Items.json has the REAL stock data (Stock, WIP, Reserve, On Order - enriched from MIILOCQT)
       items: data['Items.json'] || [],
       moHeaders: data['ManufacturingOrderHeaders.json'] || [],
       moDetails: data['ManufacturingOrderDetails.json'] || [],
       salesOrders: data['SalesOrders.json'] || []
     };
+    _misysCacheEntry = { data: fullResult, timestamp: Date.now() };
+
+    let result: MISysData = fullResult;
     if (hasFilters && filters) {
       const moSet = new Set((filters.moNumbers || []).map((n) => String(n).trim().toUpperCase()));
       const soSet = new Set((filters.soNumbers || []).map((n) => String(n).trim().toUpperCase()));
@@ -128,19 +163,22 @@ export async function fetchMISysData(filters?: { moNumbers?: string[], soNumbers
   }
 }
 
-// Cache clearing function removed - we always fetch fresh data from backend
 export function clearMISysCache() {
-  // No-op: cache is handled by backend, frontend always fetches fresh
+  _misysCacheEntry = null;
+  _mpsCacheEntry = null;
 }
 
-export async function fetchMPSData(): Promise<MPSOrder[]> {
+export async function fetchMPSData(forceRefresh = false): Promise<MPSOrder[]> {
+  // Return cached result if fresh enough (avoids re-parsing 86MB + CSV every 30s)
+  const now = Date.now();
+  if (!forceRefresh && _mpsCacheEntry && (now - _mpsCacheEntry.timestamp) < MPS_CACHE_TTL_MS) {
+    console.log(`✅ MPS: returning ${_mpsCacheEntry.orders.length} cached orders (${Math.round((now - _mpsCacheEntry.timestamp) / 1000)}s old)`);
+    return _mpsCacheEntry.orders;
+  }
+
   try {
-    // Fetch MPS from Google Sheets
-    // Aggressive cache-busting: timestamp + random + counter to ensure fresh data
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(7);
-    const counter = Math.floor(Math.random() * 1000000);
-    const cacheBusterParams = `t=${timestamp}&r=${random}&c=${counter}&_=${performance.now()}`;
+    // Single cache-busting timestamp is sufficient alongside cache: 'no-store'
+    const cacheBusterParams = `t=${Date.now()}`;
     
     // Try backend first if available, otherwise direct Google Sheets
     let csvText: string;
@@ -461,6 +499,7 @@ export async function fetchMPSData(): Promise<MPSOrder[]> {
     }
     
     console.log(`✅ Loaded ${orders.length} MPS orders with full MISys enrichment`);
+    _mpsCacheEntry = { orders, timestamp: Date.now() };
     return orders;
     
   } catch (error) {
