@@ -466,25 +466,47 @@ export function ProductionScheduleMPS() {
 
       {/* ── KPI + Filters ──────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-4">
-            <span className="text-slate-500 text-sm">
-              <span className="text-slate-800 font-semibold">{kpi.total}</span> total
-            </span>
-            {kpi.shortageCount > 0 && (
-              <span className="text-red-600 text-sm font-medium flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" />
-                {kpi.shortageCount} shortage{kpi.shortageCount !== 1 ? 's' : ''}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* KPI stat chips */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+              <span className="text-slate-800 font-bold text-sm tabular-nums">{kpi.total}</span>
+              <span className="text-slate-500 text-xs">orders</span>
+            </div>
+            <button
+              onClick={() => setFilterShortageOnly(!filterShortageOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                filterShortageOnly
+                  ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                  : kpi.shortageCount > 0
+                  ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                  : 'bg-slate-50 text-slate-400 border-slate-200 cursor-default'
+              }`}
+              disabled={kpi.shortageCount === 0}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span className="font-bold tabular-nums">{kpi.shortageCount}</span>
+              <span className={`text-xs ${filterShortageOnly ? 'text-red-100' : 'text-red-500'}`}>
+                shortage{kpi.shortageCount !== 1 ? 's' : ''}
               </span>
-            )}
-            {kpi.atRiskCount > 0 && (
-              <span className="text-amber-600 text-sm font-medium flex items-center gap-1">
-                <Clock className="w-4 h-4" />
-                {kpi.atRiskCount} at risk
-              </span>
-            )}
+            </button>
+            <button
+              onClick={() => setFilterAtRiskOnly(!filterAtRiskOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+                filterAtRiskOnly
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                  : kpi.atRiskCount > 0
+                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                  : 'bg-slate-50 text-slate-400 border-slate-200 cursor-default'
+              }`}
+              disabled={kpi.atRiskCount === 0}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="font-bold tabular-nums">{kpi.atRiskCount}</span>
+              <span className={`text-xs ${filterAtRiskOnly ? 'text-amber-100' : 'text-amber-600'}`}>at risk</span>
+            </button>
           </div>
-          <div className="h-4 w-px bg-gray-300" />
+          <div className="h-5 w-px bg-gray-200" />
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -496,23 +518,7 @@ export function ProductionScheduleMPS() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <button
-              onClick={() => setFilterShortageOnly(!filterShortageOnly)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                filterShortageOnly ? 'bg-red-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
-              }`}
-            >
-              Shortages
-            </button>
-            <button
-              onClick={() => setFilterAtRiskOnly(!filterAtRiskOnly)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                filterAtRiskOnly ? 'bg-amber-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
-              }`}
-            >
-              At risk
-            </button>
+            <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <select
               value={filterWorkCenter}
               onChange={(e) => setFilterWorkCenter(e.target.value)}
@@ -542,17 +548,38 @@ export function ProductionScheduleMPS() {
         </div>
       </div>
 
-      {/* ── Customer legend ────────────────────────────────────── */}
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex-shrink-0">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-slate-500 text-sm font-medium">Customers:</span>
-          {customerLegend.slice(0, 10).map(([name, { bg, count }]) => (
-            <div key={name} className="flex items-center gap-1.5">
-              <div className={`w-3 h-3 rounded ${bg}`} />
-              <span className="text-slate-700 text-sm">{name}</span>
-              <span className="text-slate-400 text-xs">({count})</span>
-            </div>
+      {/* ── Customer legend — scrollable filter chips ──────────── */}
+      <div className="bg-white border-b border-gray-100 px-6 py-2 flex-shrink-0">
+        <div className="flex items-center gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+            Customers
+          </span>
+          {customerLegend.map(([name, { bg, count }]) => (
+            <button
+              key={name}
+              onClick={() => setFilterCustomer(filterCustomer === name ? '' : name)}
+              title={`${name} — ${count} order${count !== 1 ? 's' : ''}`}
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs rounded-full px-3 py-1 border transition-all flex-shrink-0 ${
+                filterCustomer === name
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-600 border-gray-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${bg}`} />
+              {name}
+              <span className={`font-semibold ${filterCustomer === name ? 'text-blue-200' : 'text-slate-400'}`}>
+                {count}
+              </span>
+            </button>
           ))}
+          {filterCustomer && (
+            <button
+              onClick={() => setFilterCustomer('')}
+              className="text-slate-400 hover:text-slate-700 text-xs whitespace-nowrap flex-shrink-0 underline"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -581,52 +608,64 @@ export function ProductionScheduleMPS() {
               const wcOrders = filteredOrders.filter(o => o.work_center === wc);
               const collapsed = collapsedWCs.has(wc);
               const wcShortages = wcOrders.filter(o => o.status.toLowerCase().includes('shortage')).length;
+              const wcAtRisk = wcOrders.filter(o => isOrderAtRisk(o)).length;
+              const wcComplete = wcOrders.filter(o => o.status.toLowerCase().includes('complete') || (parseFloat(o.actual_pct) || 0) >= 100).length;
               return (
                 <div key={wc} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                   {/* Work center header */}
                   <button
                     onClick={() => toggleWC(wc)}
-                    className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-50 hover:bg-slate-100/80 transition-colors border-b border-gray-200"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-bold tracking-wide min-w-[48px] text-center">
+                      <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-bold tracking-widest min-w-[52px] text-center shadow-sm">
                         {wc}
                       </span>
-                      <span className="text-slate-800 font-semibold">
+                      <span className="text-slate-700 font-semibold text-sm">
                         {wcOrders.length} order{wcOrders.length !== 1 ? 's' : ''}
                       </span>
+                      {wcComplete > 0 && (
+                        <span className="text-xs text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                          {wcComplete} done
+                        </span>
+                      )}
                       {wcShortages > 0 && (
-                        <span className="flex items-center gap-1 text-red-600 text-sm">
-                          <AlertTriangle className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                          <AlertTriangle className="w-3 h-3" />
                           {wcShortages} shortage{wcShortages !== 1 ? 's' : ''}
                         </span>
                       )}
+                      {wcAtRisk > 0 && wcAtRisk !== wcShortages && (
+                        <span className="flex items-center gap-1 text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                          <Clock className="w-3 h-3" />
+                          {wcAtRisk} at risk
+                        </span>
+                      )}
                     </div>
-                    {collapsed ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+                    {collapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
                   </button>
 
                   {!collapsed && (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-50 text-xs text-slate-500 uppercase tracking-wider">
-                            <th className="px-3 py-2.5 text-left w-12">Line</th>
-                            <th className="px-3 py-2.5 text-left">SO</th>
-                            <th className="px-3 py-2.5 text-left">MO</th>
-                            <th className="px-3 py-2.5 text-left">Status</th>
-                            <th className="px-3 py-2.5 text-left">Product</th>
-                            <th className="px-3 py-2.5 text-left">Customer</th>
-                            <th className="px-3 py-2.5 text-left">Pkg</th>
-                            <th className="px-3 py-2.5 text-right">Required</th>
-                            <th className="px-3 py-2.5 text-right">Ready</th>
-                            <th className="px-3 py-2.5 text-center w-36">Progress</th>
-                            <th className="px-3 py-2.5 text-left">Start</th>
-                            <th className="px-3 py-2.5 text-left">End</th>
-                            <th className="px-3 py-2.5 text-left">Promised</th>
-                            <th className="px-3 py-2.5 text-center w-16">DTC</th>
+                          <tr className="bg-slate-50 border-b border-gray-200 text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                            <th className="pl-4 pr-2 py-3 text-left w-14"></th>
+                            <th className="px-3 py-3 text-left w-24">SO</th>
+                            <th className="px-3 py-3 text-left w-20">MO</th>
+                            <th className="px-3 py-3 text-left w-40">Status</th>
+                            <th className="px-3 py-3 text-left min-w-[260px]">Product</th>
+                            <th className="px-3 py-3 text-left min-w-[180px]">Customer</th>
+                            <th className="px-3 py-3 text-right w-24">Required</th>
+                            <th className="px-3 py-3 text-right w-20">Ready</th>
+                            <th className="px-3 py-3 text-center w-40">Progress</th>
+                            <th className="px-3 py-3 text-left w-28">Start</th>
+                            <th className="px-3 py-3 text-left w-24">End</th>
+                            <th className="px-3 py-3 text-left w-28">Promised</th>
+                            <th className="px-3 py-3 text-center w-16">DTC</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100/80">
                           {wcOrders.map((order, idx) => {
                             const actualPct = parseFloat(order.actual_pct) || 0;
                             const atRisk = isOrderAtRisk(order);
@@ -638,67 +677,88 @@ export function ProductionScheduleMPS() {
                               <tr
                                 key={`${order.so_number}-${idx}`}
                                 onClick={() => setSelectedOrder(order)}
-                                className={`cursor-pointer transition-colors hover:bg-blue-50/50 ${
-                                  isShortage ? 'bg-red-50/50' : atRisk ? 'bg-amber-50/50' : ''
+                                className={`cursor-pointer transition-all border-l-4 group ${
+                                  isShortage
+                                    ? 'border-l-red-500 bg-red-50/20 hover:bg-red-50/50'
+                                    : atRisk
+                                    ? 'border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/50'
+                                    : 'border-l-transparent hover:bg-blue-50/40 hover:border-l-blue-300'
                                 }`}
                               >
-                                <td className="px-3 py-2.5">
-                                  <span className="text-slate-400">{order.line_number}</span>
-                                  {(isShortage || atRisk) && (
-                                    <span className={`inline-block w-1.5 h-1.5 rounded-full ml-1.5 ${isShortage ? 'bg-red-500' : 'bg-amber-500'}`} />
-                                  )}
+                                {/* Line # + indicator */}
+                                <td className="pl-4 pr-2 py-3 w-14">
+                                  <span className="text-slate-400 text-xs font-mono">{order.line_number || '—'}</span>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  <span className="text-blue-600 font-mono font-medium">{order.so_number}</span>
+                                {/* SO */}
+                                <td className="px-3 py-3">
+                                  <span className="text-blue-600 font-mono text-xs font-semibold tracking-tight">{order.so_number}</span>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  <span className="text-violet-600 font-mono">{order.mo_number}</span>
+                                {/* MO */}
+                                <td className="px-3 py-3">
+                                  <span className="text-violet-600 font-mono text-xs">{order.mo_number}</span>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${badge.classes}`}>
-                                    {badge.icon && <AlertTriangle className="w-3 h-3" />}
+                                {/* Status */}
+                                <td className="px-3 py-3">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.classes}`}>
+                                    {badge.icon && <AlertTriangle className="w-3 h-3 flex-shrink-0" />}
                                     {order.status}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2.5 max-w-[220px]">
-                                  <span className="text-slate-800 truncate block">{order.product}</span>
+                                {/* Product — full text, wraps gracefully */}
+                                <td className="px-3 py-3 min-w-[260px] max-w-[320px]">
+                                  <span className="text-slate-800 text-sm leading-snug block" title={order.product}>
+                                    {order.product}
+                                  </span>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className={`w-2 h-2 rounded-sm flex-shrink-0 ${getCustomerColor(order.product).bg}`} />
-                                    <span className="text-slate-700 truncate max-w-[150px]">{custName || '-'}</span>
+                                {/* Customer */}
+                                <td className="px-3 py-3 min-w-[180px]">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getCustomerColor(order.product).bg}`} />
+                                    <span className="text-slate-700 text-sm truncate max-w-[200px]" title={custName}>
+                                      {custName || '—'}
+                                    </span>
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5 text-slate-500 text-xs">{order.packaging || '-'}</td>
-                                <td className="px-3 py-2.5 text-right text-slate-800 font-medium">{order.required.toLocaleString()}</td>
-                                <td className="px-3 py-2.5 text-right">
-                                  <span className={`font-medium ${(order.ready || 0) > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                                {/* Required */}
+                                <td className="px-3 py-3 text-right">
+                                  <span className="text-slate-800 font-semibold tabular-nums text-sm">{order.required.toLocaleString()}</span>
+                                </td>
+                                {/* Ready */}
+                                <td className="px-3 py-3 text-right">
+                                  <span className={`font-semibold tabular-nums text-sm ${(order.ready || 0) > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
                                     {(order.ready || 0).toLocaleString()}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2.5">
+                                {/* Progress */}
+                                <td className="px-3 py-3">
                                   <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-[60px]">
+                                    <div className="flex-1 bg-gray-100 rounded-full h-2 min-w-[72px] overflow-hidden">
                                       <div
                                         className={`h-2 rounded-full transition-all ${getProgressColor(actualPct)}`}
                                         style={{ width: `${Math.min(actualPct, 100)}%` }}
                                       />
                                     </div>
-                                    <span className={`text-xs font-medium w-10 text-right ${
-                                      actualPct >= 100 ? 'text-green-600' : actualPct > 0 ? 'text-slate-700' : 'text-slate-400'
+                                    <span className={`text-xs font-semibold w-9 text-right tabular-nums ${
+                                      actualPct >= 100 ? 'text-emerald-600' : actualPct > 0 ? 'text-slate-600' : 'text-slate-300'
                                     }`}>
                                       {Math.round(actualPct)}%
                                     </span>
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5 text-slate-600 text-xs whitespace-nowrap">{order.start_date || '-'}</td>
-                                <td className="px-3 py-2.5 text-slate-600 text-xs whitespace-nowrap">{order.end_date || '-'}</td>
-                                <td className="px-3 py-2.5 text-amber-600 text-xs font-medium whitespace-nowrap">{order.promised_date || '-'}</td>
-                                <td className="px-3 py-2.5 text-center">
-                                  {order.dtc ? (
-                                    <span className={`text-xs font-bold ${getDtcStyle(order.dtc)}`}>{order.dtc}d</span>
+                                {/* Dates */}
+                                <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap tabular-nums">{order.start_date || '—'}</td>
+                                <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap tabular-nums">{order.end_date || '—'}</td>
+                                <td className="px-3 py-3 whitespace-nowrap">
+                                  <span className={`text-xs font-medium tabular-nums ${order.promised_date ? 'text-amber-600' : 'text-slate-300'}`}>
+                                    {order.promised_date || '—'}
+                                  </span>
+                                </td>
+                                {/* DTC */}
+                                <td className="px-3 py-3 text-center">
+                                  {order.dtc > 0 ? (
+                                    <span className={`text-xs font-bold tabular-nums ${getDtcStyle(order.dtc)}`}>{order.dtc}d</span>
                                   ) : (
-                                    <span className="text-slate-400 text-xs">-</span>
+                                    <span className="text-slate-300 text-xs">—</span>
                                   )}
                                 </td>
                               </tr>
