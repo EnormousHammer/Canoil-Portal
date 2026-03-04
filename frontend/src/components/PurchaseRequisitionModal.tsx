@@ -90,6 +90,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   
   // Loading state
   const [isGenerating, setIsGenerating] = useState(false);
+  // Tracks which item indices are currently fetching real PO price from backend
+  const [priceFetchingIndices, setPriceFetchingIndices] = useState<Set<number>>(new Set());
 
   // Load supplier info from PO data
   useEffect(() => {
@@ -294,25 +296,52 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
 
   // Add item to selected list
   const handleAddItem = async (item: SearchResult) => {
+    const isFirstItem = selectedItems.length === 0;
+    const insertionIndex = selectedItems.length; // index in the array for this new item
+
+    // Start with unit_price: 0 — real PO price will be fetched below
     const newItem: SelectedItem = {
       item_no: item.item_no,
       description: item.description,
       quantity: item.reorder_quantity || 1,
       unit: item.unit || 'EA',
-      unit_price: item.unit_price || 0,
+      unit_price: 0,
       current_stock: item.current_stock || ''
     };
-    
-    // Check BEFORE adding the item
-    const isFirstItem = selectedItems.length === 0;
-    
-    console.log('🔍 DEBUG - Is first item?:', isFirstItem);
-    console.log('🔍 DEBUG - item.preferred_supplier:', item.preferred_supplier);
-    console.log('🔍 DEBUG - supplierInfo:', supplierInfo);
-    
-    setSelectedItems([...selectedItems, newItem]);
+
+    setSelectedItems(prev => [...prev, newItem]);
     setSearchQuery('');
     setSearchResults([]);
+    setPriceFetchingIndices(prev => new Set(prev).add(insertionIndex));
+
+    // Fetch real last-PO price from backend so the Excel shows the correct purchasing-unit price
+    try {
+      const resp = await fetch(getApiUrl(`/api/pr/item-pricing/${encodeURIComponent(item.item_no)}`));
+      const realPrice = resp.ok
+        ? ((await resp.json()).latest_price ?? item.unit_price ?? 0)
+        : (item.unit_price ?? 0);
+      setSelectedItems(prev => {
+        const updated = [...prev];
+        if (updated[insertionIndex]?.item_no === item.item_no) {
+          updated[insertionIndex] = { ...updated[insertionIndex], unit_price: realPrice };
+        }
+        return updated;
+      });
+    } catch {
+      setSelectedItems(prev => {
+        const updated = [...prev];
+        if (updated[insertionIndex]?.item_no === item.item_no) {
+          updated[insertionIndex] = { ...updated[insertionIndex], unit_price: item.unit_price ?? 0 };
+        }
+        return updated;
+      });
+    } finally {
+      setPriceFetchingIndices(prev => {
+        const next = new Set(prev);
+        next.delete(insertionIndex);
+        return next;
+      });
+    }
     
     // Auto-populate supplier info from first item's preferred supplier
     if (isFirstItem && item.preferred_supplier && !supplierInfo) {
@@ -735,8 +764,14 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
                           />
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                          ${(item.unit_price || 0).toFixed(2)}
-                          <div className="text-xs text-gray-500">Recent PO Price</div>
+                          {priceFetchingIndices.has(index) ? (
+                            <span className="text-gray-400 italic text-xs">fetching…</span>
+                          ) : (
+                            <>
+                              ${(item.unit_price || 0).toFixed(2)}
+                              <div className="text-xs text-gray-500">Last PO Price</div>
+                            </>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)}</td>
                         <td className="px-4 py-3">

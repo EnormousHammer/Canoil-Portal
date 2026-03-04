@@ -122,6 +122,11 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
     wb = load_workbook(output_path)
     ws = wb.active
 
+    # Pre-calculate how many extra rows (beyond the 6 template rows) are needed
+    # so that row numbers for later sections (trade terms, totals) are correct.
+    items = so_data.get('items', [])
+    extras = max(0, len(items) - MAX_ITEMS)
+
     # --- Title row ---
     ws['C4'] = f'Proforma Invoice {date_str}'
     if so_number:
@@ -147,12 +152,13 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
 
     ws['I15'] = invoice_date
 
-    # --- Trade Terms ---
+    # --- Trade Terms (row shifts if extra item rows were inserted) ---
     trade_terms = _safe_str(so_data.get('trade_terms'), 'EXW')
-    ws['B31'] = f'Trade Terms: {trade_terms}'
+    trade_terms_row = 31 + extras
+    ws[f'B{trade_terms_row}'] = f'Trade Terms: {trade_terms}'
 
-    # --- Items (rows 19-24, max 6 items before Sub Total row 25) ---
-    # Grab the first item row's cell formatting as a reference for consistent style
+    # --- Items ---
+    # Capture reference formatting from the first template item row
     ref_font_b = copy.copy(ws[f'B{ITEM_START_ROW}'].font)
     ref_font_c = copy.copy(ws[f'C{ITEM_START_ROW}'].font)
     ref_font_g = copy.copy(ws[f'G{ITEM_START_ROW}'].font)
@@ -163,8 +169,18 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
     ref_numfmt_h = ws[f'H{ITEM_START_ROW}'].number_format
     ref_numfmt_i = ws[f'I{ITEM_START_ROW}'].number_format
 
-    items = so_data.get('items', [])
-    for idx, item in enumerate(items[:MAX_ITEMS]):
+    # If there are more items than the template supports, insert extra rows before
+    # the Sub Total row so every line item appears in the output.
+    if extras > 0:
+        # Insert rows just after the last template item row (before Sub Total)
+        ws.insert_rows(ITEM_END_ROW + 1, extras)
+
+    # Recalculate key row numbers after any inserted rows
+    actual_end_row = ITEM_END_ROW + extras
+    subtotal_row = 25 + extras
+    total_row = 27 + extras
+
+    for idx, item in enumerate(items):
         row = ITEM_START_ROW + idx
 
         _merge_if_not_merged(ws, f'C{row}:F{row}')
@@ -196,10 +212,10 @@ def generate_proforma_invoice(so_data: dict) -> tuple:
         cell_i.alignment = copy.copy(ref_align_i)
         cell_i.number_format = ref_numfmt_i or '$#,##0.00'
 
-    # Subtotal at I25: sum of item rows only
-    ws['I25'] = f'=SUM(I{ITEM_START_ROW}:I{ITEM_END_ROW})'
-    # Grand total at I27: must equal subtotal (NOT re-sum the range that includes I25)
-    ws['I27'] = '=I25'
+    # Subtotal: sum all item rows
+    ws[f'I{subtotal_row}'] = f'=SUM(I{ITEM_START_ROW}:I{actual_end_row})'
+    # Grand total equals subtotal
+    ws[f'I{total_row}'] = f'=I{subtotal_row}'
 
     wb.save(output_path)
     wb.close()
