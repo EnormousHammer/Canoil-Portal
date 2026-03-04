@@ -26,14 +26,14 @@ const SECTIONS: { id: ERPSection; label: string; icon: string; desc: string }[] 
 ];
 
 const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
-  { label: 'Operations',    ids: ['overview', 'sales-orders'] },
+  { label: 'Operations',    ids: ['sales-orders'] },
   { label: 'CRM',           ids: ['customers'] },
   { label: 'Finance',       ids: ['financials'] },
   { label: 'Sage 50',       ids: ['sage-analytics', 'sage-browser', 'item-mapping'] },
 ];
 
 export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
-  const [section, setSection] = useState<ERPSection>('overview');
+  const [section, setSection] = useState<ERPSection>('sales-orders');
   const active = SECTIONS.find(s => s.id === section)!;
 
   return (
