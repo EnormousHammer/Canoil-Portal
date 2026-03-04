@@ -2810,10 +2810,16 @@ def generate_requisition():
         cell_values = {}
         today = datetime.now()
         
-        # === HEADER INFO (Same as BOM Planning) ===
-        cell_values['I7'] = user_info.get('name', '')  # Requested By
+        # === HEADER INFO ===
+        cell_values['I7'] = user_info.get('name', '')          # Requested By
         cell_values['I9'] = user_info.get('department', 'Sales')  # Department
-        cell_values['B5'] = user_info.get('justification', 'Stock Replenishment')  # Justification
+        # B5: Use PR title as the primary document heading; fall back to justification for old callers
+        pr_title = user_info.get('justification', 'Stock Replenishment')
+        customer_ref = user_info.get('customer_ref', '')
+        cell_values['B5'] = pr_title
+        # B7: Customer / order reference (if provided)
+        if customer_ref:
+            cell_values['B7'] = customer_ref
         
         # === DATES ===
         cell_values['I11'] = today.strftime('%Y-%m-%d')  # Date Requested
@@ -2961,16 +2967,11 @@ def generate_requisition():
         # Generate file using direct XML editing (preserves ALL template structure)
         output = fill_excel_directly(PR_TEMPLATE, cell_values)
         
-        # Generate filename: PR_CustomerName_SupplierName_Date.xlsx
-        # Extract customer name from justification (first part before common separators)
-        customer_name = user_info.get('justification', '')
-        if customer_name:
-            # Clean customer name - remove common prefixes/suffixes
-            customer_name = re.sub(r'^(for|order|po|purchase order)[:\s]+', '', customer_name, flags=re.IGNORECASE)
-            customer_name = re.sub(r'\s*(po|purchase order|order)[:\s#]+[A-Z0-9-]+.*$', '', customer_name, flags=re.IGNORECASE)
-            customer_name = customer_name.strip()
-            # Limit length and clean for filename
-            customer_name = re.sub(r'[^\w\s-]', '', customer_name)[:30].strip()
+        # Generate filename: PR_Title_SupplierName_Date.xlsx
+        # Use PR title directly (much cleaner than parsing justification)
+        raw_title = user_info.get('justification', '')  # frontend sends pr_title as justification
+        if raw_title:
+            customer_name = re.sub(r'[^\w\s-]', '', raw_title)[:40].strip()
             customer_name = re.sub(r'\s+', '_', customer_name)
         else:
             customer_name = 'Unknown'

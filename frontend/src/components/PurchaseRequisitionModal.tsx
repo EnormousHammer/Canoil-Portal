@@ -42,7 +42,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   // User info
   const [userName, setUserName] = useState('');
   const [department, setDepartment] = useState('');
-  const [justification, setJustification] = useState('');
+  const [prTitle, setPrTitle] = useState('');         // PR title shown on document
+  const [justification, setJustification] = useState(''); // Customer / order reference
   const [leadTime, setLeadTime] = useState('4 weeks');
   
   // Item search
@@ -53,40 +54,39 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
   // Auto-filled supplier info
   const [supplierInfo, setSupplierInfo] = useState<any>(null);
   
-  // Effect to populate selectedItems when preFilledItems are provided
-  useEffect(() => {
-    // Only log when modal is open (not during initial loading)
-    if (isOpen) {
-      console.log('PR Modal - preFilledItems received:', preFilledItems);
-    }
-    if (preFilledItems && preFilledItems.length > 0) {
-      if (isOpen) {
-        console.log('PR Modal - Setting selectedItems to:', preFilledItems);
-      }
-      setSelectedItems(preFilledItems);
-      
-      // Also clear search when pre-filled items are provided
-      setSearchQuery('');
-      setSearchResults([]);
-    }
-  }, [preFilledItems, isOpen]);
+  // Track whether we've already seeded items from preFilledItems for the current modal open.
+  // This prevents re-renders / prop updates from resetting user-edited quantities.
+  const itemsInitialised = React.useRef(false);
 
-  // Reset modal when opened
+  // Seed items ONLY when the modal first opens — never overwrite after that.
   useEffect(() => {
-    // Only log when modal is actually opened (not during initial render)
-    if (isOpen) {
-      console.log('PR Modal - isOpen changed to:', isOpen);
-      console.log('PR Modal - Modal opened, clearing search');
-      // Clear search when modal opens
-      setSearchQuery('');
-      setSearchResults([]);
-      
-      // Only clear selectedItems if no preFilledItems are provided
-      if (!preFilledItems || preFilledItems.length === 0) {
-        setSelectedItems([]);
-      }
+    if (!isOpen) {
+      itemsInitialised.current = false; // reset for next open
+      return;
+    }
+    if (itemsInitialised.current) return; // already seeded — don't touch user edits
+    itemsInitialised.current = true;
+
+    setSearchQuery('');
+    setSearchResults([]);
+
+    if (preFilledItems && preFilledItems.length > 0) {
+      setSelectedItems(preFilledItems);
+    } else {
+      setSelectedItems([]);
     }
   }, [isOpen, preFilledItems]);
+
+  // Clear header fields when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setPrTitle('');
+      setJustification('');
+      setUserName('');
+      setDepartment('');
+      setSupplierInfo(null);
+    }
+  }, [isOpen]);
   
   // Loading state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -370,8 +370,8 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
     console.log('poNumber:', poNumber);
     console.log('poData:', poData);
     
-    if (!userName || !department || !justification || selectedItems.length === 0) {
-      alert('Please fill in all required fields:\n- Your Name\n- Department\n- Justification/Customer Name\n\nAnd add at least one item');
+    if (!prTitle || !userName || !department || selectedItems.length === 0) {
+      alert('Please fill in all required fields:\n- PR Title\n- Requested By\n- Department\n\nAnd add at least one item');
       return;
     }
 
@@ -383,7 +383,9 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
         user_info: {
           name: userName,
           department: department,
-          justification: justification,
+          // pr_title is the primary document title; justification is the customer/order ref
+          justification: prTitle,
+          customer_ref: justification,
           lead_time: leadTime
         },
         items: selectedItems,
@@ -512,18 +514,34 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
-          {/* User Information Section */}
+          {/* Header / Info Section */}
           <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4">Requestor Information</h3>
+            <h3 className="text-lg font-semibold mb-4">PR Details</h3>
             <div className="grid grid-cols-2 gap-4">
+
+              {/* PR Title — full width, prominent */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">PR Title *
+                  <span className="ml-1 text-xs font-normal text-gray-400">(appears on document and filename)</span>
+                </label>
+                <input
+                  type="text"
+                  value={prTitle}
+                  onChange={(e) => setPrTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-medium"
+                  placeholder="e.g., Lanxess Monthly Replenishment — Jan 2025"
+                  required
+                />
+              </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Your Name *</label>
+                <label className="block text-sm font-medium mb-1">Requested By *</label>
                 <input
                   type="text"
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="John Doe"
+                  placeholder="Your name"
                 />
               </div>
               <div>
@@ -550,17 +568,17 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
                   <option>8 weeks</option>
                 </select>
               </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Justification / Customer Name *</label>
+              <div>
+                <label className="block text-sm font-medium mb-1">Customer / Order Reference
+                  <span className="ml-1 text-xs font-normal text-gray-400">(optional)</span>
+                </label>
                 <input
                   type="text"
                   value={justification}
                   onChange={(e) => setJustification(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Big Red Oil's New Order PO C012326-1 or Customer Name"
-                  required
+                  placeholder="e.g., Customer name or SO number"
                 />
-                <p className="text-xs text-gray-500 mt-1">Enter customer name or reason for this PR</p>
               </div>
             </div>
           </div>
@@ -756,7 +774,7 @@ export const PurchaseRequisitionModal: React.FC<PurchaseRequisitionModalProps> =
             </button>
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || selectedItems.length === 0 || !userName || !department || !justification}
+              disabled={isGenerating || selectedItems.length === 0 || !prTitle || !userName || !department}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isGenerating ? (
