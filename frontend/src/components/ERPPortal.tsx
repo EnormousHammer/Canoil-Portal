@@ -788,7 +788,7 @@ const FinancialSection: React.FC = () => {
       <div className="flex gap-2 flex-wrap">
         {([
           { id: 'ar', label: 'AR & Invoices', live: true },
-          { id: 'margins', label: 'Margin Analysis', live: false },
+          { id: 'margins', label: 'Margin Analysis', live: true },
           { id: 'gl', label: 'GL Summary', live: false },
           { id: 'reports', label: 'Month-End Reports', live: false },
         ] as const).map(t => (
@@ -801,10 +801,7 @@ const FinancialSection: React.FC = () => {
         ))}
       </div>
       {tab === 'ar' && <InvoiceSection />}
-      {tab === 'margins' && (
-        <ComingSoon feature="Margin Analysis" description="Gross margin by order, product, and customer calculated from Sage 50 invoice and COGS data."
-          items={['Margin by sales order', 'Margin by product line', 'Margin by customer']} />
-      )}
+      {tab === 'margins' && <MarginAnalysisSection />}
       {tab === 'gl' && (
         <ComingSoon feature="GL Summary" description="General ledger summary pulled from Sage 50 — assets, liabilities, revenue, and expenses."
           items={['Balance sheet summary', 'Income statement view', 'Period comparisons']} />
@@ -813,6 +810,222 @@ const FinancialSection: React.FC = () => {
         <ComingSoon feature="Month-End Reports" description="Automated month-end financial packages generated from Sage 50 G Drive data."
           items={['AR/AP aging summaries', 'Revenue by month', 'Inventory valuation snapshots']} />
       )}
+    </div>
+  );
+};
+
+
+// ============================================================
+// MARGIN ANALYSIS (from Sage titrline — real COGS vs Revenue)
+// ============================================================
+const MarginAnalysisSection: React.FC = () => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'margin' | 'revenue' | 'cogs'>('revenue');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [minMargin, setMinMargin] = useState('');
+  const [maxMargin, setMaxMargin] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    apiGet('/api/sage/gdrive/analytics/sales-by-product?limit=500')
+      .then(r => {
+        if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
+        setItems(r.data?.products || []);
+        setLoading(false);
+      })
+      .catch(e => { setError(String(e)); setLoading(false); });
+  }, []);
+
+  const fmtC = (n: number) => n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 });
+  const fmtPct = (n: number | null) => n != null ? `${n.toFixed(1)}%` : '—';
+
+  const toggle = (col: typeof sortBy) => {
+    if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    else { setSortBy(col); setSortDir('desc'); }
+  };
+
+  const filtered = items
+    .filter(i => i.estimated_margin_pct != null)
+    .filter(i => !search || (i.sPartCode + ' ' + i.sName).toLowerCase().includes(search.toLowerCase()))
+    .filter(i => minMargin === '' || i.estimated_margin_pct >= parseFloat(minMargin))
+    .filter(i => maxMargin === '' || i.estimated_margin_pct <= parseFloat(maxMargin));
+
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'desc' ? -1 : 1;
+    if (sortBy === 'margin') return dir * ((a.estimated_margin_pct ?? 0) - (b.estimated_margin_pct ?? 0));
+    if (sortBy === 'cogs') return dir * (a.total_cogs - b.total_cogs);
+    return dir * (a.total_revenue - b.total_revenue);
+  });
+
+  // Summary stats
+  const withMargin = items.filter(i => i.estimated_margin_pct != null);
+  const avgMargin = withMargin.length ? withMargin.reduce((s, i) => s + i.estimated_margin_pct, 0) / withMargin.length : null;
+  const totalRevenue = withMargin.reduce((s, i) => s + i.total_revenue, 0);
+  const totalCogs = withMargin.reduce((s, i) => s + i.total_cogs, 0);
+  const blendedMargin = totalRevenue > 0 ? (totalRevenue - totalCogs) / totalRevenue * 100 : null;
+  const belowTwenty = withMargin.filter(i => i.estimated_margin_pct < 20).length;
+  const topItem = [...withMargin].sort((a, b) => b.estimated_margin_pct - a.estimated_margin_pct)[0];
+  const bottomItem = [...withMargin].sort((a, b) => a.estimated_margin_pct - b.estimated_margin_pct)[0];
+
+  const marginColor = (m: number | null) => {
+    if (m == null) return 'text-slate-400';
+    if (m >= 40) return 'text-emerald-600 font-semibold';
+    if (m >= 25) return 'text-green-600 font-semibold';
+    if (m >= 15) return 'text-amber-600 font-semibold';
+    return 'text-red-600 font-semibold';
+  };
+  const marginBg = (m: number | null) => {
+    if (m == null) return 'bg-slate-200';
+    if (m >= 40) return 'bg-emerald-500';
+    if (m >= 25) return 'bg-green-500';
+    if (m >= 15) return 'bg-amber-400';
+    return 'bg-red-500';
+  };
+
+  if (loading) return (
+    <div className="flex items-center gap-3 py-12 text-slate-500">
+      <svg className="animate-spin h-5 w-5 text-pink-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      Loading margin data from Sage transactions…
+    </div>
+  );
+
+  if (error) return (
+    <div className="rounded-xl bg-red-50 border border-red-200 p-5 text-red-700 text-sm">{error}</div>
+  );
+
+  const SortIcon = ({ col }: { col: typeof sortBy }) => (
+    <span className={`ml-1 text-[10px] ${sortBy === col ? 'text-slate-800' : 'text-slate-300'}`}>
+      {sortBy === col ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Summary KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Blended Margin</p>
+          <p className={`text-2xl mt-1 font-bold ${marginColor(blendedMargin)}`}>{fmtPct(blendedMargin)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">all-time, {withMargin.length} items</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Avg Item Margin</p>
+          <p className={`text-2xl mt-1 font-bold ${marginColor(avgMargin)}`}>{fmtPct(avgMargin)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">per-SKU average</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Best Margin Item</p>
+          <p className="text-lg mt-1 font-bold text-emerald-600 truncate">{topItem?.sPartCode || '—'}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{fmtPct(topItem?.estimated_margin_pct ?? null)}</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 border-l-4 border-l-red-400">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Below 20% Margin</p>
+          <p className="text-2xl mt-1 font-bold text-red-600">{belowTwenty}</p>
+          <p className="text-xs text-slate-400 mt-0.5">items need attention</p>
+        </div>
+      </div>
+
+      {/* Top 5 & Bottom 5 visual bars */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Top 5 */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Top 5 by Margin %</p>
+          <div className="flex flex-col gap-2">
+            {[...withMargin].sort((a, b) => b.estimated_margin_pct - a.estimated_margin_pct).slice(0, 5).map(i => (
+              <div key={i.lInventId} className="flex items-center gap-2">
+                <span className="text-xs text-slate-600 w-24 truncate flex-shrink-0" title={i.sName}>{i.sPartCode}</span>
+                <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div className={`h-2 rounded-full ${marginBg(i.estimated_margin_pct)}`} style={{ width: `${Math.min(i.estimated_margin_pct, 100)}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-emerald-600 w-10 text-right">{fmtPct(i.estimated_margin_pct)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Bottom 5 */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 border-l-4 border-l-red-300">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Bottom 5 — Needs Review</p>
+          <div className="flex flex-col gap-2">
+            {[...withMargin].sort((a, b) => a.estimated_margin_pct - b.estimated_margin_pct).slice(0, 5).map(i => (
+              <div key={i.lInventId} className="flex items-center gap-2">
+                <span className="text-xs text-slate-600 w-24 truncate flex-shrink-0" title={i.sName}>{i.sPartCode}</span>
+                <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div className={`h-2 rounded-full ${marginBg(i.estimated_margin_pct)}`} style={{ width: `${Math.max(Math.min(i.estimated_margin_pct, 100), 2)}%` }} />
+                </div>
+                <span className={`text-xs font-semibold w-10 text-right ${marginColor(i.estimated_margin_pct)}`}>{fmtPct(i.estimated_margin_pct)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Filters + full table */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 p-3 border-b border-slate-100 bg-slate-50">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SKU or name…"
+            className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-pink-300 w-44" />
+          <div className="flex items-center gap-1 text-sm text-slate-500">
+            <span>Margin</span>
+            <input value={minMargin} onChange={e => setMinMargin(e.target.value)} placeholder="min %" type="number"
+              className="w-16 px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-pink-300" />
+            <span>–</span>
+            <input value={maxMargin} onChange={e => setMaxMargin(e.target.value)} placeholder="max %" type="number"
+              className="w-16 px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-pink-300" />
+          </div>
+          <span className="ml-auto text-xs text-slate-400">{sorted.length} items</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                <th className="px-4 py-2.5 text-left font-semibold">SKU</th>
+                <th className="px-4 py-2.5 text-left font-semibold">Name</th>
+                <th className="px-4 py-2.5 text-right font-semibold cursor-pointer select-none hover:text-slate-800" onClick={() => toggle('revenue')}>Revenue <SortIcon col="revenue" /></th>
+                <th className="px-4 py-2.5 text-right font-semibold cursor-pointer select-none hover:text-slate-800" onClick={() => toggle('cogs')}>COGS <SortIcon col="cogs" /></th>
+                <th className="px-4 py-2.5 text-right font-semibold">Gross Profit</th>
+                <th className="px-4 py-2.5 text-right font-semibold cursor-pointer select-none hover:text-slate-800" onClick={() => toggle('margin')}>Margin % <SortIcon col="margin" /></th>
+                <th className="px-4 py-2.5 text-left font-semibold w-24">Visual</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Qty Sold</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {sorted.slice(0, 100).map(i => {
+                const gp = i.total_revenue - i.total_cogs;
+                return (
+                  <tr key={i.lInventId} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{i.sPartCode}</td>
+                    <td className="px-4 py-2.5 text-slate-600 max-w-[200px] truncate" title={i.sName}>{i.sName || '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-800 tabular-nums">{fmtC(i.total_revenue)}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums">{fmtC(i.total_cogs)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-700">{fmtC(gp)}</td>
+                    <td className={`px-4 py-2.5 text-right tabular-nums ${marginColor(i.estimated_margin_pct)}`}>{fmtPct(i.estimated_margin_pct)}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="bg-slate-100 rounded-full h-1.5 w-20 overflow-hidden">
+                        <div className={`h-1.5 rounded-full ${marginBg(i.estimated_margin_pct)}`}
+                          style={{ width: `${Math.max(Math.min(i.estimated_margin_pct ?? 0, 100), 1)}%` }} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums">{i.total_qty > 0 ? i.total_qty.toLocaleString() : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {sorted.length === 0 && (
+            <p className="text-center text-slate-400 py-10 text-sm">No items match your filters.</p>
+          )}
+          {sorted.length > 100 && (
+            <p className="text-center text-slate-400 py-3 text-xs border-t border-slate-100">Showing top 100 of {sorted.length}. Use filters to narrow.</p>
+          )}
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-400">
+        Source: Sage 50 transaction lines (titrline) — revenue from <code>dAmt</code>, COGS from <code>dCost</code>. All-time figures.
+      </p>
     </div>
   );
 };
