@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../utils/portalApi';
 
 type ERPSection = 'overview' | 'customers' | 'sales-orders' |
-  'invoices' | 'financials' |
+  'financials' |
   'sage-browser' | 'sage-analytics' | 'item-mapping';
 
 interface ERPPortalProps {
@@ -19,15 +19,14 @@ const SECTIONS: { id: ERPSection; label: string; icon: string; desc: string }[] 
   { id: 'overview',       label: 'Overview',       icon: '◈',  desc: 'System status & summary' },
   { id: 'customers',      label: 'Customers',      icon: '◎',  desc: 'Sage 50 customer master' },
   { id: 'sales-orders',   label: 'Sales Orders',   icon: '▤',  desc: 'Active orders' },
-  { id: 'invoices',       label: 'Invoices',       icon: '◻',  desc: 'AR aging' },
-  { id: 'financials',     label: 'Financials',     icon: '▤',  desc: 'AR / AP / GL views' },
+  { id: 'financials',     label: 'Financials',     icon: '▤',  desc: 'AR aging, invoices, margins, GL' },
   { id: 'sage-analytics', label: 'Sage Analytics', icon: '▤',  desc: 'Revenue & customer analytics' },
   { id: 'sage-browser',   label: 'Sage Browser',   icon: '◈',  desc: 'Sage 50 live data' },
   { id: 'item-mapping',   label: 'Item Mapping',   icon: '⬡',  desc: 'MiSys ↔ Sage mapping' },
 ];
 
 const NAV_GROUPS: { label: string; ids: ERPSection[] }[] = [
-  { label: 'Operations',    ids: ['overview', 'sales-orders', 'invoices'] },
+  { label: 'Operations',    ids: ['overview', 'sales-orders'] },
   { label: 'CRM',           ids: ['customers'] },
   { label: 'Finance',       ids: ['financials'] },
   { label: 'Sage 50',       ids: ['sage-analytics', 'sage-browser', 'item-mapping'] },
@@ -105,7 +104,6 @@ export const ERPPortal: React.FC<ERPPortalProps> = ({ data, currentUser }) => {
             {section === 'overview'       && <ERPOverview />}
             {section === 'customers'      && <CustomerSection />}
             {section === 'sales-orders'   && <SalesOrderSection data={data} />}
-            {section === 'invoices'       && <InvoiceSection />}
             {section === 'financials'     && <FinancialSection />}
             {section === 'sage-analytics' && <SageAnalyticsSection />}
             {section === 'sage-browser'   && <SageBrowserSection />}
@@ -477,19 +475,25 @@ const SalesOrderSection: React.FC<{ data?: any }> = () => {
 
 
 // ============================================================
-// INVOICES — AR Aging from Sage G Drive
+// INVOICES — AR Aging + Recent Invoices from Sage G Drive
 // ============================================================
 const InvoiceSection: React.FC = () => {
   const [arAging, setArAging] = useState<any>(null);
+  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'ar' | 'invoices'>('ar');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const r = await apiGet('/api/sage/gdrive/analytics/ar-aging');
-    if (r.data?.error) { setError(r.data.error); setLoading(false); return; }
-    setArAging(r.data);
+    const [arRes, invRes] = await Promise.all([
+      apiGet('/api/sage/gdrive/analytics/ar-aging'),
+      apiGet('/api/sage/gdrive/analytics/recent-invoices?limit=100'),
+    ]);
+    if (arRes.data?.error) { setError(arRes.data.error); }
+    else { setArAging(arRes.data); }
+    setRecentInvoices(invRes.data?.invoices || []);
     setLoading(false);
   }, []);
 
@@ -500,13 +504,14 @@ const InvoiceSection: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded">
-          Read-only · Sage G Drive · AR Aging
+          Read-only · Sage G Drive
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
-          Invoice management coming soon
-        </span>
+        <div className="flex gap-1">
+          <button onClick={() => setTab('ar')} className={`px-2 py-1 text-xs font-semibold rounded ${tab === 'ar' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>AR Aging</button>
+          <button onClick={() => setTab('invoices')} className={`px-2 py-1 text-xs font-semibold rounded ${tab === 'invoices' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Recent Invoices</button>
+        </div>
       </div>
 
       {error ? (
@@ -522,6 +527,33 @@ const InvoiceSection: React.FC = () => {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
           Loading AR aging from Sage G Drive…
+        </div>
+      ) : tab === 'invoices' ? (
+        <div>
+          <p className="text-sm text-slate-500 mb-3">Recent invoice transactions from titrec (last 100)</p>
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase">Date</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase">Customer</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase">Source</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentInvoices.map((inv: any, i: number) => (
+                  <tr key={i} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 font-mono text-slate-600">{inv.dtASDate || '—'}</td>
+                    <td className="px-4 py-2.5 font-semibold text-slate-800 max-w-[200px] truncate">{inv.sName || '—'}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{inv.sSource || '—'}</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-800">{fmtFull(inv.dInvAmt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {recentInvoices.length === 0 && !loading && <div className="text-center py-12 text-slate-400 text-sm">No invoice data in titrec</div>}
+          </div>
         </div>
       ) : arAging ? (
         <div>
@@ -576,7 +608,7 @@ const FinancialSection: React.FC = () => {
     <div className="flex flex-col gap-4">
       <div className="flex gap-2 flex-wrap">
         {([
-          { id: 'ar', label: 'AR Aging', live: true },
+          { id: 'ar', label: 'AR & Invoices', live: true },
           { id: 'margins', label: 'Margin Analysis', live: false },
           { id: 'gl', label: 'GL Summary', live: false },
           { id: 'reports', label: 'Month-End Reports', live: false },
@@ -622,7 +654,7 @@ const fmtPct = (n: number | null | undefined) =>
 
 const SageAnalyticsSection: React.FC = () => {
   const currentYear = new Date().getFullYear();
-  const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'movers' | 'revenue' | 'ar-aging' | 'products'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'movers' | 'revenue' | 'products'>('overview');
   const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
   // selectedYear: number = specific year; 0 = "All Time" (only applies to products/revenue tabs)
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
@@ -630,7 +662,6 @@ const SageAnalyticsSection: React.FC = () => {
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [bestMovers, setBestMovers] = useState<any[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any>(null);
-  const [arAging, setArAging] = useState<any>(null);
   const [salesByProduct, setSalesByProduct] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -639,11 +670,13 @@ const SageAnalyticsSection: React.FC = () => {
   // year param for API: omit for "all time" (0), otherwise pass the year
   const yearQS = (y: number) => y > 0 ? `year=${y}` : '';
 
-  // Fetch available years once on mount
+  // Fetch available years once on mount (includes date_range for year-to-year debugging)
+  const [yearsMeta, setYearsMeta] = useState<{ date_range?: { min: string; max: string }; note?: string } | null>(null);
   useEffect(() => {
     apiGet('/api/sage/gdrive/analytics/available-years').then(r => {
       const years: number[] = r.data?.years || [currentYear];
       setAvailableYears(years);
+      setYearsMeta(r.data?.date_range || r.data?.note ? { date_range: r.data.date_range, note: r.data.note } : null);
     }).catch(() => {});
   }, []);
 
@@ -686,16 +719,12 @@ const SageAnalyticsSection: React.FC = () => {
       const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${ky}`);
       setMonthlyRevenue(r.data);
     }
-    if (tab === 'ar-aging' && !arAging) {
-      const r = await apiGet('/api/sage/gdrive/analytics/ar-aging');
-      setArAging(r.data);
-    }
     if (tab === 'products') {
       const qs = yearQS(y);
       const r = await apiGet(`/api/sage/gdrive/analytics/sales-by-product?limit=25${qs ? `&${qs}` : ''}`);
       setSalesByProduct(r.data?.products || []);
     }
-  }, [arAging, currentYear]);
+  }, [currentYear]);
 
   useEffect(() => { loadTab(activeTab, selectedYear); }, [activeTab, selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -725,7 +754,6 @@ const SageAnalyticsSection: React.FC = () => {
     { id: 'customers', label: 'Top Customers' },
     { id: 'movers', label: 'Best Movers' },
     { id: 'revenue', label: 'Monthly Revenue' },
-    { id: 'ar-aging', label: 'AR Aging' },
     { id: 'products', label: 'Sales by Product' },
   ] as const;
 
@@ -741,6 +769,11 @@ const SageAnalyticsSection: React.FC = () => {
         <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
           READ-ONLY · G Drive CSV{kpis?.data_folder ? ` · ${kpis.data_folder}` : ''}
         </span>
+        {yearsMeta?.date_range && (
+          <span className="text-xs text-slate-500" title={yearsMeta.note || 'Data date range in titrec'}>
+            Data: {yearsMeta.date_range.min} → {yearsMeta.date_range.max}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1.5 flex-wrap">
           {availableYears.map(y => (
             <button
@@ -940,44 +973,6 @@ const SageAnalyticsSection: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'ar-aging' && (
-        <div>
-          <h3 className="text-base font-bold text-slate-700 mb-1">AR Aging</h3>
-          <p className="text-xs text-slate-400 mb-4">Outstanding balances — not filtered by year</p>
-          {!arAging ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
-            <div>
-              <p className="text-sm text-slate-500 mb-4">
-                Total AR: <span className="font-bold text-slate-800">{fmtFull(arAging.total_ar)}</span> across {arAging.total_customers} customers
-              </p>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      {['Customer', 'Current (0-30)', '31-60 Days', '61-90 Days', '91-120 Days', '120+ Days', 'Total'].map(h => (
-                        <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(arAging.aging || []).map((row: any, i: number) => (
-                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-2 font-semibold text-slate-800">{row.sName}</td>
-                        <td className="px-3 py-2 font-mono text-slate-600">{row.current ? fmtFull(row.current) : '—'}</td>
-                        <td className="px-3 py-2 font-mono text-amber-700">{row.d30 ? fmtFull(row.d30) : '—'}</td>
-                        <td className="px-3 py-2 font-mono text-orange-700">{row.d60 ? fmtFull(row.d60) : '—'}</td>
-                        <td className="px-3 py-2 font-mono text-red-600">{row.d90 ? fmtFull(row.d90) : '—'}</td>
-                        <td className="px-3 py-2 font-mono text-red-700 font-bold">{row.d90plus ? fmtFull(row.d90plus) : '—'}</td>
-                        <td className="px-3 py-2 font-mono font-bold text-slate-800">{fmtFull(row.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {activeTab === 'products' && (
         <div>
           <h3 className="text-base font-bold text-slate-700 mb-3">
@@ -1125,6 +1120,11 @@ const ItemMappingSection: React.FC<{ data?: any }> = ({ data }) => {
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Item Mapping</h2>
           <p className="text-xs text-slate-500">Link MiSys items to Sage part codes. Every match requires manual confirmation for 100% accuracy.</p>
+          {mappings.length === 0 && !loading && (
+            <p className="text-amber-700 text-sm mt-2 font-medium">
+              Mapping is empty. Click &quot;Generate Suggestions&quot; to populate. Requires: (1) Main app data loaded, (2) Sage G Drive folder with tinvent.CSV.
+            </p>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <button onClick={runSuggest} disabled={suggesting}
@@ -1132,7 +1132,7 @@ const ItemMappingSection: React.FC<{ data?: any }> = ({ data }) => {
             {suggesting && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
             {suggesting ? 'Generating…' : '🔍 Generate Suggestions'}
           </button>
-          <button onClick={bulkConfirmExact} disabled={bulkConfirming || !stats?.confirmed_count !== undefined}
+          <button onClick={bulkConfirmExact} disabled={bulkConfirming || !(stats?.suggested_count > 0)}
             className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2">
             {bulkConfirming && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
             ✓ Bulk Confirm Exact Matches
@@ -1356,21 +1356,50 @@ const SAGE_TAB_COUNTS: Record<SageTab, string> = {
   receipts: '5,433',
 };
 
+// Map Sage DB column names to display-friendly keys for grid
+const SAGE_COLUMN_ALIASES: Record<string, string> = {
+  sName: 'name', sPartCode: 'part_code', sDesc: 'description', sSONum: 'order_no',
+  sOrderNum: 'order_no', sAcctNum: 'number', sCntcName: 'contact',
+  dAmtYtd: 'ytd_sales', dCrLimit: 'credit_limit', dInStock: 'in_stock',
+  dLastCost: 'last_cost', dTotal: 'total', dtOrderDate: 'date', dtSODate: 'date',
+  nAcctType: 'type', dYts: 'balance', nType: 'type', dAmount: 'amount', dtDate: 'date',
+};
+
 const SageBrowserSection: React.FC = () => {
   const [tab, setTab] = useState<SageTab>('customers');
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedRow, setSelectedRow] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setSelectedRow(null);
     setSearch('');
+    setError(null);
     apiGet(SAGE_ENDPOINTS[tab]).then(r => {
+      if (!r.ok || r.data?.error) {
+        setError(r.data?.error || 'Sage 50 not available');
+        setRawData([]);
+        setLoading(false);
+        return;
+      }
       const d = r.data;
       const arr = Array.isArray(d) ? d : d?.data || d?.items || d?.customers || d?.vendors || d?.inventory || d?.accounts || d?.orders || d?.receipts || [];
-      setRawData(arr);
+      // Normalize keys for display (sName -> name, etc.)
+      const normalized = Array.isArray(arr) ? arr.map((row: any) => {
+        const out: any = { ...row };
+        for (const [from, to] of Object.entries(SAGE_COLUMN_ALIASES)) {
+          if (row[from] !== undefined && out[to] === undefined) out[to] = row[from];
+        }
+        return out;
+      }) : [];
+      setRawData(normalized);
+      setLoading(false);
+    }).catch(() => {
+      setError('Could not connect to Sage 50 — check network and credentials');
+      setRawData([]);
       setLoading(false);
     });
   }, [tab]);
@@ -1414,7 +1443,13 @@ const SageBrowserSection: React.FC = () => {
         />
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-6 text-amber-800">
+          <p className="font-semibold">Sage 50 Browser unavailable</p>
+          <p className="text-sm mt-1 text-amber-700">{error}</p>
+          <p className="text-xs mt-2 text-amber-600">Sage Browser requires a live connection to Sage 50 Quantum on 192.168.1.11. Ensure SAGE_DB_* env vars are set and the server is reachable.</p>
+        </div>
+      ) : loading ? (
         <div className="flex items-center gap-2 text-slate-500 py-8">
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           Loading from Sage...

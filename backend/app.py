@@ -8442,12 +8442,13 @@ def sage_gdrive_sales_orders():
 
 @app.route('/api/sage/gdrive/analytics/available-years')
 def sage_gdrive_available_years():
-    """Return list of years with transaction data (from titrec), sorted descending."""
+    """Return list of years with transaction data (from titrec), plus date range for year-to-year debugging."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
-        return jsonify({"years": s.get_available_years()})
+        meta = s.get_available_years_with_meta()
+        return jsonify(meta)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -8508,6 +8509,19 @@ def sage_gdrive_monthly_revenue():
     try:
         year = int(request.args.get('year', datetime.now().year))
         return jsonify(s.get_monthly_revenue(year=year))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/analytics/recent-invoices')
+def sage_gdrive_recent_invoices():
+    """List recent invoice transactions from titrec (G Drive)."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        limit = int(request.args.get('limit', 100))
+        return jsonify(s.get_recent_invoices(limit=limit))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -8585,11 +8599,15 @@ def api_mo_sage_tab(mo_no):
 
 @app.route('/api/sage/item-mapping')
 def sage_item_mapping_get():
-    """Get all item mappings."""
+    """Get all item mappings, or a single mapping if misys_item_id query param provided."""
     s = _sgds()
     if not s:
         return jsonify({"error": "Sage G Drive service not loaded"}), 503
     try:
+        misys_item_id = request.args.get('misys_item_id', '').strip()
+        if misys_item_id:
+            mapping = s.get_item_mapping_for_item(misys_item_id)
+            return jsonify({"mapping": mapping})
         return jsonify(s.get_all_item_mappings())
     except Exception as e:
         return jsonify({"error": str(e)}), 500

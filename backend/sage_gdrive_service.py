@@ -759,6 +759,43 @@ def get_available_years() -> list:
     return years if years else [datetime.now().year]
 
 
+def get_available_years_with_meta() -> dict:
+    """Return years plus date range info for debugging year-to-year data availability."""
+    df = _tables().get("titrec")
+    if df is None or df.empty:
+        return {"years": [datetime.now().year], "date_range": None, "row_count": 0, "note": "titrec not loaded"}
+    if "dtASDate" not in df.columns:
+        return {"years": [datetime.now().year], "date_range": None, "row_count": len(df), "note": "dtASDate column missing"}
+
+    rows = df.copy()
+    rows["dtASDate"] = rows["dtASDate"].dropna().astype(str)
+    valid_dates = [d for d in rows["dtASDate"].astype(str) if len(d) >= 8 and d[:4].isdigit() and d[4:6].isdigit()]
+
+    if "dInvAmt" in rows.columns:
+        rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+        rows = rows[rows["_amt"] > 0]
+        dates = rows["dtASDate"].astype(str)
+    else:
+        dates = rows["dtASDate"].astype(str)
+
+    years = sorted(
+        set(int(d[:4]) for d in dates if len(d) >= 4 and d[:4].isdigit()),
+        reverse=True,
+    )
+    years = years if years else [datetime.now().year]
+
+    date_range = None
+    if valid_dates:
+        date_range = {"min": min(valid_dates)[:10], "max": max(valid_dates)[:10]}
+
+    return {
+        "years": years,
+        "date_range": date_range,
+        "row_count": len(df),
+        "note": "Year-to-year data depends on titrec.CSV having historical dates. Ensure G Drive export includes full history." if len(years) <= 1 else None,
+    }
+
+
 def _customer_revenue_from_titrec(year: int) -> dict:
     """Aggregate per-customer revenue from titrec for a given year."""
     df = _tables().get("titrec")
@@ -1026,6 +1063,43 @@ def _month_name(m: int) -> str:
     return names[m] if 1 <= m <= 12 else str(m)
 
 
+def get_recent_invoices(limit: int = 100) -> dict:
+    """
+    List recent invoice transactions from titrec (AR invoices, dInvAmt > 0).
+    Joins with tcustomr for customer name.
+    """
+    tables = _tables()
+    df = tables.get("titrec")
+    cname_df = tables.get("tcustomr")
+    if df is None or df.empty:
+        return {"invoices": [], "error": "titrec not loaded"}
+
+    cust_name_map: dict[int, str] = {}
+    if cname_df is not None and not cname_df.empty and "lId" in cname_df.columns:
+        for _, r in cname_df[["lId", "sName"]].iterrows():
+            cust_name_map[int(r["lId"] or 0)] = _safe_str(r["sName"])
+
+    rows = df.copy()
+    if "dInvAmt" not in rows.columns or "dtASDate" not in rows.columns:
+        return {"invoices": [], "error": "titrec missing dInvAmt or dtASDate"}
+    rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+    rows = rows[rows["_amt"] > 0]
+    rows = rows.sort_values("dtASDate", ascending=False).head(limit)
+
+    invoices = []
+    for _, r in rows.iterrows():
+        cus_id = int(r.get("lCusId", 0) or 0)
+        invoices.append({
+            "lId": int(r.get("lId", 0) or 0),
+            "dtASDate": _safe_str(r.get("dtASDate")),
+            "dInvAmt": round(float(r["_amt"]), 2),
+            "lCusId": cus_id,
+            "sName": cust_name_map.get(cus_id, ""),
+            "sSource": _safe_str(r.get("sSource")),
+        })
+    return {"invoices": invoices, "total": len(invoices)}
+
+
 def get_ar_aging() -> dict:
     """
     Compute AR aging from tcustr (customer transaction journal).
@@ -1291,6 +1365,11 @@ def _get_item_mapping(misys_item_id: str) -> dict | None:
         if m.get("misys_item_id", "").strip().upper() == misys_item_id.strip().upper():
             return m
     return None
+
+
+def get_item_mapping_for_item(misys_item_id: str) -> dict | None:
+    """Return the mapping for a single MiSys item (for display on item page)."""
+    return _get_item_mapping(misys_item_id)
 
 
 def get_all_item_mappings() -> dict:

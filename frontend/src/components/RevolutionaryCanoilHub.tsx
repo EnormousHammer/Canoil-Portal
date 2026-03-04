@@ -253,6 +253,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [showItemModal, setShowItemModal] = useState(false);
   const [itemModalActiveView, setItemModalActiveView] = useState('master');
+  const [itemSageMapping, setItemSageMapping] = useState<{ sage_part_code?: string; sage_description?: string; confirmed?: boolean } | null>(null);
   
   // Purchase Requisition modal state
   const [showPRModal, setShowPRModal] = useState(false);
@@ -731,6 +732,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     if (!selectedItemNo) return { itemNo: '', lots: [], serialRows: [], lotHistoryRows: [], hasData: false };
     return buildItemLotSummaryView(data, selectedItemNo);
   }, [data, selectedItemNo]);
+
+  // Fetch Sage item mapping when item modal opens (for display in header)
+  useEffect(() => {
+    if (!showItemModal || !selectedItemNo) {
+      setItemSageMapping(null);
+      return;
+    }
+    fetch(getApiUrl(`/api/sage/item-mapping?misys_item_id=${encodeURIComponent(selectedItemNo)}`))
+      .then((r) => r.json())
+      .then((res) => {
+        const m = res?.mapping;
+        setItemSageMapping(m && (m.sage_part_code || m.sage_item_id) ? m : null);
+      })
+      .catch(() => setItemSageMapping(null));
+  }, [showItemModal, selectedItemNo]);
 
   const moTransactionView = useMemo(() => {
     if (!moView?.moNo) return { rows: [], totalCount: 0, filters: {}, hasData: false };
@@ -9504,6 +9520,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     <span className="text-slate-400 text-xs">WIP {currentWIP.toLocaleString()}</span>
                     <span className="text-slate-500">·</span>
                     <span className="text-slate-400 text-xs">{formatCAD(unitCost)}</span>
+                    {itemSageMapping?.sage_part_code && (
+                      <>
+                        <span className="text-slate-500">·</span>
+                        <span className="text-amber-200/90 text-xs font-medium" title={itemSageMapping.sage_description || 'Linked in Sage 50'}>
+                          Sage: {itemSageMapping.sage_part_code}
+                          {itemSageMapping.confirmed && <span className="ml-1 text-emerald-300">✓</span>}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
