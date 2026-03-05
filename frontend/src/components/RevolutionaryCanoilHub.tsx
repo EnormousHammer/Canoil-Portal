@@ -2795,16 +2795,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       )}
                                     </div>
                                   </div>
-                                  {/* Line 2: Item + full description (contains SO/PO refs) */}
-                                  <div className="flex items-start gap-2 text-xs flex-wrap">
-                                    <span className="font-mono font-semibold text-slate-700 shrink-0">{mo['Build Item No.']}</span>
-                                    {mo['Description'] && (
-                                      <span className="text-slate-600">{mo['Description']}</span>
-                                    )}
-                                    {!mo['Description'] && (mo['Non-Stocked Build Item Description']) && (
-                                      <span className="text-slate-400">{mo['Non-Stocked Build Item Description']}</span>
-                                    )}
-                                  </div>
+                                  {/* Line 2: Item code + real product name from item master */}
+                                  {(() => {
+                                    const buildItemNo = (mo['Build Item No.'] || '').toString().trim().toUpperCase();
+                                    const itemRow = indexes.itemByNo.get(buildItemNo) ?? indexes.alertByItemNo.get(buildItemNo);
+                                    const itemDesc = itemRow?.['Description'] || itemRow?.['Item Description'] || mo['Non-Stocked Build Item Description'] || '';
+                                    // mo['Description'] is the MO work note (PO/SO/Child refs) — don't show it as the product title
+                                    return (
+                                      <div className="flex items-start gap-2 text-xs flex-wrap">
+                                        <span className="font-mono font-semibold text-slate-700 shrink-0">{mo['Build Item No.']}</span>
+                                        {itemDesc && <span className="text-slate-600">{itemDesc}</span>}
+                                      </div>
+                                    );
+                                  })()}
                                   {/* Line 3: Badges - SO (from description first, then direct field), Batch, Location */}
                                   <div className="flex items-center gap-2 mt-1 text-xs">
                                     {(() => {
