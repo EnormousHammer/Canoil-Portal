@@ -851,7 +851,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       title: "Active MOs", 
       description: "List active manufacturing orders",
       icon: Factory,
-      action: "How many active manufacturing orders do we have? List them by build item.",
+      action: "How many active manufacturing orders do we have? List them by customer name and build item.",
       category: "production"
     },
     { 
@@ -1252,17 +1252,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                     {/* Quick Suggestions — concrete queries only */}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
-                        "How many active MOs?",
-                        "Items below reorder level",
-                        "Open POs by supplier",
-                        "Top customers by revenue"
+                        { label: "Active MOs by customer & build item", query: "How many active manufacturing orders do we have? List them by customer name and build item." },
+                        { label: "Items below reorder level", query: "Items below reorder level" },
+                        { label: "Open POs by supplier", query: "Open POs by supplier" },
+                        { label: "Top customers by revenue", query: "Top customers by revenue" }
                       ].map((suggestion, index) => (
                         <button
                           key={index}
-                          onClick={() => setInputMessage(suggestion)}
+                          onClick={() => setInputMessage(suggestion.query)}
                           className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-600 hover:text-violet-700 rounded-lg text-sm transition-colors"
                         >
-                          {suggestion}
+                          {suggestion.label}
                         </button>
                       ))}
                     </div>

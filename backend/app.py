@@ -6510,6 +6510,65 @@ def get_product_analytics_data(data, query):
             "error": str(e)
         }
 
+# Files needed per MiSys intent (only download what's required)
+_MISYS_INTENT_FILES = {
+    "manufacturing":   ["ManufacturingOrderHeaders.json", "ManufacturingOrderDetails.json"],
+    "inventory":       ["Items.json", "MIILOC.json"],
+    "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json"],
+    "bom":             ["BillsOfMaterial.json", "BillOfMaterialDetails.json"],
+}
+
+
+def _load_misys_files_for_intent(intent: str) -> dict:
+    """
+    Load only the MiSys JSON files needed for a given intent.
+    - Local G: drive  : reads files directly from the latest API Extractions folder
+    - Cloud (Render)  : downloads specific files from Google Drive API
+    Returns {file_name: list_of_records} or {}.
+    """
+    file_names = _MISYS_INTENT_FILES.get(intent, [])
+    if not file_names:
+        return {}
+
+    result = {}
+
+    # ── Local (development) ───────────────────────────────────────────────────
+    if not IS_CLOUD_ENVIRONMENT:
+        try:
+            folder_name, err = get_latest_folder()
+            if folder_name and not err:
+                folder_path = os.path.join(GDRIVE_BASE, folder_name)
+                for fn in file_names:
+                    loaded = load_json_file(os.path.join(folder_path, fn))
+                    if loaded:
+                        result[fn] = loaded
+                if result:
+                    counts = {k: len(v) for k, v in result.items()}
+                    print(f"[MiSys] Local load for '{intent}': {counts}")
+                    return result
+        except Exception as exc:
+            print(f"[MiSys] Local load error: {exc}")
+
+    # ── Cloud / Google Drive API ──────────────────────────────────────────────
+    try:
+        gdrive_svc = get_google_drive_service()
+        if not gdrive_svc:
+            print("[MiSys] No Google Drive service available")
+            return {}
+        folder_id, _, _ = gdrive_svc.find_latest_api_extractions_folder()
+        if not folder_id:
+            print("[MiSys] Could not find latest API Extractions folder on Drive")
+            return {}
+        drive_id = getattr(gdrive_svc, "shared_drive_id", None)
+        result = gdrive_svc.load_specific_files(folder_id, drive_id, file_names)
+        counts = {k: len(v) if isinstance(v, list) else 0 for k, v in result.items()}
+        print(f"[MiSys] Drive API load for '{intent}': {counts}")
+    except Exception as exc:
+        print(f"[MiSys] Drive API load error: {exc}")
+
+    return result
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat_query():
     """Handle ChatGPT queries about inventory data with smart SO search"""
@@ -6625,15 +6684,14 @@ def chat_query():
             # (so_detail is excluded — it is already handled by SmartSOSearch above)
             if _intent in _FOCUSED_INTENTS and _confidence >= 5:
 
-                # For MiSys-based intents pull data from whatever the frontend
-                # already sent; for Sage-only intents we skip raw_data entirely.
+                # For MiSys-based intents load directly from G: Drive / Drive API.
+                # We no longer rely on the frontend request body (removed to fix OOM).
                 _raw_for_router: dict = {}
                 if _intent in _MISYS_INTENTS:
-                    _fe = data.get('data')
-                    if _fe and isinstance(_fe, dict):
-                        for _k, _v in _fe.items():
-                            if isinstance(_v, (list, dict)) and _v:
-                                _raw_for_router[_k] = _v
+                    _raw_for_router = _load_misys_files_for_intent(_intent)
+                    if not _raw_for_router:
+                        print(f"⚠️ No MiSys data available for intent '{_intent}' — skipping focused path")
+                        raise ValueError(f"No MiSys data for intent {_intent}")
 
                 _sage_svc = sage_gdrive_service if SAGE_GDRIVE_AVAILABLE else None
                 _targeted = _fetch_targeted_data(_intent, _raw_for_router, _sage_svc, query=user_query)

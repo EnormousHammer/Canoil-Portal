@@ -548,7 +548,10 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
     "manufacturing": (
         "You are a business intelligence AI for Canoil Canada Ltd.\n"
         "Answer using ONLY the MiSys manufacturing order data in the DATA section.\n"
-        "Show: MO Number, Item Being Built, Quantity, Status, Scheduled Dates.\n"
+        "For a list query, render a markdown table with columns: "
+        "MO # | Build Item | Description | Qty Ordered | Qty Completed | Status | Start Date | Due Date\n"
+        "Sort by Status then Due Date.\n"
+        "End with a summary: total active MOs and total quantity in production.\n"
         "Do not fabricate order details."
     ),
     "purchase_orders": (
