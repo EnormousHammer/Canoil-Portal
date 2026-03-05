@@ -1411,12 +1411,16 @@ def extract_so_data_from_pdf(pdf_path):
         else:
             so_data['status'] = 'Unknown'
         
-        # FALLBACK: Calculate subtotal from items if not extracted from PDF
+        # FALLBACK: Calculate subtotal from product items only (exclude Pallet/Freight/Brokerage charges)
         if so_data['subtotal'] == 0 and so_data['items']:
-            calculated_subtotal = sum(item.get('amount', 0) or item.get('total_price', 0) or 0 for item in so_data['items'])
+            calculated_subtotal = sum(
+                item.get('amount', 0) or item.get('total_price', 0) or 0
+                for item in so_data['items']
+                if not item.get('is_charge')
+            )
             if calculated_subtotal > 0:
                 so_data['subtotal'] = calculated_subtotal
-                print(f"  📊 Calculated subtotal from items: ${calculated_subtotal:.2f}")
+                print(f"  Calculated subtotal from product items: ${calculated_subtotal:.2f}")
         
         # FALLBACK: Calculate total_amount if not extracted from PDF
         if so_data['total_amount'] == 0:
