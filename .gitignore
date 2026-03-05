@@ -10,6 +10,9 @@ coverage/
 build/
 dist/
 
+# Playwright MCP (browser logs, screenshots, cache)
+.playwright-mcp/
+
 # Misc
 .DS_Store
 .env
