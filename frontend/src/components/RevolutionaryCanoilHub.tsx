@@ -699,6 +699,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showMODetails, setShowMODetails] = useState(false);
   const [moActiveTab, setMoActiveTab] = useState('overview');
   const [moComponentsView, setMoComponentsView] = useState<'grouped' | 'exact'>('grouped');
+  // Full SO details fetched from the PDF parser when the pegged tab is active
+  const [moParsedSO, setMoParsedSO] = useState<any>(null);
+  const [moParsedSOLoading, setMoParsedSOLoading] = useState(false);
+  const [moParsedSOError, setMoParsedSOError] = useState('');
   const [moTxTypeFilter, setMoTxTypeFilter] = useState<string>('');
   const [moTxItemFilter, setMoTxItemFilter] = useState<string>('');
 
@@ -2772,6 +2776,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                   setSelectedMO(mo);
                                   setShowMODetails(true);
                                   setMoActiveTab('overview');
+                                  setMoParsedSO(null);
+                                  setMoParsedSOError('');
                                 }}
                               >
                                 <div className="px-4 py-3">
@@ -3750,24 +3756,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         const isDirectSOValid = directSONo && /^\d{3,6}$/.test(String(directSONo).trim());
                         const soNumber = isDirectSOValid ? directSONo : (soFromDesc || (directSONo ? String(directSONo).split(/[|\/]/)[0].trim() : null));
 
-                        const salesOrdersData = data['SalesOrders.json'] || data['SalesOrderHeaders.json'] || [];
-                        const parsedSalesOrders = data['ParsedSalesOrders.json'] || [];
-                        const salesOrdersByStatus = data['SalesOrdersByStatus'] || {};
-                        let allSOs: any[] = [...salesOrdersData, ...parsedSalesOrders];
-                        Object.values(salesOrdersByStatus).forEach((statusSOs: any) => { if (Array.isArray(statusSOs)) allSOs = [...allSOs, ...statusSOs]; });
-                        const soNumDigits = soNumber ? String(soNumber).replace(/\D/g, '') : '';
-                        const relatedSO = soNumber ? allSOs.find((so: any) => {
-                          const soNum = so['Sales Order No.'] || so['Order No.'] || so['so_number'] || so['SalesOrderNo'] || so['order_number'] || so['SO No.'];
-                          return String(soNum || '').replace(/\D/g, '') === soNumDigits || soNum === soNumber;
-                        }) : null;
-                        const soFile = soNumber ? allSOs.find((so: any) => {
-                          const fn = (so.name || so.file_name || so.filename || '').toLowerCase();
-                          return fn.includes(`salesorder_${soNumber}`) || fn.includes(`salesorder${soNumber}`) || fn.includes(`so_${soNumber}`) || fn.includes(`so-${soNumber}`) || fn.includes(`${soNumber}.pdf`);
-                        }) : null;
+                        // Fetch full SO details from the PDF parser (real data from G Drive SO PDF)
+                        if (soNumber && !moParsedSO && !moParsedSOLoading && !moParsedSOError) {
+                          setMoParsedSOLoading(true);
+                          fetch(getApiUrl(`/api/proforma-invoice/parse-so/${encodeURIComponent(soNumber)}`))
+                            .then(r => r.json())
+                            .then(result => {
+                              if (result.so_data) setMoParsedSO(result.so_data);
+                              else setMoParsedSOError(result.error || 'Could not parse SO PDF');
+                            })
+                            .catch(() => setMoParsedSOError('Could not reach server'))
+                            .finally(() => setMoParsedSOLoading(false));
+                        }
+
+                        // Derive customer name from parsed PDF, MO header, or header data
+                        const soCustomer = moParsedSO?.customer_name || moView.customer || '';
+                        const soShipDate = moParsedSO?.ship_date || moView.rawHeader?.['Sales Order Ship Date'] || '';
+                        const soItems: any[] = moParsedSO?.items || [];
 
                         return (
                           <>
-                            {/* MO Description (source of SO/PO linkage) */}
+                            {/* MO Description */}
                             {description && (
                               <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">MO Description</span>
@@ -3777,6 +3786,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                             {soNumber ? (
                               <div className="bg-white border border-blue-200 rounded-xl overflow-hidden">
+                                {/* Header bar */}
                                 <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -3784,219 +3794,217 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     </div>
                                     <div>
                                       <div className="text-xl font-bold text-blue-900">SO #{soNumber}</div>
-                                      <div className="text-sm text-blue-600">{relatedSO?.['Customer'] || relatedSO?.['Customer Name'] || relatedSO?.customer_name || moView.customer || ''}</div>
+                                      <div className="text-sm text-blue-600">{soCustomer}</div>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    {(soFile || relatedSO?.path || relatedSO?.gdrive_id) ? (
-                                      <button onClick={() => { const f = soFile || relatedSO; const url = f?.gdrive_id ? getApiUrl(`/api/gdrive/preview/${f.gdrive_id}`) : f?.path ? getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(f.path)}`) : ''; if (url) window.open(url, '_blank'); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium" title="Open SO document in a new browser tab">
-                                        <ExternalLink className="w-4 h-4" /> New Tab
-                                      </button>
-                                    ) : (
-                                      <button onClick={async () => {
-                                        try {
-                                          const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
-                                          const result = await resp.json();
-                                          if (result.found && result.filePath) {
-                                            window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
-                                          } else {
-                                            setActiveSection('orders');
-                                            setSoSearchQuery(String(soNumber));
-                                            resetSONavigation();
-                                            setShowMODetails(false);
-                                          }
-                                        } catch { 
-                                          setActiveSection('orders');
-                                          setSoSearchQuery(String(soNumber));
-                                          resetSONavigation();
-                                          setShowMODetails(false);
+                                    <button onClick={async () => {
+                                      try {
+                                        const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
+                                        const result = await resp.json();
+                                        if (result.found && result.filePath) {
+                                          window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
+                                        } else {
+                                          setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false);
                                         }
-                                      }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium" title="Find and open SO PDF from G: Drive">
-                                        <ExternalLink className="w-4 h-4" /> View PDF
-                                      </button>
-                                    )}
-                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium" title="Go to Sales Orders and search for this SO">
+                                      } catch {
+                                        setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false);
+                                      }
+                                    }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                                      <ExternalLink className="w-4 h-4" /> View PDF
+                                    </button>
+                                    <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium">
                                       <Search className="w-4 h-4" /> Sales Orders
                                     </button>
                                   </div>
                                 </div>
 
-                                {/* Embedded SO PDF viewer - view right here, with dynamic find fallback */}
-                                {(() => {
-                                  const soPdfSource = soFile || relatedSO;
-                                  const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path || soPdfSource?.is_pdf;
-                                  if (hasPdf) {
-                                    const pdfUrl = soPdfSource.gdrive_id
-                                      ? getApiUrl(`/api/gdrive/preview/${soPdfSource.gdrive_id}`)
-                                      : getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(soPdfSource.path)}#toolbar=1&navpanes=0`);
-                                    return (
-                                      <div className="border-b border-blue-100">
-                                        <div className="px-4 py-2 bg-blue-50/50 flex items-center justify-between">
-                                          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
-                                          <span className="text-[10px] text-blue-500">{soPdfSource.name || `SO_${soNumber}`}</span>
-                                        </div>
-                                        <div className="bg-slate-100 p-2">
-                                          <iframe
-                                            src={pdfUrl}
-                                            className="w-full rounded-lg border border-slate-200 bg-white"
-                                          style={{ height: '400px', minHeight: '300px' }}
-                                          title={`Sales Order ${soNumber}`}
-                                        />
-                                      </div>
-                                    </div>
-                                  );
-                                  }
-                                  return (
-                                    <div className="border-b border-blue-100">
-                                      <div className="px-4 py-3 bg-blue-50/50 flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">SO Document</span>
-                                        <button onClick={async () => {
-                                          try {
-                                            const resp = await fetch(getApiUrl(`/api/sales-orders/find/${encodeURIComponent(soNumber)}`));
-                                            const result = await resp.json();
-                                            if (result.found && result.filePath) {
-                                              window.open(getApiUrl(`/api/sales-order-pdf/${encodeURIComponent(result.filePath)}`), '_blank');
-                                            } else {
-                                              setActiveSection('orders');
-                                              setSoSearchQuery(String(soNumber));
-                                              resetSONavigation();
-                                              setShowMODetails(false);
-                                            }
-                                          } catch {
-                                            setActiveSection('orders');
-                                            setSoSearchQuery(String(soNumber));
-                                            resetSONavigation();
-                                            setShowMODetails(false);
-                                          }
-                                        }} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium">
-                                          <ExternalLink className="w-3.5 h-3.5" /> Find & Open PDF
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
+                                {/* Loading / error states */}
+                                {moParsedSOLoading && (
+                                  <div className="flex items-center gap-3 px-5 py-6 text-blue-600">
+                                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Loading SO details from G Drive…</span>
+                                  </div>
+                                )}
+                                {moParsedSOError && !moParsedSO && (
+                                  <div className="px-5 py-4 bg-amber-50 border-b border-amber-100 text-amber-700 text-sm">
+                                    Could not load SO PDF: {moParsedSOError}. Showing available data from MO record.
+                                  </div>
+                                )}
 
-                                {relatedSO ? (
+                                {moParsedSO && (
                                   <div className="p-5 space-y-4">
-                                    {/* SO KPI tiles */}
+                                    {/* KPI tiles from parsed PDF */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                       <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Order Date</div>
-                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(relatedSO['Order Date'] || relatedSO.order_date) || '—'}</div>
+                                        <div className="text-xs text-slate-500 mb-1">Customer PO</div>
+                                        <div className="text-sm font-semibold font-mono">{moParsedSO.po_number || '—'}</div>
                                       </div>
                                       <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Due Date</div>
-                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(relatedSO['Due Date'] || relatedSO.due_date || relatedSO['Ship Date'] || relatedSO['Required Date']) || '—'}</div>
+                                        <div className="text-xs text-slate-500 mb-1">Ship By</div>
+                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(moParsedSO.ship_date) || moParsedSO.ship_date || '—'}</div>
                                       </div>
                                       <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Status</div>
-                                        <div className="text-sm font-semibold">{relatedSO['Status'] || relatedSO.status || 'Active'}</div>
+                                        <div className="text-xs text-slate-500 mb-1">Terms</div>
+                                        <div className="text-sm font-semibold">{moParsedSO.terms || '—'}</div>
                                       </div>
                                       <div className="rounded-lg bg-emerald-50 p-3 text-center">
-                                        <div className="text-xs text-emerald-600 mb-1">Total</div>
-                                        <div className="text-sm font-bold text-emerald-700 font-mono">{(relatedSO['Total'] || relatedSO.total) ? `$${parseFloat(relatedSO['Total'] || relatedSO.total || 0).toFixed(2)}` : '—'}</div>
+                                        <div className="text-xs text-emerald-600 mb-1">Order Total</div>
+                                        <div className="text-sm font-bold text-emerald-700 font-mono">
+                                          {soItems.length > 0
+                                            ? `$${soItems.reduce((s: number, it: any) => s + (parseFloat(it.amount || it.total_price || (it.quantity * it.unit_price) || 0)), 0).toFixed(2)}`
+                                            : '—'}
+                                        </div>
                                       </div>
                                     </div>
 
-                                    {/* SO detail fields - show everything available */}
-                                    {(() => {
-                                      const soFields: Array<{label: string; value: string}> = [];
-                                      if (relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO.customer_name) soFields.push({ label: 'Customer', value: relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO.customer_name });
-                                      if (relatedSO['Ship To'] || relatedSO['Ship To Name']) soFields.push({ label: 'Ship To', value: relatedSO['Ship To'] || relatedSO['Ship To Name'] });
-                                      if (relatedSO['PO Number'] || relatedSO['Customer PO'] || relatedSO['Customer PO No.']) soFields.push({ label: 'Customer PO', value: relatedSO['PO Number'] || relatedSO['Customer PO'] || relatedSO['Customer PO No.'] });
-                                      if (relatedSO['Sales Rep'] || relatedSO['Salesperson']) soFields.push({ label: 'Sales Rep', value: relatedSO['Sales Rep'] || relatedSO['Salesperson'] });
-                                      if (relatedSO['Ship Via']) soFields.push({ label: 'Ship Via', value: relatedSO['Ship Via'] });
-                                      if (relatedSO['Terms']) soFields.push({ label: 'Terms', value: relatedSO['Terms'] });
-                                      if (relatedSO['FOB']) soFields.push({ label: 'FOB', value: relatedSO['FOB'] });
-                                      if (relatedSO['Currency'] || relatedSO['Source Currency']) soFields.push({ label: 'Currency', value: relatedSO['Currency'] || relatedSO['Source Currency'] });
-                                      if (relatedSO['Ship Date'] || relatedSO['Promised Date']) soFields.push({ label: 'Ship Date', value: formatDisplayDate(relatedSO['Ship Date'] || relatedSO['Promised Date']) || relatedSO['Ship Date'] || relatedSO['Promised Date'] });
-                                      if (relatedSO['Notes'] || relatedSO['Comment'] || relatedSO['Description']) soFields.push({ label: 'Notes', value: relatedSO['Notes'] || relatedSO['Comment'] || relatedSO['Description'] });
-                                      if (soFields.length === 0) return null;
-                                      return (
-                                        <div className="rounded-lg border border-slate-200 overflow-hidden">
-                                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100">
-                                            <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">Sales Order Details</h5>
+                                    {/* Customer & Shipping details */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {/* Bill To */}
+                                      {(() => {
+                                        const ba = moParsedSO.billing_address || moParsedSO.sold_to || {};
+                                        const fields = [
+                                          ['Company', ba.company || ba.company_name || moParsedSO.customer_name],
+                                          ['Address', ba.full_address || ba.street || ba.address],
+                                          ['City', [ba.city, ba.province || ba.state, ba.postal_code].filter(Boolean).join(', ')],
+                                          ['Country', ba.country],
+                                          ['Phone', ba.phone],
+                                          ['Email', ba.email],
+                                        ].filter(([, v]) => v);
+                                        if (!fields.length) return null;
+                                        return (
+                                          <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Bill To</div>
+                                            <div className="p-3 space-y-1.5 text-sm">
+                                              {fields.map(([label, val]) => (
+                                                <div key={label} className="flex gap-2">
+                                                  <span className="text-xs text-slate-400 w-16 shrink-0">{label}</span>
+                                                  <span className="font-medium text-slate-800">{val}</span>
+                                                </div>
+                                              ))}
+                                            </div>
                                           </div>
-                                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 p-4 text-sm">
-                                            {soFields.map((f, i) => (
-                                              <div key={i} className="flex items-baseline gap-2">
-                                                <span className="text-xs text-slate-400 shrink-0 w-24">{f.label}</span>
-                                                <span className="font-medium text-slate-800 truncate">{f.value}</span>
-                                              </div>
-                                            ))}
+                                        );
+                                      })()}
+                                      {/* Ship To */}
+                                      {(() => {
+                                        const sa = moParsedSO.shipping_address || {};
+                                        const fields = [
+                                          ['Company', sa.company || sa.company_name],
+                                          ['Address', sa.full_address || sa.street || sa.address],
+                                          ['City', [sa.city, sa.province || sa.state, sa.postal_code].filter(Boolean).join(', ')],
+                                          ['Country', sa.country],
+                                          ['Ship Via', moParsedSO.ship_via],
+                                          ['Instructions', moParsedSO.special_instructions],
+                                        ].filter(([, v]) => v);
+                                        if (!fields.length) return null;
+                                        return (
+                                          <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Ship To</div>
+                                            <div className="p-3 space-y-1.5 text-sm">
+                                              {fields.map(([label, val]) => (
+                                                <div key={label} className="flex gap-2">
+                                                  <span className="text-xs text-slate-400 w-20 shrink-0">{label}</span>
+                                                  <span className="font-medium text-slate-800">{val}</span>
+                                                </div>
+                                              ))}
+                                            </div>
                                           </div>
-                                        </div>
-                                      );
-                                    })()}
+                                        );
+                                      })()}
+                                    </div>
 
-                                    {/* SO line items if available */}
-                                    {(() => {
-                                      const soLineItems = relatedSO?.lines || relatedSO?.['Line Items'] || relatedSO?.details || [];
-                                      if (!Array.isArray(soLineItems) || soLineItems.length === 0) return null;
-                                      return (
-                                        <div className="rounded-lg border border-slate-200 overflow-hidden">
-                                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
-                                            <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">SO Line Items</h5>
-                                            <span className="text-xs text-slate-500">{soLineItems.length} items</span>
-                                          </div>
-                                          <div className="overflow-x-auto">
-                                            <table className="w-full text-xs">
-                                              <thead className="bg-slate-50/80">
-                                                <tr>
-                                                  <th className="text-left p-2.5 font-medium text-slate-600">Item</th>
-                                                  <th className="text-left p-2.5 font-medium text-slate-600">Description</th>
-                                                  <th className="text-right p-2.5 font-medium text-slate-600">Qty</th>
-                                                  <th className="text-right p-2.5 font-medium text-slate-600">Price</th>
-                                                </tr>
-                                              </thead>
-                                              <tbody className="divide-y divide-slate-50">
-                                                {soLineItems.slice(0, 20).map((sl: any, si: number) => (
-                                                  <tr key={si} className="hover:bg-slate-50/50">
-                                                    <td className="p-2.5 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => openItemById(sl['Item No.'] || sl.item_no || sl.itemId || '')}>{sl['Item No.'] || sl.item_no || sl.itemId || '—'}</td>
-                                                    <td className="p-2.5 text-slate-600 truncate max-w-[200px]">{sl['Description'] || sl.description || '—'}</td>
-                                                    <td className="p-2.5 text-right tabular-nums">{(sl['Ordered'] || sl['Qty'] || sl.qty || 0).toLocaleString()}</td>
-                                                    <td className="p-2.5 text-right font-mono tabular-nums">{(sl['Unit Price'] || sl.price || 0) > 0 ? `$${parseFloat(sl['Unit Price'] || sl.price || 0).toFixed(2)}` : '—'}</td>
+                                    {/* Line items from PDF */}
+                                    {soItems.length > 0 && (
+                                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                        <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                                          <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">Line Items</h5>
+                                          <span className="text-xs text-slate-500">{soItems.length} item{soItems.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-xs">
+                                            <thead className="bg-slate-50/80">
+                                              <tr>
+                                                <th className="text-left p-2.5 font-medium text-slate-600">Item / Code</th>
+                                                <th className="text-left p-2.5 font-medium text-slate-600">Description</th>
+                                                <th className="text-right p-2.5 font-medium text-slate-600">Qty</th>
+                                                <th className="text-right p-2.5 font-medium text-slate-600">Unit Price</th>
+                                                <th className="text-right p-2.5 font-medium text-slate-600">Amount</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                              {soItems.map((it: any, idx: number) => {
+                                                const itemCode = it.item_code || it.product_code || '';
+                                                const qty = parseFloat(it.quantity || it.ordered || 0);
+                                                const price = parseFloat(it.unit_price || it.price || 0);
+                                                const amount = parseFloat(it.amount || it.total_price || (qty * price) || 0);
+                                                return (
+                                                  <tr key={idx} className="hover:bg-slate-50/50">
+                                                    <td className="p-2.5 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => itemCode && openItemById(itemCode)}>{itemCode || '—'}</td>
+                                                    <td className="p-2.5 text-slate-700 max-w-[220px] truncate" title={it.description}>{it.description || '—'}</td>
+                                                    <td className="p-2.5 text-right tabular-nums">{qty > 0 ? qty.toLocaleString() : '—'}</td>
+                                                    <td className="p-2.5 text-right font-mono tabular-nums">{price > 0 ? `$${price.toFixed(2)}` : '—'}</td>
+                                                    <td className="p-2.5 text-right font-mono font-semibold tabular-nums text-emerald-700">{amount > 0 ? `$${amount.toFixed(2)}` : '—'}</td>
                                                   </tr>
-                                                ))}
-                                              </tbody>
-                                            </table>
-                                            {soLineItems.length > 20 && <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-500">Showing 20 of {soLineItems.length}</div>}
-                                          </div>
+                                                );
+                                              })}
+                                            </tbody>
+                                            <tfoot className="bg-slate-50 border-t border-slate-200">
+                                              <tr>
+                                                <td colSpan={4} className="p-2.5 text-right text-xs font-semibold text-slate-600">Total</td>
+                                                <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
+                                                  ${soItems.reduce((s: number, it: any) => {
+                                                    const qty = parseFloat(it.quantity || it.ordered || 0);
+                                                    const price = parseFloat(it.unit_price || it.price || 0);
+                                                    return s + parseFloat(it.amount || it.total_price || (qty * price) || 0);
+                                                  }, 0).toFixed(2)}
+                                                </td>
+                                              </tr>
+                                            </tfoot>
+                                          </table>
                                         </div>
-                                      );
-                                    })()}
-
-                                    {/* MO → SO linkage info */}
-                                    <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
-                                      <div className="text-xs text-blue-600 font-medium">
-                                        This Sales Order is linked to MO #{moView.moNo} {soFromDesc ? '(found in MO description)' : '(from Sales Order No. field)'}
                                       </div>
+                                    )}
+
+                                    {/* Brokerage info if present */}
+                                    {moParsedSO.brokerage?.broker_name && (
+                                      <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm">
+                                        <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Broker</span>
+                                        <div className="text-amber-900 font-medium mt-1">{moParsedSO.brokerage.broker_name}</div>
+                                      </div>
+                                    )}
+
+                                    {/* Linkage note */}
+                                    <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 text-xs text-blue-600 font-medium">
+                                      Linked to MO #{moView.moNo} · Source: Sales Order PDF from G Drive
                                       {moView.rawHeader?.['Sales Order Ship Date'] && (
-                                        <div className="text-xs text-blue-700 mt-1">SO Ship Date: <span className="font-semibold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</span></div>
+                                        <span className="ml-2">· MO Ship Date: <span className="font-bold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</span></span>
                                       )}
                                     </div>
                                   </div>
-                                ) : (
-                                  <div className="p-5 space-y-4">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">SO Number</div>
-                                        <div className="text-sm font-bold font-mono">{soNumber}</div>
-                                      </div>
+                                )}
+
+                                {/* Fallback when PDF not yet loaded and no parse error */}
+                                {!moParsedSO && !moParsedSOLoading && (
+                                  <div className="p-5 space-y-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                       <div className="rounded-lg bg-slate-50 p-3 text-center">
                                         <div className="text-xs text-slate-500 mb-1">Customer</div>
                                         <div className="text-sm font-semibold">{moView.customer || '—'}</div>
                                       </div>
-                                      {moView.rawHeader?.['Sales Order Ship Date'] && (
+                                      {soShipDate && (
                                         <div className="rounded-lg bg-slate-50 p-3 text-center">
                                           <div className="text-xs text-slate-500 mb-1">Ship Date</div>
-                                          <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</div>
+                                          <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(soShipDate)}</div>
                                         </div>
                                       )}
                                     </div>
                                     {/* Try to find and embed SO PDF even without header data */}
                                     {(() => {
-                                      const soPdfSource = soFile;
+                                      const soPdfSource = (data['SalesOrders.json'] || []).find((so: any) => {
+                                        const fn = (so.name || so.file_name || so.filename || '').toLowerCase();
+                                        return fn.includes(`salesorder_${soNumber}`) || fn.includes(`${soNumber}.pdf`);
+                                      });
                                       const hasPdf = soPdfSource?.gdrive_id || soPdfSource?.path;
                                       if (!hasPdf) return (
                                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
