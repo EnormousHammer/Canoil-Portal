@@ -2599,6 +2599,28 @@ def test_logistics_endpoint():
         'openai_available': OPENAI_AVAILABLE
     }), 200
 
+
+@logistics_bp.route('/api/logistics/debug-so/<so_number>', methods=['GET'])
+def debug_so_data(so_number):
+    """Return exact SO data as the system gets it - no guessing. Hit this on Render to see what items exist."""
+    try:
+        so_data = get_so_data_from_system(so_number)
+        if not so_data:
+            return jsonify({'error': 'SO data is None', 'so_number': so_number}), 404
+        if so_data.get('status') == 'Error':
+            return jsonify({'error': so_data.get('error'), 'hint': so_data.get('hint'), 'so_number': so_number}), 404
+        items = so_data.get('items', [])
+        return jsonify({
+            'so_number': so_data.get('so_number'),
+            'customer_name': so_data.get('customer_name'),
+            'items_count': len(items),
+            'items': [{'description': i.get('description'), 'quantity': i.get('quantity'), 'unit': i.get('unit')} for i in items],
+            'raw_descriptions': [i.get('description', '') for i in items]
+        }), 200
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc(), 'so_number': so_number}), 500
+
 def _build_multi_so_pallet_info(multi_so_email_data: dict):
     """
     Build combined skid/pallet info string for MULTI-SO shipments.
