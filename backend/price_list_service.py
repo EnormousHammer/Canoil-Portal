@@ -56,8 +56,8 @@ CACHE_TTL_SECONDS    = 1800   # 30 minutes
 # Order matters: Reolube is checked before Grease because the Reolube column
 # is Apr 2025 (most recent) and some rows have both columns present.
 CURRENT_COL_KEYWORDS = [
-    ("current reolube price", "Reolube - Apr 2025 (most recent)"),
-    ("current grease price",  "Grease - Oct 2024 (current)"),
+    ("current reolube price", "Current Reolube Price"),
+    ("current grease price",  "Current Grease Price"),
 ]
 
 # Columns that are never prices
@@ -149,7 +149,7 @@ def _current_price(row_orig: dict, headers: List[str]) -> tuple:
                 v = row_orig.get(str(h).strip())
                 if v is not None:
                     try:
-                        fv = float(v)
+                        fv = round(float(v), 2)
                         if fv > 1:
                             return fv, friendly_label
                     except (TypeError, ValueError):
@@ -165,7 +165,7 @@ def _current_price(row_orig: dict, headers: List[str]) -> tuple:
         if v is None:
             continue
         try:
-            fv = float(v)
+            fv = round(float(v), 2)
             if fv > 1:
                 last_val   = fv
                 last_label = re.sub(r"\s+", " ", str(h)).strip()

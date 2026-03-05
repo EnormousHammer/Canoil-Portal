@@ -522,10 +522,10 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "Answer ONLY the user's question using the DATA section below. "
         "Do NOT fabricate any numbers, names, or order details.\n\n"
         "You have the complete list of open (pending) sales orders from Sage 50 accounting.\n"
-        "Format the response as a numbered list showing:\n"
-        "  SO Number | Customer | Order Value (with currency) | Order Date | Ship Date | Status\n"
+        "Format results as a markdown table with columns: "
+        "SO # | Customer | Order Value | Currency | Order Date | Ship Date | Status\n"
         "Sort by value (highest first) unless the user requests otherwise.\n"
-        "End with a summary: total count and combined value (split CAD / USD if both currencies present).\n"
+        "End with a summary line: total count and combined value split by CAD / USD.\n"
         "Keep the response concise and factual."
     ),
     "so_detail": (
@@ -594,14 +594,32 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "- If a customer name was provided, show ONLY that customer's rows first\n"
         "- Be smart about fuzzy product name matches "
         "  (e.g. 'MOv Long Life 1 drums' → MOV Long Life, Drum 180kg)\n"
-        "- Show a clear table: Customer | Product | Size | Price | Currency | As Of\n"
-        "- If multiple sizes exist for the same product+customer, list all of them\n"
-        "- State the currency explicitly (CAD vs USD)\n"
+        "- Always render results as a markdown table with columns: "
+        "  Customer | Product | Size | Price | Currency | Price Type\n"
+        "- PRICE FORMATTING: always format as $X,XXX.XX with 2 decimal places "
+        "  (e.g. 4711.276 → $4,711.28). Never show raw unformatted numbers.\n"
+        "- CURRENCY: always state CAD or USD explicitly in the Currency column\n"
+        "- PRICE TYPE: use the price_as_of label exactly as given "
+        "  (e.g. 'Current Grease Price' or 'Current Reolube Price')\n"
+        "- If multiple sizes exist for the same product+customer, list all of them as separate rows\n"
         "- Do NOT fabricate any prices — only use values from the DATA section\n"
         "- If the product or customer is not in the data, say so clearly and show the "
-        "  closest matches found"
+        "  closest matches found\n"
+        "- Never output raw markdown symbols like ** or ## in your prose text"
     ),
 }
+
+
+_FORMATTING_RULES = (
+    "\n\nFORMATTING RULES (always follow):\n"
+    "- Use markdown tables for any list of records — never pipe-separated plain text\n"
+    "- Format all money as $X,XXX.XX with 2 decimal places and the $ sign "
+    "(e.g. 4711.276 → $4,711.28; 940631.09 → $940,631.09)\n"
+    "- Always state currency (CAD / USD) explicitly — never leave it ambiguous\n"
+    "- Use **bold** only for key totals or headings — do not bold random words\n"
+    "- Do not output raw markdown syntax characters (* # | ---) in prose sentences\n"
+    "- Keep responses concise and factual — no filler phrases"
+)
 
 
 def build_focused_prompt(
@@ -623,7 +641,7 @@ def build_focused_prompt(
         base = f"Today is {today}.\n\n" + base
 
     data_json = json.dumps(targeted_data, indent=2, default=str)
-    return base + f"\n\nDATA:\n{data_json}"
+    return base + _FORMATTING_RULES + f"\n\nDATA:\n{data_json}"
 
 
 def get_model_for_intent(intent: str) -> str:
