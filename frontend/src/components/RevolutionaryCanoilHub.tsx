@@ -2781,35 +2781,33 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 }}
                               >
                                 <div className="px-4 py-3">
-                                  {/* Line 1: MO#, Status, Customer, Date, Cost */}
-                                  <div className="flex items-center gap-3 mb-1.5">
-                                    <span className="font-mono text-sm font-bold text-violet-700 shrink-0">#{mo['Mfg. Order No.']}</span>
-                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 ${statusInfo.color}`}>
-                                      {statusInfo.text}
-                                    </span>
-                                    <span className="font-semibold text-slate-900 text-sm truncate">{customerName}</span>
-                                    <div className="ml-auto flex items-center gap-4 shrink-0">
-                                      <span className="text-xs text-slate-500 tabular-nums">{formatDisplayDate(orderDate)}</span>
+                                  {/* Row 1: MO# + Status + Date + Cost */}
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-mono text-xs font-bold text-violet-700 shrink-0">#{mo['Mfg. Order No.']}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${statusInfo.color}`}>{statusInfo.text}</span>
+                                    <div className="ml-auto flex items-center gap-3 shrink-0">
+                                      <span className="text-xs text-slate-400 tabular-nums">{formatDisplayDate(orderDate)}</span>
                                       {totalCost > 0 && (
-                                        <span className="font-mono text-sm font-bold text-emerald-600 tabular-nums">${totalCost.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                                        <span className="font-mono text-xs font-bold text-emerald-600 tabular-nums">${totalCost.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
                                       )}
                                     </div>
                                   </div>
-                                  {/* Line 2: Item code + real product name from item master */}
+                                  {/* Row 2: Company name — the main title */}
+                                  <div className="font-semibold text-slate-900 text-sm leading-tight mb-1">{customerName}</div>
+                                  {/* Row 3: Item code + product description from item master */}
                                   {(() => {
                                     const buildItemNo = (mo['Build Item No.'] || '').toString().trim().toUpperCase();
                                     const itemRow = indexes.itemByNo.get(buildItemNo) ?? indexes.alertByItemNo.get(buildItemNo);
                                     const itemDesc = itemRow?.['Description'] || itemRow?.['Item Description'] || mo['Non-Stocked Build Item Description'] || '';
-                                    // mo['Description'] is the MO work note (PO/SO/Child refs) — don't show it as the product title
                                     return (
-                                      <div className="flex items-start gap-2 text-xs flex-wrap">
-                                        <span className="font-mono font-semibold text-slate-700 shrink-0">{mo['Build Item No.']}</span>
-                                        {itemDesc && <span className="text-slate-600">{itemDesc}</span>}
+                                      <div className="flex items-center gap-2 text-xs mb-1 flex-wrap">
+                                        <span className="font-mono text-slate-500 shrink-0">{mo['Build Item No.']}</span>
+                                        {itemDesc && <span className="text-slate-600 font-medium">{itemDesc}</span>}
                                       </div>
                                     );
                                   })()}
-                                  {/* Line 3: Badges - SO (from description first, then direct field), Batch, Location */}
-                                  <div className="flex items-center gap-2 mt-1 text-xs">
+                                  {/* Row 4: SO badge, Batch, Location */}
+                                  <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
                                     {(() => {
                                       const desc = (mo['Description'] || '').toString();
                                       let soNum: string | null = null;
@@ -2819,12 +2817,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       }
                                       if (!soNum) {
                                         const directSO = mo['Sales Order No.'] || mo['SO No.'];
-                                        if (directSO && /^\d{3,6}$/.test(String(directSO).trim())) {
-                                          soNum = String(directSO).trim();
-                                        }
+                                        if (directSO && /^\d{3,6}$/.test(String(directSO).trim())) soNum = String(directSO).trim();
                                       }
                                       return soNum ? (
-                                        <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
+                                        <span className="inline-flex items-center cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); setMoParsedSO(null); setMoParsedSOError(''); }}>
                                           <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold group-hover/so:bg-blue-100 transition-colors">SO {soNum}</span>
                                         </span>
                                       ) : null;
@@ -2832,16 +2828,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     {(mo['Batch No.'] || mo['Batch Number']) && (
                                       <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-mono font-semibold">{mo['Batch No.'] || mo['Batch Number']}</span>
                                     )}
-                                    {location && (
-                                      <span className="text-slate-500">{location}</span>
-                                    )}
+                                    {location && <span className="text-slate-400">{location}</span>}
                                   </div>
-                                  {/* Line 3: Progress bar */}
-                                  <div className="flex items-center gap-3 mt-2">
-                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  {/* Row 5: Progress bar */}
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                       <div className={`h-full rounded-full transition-all duration-500 ${progressBarColor}`} style={{ width: `${Math.min(progressPct, 100)}%` }}></div>
                                     </div>
-                                    <div className="flex items-center gap-1.5 shrink-0 text-xs tabular-nums">
+                                    <div className="flex items-center gap-1 shrink-0 text-xs tabular-nums">
                                       <span className="font-bold text-slate-700">{completed.toLocaleString()}</span>
                                       <span className="text-slate-400">/</span>
                                       <span className="font-medium text-slate-500">{ordered.toLocaleString()}</span>
