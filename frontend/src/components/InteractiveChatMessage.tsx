@@ -78,30 +78,108 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     return parts.length > 0 ? parts : text;
   };
 
-  // Markdown: **bold**, ## header, -, 1., `code`
+  // Parse a pipe-delimited cell row → array of cell strings
+  const parseCells = (line: string): string[] =>
+    line.split('|')
+      .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+      .map(c => c.trim());
+
+  // Markdown: **bold**, *italic*, ## header, -, 1., `code`, | tables |
   const parseMarkdown = (content: string) => {
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
+    let i = 0;
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-
+    while (i < lines.length) {
+      const trimmed = lines[i].trim();
       const mt = elements.length === 0 ? '' : ' mt-3';
+
+      // ── TABLE ──────────────────────────────────────────────────────────────
+      // Detect: current line is a pipe row AND next line is a separator row
+      if (
+        /^\|.*\|$/.test(trimmed) &&
+        i + 1 < lines.length &&
+        /^\|[\s\-:]+[\-]+[\s\-:|]*\|/.test(lines[i + 1].trim())
+      ) {
+        const headerCells = parseCells(trimmed);
+        // skip separator row
+        let j = i + 2;
+        const dataRows: string[][] = [];
+        while (j < lines.length && /^\|.*\|$/.test(lines[j].trim())) {
+          dataRows.push(parseCells(lines[j].trim()));
+          j++;
+        }
+        elements.push(
+          <div key={i} className={`overflow-x-auto${mt} mb-2 rounded-lg border border-slate-200 shadow-sm`}>
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  {headerCells.map((h, hi) => (
+                    <th key={hi} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      {renderInlineMarkdown(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row, ri) => (
+                  <tr key={ri} className={`border-b border-slate-100 transition-colors ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/30`}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} className={`px-3 py-2 text-slate-700 ${ci === 0 ? 'font-medium text-slate-800' : ''}`}>
+                        {renderInlineMarkdown(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        i = j;
+        continue;
+      }
+
+      // ── HEADINGS ────────────────────────────────────────────────────────────
       if (/^###\s/.test(trimmed)) {
         elements.push(<h3 key={i} className={`font-semibold text-slate-900 mb-1 text-sm${mt}`}>{renderWithClickables(trimmed.replace(/^###\s+/, ''))}</h3>);
       } else if (/^##\s/.test(trimmed)) {
         elements.push(<h2 key={i} className={`font-semibold text-slate-900 mb-2 text-base border-b border-slate-200 pb-1${mt}`}>{renderWithClickables(trimmed.replace(/^##\s+/, ''))}</h2>);
-      } else if (/^-\s/.test(trimmed) || /^\*\s/.test(trimmed)) {
-        elements.push(<div key={i} className="flex gap-2 mt-1"><span className="text-slate-400">•</span><span>{renderInlineMarkdown(trimmed.replace(/^[-*]\s+/, ''))}</span></div>);
+      } else if (/^#\s/.test(trimmed)) {
+        elements.push(<h1 key={i} className={`font-bold text-slate-900 mb-2 text-lg border-b-2 border-slate-300 pb-1${mt}`}>{renderWithClickables(trimmed.replace(/^#\s+/, ''))}</h1>);
+
+      // ── HORIZONTAL RULE ─────────────────────────────────────────────────────
+      } else if (/^---+$/.test(trimmed)) {
+        elements.push(<hr key={i} className="border-slate-200 my-3" />);
+
+      // ── BULLET LIST ─────────────────────────────────────────────────────────
+      } else if (/^[-*]\s/.test(trimmed)) {
+        elements.push(
+          <div key={i} className="flex gap-2 mt-1 items-start">
+            <span className="text-slate-400 mt-0.5 leading-5">•</span>
+            <span className="leading-relaxed">{renderInlineMarkdown(trimmed.replace(/^[-*]\s+/, ''))}</span>
+          </div>
+        );
+
+      // ── NUMBERED LIST ───────────────────────────────────────────────────────
       } else if (/^\d+\.\s/.test(trimmed)) {
         const num = trimmed.match(/^(\d+)\./)?.[1] ?? '';
-        elements.push(<div key={i} className="flex gap-2 mt-1"><span className="text-slate-500 font-medium">{num}.</span><span>{renderInlineMarkdown(trimmed.replace(/^\d+\.\s+/, ''))}</span></div>);
+        elements.push(
+          <div key={i} className="flex gap-2 mt-1 items-start">
+            <span className="text-slate-500 font-semibold mt-0.5 leading-5 min-w-[1.2rem]">{num}.</span>
+            <span className="leading-relaxed">{renderInlineMarkdown(trimmed.replace(/^\d+\.\s+/, ''))}</span>
+          </div>
+        );
+
+      // ── BLANK LINE ──────────────────────────────────────────────────────────
       } else if (trimmed === '') {
-        elements.push(<br key={i} />);
+        if (elements.length > 0) elements.push(<div key={i} className="h-2" />);
+
+      // ── PARAGRAPH ───────────────────────────────────────────────────────────
       } else {
-        elements.push(<p key={i} className="mt-1">{renderInlineMarkdown(trimmed)}</p>);
+        elements.push(<p key={i} className="mt-1 leading-relaxed">{renderInlineMarkdown(trimmed)}</p>);
       }
+
+      i++;
     }
     return elements;
   };
@@ -112,29 +190,32 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     let key = 0;
 
     while (remaining.length > 0) {
-      const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
-      const codeMatch = remaining.match(/`([^`]+)`/);
-      let match: RegExpMatchArray | null = null;
-      let type = '';
+      // Find the earliest inline token: **bold**, *italic*, `code`
+      const boldMatch   = remaining.match(/\*\*([^*]+)\*\*/);
+      const italicMatch = remaining.match(/(?<!\*)\*([^*]+)\*(?!\*)/);
+      const codeMatch   = remaining.match(/`([^`]+)`/);
 
-      if (boldMatch && (!codeMatch || boldMatch.index! <= codeMatch.index!)) {
-        match = boldMatch;
-        type = 'bold';
-      } else if (codeMatch) {
-        match = codeMatch;
-        type = 'code';
-      }
+      // Pick the earliest match
+      const candidates: { match: RegExpMatchArray; type: string }[] = [];
+      if (boldMatch)   candidates.push({ match: boldMatch,   type: 'bold' });
+      if (italicMatch) candidates.push({ match: italicMatch, type: 'italic' });
+      if (codeMatch)   candidates.push({ match: codeMatch,   type: 'code' });
+      candidates.sort((a, b) => (a.match.index ?? 0) - (b.match.index ?? 0));
 
-      if (match && match.index !== undefined) {
-        if (match.index > 0) {
-          parts.push(<span key={key++}>{renderWithClickables(remaining.slice(0, match.index))}</span>);
+      const chosen = candidates[0];
+
+      if (chosen && chosen.match.index !== undefined) {
+        if (chosen.match.index > 0) {
+          parts.push(<span key={key++}>{renderWithClickables(remaining.slice(0, chosen.match.index))}</span>);
         }
-        if (type === 'bold') {
-          parts.push(<strong key={key++} className="font-semibold text-slate-900">{match[1]}</strong>);
+        if (chosen.type === 'bold') {
+          parts.push(<strong key={key++} className="font-semibold text-slate-900">{chosen.match[1]}</strong>);
+        } else if (chosen.type === 'italic') {
+          parts.push(<em key={key++} className="italic text-slate-700">{chosen.match[1]}</em>);
         } else {
-          parts.push(<code key={key++} className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono text-[13px]">{match[1]}</code>);
+          parts.push(<code key={key++} className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono text-[13px]">{chosen.match[1]}</code>);
         }
-        remaining = remaining.slice(match.index + match[0].length);
+        remaining = remaining.slice(chosen.match.index + chosen.match[0].length);
       } else {
         parts.push(<span key={key++}>{renderWithClickables(remaining)}</span>);
         break;
