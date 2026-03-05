@@ -226,7 +226,7 @@ class SmartSOSearch:
         """
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system",
@@ -286,7 +286,7 @@ Return ONLY the numeric part, no text, no explanation. If no SO number found, re
             
             # Use AI to analyze the extracted text
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system",

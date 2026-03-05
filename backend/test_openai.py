@@ -19,7 +19,7 @@ client = OpenAI(api_key=api_key)
 
 try:
     r = client.chat.completions.create(
-        model='gpt-4o',
+        model='gpt-5.2',
         messages=[{'role': 'user', 'content': 'Reply with only: OK'}],
         max_tokens=5
     )

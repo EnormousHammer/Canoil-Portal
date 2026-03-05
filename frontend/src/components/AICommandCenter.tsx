@@ -762,7 +762,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       sageData: 'Available server-side (customers, open SOs, AR aging)',
       googleDriveData: 'Available server-side (MiSys, Sales Orders PDFs)'
     };
-    return { query, dateContext, dataSources: dataSourcesSummary, data };
+    // NOTE: We intentionally do NOT send the full `data` object here.
+    // Sending 600k+ records in the POST body was crashing the backend (OOM on Render).
+    // The backend loads its own data from Google Drive / Sage for each query.
+    return { query, dateContext, dataSources: dataSourcesSummary };
   };
 
   const handleSendMessage = async () => {
@@ -785,9 +788,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
     try {
       
-      console.log('🚀 SENDING REQUEST:');
-      console.log('URL:', getApiUrl('/api/chat'));
-      console.log('Body:', JSON.stringify(requestBody, null, 2));
+      console.log('🚀 Sending chat request to:', getApiUrl('/api/chat'));
       
       const response = await fetch(getApiUrl('/api/chat'), {
         method: 'POST',

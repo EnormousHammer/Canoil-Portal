@@ -1383,7 +1383,7 @@ class EnterpriseAnalytics:
             print("🤖 ENTERPRISE ANALYTICS: Feeding processed data to AI for final report...")
             
             response = self.gpt_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system", 
@@ -1548,7 +1548,7 @@ class EnterpriseAnalytics:
             print("🤖 ENTERPRISE ANALYTICS: Requesting GPT-4o advanced insights...")
             
             response = self.gpt_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system", 

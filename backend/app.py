@@ -1895,7 +1895,7 @@ RULES:
 Return ONLY the JSON, no explanations."""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.2-chat-latest",
             messages=[
                 {"role": "system", "content": "You are an expert address parser. Parse addresses with 100% accuracy. Always convert province/state names to 2-letter codes. Return only valid JSON."},
                 {"role": "user", "content": prompt}
@@ -6602,7 +6602,89 @@ def chat_query():
                     "active_orders": 0
                 }
             })
-        
+
+        # ── SMART QUERY ROUTER ────────────────────────────────────────────────
+        # Classify the intent first. For well-known intents we fetch ONLY the
+        # relevant data source and build a compact prompt, which is much cheaper
+        # than loading every ERP file on every question.
+        # If anything fails here we fall through to the existing full-data path.
+        try:
+            from query_router import (
+                classify_intent as _classify_intent,
+                fetch_targeted_data as _fetch_targeted_data,
+                build_focused_prompt as _build_focused_prompt,
+                get_model_for_intent as _get_model_for_intent,
+                FOCUSED_INTENTS as _FOCUSED_INTENTS,
+                SAGE_ONLY_INTENTS as _SAGE_ONLY_INTENTS,
+                MISYS_INTENTS as _MISYS_INTENTS,
+            )
+            _intent, _confidence = _classify_intent(user_query)
+            print(f"🎯 Query intent: '{_intent}' (confidence: {_confidence})")
+
+            # Only use focused path when we have a clear, recognisable intent
+            # (so_detail is excluded — it is already handled by SmartSOSearch above)
+            if _intent in _FOCUSED_INTENTS and _confidence >= 5:
+
+                # For MiSys-based intents pull data from whatever the frontend
+                # already sent; for Sage-only intents we skip raw_data entirely.
+                _raw_for_router: dict = {}
+                if _intent in _MISYS_INTENTS:
+                    _fe = data.get('data')
+                    if _fe and isinstance(_fe, dict):
+                        for _k, _v in _fe.items():
+                            if isinstance(_v, (list, dict)) and _v:
+                                _raw_for_router[_k] = _v
+
+                _sage_svc = sage_gdrive_service if SAGE_GDRIVE_AVAILABLE else None
+                _targeted = _fetch_targeted_data(_intent, _raw_for_router, _sage_svc, query=user_query)
+
+                if _targeted:
+                    _focused_sys_prompt = _build_focused_prompt(_intent, _targeted, date_context)
+                    _model = _get_model_for_intent(_intent)
+                    _record_count = sum(
+                        (v.get("count") or v.get("total_matched") or 0) if isinstance(v, dict) else 0
+                        for v in _targeted.values()
+                    )
+                    # For pricing, even 0 matched rows is valid (means product not found)
+                    if _intent == "pricing" and "price_list" in _targeted:
+                        _record_count = max(_record_count, 1)
+                    print(
+                        f"🎯 Focused path: intent='{_intent}' model={_model} "
+                        f"prompt={len(_focused_sys_prompt)} chars records={_record_count}"
+                    )
+                    try:
+                        _focused_resp = client.chat.completions.create(
+                            model=_model,
+                            messages=[
+                                {"role": "system", "content": _focused_sys_prompt},
+                                {"role": "user", "content": user_query},
+                            ],
+                            max_completion_tokens=2000,
+                            timeout=45,
+                        )
+                        _ai_response = _focused_resp.choices[0].message.content
+                        print(f"✅ Focused response: {len(_ai_response)} chars")
+                        return jsonify({
+                            "query": user_query,
+                            "response": _ai_response,
+                            "intent": _intent,
+                            "data_context": {
+                                "folder": "Smart Query Router",
+                                "total_items": _record_count,
+                                "active_orders": 0,
+                            },
+                        })
+                    except Exception as _gpt_err:
+                        print(f"⚠️ Focused GPT call failed, falling through: {_gpt_err}")
+                        # Fall through to the full-data path below
+                else:
+                    print(f"⚠️ No targeted data for intent '{_intent}', falling through")
+        except ImportError:
+            print("⚠️ query_router not available, using standard path")
+        except Exception as _router_err:
+            print(f"⚠️ Query router error: {_router_err}, falling through to standard path")
+        # ── END SMART QUERY ROUTER ────────────────────────────────────────────
+
         # Use frontend-provided data when available (same data user sees in main app)
         raw_data = {}
         frontend_data = data.get('data')
@@ -6620,6 +6702,7 @@ def chat_query():
                 print(f"✅ Chat using frontend data: {list(raw_data.keys())} ({total_rec} records)")
         
         # Fallback: load from API Extractions folder when no frontend data
+        latest_folder = "backend"  # default; overwritten below if we load from G Drive
         if not raw_data:
             latest_folder, error = get_latest_folder()
             if error:
@@ -7720,15 +7803,15 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
         print(f"SEARCH: Search results: {search_results}")
         
         # INTELLIGENT MODEL & CAPABILITY SELECTION
-        selected_model = "gpt-4o-mini"  # Default
-        max_tokens = 1500
+        selected_model = "gpt-5.2-chat-latest"  # Default: GPT-5.2 Instant (fast, everyday queries)
+        max_tokens = 2000
         use_vision = False
         
-        # SMART DETECTION - When to use GPT-4o vs GPT-4o-mini vs Vision
+        # SMART DETECTION - When to use GPT-5.2 (Thinking) vs GPT-5.2-chat-latest (Instant)
         complex_analysis_triggers = [
             # Document/PDF Analysis
             "pdf", "document", "image", "scan", "photo", "picture", "visual", "chart", "graph",
-            # Complex Business Analysis  
+            # Complex Business Analysis
             "sales order", "so ", "customer order", "order analysis", "complex analysis",
             # Strategic/Multi-step Analysis
             "strategy", "planning", "forecast", "trend", "optimization", "what if", "scenario",
@@ -7748,16 +7831,16 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
         needs_vision = any(trigger in user_query.lower() for trigger in vision_triggers)
         
         if needs_vision:
-            selected_model = "gpt-4o"  # Vision requires GPT-4o
+            selected_model = "gpt-5.2"  # GPT-5.2 Thinking for vision + complex
             use_vision = True
             max_tokens = 3000
-            print(f"👁️ Using GPT-4o with VISION for document/image analysis")
+            print(f"Using GPT-5.2 (Thinking) with VISION for document/image analysis")
         elif needs_complex_analysis:
-            selected_model = "gpt-4o"
-            max_tokens = 2500
-            print(f"🧠 Using GPT-4o for complex business analysis")
+            selected_model = "gpt-5.2"  # GPT-5.2 Thinking for complex analysis
+            max_tokens = 3000
+            print(f"Using GPT-5.2 (Thinking) for complex business analysis")
         else:
-            print(f"🤖 Using GPT-4o-mini for standard queries")
+            print(f"Using GPT-5.2 Instant (gpt-5.2-chat-latest) for standard queries")
         
         # Query ChatGPT with the enhanced prompt
         try:
@@ -8099,7 +8182,7 @@ def ai_so_question():
         
         # Call OpenAI API
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5.2",
             messages=[
                 {
                     "role": "system",
@@ -8483,6 +8566,52 @@ def sage_gdrive_item_pricing(item_id):
         return jsonify(s.get_item_pricing(item_id))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── Price List Master 2026 (Google Drive Excel file) ─────────────────────────
+
+@app.route('/api/price-list/search')
+def price_list_search():
+    """Search the Price List Master 2026 Excel file by product/customer query."""
+    try:
+        from price_list_service import search_price
+        query    = request.args.get('q', '')
+        customer = request.args.get('customer', None)
+        limit    = int(request.args.get('limit', 50))
+        if not query:
+            return jsonify({"error": "Query parameter 'q' is required"}), 400
+        result = search_price(query=query, customer=customer, limit=limit)
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route('/api/price-list/summary')
+def price_list_summary():
+    """Return sheet names, row counts, and column headers of the Price List file."""
+    try:
+        from price_list_service import get_all_sheets_summary
+        return jsonify(get_all_sheets_summary())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route('/api/price-list/reload', methods=['POST'])
+def price_list_reload():
+    """Force re-download of the price list from Google Drive (clears cache)."""
+    try:
+        from price_list_service import load_price_list
+        result = load_price_list(force_reload=True)
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), 500
+        return jsonify({
+            "status":     "reloaded",
+            "file_name":  result.get("file_name", ""),
+            "total_rows": sum(s["row_count"] for s in result.get("sheets", {}).values()),
+            "sheets":     list(result.get("sheets", {}).keys()),
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route('/api/sage/gdrive/sales-orders')

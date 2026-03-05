@@ -413,7 +413,7 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
     
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.2",
             messages=[
                 {"role": "system", "content": "You are a logistics parsing expert. Parse multi-SO shipping emails accurately. Include any special instructions like samples or free items."},
                 {"role": "user", "content": prompt}
@@ -820,7 +820,7 @@ def validate_sold_to_ship_to_with_gpt4(email_data, so_data):
         """
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.2",
             messages=[
                 {"role": "system", "content": "You are a B2B logistics validation expert. Analyze shipping scenarios for validity."},
                 {"role": "user", "content": validation_prompt}
@@ -1211,7 +1211,7 @@ def parse_text_with_gpt4(prompt_text, retry_count=0):
         print(f"✅ GPT-4o client available - Parsing text with GPT-4o (attempt {retry_count + 1})...")
         
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.2-chat-latest",
             messages=[
                 {"role": "system", "content": "You are a logistics data extraction assistant. Extract shipping information from text and return valid JSON only."},
                 {"role": "user", "content": prompt_text}
@@ -1395,7 +1395,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         """
         
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.2",
             messages=[
                 {"role": "system", "content": "You are a logistics parsing expert. Extract shipping data with 100% accuracy. CRITICAL RULES: 1) When email has 'Line 1: product A, Line 2: product B, Line 3: product C' you MUST extract ALL 3 items - never skip items! 2) Extract batch number for EACH item separately. 3) Add all pallet counts together (2+2+4=8 total). 4) 'Line X:' with colon means multiple items, NOT partial shipment. 5) Partial shipment is ONLY when SO number is followed by 'line X' like 'SO 2707 line 2'. Return only valid JSON with ALL items."},
                 {"role": "user", "content": prompt}

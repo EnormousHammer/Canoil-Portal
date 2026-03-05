@@ -1005,7 +1005,7 @@ class GmailEmailService:
 Return ONLY a detailed narrative profile that captures their EXACT voice. Write it as if you're describing how THIS SPECIFIC PERSON writes emails. Be specific with examples from their actual emails."""
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",  # Using mini for cost efficiency
+                model="gpt-5.2-chat-latest",  # Using Instant for cost efficiency
                 messages=[
                     {
                         "role": "system",
@@ -1152,7 +1152,7 @@ The user already has their email signature configured in Gmail which will be aut
 Return ONLY the email body content (greeting + message content). Stop BEFORE any closing/signature. No subject line. No explanations."""
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",  # Using mini for cost efficiency
+                model="gpt-5.2-chat-latest",  # Using Instant for cost efficiency
                 messages=[
                     {
                         "role": "system",
@@ -1435,9 +1435,9 @@ Return a JSON object with:
 
 Be precise with item numbers and quantities. If unsure, include it in special_instructions."""
 
-            # Use GPT-4o for PDF/attachment parsing (complex document understanding)
+            # Use GPT-5.2 for PDF/attachment parsing (strong vision/document understanding)
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",  # Keep 4o for attachments - needs strong vision/document parsing
+                model="gpt-5.2",  # GPT-5.2 Thinking for attachments - superior vision/document parsing
                 messages=[
                     {
                         "role": "system",
