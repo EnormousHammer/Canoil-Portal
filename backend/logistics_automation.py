@@ -4242,6 +4242,15 @@ def process_email():
                         item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
                         so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
                         
+                        # SIMPLE SUBSTRING: "Canoil H1 Food & Beverage #2" in "Canoil H1 Food & Beverage #2 pail 17 kg"
+                        # Normalize for comparison: &/and, #/No., strip extra spaces
+                        def _norm(s):
+                            s = (s or '').upper().replace('&', ' AND ').replace('#', ' ')
+                            s = re.sub(r'\bNO\.?\s*(\d+)', r' \1 ', s)
+                            return ' '.join(s.split())
+                        a, b = _norm(item_desc), _norm(so_desc)
+                        substr_match = (a in b or b in a)
+                        
                         # CORE PRODUCT MATCH (primary, most robust): strip packaging/size/weight, match on product identity
                         email_core = _core_product_for_matching(item_desc)
                         so_core = _core_product_for_matching(so_desc)
@@ -4303,7 +4312,7 @@ def process_email():
                         if not _packaging_compatible(email_pkg, so_pkg):
                             print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
                             continue
-                        if core_match or core_overlap_match or exact_match_1 or exact_match_2 or word_match or code_match:
+                        if substr_match or core_match or core_overlap_match or exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
