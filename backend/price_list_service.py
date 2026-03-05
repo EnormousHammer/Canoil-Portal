@@ -5,24 +5,43 @@ Reads "Copy of Price List Master 2026.xlsx" from Google Drive using the
 service account (canoil-backend@dulcet-order-474521-q1.iam.gserviceaccount.com),
 parses all sheets, and provides a clean search interface for the AI chat.
 
-File structure (5 sheets):
-  - Sept 2024 prices  : Master sheet – all customers, all products, full price history
-  - Mail merge Reolube: Reolube products, current price in last column
-  - Mail merge Grease : Grease products, current price in last column
-  - Mail Merge MOV VSG: MOV / VSG products, current price in last column
-  - sort              : Duplicate of master, sorted differently
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE STRUCTURE (5 sheets)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sheet               Purpose
+──────────────────  ──────────────────────────────────────────────────────────
+Sept 2024 prices    MASTER — all customers & products, full price history.
+                    Has TWO explicit current-price columns (most authoritative):
+                      col 21 → "Current Grease Price as of Oct '24 increase"
+                      col 22 → "Current Reolube Price as of Apr '25 increase"
+                    NOTE: Apr '25 Reolube is THE MOST RECENT price of the whole file.
 
-Key columns (consistent across all sheets):
-  Customer                    – company name
-  Product Description /Code   – product name / code
-  Product Size                – packaging size (Drum 180kg, Case (30), Pail, etc.)
-  Currency                    – CAD / USD / CDN
-  <price columns>             – historical then current; rightmost non-null = CURRENT price
+Mail merge Reolube  Reolube subset — current price = col 5 (Sept 2024).
+                    OLDER than master's Apr 2025 Reolube column. Used only as fallback.
+
+Mail merge Grease   Grease subset — current price = col 6 (Sept 2024 Grease).
+                    Roughly same as master's Oct 2024 Grease column.
+
+Mail Merge MOV VSG  MOV / VSG subset — current price = col 5 (Sept 2024 / Oct 2024).
+                    Roughly same as master's Oct 2024 Grease column.
+
+sort                Duplicate of master, sorted differently. Skipped (master preferred).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KEY COLUMNS (every sheet)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Customer                  – company name (customer-specific price list)
+  Product Description/Code  – product name / code
+  Product Size              – packaging: Drum 180kg, Pail (17kg), Case (30),
+                              Keg (55kg), 3x10 tube case, Tote, etc.
+  Currency                  – CAD or USD (per customer agreement)
+  <price columns>           – historical, then EXPLICIT current:
+                              "Current Grease Price as of Oct '24 increase"  (grease/MOV/VSG)
+                              "Current Reolube Price as of Apr '25 increase" (reolube)
 
 Cached for 30 minutes.
 """
 
-import os
 import re
 import time
 from io import BytesIO
@@ -32,19 +51,20 @@ from typing import Optional, Dict, Any, List
 PRICE_LIST_FILE_NAME = "Copy of Price List Master 2026"
 CACHE_TTL_SECONDS    = 1800   # 30 minutes
 
-# Columns that are NOT price columns (skip them when looking for the current price)
+# Definitively "current" column names (substring match, lowercase).
+# Checked first in _current_price(); the first match wins.
+# Order matters: Reolube is checked before Grease because the Reolube column
+# is Apr 2025 (most recent) and some rows have both columns present.
+CURRENT_COL_KEYWORDS = [
+    ("current reolube price", "Reolube - Apr 2025 (most recent)"),
+    ("current grease price",  "Grease - Oct 2024 (current)"),
+]
+
+# Columns that are never prices
 NON_PRICE_COLS = {
     "contact information", "contact email", "customer",
     "product description /code", "product description/code",
-    "product size", "currency", "old price",
-    # ratio / multiplier rows (non-dollar values like 1.06, 1.08)
-}
-
-# Sheets to use for "current price" extraction (most up-to-date per product type)
-CURRENT_PRICE_SHEETS = {
-    "Mail merge Reolube":  "reolube",
-    "Mail merge Grease":   "grease",
-    "Mail Merge MOV VSG":  "mov_vsg",
+    "product description / code", "product size", "currency", "old price",
 }
 
 MASTER_SHEET = "Sept 2024 prices"
@@ -91,52 +111,74 @@ def _search_file(gdrive_svc) -> Optional[Dict[str, str]]:
         return None
 
 
+def _normalize(s: str) -> str:
+    """Collapse whitespace and lowercase."""
+    return re.sub(r"\s+", " ", str(s)).strip().lower()
+
+
 def _is_price_col(col_name: str) -> bool:
-    """Return True if the column header looks like a price / date column."""
+    """True if the column header is a date/price column (not an ID/name/currency column)."""
     if col_name is None:
         return False
-    clean = str(col_name).strip().lower()
-    # Skip known non-price columns
+    clean = _normalize(col_name)
     for skip in NON_PRICE_COLS:
         if clean.startswith(skip):
             return False
-    # Skip pure multiplier rows header (e.g. "1.06", "6%")
+    # Pure multiplier header (e.g. "1.06", "6%")
     if re.match(r"^[\d\.%]+$", clean):
         return False
-    # It's a price column if it has a year/month reference or "price" in the name
     return True
 
 
-def _last_price(row: dict, headers: List[str]) -> tuple:
+def _current_price(row_orig: dict, headers: List[str]) -> tuple:
     """
-    Return (current_price, price_column_label) — the rightmost non-null, non-zero
-    numeric value in a row that comes from a price column.
+    Return (price_value, price_label) for the most current price in a row.
+
+    Priority:
+    1. Look for a header that contains "current reolube price" (Apr 2025 — most recent)
+    2. Look for a header that contains "current grease price"  (Oct 2024)
+    3. Fall back to the rightmost non-null numeric value > 1 among price columns
+       (used for Mail Merge sheets that don't have explicit "Current" columns)
     """
-    last_val = None
+    # Step 1 & 2 – explicit current-price columns
+    for keyword, friendly_label in CURRENT_COL_KEYWORDS:
+        for h in headers:
+            if h is None:
+                continue
+            if keyword in _normalize(h):
+                v = row_orig.get(str(h).strip())
+                if v is not None:
+                    try:
+                        fv = float(v)
+                        if fv > 1:
+                            return fv, friendly_label
+                    except (TypeError, ValueError):
+                        pass
+
+    # Step 3 – rightmost non-null price column (fallback for Mail Merge sheets)
+    last_val   = None
     last_label = None
     for h in headers:
         if not _is_price_col(h):
             continue
-        v = row.get(h)
+        v = row_orig.get(h)
         if v is None:
             continue
         try:
             fv = float(v)
-            if fv > 1:           # ignore multiplier rows (e.g. 1.06)
-                last_val = fv
-                last_label = str(h).strip()
+            if fv > 1:
+                last_val   = fv
+                last_label = re.sub(r"\s+", " ", str(h)).strip()
         except (TypeError, ValueError):
             pass
-    # Normalize label (remove newlines from Excel multi-line headers)
-    if last_label:
-        last_label = re.sub(r"\s+", " ", last_label).strip()
+
     return last_val, last_label
 
 
 def _find_col(row_lower: dict, *names: str) -> str:
     """Case-insensitive, whitespace-normalised dict lookup; returns '' if not found."""
     for name in names:
-        key = re.sub(r"\s+", " ", name.strip().lower())
+        key = _normalize(name)
         val = row_lower.get(key)
         if val is not None:
             return str(val).strip()
@@ -145,20 +187,18 @@ def _find_col(row_lower: dict, *names: str) -> str:
 
 def _clean_row(raw_row: tuple, headers: List[str]) -> Optional[Dict]:
     """
-    Convert a raw openpyxl row into a clean structured dict with only the
-    essential fields + current price.
+    Convert a raw openpyxl row into a clean structured dict:
+    customer, product, size, currency, current_price, price_as_of
     """
-    # Build two dicts: original-keyed (for price lookup) and lower-keyed (for field lookup)
     row_orig  = {}
     row_lower = {}
     for h, v in zip(headers, raw_row):
         if h is not None and v is not None:
             key_orig  = str(h).strip()
-            key_lower = re.sub(r"\s+", " ", key_orig.lower())
+            key_lower = _normalize(key_orig)
             row_orig[key_orig]  = v
             row_lower[key_lower] = v
 
-    # Must have at least customer + product
     customer = _find_col(row_lower, "customer")
     product  = _find_col(row_lower,
                          "product description /code",
@@ -171,8 +211,7 @@ def _clean_row(raw_row: tuple, headers: List[str]) -> Optional[Dict]:
     currency = _find_col(row_lower, "currency")
     contact  = _find_col(row_lower, "contact email", "contact information")
 
-    # Use original-keyed row so _last_price can match the raw header strings
-    current_price, price_label = _last_price(row_orig, headers)
+    current_price, price_label = _current_price(row_orig, headers)
 
     return {
         "customer":      customer,
@@ -187,14 +226,18 @@ def _clean_row(raw_row: tuple, headers: List[str]) -> Optional[Dict]:
 
 def _parse_excel(content: bytes) -> Dict[str, Any]:
     """
-    Parse the price list Excel and return a list of clean price records.
-    We prioritise the Mail Merge sheets for current prices (most up-to-date),
-    then fall back to the master sheet for any products not covered.
+    Parse the price list Excel and return deduplicated clean price records.
+
+    Priority for deduplication (first-write wins — master sheet is most authoritative):
+      1. Sept 2024 prices  (master — has explicit Apr 2025 Reolube + Oct 2024 Grease columns)
+      2. Mail Merge MOV VSG
+      3. Mail merge Grease
+      4. Mail merge Reolube  (fallback only — Reolube prices are OLDER than master)
+      5. sort               (duplicate of master, skipped if master already covered it)
     """
     import openpyxl
     wb = openpyxl.load_workbook(BytesIO(content), read_only=True, data_only=True)
 
-    # Parse every sheet into clean records
     sheet_records: Dict[str, List[Dict]] = {}
 
     for sheet_name in wb.sheetnames:
@@ -203,11 +246,10 @@ def _parse_excel(content: bytes) -> Dict[str, Any]:
         if not all_rows:
             continue
 
-        # Detect header row (first row with at least 3 non-empty cells)
+        # Find header row (first row with ≥3 non-empty cells)
         header_idx = None
         for i, row in enumerate(all_rows[:10]):
-            non_empty = [c for c in row if c is not None]
-            if len(non_empty) >= 3:
+            if sum(1 for c in row if c is not None) >= 3:
                 header_idx = i
                 break
         if header_idx is None:
@@ -230,11 +272,16 @@ def _parse_excel(content: bytes) -> Dict[str, Any]:
 
     wb.close()
 
-    # Build the master list:
-    # For each (customer, product, size) we want the MOST CURRENT price.
-    # Priority: Mail Merge sheets > Master sheet (they have the latest increases applied)
-    seen = {}   # key → record
-    priority_order = list(CURRENT_PRICE_SHEETS.keys()) + [MASTER_SHEET, "sort"]
+    # Deduplicate: master sheet is processed first; later sheets only fill in gaps.
+    # A record already in `seen` with a price is NEVER overwritten.
+    seen: Dict[tuple, Dict] = {}
+    priority_order = [
+        MASTER_SHEET,
+        "Mail Merge MOV VSG",
+        "Mail merge Grease",
+        "Mail merge Reolube",
+        "sort",
+    ]
 
     for sheet_name in priority_order:
         for rec in sheet_records.get(sheet_name, []):
@@ -243,10 +290,10 @@ def _parse_excel(content: bytes) -> Dict[str, Any]:
                 rec["product"].lower().rstrip(),
                 rec["size"].lower(),
             )
-            # Only overwrite if the new record has a price
-            if rec.get("current_price") is not None:
+            if key not in seen:
                 seen[key] = rec
-            elif key not in seen:
+            elif seen[key].get("current_price") is None and rec.get("current_price") is not None:
+                # Fill in a missing price from a later sheet
                 seen[key] = rec
 
     all_records = list(seen.values())
@@ -305,11 +352,9 @@ def search_price(query: str, customer: Optional[str] = None, limit: int = 50) ->
 
     Scoring:
     - Each query token found in (customer + product + size) = +1 point
-    - Customer name match = +10 points bonus
-    - Exact customer match = +20 points bonus
-    - Size keyword match (drum, pail, case, etc.) = +2 bonus
-
-    Returns clean records: customer, product, size, currency, current_price, price_as_of.
+    - Customer name match (partial) = +10 bonus
+    - Customer name match (exact)   = +20 bonus
+    - Size keyword match (drum/pail/case/keg) = +2 bonus
     """
     data = load_price_list()
     if data.get("error"):
@@ -319,7 +364,6 @@ def search_price(query: str, customer: Optional[str] = None, limit: int = 50) ->
     if not records:
         return {"error": "Price list is empty", "matched_rows": [], "total_matched": 0}
 
-    # Tokenise query
     tokens = [t.lower() for t in re.split(r"[\s,/\-]+", query) if len(t) >= 2]
 
     def score(rec: dict) -> int:
@@ -333,7 +377,6 @@ def search_price(query: str, customer: Optional[str] = None, limit: int = 50) ->
         if s == 0:
             return 0
 
-        # Customer bonus
         if customer:
             cust_lower = customer.lower()
             rec_cust   = rec.get("customer", "").lower()
@@ -342,7 +385,6 @@ def search_price(query: str, customer: Optional[str] = None, limit: int = 50) ->
             elif cust_lower in rec_cust or rec_cust in cust_lower:
                 s += 10
 
-        # Size/packaging bonus
         size_lower = rec.get("size", "").lower()
         for size_kw in ["drum", "pail", "case", "keg", "tote", "bag", "kg"]:
             if size_kw in tokens and size_kw in size_lower:
@@ -373,13 +415,18 @@ def get_all_sheets_summary() -> Dict[str, Any]:
         return data
     records = data.get("records", [])
     return {
-        "file_name":   data.get("file_name", ""),
+        "file_name":     data.get("file_name", ""),
         "total_records": len(records),
-        "sheet_names": data.get("sheet_names", []),
-        "sample":      records[:5],
+        "sheet_names":   data.get("sheet_names", []),
+        "sample":        records[:5],
+        "current_price_columns": {
+            "grease_mov_vsg": "Current Grease Price as of Oct '24 increase  (col 21, master sheet)",
+            "reolube":        "Current Reolube Price as of Apr '25 increase (col 22, master sheet — MOST RECENT)",
+        },
         "note": (
             "Each record = one customer+product+size combination. "
-            "current_price is the most recent price for that line. "
+            "current_price is pulled from the explicit 'Current Grease/Reolube' columns "
+            "in the master sheet (most authoritative). "
             "Currency is CAD or USD per the customer agreement."
         ),
     }
