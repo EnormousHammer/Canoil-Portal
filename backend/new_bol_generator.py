@@ -452,7 +452,7 @@ Return JSON:
 {{"street": "...", "city": "...", "state": "...", "postal": "..."}}"""
 
         response = client.chat.completions.create(
-            model="gpt-5.2-chat-latest",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=200

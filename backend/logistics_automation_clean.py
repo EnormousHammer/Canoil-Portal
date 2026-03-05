@@ -39,7 +39,7 @@ def parse_email_with_gpt4(email_text):
         """
         
         response = client.chat.completions.create(
-            model="gpt-5.2",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a logistics data extraction expert."},
                 {"role": "user", "content": prompt}
