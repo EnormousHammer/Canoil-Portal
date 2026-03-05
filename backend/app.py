@@ -4106,59 +4106,33 @@ def parse_so_for_proforma(so_number):
             err_msg = so_data.get('error', 'Unknown parse error') if isinstance(so_data, dict) else 'Parser returned nothing'
             return jsonify({"error": f"Failed to parse SO {so_number}: {err_msg}"}), 500
 
-        # PROFORMA-SPECIFIC: Re-extract charge items (Pallet, Freight, Brokerage) that GPT may have missed.
-        # We scan the raw text for any line whose first token is a known charge keyword and contains amounts.
+        # PROFORMA-SPECIFIC: Re-extract charge items (Pallet, Freight, Brokerage)
+        # The main parser excludes these, but proforma invoices need ALL charges
         raw_text = so_data.get('raw_text', '')
         if raw_text:
-            existing_charge_types = {
-                (it.get('item_code') or '').upper()
-                for it in so_data.get('items', [])
-                if it.get('is_charge')
-            }
-
-            # Flexible: each tuple is (regex, charge_type_label)
-            # Pattern: starts with charge keyword, then any mix of qty/unit/desc/price tokens,
-            # and ends with one or two decimal numbers (unit_price and/or amount).
             charge_patterns = [
-                (r'(?i)^(Pallet\w*)\s+(.*?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$', 'Pallet'),
-                (r'(?i)^(Pallet\w*)\s+(.*?)\s+([\d,]+\.\d{2})$', 'Pallet'),
-                (r'(?i)^(Freight[\w\s]*?)\s+(.*?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$', 'Freight'),
-                (r'(?i)^(Freight[\w\s]*?)\s+(.*?)\s+([\d,]+\.\d{2})$', 'Freight'),
-                (r'(?i)^(Brokerage\w*)\s+(.*?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$', 'Brokerage'),
-                (r'(?i)^(Brokerage\w*)\s+(.*?)\s+([\d,]+\.\d{2})$', 'Brokerage'),
+                (r'^(Pallet)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Pallet'),
+                (r'^(Freight\s*Charge)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Freight'),
+                (r'^(Brokerage)\s+(\d+)\s+Each\s+(.*?)\s+([\d,]+\.\d+)\s+(?:US\$|CDN\$|\$)?([\d,]+\.\d+)', 'Brokerage'),
             ]
-
             for line in raw_text.split('\n'):
                 line = line.strip()
-                if not line:
-                    continue
                 for pattern, charge_type in charge_patterns:
-                    if charge_type.upper() in existing_charge_types:
-                        continue  # already extracted by GPT
-                    m = re.match(pattern, line)
+                    m = re.match(pattern, line, re.IGNORECASE)
                     if m:
-                        groups = m.groups()
-                        # Last group is always the final amount; second-to-last may be unit_price
-                        amount = float(groups[-1].replace(',', ''))
-                        unit_price = float(groups[-2].replace(',', '')) if len(groups) >= 4 else amount
-                        # Try to find qty inside the middle group
-                        middle = groups[1] if len(groups) > 2 else ''
-                        qty_m = re.search(r'\b(\d+)\b', middle)
-                        qty = int(qty_m.group(1)) if qty_m else 1
                         charge_item = {
                             'item_code': charge_type,
-                            'description': charge_type,
-                            'quantity': qty,
+                            'description': m.group(3).strip() or charge_type,
+                            'quantity': int(m.group(2)),
                             'unit': 'EACH',
-                            'unit_price': unit_price,
-                            'amount': amount,
-                            'total_price': amount,
-                            'price': unit_price,
-                            'is_charge': True,
+                            'unit_price': float(m.group(4).replace(',', '')),
+                            'amount': float(m.group(5).replace(',', '')),
+                            'total_price': float(m.group(5).replace(',', '')),
+                            'price': float(m.group(4).replace(',', '')),
+                            'is_charge': True
                         }
                         so_data.setdefault('items', []).append(charge_item)
-                        existing_charge_types.add(charge_type.upper())
-                        print(f"PROFORMA CHARGE (regex fallback): {charge_type} ${amount}")
+                        print(f"PROFORMA CHARGE: {charge_type} ${charge_item['amount']}")
                         break
 
         # Detect currency from raw text if not already set by parser
@@ -4174,19 +4148,6 @@ def parse_so_for_proforma(so_number):
                 # Fallback: Canoil is a Canadian company; domestic SOs are CAD
                 so_data['currency'] = 'CAD'
             print(f"PROFORMA CURRENCY: {so_data['currency']} (auto-detected)")
-
-        # Diagnostic: log if items total doesn't match SO total (indicates missing charges)
-        total_amt = float(so_data.get('total_amount') or 0)
-        items_sum = sum(
-            float(it.get('amount') or it.get('total_price') or
-                  (float(it.get('quantity') or 0) * float(it.get('unit_price') or 0)))
-            for it in so_data.get('items', [])
-        )
-        if total_amt > 0 and abs(items_sum - total_amt) > 0.05:
-            print(f"PROFORMA WARNING: items sum ${items_sum:.2f} != SO total ${total_amt:.2f} "
-                  f"(gap ${total_amt - items_sum:.2f}) — possible missing charge lines")
-        else:
-            print(f"PROFORMA OK: {len(so_data.get('items', []))} items, total ${total_amt:.2f}")
 
         return jsonify({"success": True, "so_data": so_data})
 
