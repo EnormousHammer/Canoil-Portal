@@ -11,8 +11,16 @@ from flask import Blueprint, request, jsonify, send_file
 import re
 import os
 import json
+import shutil
 from datetime import datetime
 import traceback
+
+# ── POD / Shipped folder on the shared G: Drive ───────────────────────────────
+# Structure: POD_SHIPPED_BASE / {year} / {month} / {order_folder} /
+# e.g.  G:\Shared drives\Logistics_Shipping\Logistics\POD\Shipped\2026\March\
+#            Canadian Bearing_SO3107_PO-10-1087784\
+# Auto-save only runs when this path is mounted (local machine, not Render/cloud).
+POD_SHIPPED_BASE = r"G:\Shared drives\Logistics_Shipping\Logistics\POD\Shipped"
 
 def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.html') -> str:
     """
@@ -155,6 +163,73 @@ def get_document_folder_structure(so_data: dict) -> dict:
         'year': year_str,
         'month': month_name
     }
+def _save_to_pod_folder(folder_structure: dict) -> dict:
+    """
+    Copy the generated PDF documents to the G: Drive POD/Shipped folder.
+
+    Target path:
+        POD_SHIPPED_BASE / {year} / {month} / {order_folder_name} /
+    e.g.:
+        G:\\Shared drives\\Logistics_Shipping\\Logistics\\POD\\Shipped\\2026\\March\\
+            Canadian Bearing_SO3107_PO-10-1087784\\
+
+    - Only runs when POD_SHIPPED_BASE is accessible (local machine with G: drive mounted).
+    - Copies all PDF/XLSX/DOCX files from the PDF Format subfolder.
+    - Never raises; returns a result dict so the caller can log / include in response.
+
+    Returns:
+        {"saved": bool, "path": str|None, "files_copied": int, "error": str|None}
+    """
+    try:
+        # Skip silently on Render / cloud (G: drive not mounted)
+        if not os.path.exists(POD_SHIPPED_BASE):
+            return {"saved": False, "path": None, "files_copied": 0, "error": "G: Drive not accessible"}
+
+        year     = folder_structure.get("year", "")
+        month    = folder_structure.get("month", "")
+        order_fn = folder_structure.get("order_folder_name", "")
+        pdf_dir  = folder_structure.get("pdf_folder", "")
+
+        if not all([year, month, order_fn, pdf_dir]):
+            return {"saved": False, "path": None, "files_copied": 0, "error": "Incomplete folder_structure"}
+
+        # Build and create the target directory
+        target_dir = os.path.join(POD_SHIPPED_BASE, year, month, order_fn)
+        os.makedirs(target_dir, exist_ok=True)
+
+        files_copied = 0
+        copy_errors  = []
+
+        if os.path.isdir(pdf_dir):
+            for filename in os.listdir(pdf_dir):
+                if filename.lower().endswith((".pdf", ".xlsx", ".docx")):
+                    src  = os.path.join(pdf_dir, filename)
+                    dest = os.path.join(target_dir, filename)
+                    try:
+                        shutil.copy2(src, dest)
+                        files_copied += 1
+                        print(f"[POD Save] {filename} -> {target_dir}")
+                    except Exception as copy_err:
+                        copy_errors.append(f"{filename}: {copy_err}")
+                        print(f"[POD Save] WARN copy failed: {filename}: {copy_err}")
+
+        result = {
+            "saved":        files_copied > 0,
+            "path":         target_dir,
+            "files_copied": files_copied,
+            "error":        "; ".join(copy_errors) if copy_errors else None,
+        }
+        if files_copied > 0:
+            print(f"[POD Save] OK - {files_copied} file(s) saved to: {target_dir}")
+        else:
+            print(f"[POD Save] WARN - 0 files copied (pdf_folder empty or no matching files): {pdf_dir}")
+        return result
+
+    except Exception as exc:
+        print(f"[POD Save] FAIL: {exc}")
+        return {"saved": False, "path": None, "files_copied": 0, "error": str(exc)}
+
+
 import PyPDF2
 try:
     from openai import OpenAI
@@ -7509,6 +7584,12 @@ def generate_all_documents():
             })
             print(f"✅ Added AEC Manufacturer's Affidavit to documents array")
         
+        # ── Auto-save to G: Drive POD / Shipped ──────────────────────────────
+        pod_save = {"saved": False, "path": None, "files_copied": 0, "error": None}
+        if len(documents) > 0:
+            pod_save = _save_to_pod_folder(folder_structure)
+        # ─────────────────────────────────────────────────────────────────────
+
         # Add CORS headers to response
         # ZIP download URL uses company name only - downloads entire company folder with Year/Month/Order hierarchy
         response = jsonify({
@@ -7530,7 +7611,11 @@ def generate_all_documents():
             # ZIP URL is just company name - creates hierarchical ZIP with Year/Month/Order structure
             'zip_download_url': f'/download/logistics/{folder_structure["company_name"]}.zip',
             # Also provide order-specific ZIP URL if user wants just this order
-            'order_zip_download_url': f'/download/logistics/{folder_structure["folder_name"]}.zip'
+            'order_zip_download_url': f'/download/logistics/{folder_structure["folder_name"]}.zip',
+            # POD save result
+            'pod_saved': pod_save['saved'],
+            'pod_path':  pod_save['path'],
+            'pod_files': pod_save['files_copied'],
         })
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
