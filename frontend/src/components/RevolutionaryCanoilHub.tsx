@@ -852,7 +852,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const openMOById = (mohId: string) => {
     if (!mohId || !data) return;
     const raw = (data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []).find((h: any) => (h['Mfg. Order No.'] ?? h['mohId'] ?? '').toString().trim() === (mohId || '').toString().trim());
-    if (raw) { setSelectedMO(raw); setShowMODetails(true); }
+    if (raw) { setSelectedMO(raw); setShowMODetails(true); setMoParsedSO(null); setMoParsedSOError(''); }
   };
   const openItemById = (itemId: string) => {
     if (!itemId || !data) return;
@@ -2821,7 +2821,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                         }
                                       }
                                       return soNum ? (
-                                        <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); }}>
+                                        <span className="inline-flex items-center gap-1 cursor-pointer group/so" onClick={(e) => { e.stopPropagation(); setSelectedMO(mo); setShowMODetails(true); setMoActiveTab('pegged'); setMoParsedSO(null); setMoParsedSOError(''); }}>
                                           <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold group-hover/so:bg-blue-100 transition-colors">SO {soNum}</span>
                                         </span>
                                       ) : null;
@@ -3813,6 +3813,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
                                       <ExternalLink className="w-4 h-4" /> View PDF
                                     </button>
+                                    {moParsedSO && (
+                                      <button onClick={() => { setMoParsedSO(null); setMoParsedSOError(''); }} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 text-sm font-medium" title="Re-fetch SO details from G Drive">
+                                        ↺ Refresh
+                                      </button>
+                                    )}
                                     <button onClick={() => { setActiveSection('orders'); setSoSearchQuery(String(soNumber)); resetSONavigation(); setShowMODetails(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium">
                                       <Search className="w-4 h-4" /> Sales Orders
                                     </button>
@@ -4644,7 +4649,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           {moNos.map((moNo: string) => {
                                             const moHeader = moHeaders.find((mo: any) => (mo['Mfg. Order No.'] ?? '').toString() === moNo);
                                       return (
-                                              <button key={moNo} onClick={() => { if (moHeader) { setSelectedMO(moHeader); setShowMODetails(true); setMoActiveTab('overview'); } }} className="px-2.5 py-1.5 rounded-lg bg-violet-100 text-violet-800 font-mono text-sm font-semibold hover:bg-violet-200 transition-colors">
+                                              <button key={moNo} onClick={() => { if (moHeader) { setSelectedMO(moHeader); setShowMODetails(true); setMoActiveTab('overview'); setMoParsedSO(null); setMoParsedSOError(''); } }} className="px-2.5 py-1.5 rounded-lg bg-violet-100 text-violet-800 font-mono text-sm font-semibold hover:bg-violet-200 transition-colors">
                                                 MO #{moNo}
                                         </button>
                                       );
@@ -4869,7 +4874,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                 return (
                                                   <td key={col.key} className="p-3">
                                                     <button
-                                                      onClick={(e) => { e.stopPropagation(); if (moHeaderRef) { setSelectedMO(moHeaderRef); setShowMODetails(true); setMoActiveTab('overview'); } }}
+                                                      onClick={(e) => { e.stopPropagation(); if (moHeaderRef) { setSelectedMO(moHeaderRef); setShowMODetails(true); setMoActiveTab('overview'); setMoParsedSO(null); setMoParsedSOError(''); } }}
                                                       className="inline-flex items-center gap-1 font-mono text-violet-600 hover:text-violet-800 hover:underline font-medium text-xs"
                                                       title={moHeaderRef ? `Open MO #${moRefVal}` : `MO #${moRefVal} (not in data)`}
                                                     >
@@ -5394,7 +5399,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex items-center gap-3">
                                         <button
-                                          onClick={() => { if (moHdr) { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); } }}
+                                          onClick={() => { if (moHdr) { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); setMoParsedSO(null); setMoParsedSOError(''); } }}
                                           className="font-mono font-bold text-violet-700 hover:text-violet-900 hover:underline text-base"
                                         >
                                           MO #{moNo}
@@ -5404,7 +5409,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs text-slate-500">{itemsOnThisMO.length} line{itemsOnThisMO.length !== 1 ? 's' : ''} on this PO</span>
                                         {moHdr && (
-                                          <button onClick={() => { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); }} className="p-1 rounded hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors" title="Open MO Details">
+                                          <button onClick={() => { setSelectedMO(moHdr); setShowMODetails(true); setMoActiveTab('overview'); setMoParsedSO(null); setMoParsedSOError(''); }} className="p-1 rounded hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors" title="Open MO Details">
                                             <ExternalLink className="w-3.5 h-3.5" />
                                           </button>
                                         )}

@@ -797,7 +797,14 @@ IMPORTANT RULES:
        → country: "USA"
        → The "Pull from stock, batch # WH5" should be IGNORED - it's not part of the address!
 7. If information is not found, use empty string "" for text fields or 0 for numbers
-8. Preserve all items found in tables - don't skip any
+8. Preserve ALL items found in tables - don't skip ANY. This includes:
+   - Regular product line items (drums, pails, kegs, cases, etc.)
+   - Pallet charges (item_code: "Pallet", description: "Pallet" or similar)
+   - Freight charges (item_code: "Freight" or "Freight Charge", description accordingly)
+   - Brokerage charges (item_code: "Brokerage", description accordingly)
+   - Any other surcharges or fees that appear as line items in the order table
+   CRITICAL: Do NOT drop Pallet, Freight, or Brokerage lines - they are billable line items just like products!
+   Add a field "is_charge": true for Pallet, Freight, and Brokerage lines so they can be displayed differently.
 9. Handle both merged items (multiple items in one row with newlines) and single items (one per row)
 10. BROKERAGE/CARRIER INFORMATION - EXTRACT FROM SPECIAL INSTRUCTIONS:
    - **Look at special_instructions and extract ANY brokerage, carrier, or shipping company information**
