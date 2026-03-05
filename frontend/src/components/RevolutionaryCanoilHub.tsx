@@ -1628,32 +1628,51 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Helper function to get customer name - always returns a string (from MO or Sales Order)
   // MISys data may have Customer as numeric ID - always coerce to string before .trim()
   const getCustomerName = useMemo(() => {
-    const salesOrders = data['SalesOrderHeaders.json'] || data['SalesOrders.json'] || [];
-    
+    const salesOrders = [
+      ...(data['SalesOrderHeaders.json'] || []),
+      ...(data['SalesOrders.json'] || []),
+    ];
+
+    // Build a fast lookup: SO number (digits only) → customer name
+    const soCustomerMap = new Map<string, string>();
+    for (const so of salesOrders) {
+      const num = String(so['Order No.'] || so['Sales Order No.'] || so['SO Number'] || so['Order Number'] || '').trim();
+      if (!num) continue;
+      const customer = String(so['Customer'] || so['Customer Name'] || so['customer_name'] || '').trim();
+      if (customer) soCustomerMap.set(num.replace(/\D/g, ''), customer);
+    }
+
+    const soPatterns = [
+      /\bSO\s*#?\s*(\d{3,6})\b/i,
+      /\bS\.?O\.?\s*#?\s*(\d{3,6})\b/i,
+      /Sales\s*Order\s*#?\s*(\d{3,6})/i,
+      /SO:\s*(\d{3,6})/i,
+    ];
+
     return (mo: any): string => {
-      // First try MO's Customer field (may be number or string in MISys)
-      const moCustomer = mo['Customer'];
-      if (moCustomer != null && String(moCustomer).trim()) {
-        return String(moCustomer).trim();
+      // 1. MO's own Customer field (most reliable)
+      const moCustomer = String(mo['Customer'] || '').trim();
+      if (moCustomer) return moCustomer;
+
+      // 2. Dedicated Sales Order No. field
+      const directSO = String(mo['Sales Order No.'] || mo['Sales Order Number'] || mo['Sales Order'] || '').trim();
+      if (directSO) {
+        const hit = soCustomerMap.get(directSO.replace(/\D/g, ''));
+        if (hit) return hit;
       }
-      
-      // If no customer in MO, try to find it from Sales Order
-      if (mo['Sales Order No.'] || mo['Sales Order Number'] || mo['Sales Order']) {
-        const soNumber = mo['Sales Order No.'] || mo['Sales Order Number'] || mo['Sales Order'];
-        const relatedSO = salesOrders.find((so: any) => 
-          so['Order No.'] === soNumber || 
-          so['Order Number'] === soNumber ||
-          so['SO Number'] === soNumber ||
-          so['Sales Order No.'] === soNumber
-        );
-        
-        if (relatedSO) {
-          const c = relatedSO['Customer'] || relatedSO['Customer Name'] || relatedSO['customer_name'] || 'Internal';
-          return String(c);
+
+      // 3. SO number extracted from the MO description text
+      const desc = String(mo['Description'] || '').trim();
+      if (desc) {
+        for (const p of soPatterns) {
+          const m = desc.match(p);
+          if (m) {
+            const hit = soCustomerMap.get(m[1]);
+            if (hit) return hit;
+          }
         }
       }
-      
-      // Fallback
+
       return 'Internal';
     };
   }, [data['SalesOrderHeaders.json'], data['SalesOrders.json']]);
