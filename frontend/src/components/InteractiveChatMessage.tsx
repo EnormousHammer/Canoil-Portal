@@ -1,10 +1,23 @@
-import React from 'react';
-import { Brain, User, FileText } from 'lucide-react';
+﻿import React from "react";
+import { Brain, User, FileText } from "lucide-react";
+
+// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function fmtNum(s: string): string {
+  const n = parseFloat(s.replace(/,/g, ""));
+  if (isNaN(n)) return s;
+  return n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+const isBareAmt  = (s: string) => /^[\d,]+\.\d{1,2}$/.test(s.trim());
+const isCurrCode = (s: string) => /^(USD|CAD|CDN|Cdn\/drum|CAD\/drum)$/i.test(s.trim());
+const isDateStr  = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+const isMoneyHdr = (h: string) => /price|revenue|amount|cost|value|total|rate|charge/i.test(h);
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface InteractiveChatMessageProps {
   message: {
     id: string;
-    type: 'user' | 'assistant' | 'system';
+    type: "user" | "assistant" | "system";
     content: string;
     timestamp: Date;
     category?: string;
@@ -22,113 +35,190 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
   onSOClick,
   onCustomerClick,
 }) => {
-  // Inline text with clickable entities (SO, customer, money, item) — subtle, professional
-  const renderWithClickables = (text: string) => {
-    const parts: React.ReactNode[] = [];
-    let last = 0;
 
-    // SO numbers: SO #1234, Sales Order 1234
-    const soRegex = /(?:SO|Sales Order|Order)\s*#?\s*(\d{3,5})/gi;
-    let m;
-    const allMatches: { start: number; end: number; type: string; value: string; display: string }[] = [];
-    while ((m = soRegex.exec(text)) !== null) {
-      allMatches.push({ start: m.index, end: m.index + m[0].length, type: 'so', value: m[1], display: m[0] });
-    }
-
-    // Money: $1,234.56
-    const moneyRegex = /\$[\d,]+\.?\d*/g;
-    while ((m = moneyRegex.exec(text)) !== null) {
-      allMatches.push({ start: m.index, end: m.index + m[0].length, type: 'money', value: m[0], display: m[0] });
-    }
-
-    // Customer names: Company Inc., Corp., Ltd., Co.
-    const custRegex = /([A-Z][a-zA-Z\s&]+(?:Co\.?|Inc\.?|Ltd\.?|LLC|Corp\.?|Company))/g;
-    while ((m = custRegex.exec(text)) !== null) {
-      allMatches.push({ start: m.index, end: m.index + m[0].length, type: 'customer', value: m[1].trim(), display: m[1].trim() });
-    }
-
-    allMatches.sort((a, b) => a.start - b.start);
-    // Dedupe overlapping
-    const filtered: typeof allMatches = [];
-    for (const match of allMatches) {
-      if (filtered.length && match.start < filtered[filtered.length - 1].end) continue;
-      filtered.push(match);
-    }
-
-    for (const match of filtered) {
-      if (match.start > last) parts.push(text.slice(last, match.start));
-      if (match.type === 'so') {
-        parts.push(
-          <button key={match.start} onClick={() => onSOClick?.(match.value)} className="text-blue-600 hover:text-blue-700 hover:underline font-medium">
-            {match.display}
-          </button>
-        );
-      } else if (match.type === 'customer') {
-        parts.push(
-          <button key={match.start} onClick={() => onCustomerClick?.(match.value)} className="text-violet-600 hover:text-violet-700 hover:underline font-medium">
-            {match.display}
-          </button>
-        );
-      } else if (match.type === 'money') {
-        parts.push(<span key={match.start} className="font-semibold text-slate-800">{match.display}</span>);
-      }
-      last = match.end;
-    }
-    if (last < text.length) parts.push(text.slice(last));
-    return parts.length > 0 ? parts : text;
+  // â”€â”€ Currency badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const CurrBadge = ({ code }: { code: string }) => {
+    const norm = code.trim().toUpperCase().replace(/\/(DRUM|drum)/, "").replace("CDN", "CAD");
+    return (
+      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold tracking-wide ${
+        norm === "USD"
+          ? "bg-blue-50 text-blue-700 border border-blue-200"
+          : "bg-red-50 text-red-700 border border-red-200"
+      }`}>{norm}</span>
+    );
   };
 
-  // Parse a pipe-delimited cell row → array of cell strings
-  const parseCells = (line: string): string[] =>
-    line.split('|')
-      .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
-      .map(c => c.trim());
+  // â”€â”€ Styled money amount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const MoneyAmt = ({ value, curr }: { value: string; curr?: string }) => (
+    <span className="font-semibold text-emerald-700 tabular-nums">
+      {fmtNum(value.replace(/,/g, ""))}{curr ? <> <CurrBadge code={curr} /></> : null}
+    </span>
+  );
 
-  // Markdown: **bold**, *italic*, ## header, -, 1., `code`, | tables |
-  const parseMarkdown = (content: string) => {
-    const lines = content.split('\n');
-    const elements: React.ReactNode[] = [];
+  // â”€â”€ Inline text: SO, customer, currency amounts, currency codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const renderClickable = (text: string): React.ReactNode => {
+    const matches: { start: number; end: number; type: string; val: string; disp: string; extra?: string }[] = [];
+    let m: RegExpExecArray | null;
+
+    // SO numbers
+    const soRe = /(?:SO|Sales Order|Order)\s*#?\s*(\d{3,5})/gi;
+    while ((m = soRe.exec(text)) !== null)
+      matches.push({ start: m.index, end: m.index + m[0].length, type: "so", val: m[1], disp: m[0] });
+
+    // "USD 1,234.56" / "CAD 1,234.56"
+    const currAmtRe = /\b(USD|CAD|CDN)\s+([\d,]+\.?\d*)\b/gi;
+    while ((m = currAmtRe.exec(text)) !== null)
+      matches.push({ start: m.index, end: m.index + m[0].length, type: "curramt", val: m[2], disp: m[0], extra: m[1] });
+
+    // "$1,234.56"
+    const dolRe = /\$[\d,]+\.?\d*/g;
+    while ((m = dolRe.exec(text)) !== null)
+      matches.push({ start: m.index, end: m.index + m[0].length, type: "money", val: m[0], disp: m[0] });
+
+    // Standalone currency codes (only if not already inside curramt match)
+    const codeRe = /\b(USD|CAD|CDN)\b/g;
+    while ((m = codeRe.exec(text)) !== null)
+      matches.push({ start: m.index, end: m.index + m[0].length, type: "code", val: m[1], disp: m[1] });
+
+    // Customer names
+    const custRe = /([A-Z][a-zA-Z\s&']+(?:Co\.?|Inc\.?|Ltd\.?|LLC|Corp\.?|Company))/g;
+    while ((m = custRe.exec(text)) !== null)
+      matches.push({ start: m.index, end: m.index + m[0].length, type: "customer", val: m[1].trim(), disp: m[1].trim() });
+
+    matches.sort((a, b) => a.start - b.start);
+    const kept: typeof matches = [];
+    for (const x of matches) {
+      if (kept.length && x.start < kept[kept.length - 1].end) continue;
+      kept.push(x);
+    }
+
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    for (const x of kept) {
+      if (x.start > last) parts.push(text.slice(last, x.start));
+      if (x.type === "so")
+        parts.push(<button key={x.start} onClick={() => onSOClick?.(x.val)} className="text-blue-600 hover:underline font-medium">{x.disp}</button>);
+      else if (x.type === "customer")
+        parts.push(<button key={x.start} onClick={() => onCustomerClick?.(x.val)} className="text-violet-600 hover:underline font-medium">{x.disp}</button>);
+      else if (x.type === "curramt")
+        parts.push(<MoneyAmt key={x.start} value={x.val} curr={x.extra} />);
+      else if (x.type === "money")
+        parts.push(<span key={x.start} className="font-semibold text-emerald-700">{x.disp}</span>);
+      else if (x.type === "code")
+        parts.push(<CurrBadge key={x.start} code={x.val} />);
+      last = x.end;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    return parts.length ? <>{parts}</> : <>{text}</>;
+  };
+
+  // â”€â”€ Inline markdown: **bold**, *italic*, `code` â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const renderInline = (text: string): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    let rem = text;
+    let k = 0;
+    while (rem.length > 0) {
+      const bm = rem.match(/\*\*([^*]+)\*\*/);
+      const im = rem.match(/(?<!\*)\*([^*]+)\*(?!\*)/);
+      const cm = rem.match(/`([^`]+)`/);
+      const cands = [
+        bm ? { m: bm, t: "b" } : null,
+        im ? { m: im, t: "i" } : null,
+        cm ? { m: cm, t: "c" } : null,
+      ].filter(Boolean) as { m: RegExpMatchArray; t: string }[];
+      cands.sort((a, b) => (a.m.index ?? 0) - (b.m.index ?? 0));
+      const ch = cands[0];
+      if (ch && ch.m.index !== undefined) {
+        if (ch.m.index > 0)
+          parts.push(<span key={k++}>{renderClickable(rem.slice(0, ch.m.index))}</span>);
+        if (ch.t === "b") parts.push(<strong key={k++} className="font-semibold text-slate-900">{ch.m[1]}</strong>);
+        else if (ch.t === "i") parts.push(<em key={k++} className="italic text-slate-600">{ch.m[1]}</em>);
+        else parts.push(<code key={k++} className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono text-[13px]">{ch.m[1]}</code>);
+        rem = rem.slice(ch.m.index + ch.m[0].length);
+      } else {
+        parts.push(<span key={k++}>{renderClickable(rem)}</span>);
+        break;
+      }
+    }
+    return <>{parts}</>;
+  };
+
+  // â”€â”€ Smart table cell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const renderCell = (cell: string, hdr: string): React.ReactNode => {
+    const t = cell.trim();
+    if (!t || t === "-") return <span className="text-slate-300">â€”</span>;
+
+    // Currency code alone
+    if (isCurrCode(t)) return <CurrBadge code={t} />;
+
+    // Date
+    if (isDateStr(t)) {
+      const d = new Date(t + "T00:00:00");
+      return <span className="text-slate-500 text-xs whitespace-nowrap">{d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}</span>;
+    }
+
+    // Currency prefix: "USD 4711.28"
+    const cm = t.match(/^(USD|CAD|CDN)\s+([\d,]+\.?\d*)$/i);
+    if (cm) return <MoneyAmt value={cm[2]} curr={cm[1]} />;
+
+    // Dollar sign: "$4,711.28"
+    if (/^\$([\d,]+\.?\d*)$/.test(t))
+      return <span className="font-semibold text-emerald-700 tabular-nums">{t}</span>;
+
+    // Bare number in a money column
+    if (isBareAmt(t) && isMoneyHdr(hdr))
+      return <span className="font-semibold text-emerald-700 tabular-nums">{fmtNum(t)}</span>;
+
+    return renderInline(t);
+  };
+
+  // â”€â”€ Parse pipe row into cells â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const parseCells = (line: string): string[] =>
+    line.split("|").filter((_, i, a) => i > 0 && i < a.length - 1).map(c => c.trim());
+
+  // â”€â”€ Main markdown renderer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const render = (content: string): React.ReactNode[] => {
+    const lines = content.split("\n");
+    const out: React.ReactNode[] = [];
     let i = 0;
 
     while (i < lines.length) {
-      const trimmed = lines[i].trim();
-      const mt = elements.length === 0 ? '' : ' mt-3';
+      const t = lines[i].trim();
+      const gap = out.length === 0 ? "" : " mt-2";
 
-      // ── TABLE ──────────────────────────────────────────────────────────────
-      // Detect: current line is a pipe row AND next line is a separator row
-      if (
-        /^\|.*\|$/.test(trimmed) &&
-        i + 1 < lines.length &&
-        /^\|[\s\-:]+[\-]+[\s\-:|]*\|/.test(lines[i + 1].trim())
-      ) {
-        const headerCells = parseCells(trimmed);
-        // skip separator row
+      // TABLE
+      if (/^\|.*\|$/.test(t) && i + 1 < lines.length && /^\|[\s\-:]+[\-]+[\s\-:|]*\|/.test(lines[i + 1].trim())) {
+        const hdrs = parseCells(t);
         let j = i + 2;
-        const dataRows: string[][] = [];
+        const rows: string[][] = [];
         while (j < lines.length && /^\|.*\|$/.test(lines[j].trim())) {
-          dataRows.push(parseCells(lines[j].trim()));
+          rows.push(parseCells(lines[j].trim()));
           j++;
         }
-        elements.push(
-          <div key={i} className={`overflow-x-auto${mt} mb-2 rounded-lg border border-slate-200 shadow-sm`}>
+        out.push(
+          <div key={i} className={`overflow-x-auto${gap} mb-2 rounded-xl border border-slate-200 shadow-sm`}>
             <table className="min-w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {headerCells.map((h, hi) => (
-                    <th key={hi} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-                      {renderInlineMarkdown(h)}
+                <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
+                  {hdrs.map((h, hi) => (
+                    <th key={hi} className="px-3 py-2.5 text-left text-xs font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">
+                      {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {dataRows.map((row, ri) => (
-                  <tr key={ri} className={`border-b border-slate-100 transition-colors ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/30`}>
-                    {row.map((cell, ci) => (
-                      <td key={ci} className={`px-3 py-2 text-slate-700 ${ci === 0 ? 'font-medium text-slate-800' : ''}`}>
-                        {renderInlineMarkdown(cell)}
-                      </td>
-                    ))}
+                {rows.map((row, ri) => (
+                  <tr key={ri} className={`border-b border-slate-100 transition-colors ${ri % 2 === 0 ? "bg-white" : "bg-slate-50/40"} hover:bg-blue-50/20`}>
+                    {row.map((cell, ci) => {
+                      const hdr = hdrs[ci] ?? "";
+                      const isNum = isBareAmt(cell.trim()) && isMoneyHdr(hdr);
+                      return (
+                        <td key={ci} className={`px-3 py-2 text-slate-700 ${ci === 0 ? "font-medium text-slate-800" : ""} ${isNum ? "text-right tabular-nums" : ""}`}>
+                          {renderCell(cell, hdr)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -139,127 +229,81 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
         continue;
       }
 
-      // ── HEADINGS ────────────────────────────────────────────────────────────
-      if (/^###\s/.test(trimmed)) {
-        elements.push(<h3 key={i} className={`font-semibold text-slate-900 mb-1 text-sm${mt}`}>{renderWithClickables(trimmed.replace(/^###\s+/, ''))}</h3>);
-      } else if (/^##\s/.test(trimmed)) {
-        elements.push(<h2 key={i} className={`font-semibold text-slate-900 mb-2 text-base border-b border-slate-200 pb-1${mt}`}>{renderWithClickables(trimmed.replace(/^##\s+/, ''))}</h2>);
-      } else if (/^#\s/.test(trimmed)) {
-        elements.push(<h1 key={i} className={`font-bold text-slate-900 mb-2 text-lg border-b-2 border-slate-300 pb-1${mt}`}>{renderWithClickables(trimmed.replace(/^#\s+/, ''))}</h1>);
+      // H1 / H2 / H3
+      if (/^###\s/.test(t))
+        out.push(<h3 key={i} className={`font-semibold text-slate-800 text-sm${gap} mb-0.5`}>{renderInline(t.replace(/^###\s+/, ""))}</h3>);
+      else if (/^##\s/.test(t))
+        out.push(<h2 key={i} className={`font-bold text-slate-900 text-base${gap} mb-1 border-b border-slate-200 pb-1`}>{renderInline(t.replace(/^##\s+/, ""))}</h2>);
+      else if (/^#\s/.test(t))
+        out.push(<h1 key={i} className={`font-bold text-slate-900 text-lg${gap} mb-1.5 border-b-2 border-slate-300 pb-1`}>{renderInline(t.replace(/^#\s+/, ""))}</h1>);
 
-      // ── HORIZONTAL RULE ─────────────────────────────────────────────────────
-      } else if (/^---+$/.test(trimmed)) {
-        elements.push(<hr key={i} className="border-slate-200 my-3" />);
+      // BLOCKQUOTE
+      else if (/^>\s/.test(t))
+        out.push(<div key={i} className={`${gap} border-l-4 border-blue-300 bg-blue-50/50 px-3 py-2 rounded-r-lg text-slate-600 italic text-sm`}>{renderInline(t.replace(/^>\s+/, ""))}</div>);
 
-      // ── BULLET LIST ─────────────────────────────────────────────────────────
-      } else if (/^[-*]\s/.test(trimmed)) {
-        elements.push(
+      // HR
+      else if (/^---+$/.test(t) || /^\*\*\*+$/.test(t))
+        out.push(<hr key={i} className="border-slate-200 my-3" />);
+
+      // BULLET
+      else if (/^[-*\u2022]\s/.test(t))
+        out.push(
           <div key={i} className="flex gap-2 mt-1 items-start">
-            <span className="text-slate-400 mt-0.5 leading-5">•</span>
-            <span className="leading-relaxed">{renderInlineMarkdown(trimmed.replace(/^[-*]\s+/, ''))}</span>
+            <span className="text-blue-400 mt-0.5 leading-5 flex-shrink-0">&#x2022;</span>
+            <span className="leading-relaxed">{renderInline(t.replace(/^[-*\u2022]\s+/, ""))}</span>
           </div>
         );
 
-      // ── NUMBERED LIST ───────────────────────────────────────────────────────
-      } else if (/^\d+\.\s/.test(trimmed)) {
-        const num = trimmed.match(/^(\d+)\./)?.[1] ?? '';
-        elements.push(
+      // NUMBERED
+      else if (/^\d+\.\s/.test(t)) {
+        const num = t.match(/^(\d+)\./)?.[1] ?? "";
+        out.push(
           <div key={i} className="flex gap-2 mt-1 items-start">
-            <span className="text-slate-500 font-semibold mt-0.5 leading-5 min-w-[1.2rem]">{num}.</span>
-            <span className="leading-relaxed">{renderInlineMarkdown(trimmed.replace(/^\d+\.\s+/, ''))}</span>
+            <span className="text-slate-400 font-semibold mt-0.5 flex-shrink-0 min-w-[1.2rem] text-right">{num}.</span>
+            <span className="leading-relaxed">{renderInline(t.replace(/^\d+\.\s+/, ""))}</span>
           </div>
         );
-
-      // ── BLANK LINE ──────────────────────────────────────────────────────────
-      } else if (trimmed === '') {
-        if (elements.length > 0) elements.push(<div key={i} className="h-2" />);
-
-      // ── PARAGRAPH ───────────────────────────────────────────────────────────
-      } else {
-        elements.push(<p key={i} className="mt-1 leading-relaxed">{renderInlineMarkdown(trimmed)}</p>);
       }
+
+      // BLANK
+      else if (t === "") {
+        if (out.length > 0) out.push(<div key={i} className="h-1.5" />);
+      }
+
+      // PARAGRAPH
+      else
+        out.push(<p key={i} className={`${out.length === 0 ? "" : "mt-1"} leading-relaxed`}>{renderInline(t)}</p>);
 
       i++;
     }
-    return elements;
+    return out;
   };
 
-  const renderInlineMarkdown = (text: string) => {
-    const parts: React.ReactNode[] = [];
-    let remaining = text;
-    let key = 0;
-
-    while (remaining.length > 0) {
-      // Find the earliest inline token: **bold**, *italic*, `code`
-      const boldMatch   = remaining.match(/\*\*([^*]+)\*\*/);
-      const italicMatch = remaining.match(/(?<!\*)\*([^*]+)\*(?!\*)/);
-      const codeMatch   = remaining.match(/`([^`]+)`/);
-
-      // Pick the earliest match
-      const candidates: { match: RegExpMatchArray; type: string }[] = [];
-      if (boldMatch)   candidates.push({ match: boldMatch,   type: 'bold' });
-      if (italicMatch) candidates.push({ match: italicMatch, type: 'italic' });
-      if (codeMatch)   candidates.push({ match: codeMatch,   type: 'code' });
-      candidates.sort((a, b) => (a.match.index ?? 0) - (b.match.index ?? 0));
-
-      const chosen = candidates[0];
-
-      if (chosen && chosen.match.index !== undefined) {
-        if (chosen.match.index > 0) {
-          parts.push(<span key={key++}>{renderWithClickables(remaining.slice(0, chosen.match.index))}</span>);
-        }
-        if (chosen.type === 'bold') {
-          parts.push(<strong key={key++} className="font-semibold text-slate-900">{chosen.match[1]}</strong>);
-        } else if (chosen.type === 'italic') {
-          parts.push(<em key={key++} className="italic text-slate-700">{chosen.match[1]}</em>);
-        } else {
-          parts.push(<code key={key++} className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono text-[13px]">{chosen.match[1]}</code>);
-        }
-        remaining = remaining.slice(chosen.match.index + chosen.match[0].length);
-      } else {
-        parts.push(<span key={key++}>{renderWithClickables(remaining)}</span>);
-        break;
-      }
-    }
-    return parts;
-  };
-
-  const isUser = message.type === 'user';
+  const isUser = message.type === "user";
 
   return (
-    <div className={`flex items-start gap-3 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar — clean, modern */}
-      <div
-        className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${
-          isUser ? 'bg-slate-600' : 'bg-slate-700'
-        }`}
-      >
+    <div className={`flex items-start gap-3 mb-4 ${isUser ? "flex-row-reverse" : ""}`}>
+      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${
+        isUser ? "bg-slate-600" : "bg-gradient-to-br from-slate-700 to-slate-800"
+      }`}>
         {isUser ? <User className="w-4 h-4 text-white" /> : <Brain className="w-4 h-4 text-white" />}
       </div>
 
-      {/* Bubble — modern, subtle shadow */}
-      <div
-        className={`max-w-[85%] sm:max-w-2xl rounded-2xl px-4 py-3 shadow-sm ${
-          isUser
-            ? 'bg-slate-700 text-white'
-            : 'bg-white border border-slate-100 text-slate-800'
-        }`}
-      >
-        {message.type === 'assistant' ? (
-          <div className="text-sm leading-relaxed">
-            {parseMarkdown(message.content)}
-          </div>
+      <div className={`max-w-[85%] sm:max-w-2xl rounded-2xl px-4 py-3 shadow-sm ${
+        isUser ? "bg-slate-700 text-white" : "bg-white border border-slate-100 text-slate-800"
+      }`}>
+        {message.type === "assistant" ? (
+          <div className="text-sm leading-relaxed">{render(message.content)}</div>
         ) : (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         )}
 
         {message.sources && message.sources.length > 0 && (
-          <div className={`mt-3 pt-2 border-t ${isUser ? 'border-white/20' : 'border-slate-100'}`}>
+          <div className={`mt-3 pt-2 border-t ${isUser ? "border-white/20" : "border-slate-100"}`}>
             <div className="flex flex-wrap gap-2 text-xs">
-              {message.sources.map((s, i) => (
-                <span key={i} className={`inline-flex items-center gap-1 ${isUser ? 'text-white/80' : 'text-slate-500'}`}>
-                  <FileText className="w-3 h-3" />
-                  {s}
+              {message.sources.map((s, idx) => (
+                <span key={idx} className={`inline-flex items-center gap-1 ${isUser ? "text-white/80" : "text-slate-500"}`}>
+                  <FileText className="w-3 h-3" />{s}
                 </span>
               ))}
             </div>
