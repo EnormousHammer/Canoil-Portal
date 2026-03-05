@@ -39,12 +39,17 @@ def _core_product_for_matching(desc):
     """
     Extract matchable core from any product description. Strips packaging, sizes, weights.
     'Canoil H1 Food & Beverage #2 pail 17 kg' -> 'CANOIL H1 FOOD BEVERAGE 2'
-    'Canoil H1 Food & Beverage #2 master box 30 x 400g' -> 'CANOIL H1 FOOD BEVERAGE 2'
+    'Canoil H1 Food & Beverage No. 2' (SO PDF) -> 'CANOIL H1 FOOD BEVERAGE 2'
     Enables robust matching regardless of how email vs SO phrases the product.
     """
     if not desc:
         return ''
-    s = ' '.join(str(desc).upper().replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ').split())
+    s = str(desc).upper()
+    # Normalize connectors and variants: & -> space, and -> space, # -> space, No. 2 -> 2
+    s = s.replace('&', ' ').replace('-', ' ').replace('/', ' ').replace('#', ' ')
+    s = re.sub(r'\bAND\b', ' ', s)
+    s = re.sub(r'\bNO\.?\s*(\d+)\b', r' \1 ', s)  # "No. 2" or "No 2" -> "2"
+    s = ' '.join(s.split())
     for pat in _CORE_STRIP_PATTERNS:
         s = re.sub(pat, ' ', s)
     words = [w for w in s.split() if w not in _PACKAGING_STRIP and len(w) > 1]
@@ -4220,6 +4225,12 @@ def process_email():
                         so_core = _core_product_for_matching(so_desc)
                         core_match = (email_core and so_core and
                             (email_core in so_core or so_core in email_core or email_core == so_core))
+                        # Fallback: significant word overlap (handles "No. 2" vs "#2", "and" vs "&" in PDF)
+                        email_core_words_set = set((email_core or '').split())
+                        so_core_words_set = set((so_core or '').split())
+                        overlap = email_core_words_set & so_core_words_set
+                        min_words = min(len(email_core_words_set), len(so_core_words_set)) or 1
+                        core_overlap_match = (len(overlap) >= 3 and len(overlap) >= min_words * 0.6)
                         
                         # Exact match check (with and without special chars)
                         exact_match_1 = item_desc_normalized in so_desc_normalized or item_desc_clean in so_desc_clean
@@ -4251,7 +4262,7 @@ def process_email():
                         fuzzy_match_only = word_match or code_match
                         reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
                         
-                        print(f"      Check 0 (core product): {core_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
+                        print(f"      Check 0 (core product): {core_match} | overlap: {core_overlap_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
@@ -4270,7 +4281,7 @@ def process_email():
                         if not _packaging_compatible(email_pkg, so_pkg):
                             print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
                             continue
-                        if core_match or exact_match_1 or exact_match_2 or word_match or code_match:
+                        if core_match or core_overlap_match or exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
@@ -4586,14 +4597,17 @@ def process_email():
                     if unmatched_items:
                         error_messages = [f"{len(unmatched_items)} item(s) from email not found in SO"]
                         validation_errors.extend(error_messages)
-                        validation_details['items_check'] = {
+                        trust_items_check = {
                             'status': 'failed',
                             'total_email_items': len(email_data.get('items', [])),
                             'matched_items': len(email_data.get('items', [])) - len(unmatched_items),
                             'unmatched_items': unmatched_items,
-                            'quantity_mismatches': [],  # Ignored in trust_email mode
+                            'quantity_mismatches': [],
                             'items_details': items_validation
                         }
+                        if so_item_names:
+                            trust_items_check['so_items_in_system'] = so_item_names
+                        validation_details['items_check'] = trust_items_check
                     else:
                         validation_details['items_check'] = {
                             'status': 'passed',
@@ -4609,7 +4623,7 @@ def process_email():
                         error_messages.append(f"{len(quantity_mismatches)} item(s) have QUANTITY MISMATCH")
                     
                     validation_errors.extend(error_messages)
-                    validation_details['items_check'] = {
+                    items_check_data = {
                         'status': 'failed',
                         'total_email_items': len(email_data.get('items', [])),
                         'matched_items': len(email_data.get('items', [])) - len(unmatched_items),
@@ -4617,6 +4631,9 @@ def process_email():
                         'quantity_mismatches': quantity_mismatches,
                         'items_details': items_validation
                     }
+                    if unmatched_items and so_item_names:
+                        items_check_data['so_items_in_system'] = so_item_names  # Debug: what SO had
+                    validation_details['items_check'] = items_check_data
                 else:
                     validation_details['items_check'] = {
                         'status': 'passed',

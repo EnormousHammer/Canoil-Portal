@@ -2337,6 +2337,16 @@ const LogisticsAutomation: React.FC = () => {
                     </li>
                   ))}
                 </ul>
+                {result.validation_details.items_check?.so_items_in_system && result.validation_details.items_check.so_items_in_system.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-600 font-medium mb-1">SO items in system (for comparison):</p>
+                    <ul className="text-xs text-gray-600 space-y-0.5">
+                      {result.validation_details.items_check.so_items_in_system.map((soItem: string, i: number) => (
+                        <li key={i}>• {soItem}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
             
