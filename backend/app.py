@@ -1045,22 +1045,21 @@ def extract_so_data_from_pdf(pdf_path):
                                 pass
                     
                     try:
+                        charge_codes = {'Pallet', 'Freight', 'Brokerage', 'Freight Charge', 'Brokerage Charge'}
                         item = {
                             'item_code': item_code,
-                            'description': description,
+                            'description': description or item_code,
                             'quantity': int(quantity),
                             'unit': unit,
                             'unit_price': unit_price,
                             'amount': amount,
-                            'total_price': amount,  # Frontend expects total_price
-                            'price': unit_price  # Alias for compatibility
+                            'total_price': amount,
+                            'price': unit_price,
+                            'is_charge': item_code in charge_codes
                         }
-                        # Only add real product items, not charges
-                        if item_code not in ['Pallet', 'Freight', 'Brokerage']:
-                            so_data['items'].append(item)
-                            print(f"DEBUG ITEM PARSED: code='{item_code}', desc='{description}', qty={quantity}, unit={unit}")
+                        so_data['items'].append(item)
+                        print(f"DEBUG ITEM PARSED: code='{item_code}', desc='{description}', qty={quantity}, unit={unit}, charge={item['is_charge']}")
                     except ValueError:
-                        # Skip items that don't parse correctly
                         continue
                     
             # Subtotal - handle currency prefixes like "US$" or "CDN$"
