@@ -27,7 +27,6 @@ function App() {
   const [data, setData] = useState<any>({
     // EXACT file names from G: Drive - ALL 34+ files
     'Items.json': [],  // Full Company Data: item master from MIITEM.CSV
-    'Items.json': [],
     'MIITEM.json': [],
     'BillsOfMaterial.json': [],
     'BillOfMaterialDetails.json': [],

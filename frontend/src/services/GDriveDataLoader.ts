@@ -51,7 +51,6 @@ export class GDriveDataLoader {
   private loadedData: LoadedData = {
     // Initialize all 35+ G: Drive files as empty arrays
     'Items.json': [],  // Full Company Data: item master from MIITEM.CSV
-    'Items.json': [],
     'MIITEM.json': [],
     'MIILOC.json': [],  // NEW: Inventory location data with stock quantities
     'BillsOfMaterial.json': [],

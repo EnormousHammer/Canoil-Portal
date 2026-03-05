@@ -54,7 +54,6 @@ import {
   Star,
   Compass,
   Navigation,
-  Map,
   Building,
   Building2,
   Warehouse,
