@@ -3834,149 +3834,202 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
 
                                 {moParsedSO && (
                                   <div className="p-5 space-y-4">
-                                    {/* KPI tiles from parsed PDF */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Customer PO</div>
-                                        <div className="text-sm font-semibold font-mono">{moParsedSO.po_number || '—'}</div>
-                                      </div>
-                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Ship By</div>
-                                        <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(moParsedSO.ship_date) || moParsedSO.ship_date || '—'}</div>
-                                      </div>
-                                      <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                        <div className="text-xs text-slate-500 mb-1">Terms</div>
-                                        <div className="text-sm font-semibold">{moParsedSO.terms || '—'}</div>
-                                      </div>
-                                      <div className="rounded-lg bg-emerald-50 p-3 text-center">
-                                        <div className="text-xs text-emerald-600 mb-1">Order Total</div>
-                                        <div className="text-sm font-bold text-emerald-700 font-mono">
-                                          {soItems.length > 0
-                                            ? `$${soItems.reduce((s: number, it: any) => s + (parseFloat(it.amount || it.total_price || (it.quantity * it.unit_price) || 0)), 0).toFixed(2)}`
-                                            : '—'}
+                                    {/* KPI tiles */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                                      {moParsedSO.po_number && (
+                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                          <div className="text-[10px] text-slate-400 mb-1 uppercase">Customer PO</div>
+                                          <div className="text-sm font-semibold font-mono">{moParsedSO.po_number}</div>
                                         </div>
-                                      </div>
+                                      )}
+                                      {(moParsedSO.ship_date || moParsedSO.required_date) && (
+                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                          <div className="text-[10px] text-slate-400 mb-1 uppercase">Ship By</div>
+                                          <div className="text-sm font-semibold tabular-nums">{formatDisplayDate(moParsedSO.ship_date || moParsedSO.required_date) || moParsedSO.ship_date || moParsedSO.required_date}</div>
+                                        </div>
+                                      )}
+                                      {moParsedSO.terms && (
+                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                          <div className="text-[10px] text-slate-400 mb-1 uppercase">Terms</div>
+                                          <div className="text-sm font-semibold">{moParsedSO.terms}</div>
+                                        </div>
+                                      )}
+                                      {moParsedSO.ship_via && (
+                                        <div className="rounded-lg bg-sky-50 p-3 text-center">
+                                          <div className="text-[10px] text-sky-500 mb-1 uppercase">Ship Via</div>
+                                          <div className="text-sm font-semibold text-sky-800">{moParsedSO.ship_via}</div>
+                                        </div>
+                                      )}
+                                      {(moParsedSO.currency || moParsedSO.source_currency) && (
+                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
+                                          <div className="text-[10px] text-slate-400 mb-1 uppercase">Currency</div>
+                                          <div className="text-sm font-semibold">{moParsedSO.currency || moParsedSO.source_currency}</div>
+                                        </div>
+                                      )}
+                                      {(moParsedSO.total_amount || moParsedSO.total) > 0 && (
+                                        <div className="rounded-lg bg-emerald-50 p-3 text-center">
+                                          <div className="text-[10px] text-emerald-500 mb-1 uppercase">SO Total</div>
+                                          <div className="text-sm font-bold text-emerald-700 font-mono">${parseFloat(moParsedSO.total_amount || moParsedSO.total || 0).toFixed(2)}</div>
+                                        </div>
+                                      )}
                                     </div>
 
-                                    {/* Customer & Shipping details */}
+                                    {/* Bill To / Ship To addresses */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      {/* Bill To */}
                                       {(() => {
                                         const ba = moParsedSO.billing_address || moParsedSO.sold_to || {};
-                                        const fields = [
-                                          ['Company', ba.company || ba.company_name || moParsedSO.customer_name],
-                                          ['Address', ba.full_address || ba.street || ba.address],
-                                          ['City', [ba.city, ba.province || ba.state, ba.postal_code].filter(Boolean).join(', ')],
-                                          ['Country', ba.country],
-                                          ['Phone', ba.phone],
-                                          ['Email', ba.email],
-                                        ].filter(([, v]) => v);
-                                        if (!fields.length) return null;
+                                        const lines = [
+                                          ba.company || ba.company_name || moParsedSO.customer_name,
+                                          ba.full_address || [ba.street || ba.street_address || ba.address, ba.city, [ba.province, ba.postal_code].filter(Boolean).join(' '), ba.country].filter(Boolean).join(', '),
+                                          ba.phone && `Tel: ${ba.phone}`,
+                                          ba.email,
+                                        ].filter(Boolean);
+                                        if (!lines.length) return null;
                                         return (
                                           <div className="rounded-lg border border-slate-200 overflow-hidden">
-                                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Bill To</div>
-                                            <div className="p-3 space-y-1.5 text-sm">
-                                              {fields.map(([label, val]) => (
-                                                <div key={label} className="flex gap-2">
-                                                  <span className="text-xs text-slate-400 w-16 shrink-0">{label}</span>
-                                                  <span className="font-medium text-slate-800">{val}</span>
-                                                </div>
-                                              ))}
+                                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Bill To</div>
+                                            <div className="p-3 text-sm space-y-0.5">
+                                              {lines.map((l, i) => <div key={i} className={i === 0 ? 'font-semibold text-slate-800' : 'text-slate-600 text-xs'}>{l}</div>)}
                                             </div>
                                           </div>
                                         );
                                       })()}
-                                      {/* Ship To */}
                                       {(() => {
-                                        const sa = moParsedSO.shipping_address || {};
-                                        const fields = [
-                                          ['Company', sa.company || sa.company_name],
-                                          ['Address', sa.full_address || sa.street || sa.address],
-                                          ['City', [sa.city, sa.province || sa.state, sa.postal_code].filter(Boolean).join(', ')],
-                                          ['Country', sa.country],
-                                          ['Ship Via', moParsedSO.ship_via],
-                                          ['Instructions', moParsedSO.special_instructions],
-                                        ].filter(([, v]) => v);
-                                        if (!fields.length) return null;
+                                        const sa = moParsedSO.shipping_address || moParsedSO.ship_to || {};
+                                        const lines = [
+                                          sa.company || sa.company_name,
+                                          sa.full_address || [sa.street || sa.street_address || sa.address, sa.city, [sa.province, sa.postal_code].filter(Boolean).join(' '), sa.country].filter(Boolean).join(', '),
+                                          sa.phone && `Tel: ${sa.phone}`,
+                                          sa.email,
+                                        ].filter(Boolean);
+                                        if (!lines.length) return null;
                                         return (
                                           <div className="rounded-lg border border-slate-200 overflow-hidden">
-                                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Ship To</div>
-                                            <div className="p-3 space-y-1.5 text-sm">
-                                              {fields.map(([label, val]) => (
-                                                <div key={label} className="flex gap-2">
-                                                  <span className="text-xs text-slate-400 w-20 shrink-0">{label}</span>
-                                                  <span className="font-medium text-slate-800">{val}</span>
-                                                </div>
-                                              ))}
+                                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-600 uppercase tracking-wider">Ship To</div>
+                                            <div className="p-3 text-sm space-y-0.5">
+                                              {lines.map((l, i) => <div key={i} className={i === 0 ? 'font-semibold text-slate-800' : 'text-slate-600 text-xs'}>{l}</div>)}
                                             </div>
                                           </div>
                                         );
                                       })()}
                                     </div>
 
-                                    {/* Line items from PDF */}
-                                    {soItems.length > 0 && (
-                                      <div className="rounded-lg border border-slate-200 overflow-hidden">
-                                        <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
-                                          <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">Line Items</h5>
-                                          <span className="text-xs text-slate-500">{soItems.length} item{soItems.length !== 1 ? 's' : ''}</span>
-                                        </div>
-                                        <div className="overflow-x-auto">
-                                          <table className="w-full text-xs">
-                                            <thead className="bg-slate-50/80">
-                                              <tr>
-                                                <th className="text-left p-2.5 font-medium text-slate-600">Item / Code</th>
-                                                <th className="text-left p-2.5 font-medium text-slate-600">Description</th>
-                                                <th className="text-right p-2.5 font-medium text-slate-600">Qty</th>
-                                                <th className="text-right p-2.5 font-medium text-slate-600">Unit Price</th>
-                                                <th className="text-right p-2.5 font-medium text-slate-600">Amount</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                              {soItems.map((it: any, idx: number) => {
-                                                const itemCode = it.item_code || it.product_code || '';
-                                                const qty = parseFloat(it.quantity || it.ordered || 0);
-                                                const price = parseFloat(it.unit_price || it.price || 0);
-                                                const amount = parseFloat(it.amount || it.total_price || (qty * price) || 0);
-                                                return (
-                                                  <tr key={idx} className="hover:bg-slate-50/50">
-                                                    <td className="p-2.5 font-mono text-blue-600 cursor-pointer hover:underline" onClick={() => itemCode && openItemById(itemCode)}>{itemCode || '—'}</td>
-                                                    <td className="p-2.5 text-slate-700 max-w-[220px] truncate" title={it.description}>{it.description || '—'}</td>
-                                                    <td className="p-2.5 text-right tabular-nums">{qty > 0 ? qty.toLocaleString() : '—'}</td>
-                                                    <td className="p-2.5 text-right font-mono tabular-nums">{price > 0 ? `$${price.toFixed(2)}` : '—'}</td>
-                                                    <td className="p-2.5 text-right font-mono font-semibold tabular-nums text-emerald-700">{amount > 0 ? `$${amount.toFixed(2)}` : '—'}</td>
+                                    {/* All line items — products AND charges (Pallet, Freight, Brokerage) */}
+                                    {soItems.length > 0 && (() => {
+                                      const productLines = soItems.filter((it: any) => !it.is_charge);
+                                      const chargeLines  = soItems.filter((it: any) =>  it.is_charge);
+                                      const subtotal = parseFloat(moParsedSO.subtotal || 0);
+                                      const tax      = parseFloat(moParsedSO.tax || 0);
+                                      const totalAmt = parseFloat(moParsedSO.total_amount || moParsedSO.total || 0);
+                                      const computedSubtotal = productLines.reduce((s: number, it: any) => {
+                                        const qty = parseFloat(it.quantity || it.ordered || 0);
+                                        const price = parseFloat(it.unit_price || it.price || 0);
+                                        return s + parseFloat(it.amount || it.total_price || (qty * price) || 0);
+                                      }, 0);
+                                      const displaySubtotal = subtotal > 0 ? subtotal : computedSubtotal;
+                                      const renderRow = (it: any, idx: number, isCharge: boolean) => {
+                                        const itemCode = it.item_code || it.product_code || '';
+                                        const qty = parseFloat(it.quantity || it.ordered || 0);
+                                        const price = parseFloat(it.unit_price || it.price || 0);
+                                        const amount = parseFloat(it.amount || it.total_price || (qty * price) || 0);
+                                        return (
+                                          <tr key={idx} className={isCharge ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-slate-50/50'}>
+                                            <td className={`p-2.5 font-mono text-xs ${isCharge ? 'text-amber-700' : 'text-blue-600 cursor-pointer hover:underline'}`} onClick={() => !isCharge && itemCode && openItemById(itemCode)}>
+                                              {itemCode || '—'}
+                                            </td>
+                                            <td className="p-2.5 text-slate-700 text-xs">{it.description || '—'}</td>
+                                            <td className="p-2.5 text-right tabular-nums text-xs">{qty > 0 ? qty.toLocaleString() : '—'}</td>
+                                            <td className="p-2.5 text-right text-xs text-slate-500 font-mono">{it.unit || '—'}</td>
+                                            <td className="p-2.5 text-right font-mono tabular-nums text-xs">{price > 0 ? `$${price.toFixed(2)}` : '—'}</td>
+                                            <td className={`p-2.5 text-right font-mono font-semibold tabular-nums text-xs ${isCharge ? 'text-amber-700' : 'text-emerald-700'}`}>
+                                              {amount > 0 ? `$${amount.toFixed(2)}` : '—'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      };
+                                      return (
+                                        <div className="rounded-lg border border-slate-200 overflow-hidden">
+                                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                                            <h5 className="font-semibold text-slate-700 text-xs uppercase tracking-wider">Order Lines</h5>
+                                            <span className="text-xs text-slate-500">{productLines.length} product{productLines.length !== 1 ? 's' : ''}{chargeLines.length > 0 ? ` + ${chargeLines.length} charge${chargeLines.length !== 1 ? 's' : ''}` : ''}</span>
+                                          </div>
+                                          <div className="overflow-x-auto">
+                                            <table className="w-full text-xs min-w-[540px]">
+                                              <thead className="bg-slate-50/80">
+                                                <tr>
+                                                  <th className="text-left p-2.5 font-medium text-slate-500">Item Code</th>
+                                                  <th className="text-left p-2.5 font-medium text-slate-500">Description</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-500">Qty</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-500">Unit</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-500">Unit Price</th>
+                                                  <th className="text-right p-2.5 font-medium text-slate-500">Amount</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="divide-y divide-slate-100">
+                                                {productLines.map((it: any, i: number) => renderRow(it, i, false))}
+                                                {chargeLines.length > 0 && (
+                                                  <>
+                                                    <tr className="bg-amber-50">
+                                                      <td colSpan={6} className="px-3 py-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Charges</td>
+                                                    </tr>
+                                                    {chargeLines.map((it: any, i: number) => renderRow(it, i + productLines.length, true))}
+                                                  </>
+                                                )}
+                                              </tbody>
+                                              <tfoot className="border-t border-slate-200 bg-slate-50">
+                                                {chargeLines.length > 0 && (
+                                                  <tr>
+                                                    <td colSpan={5} className="px-3 py-1.5 text-right text-xs text-slate-500">Products Subtotal</td>
+                                                    <td className="px-3 py-1.5 text-right font-mono font-semibold text-slate-700">${displaySubtotal.toFixed(2)}</td>
                                                   </tr>
-                                                );
-                                              })}
-                                            </tbody>
-                                            <tfoot className="bg-slate-50 border-t border-slate-200">
-                                              <tr>
-                                                <td colSpan={4} className="p-2.5 text-right text-xs font-semibold text-slate-600">Total</td>
-                                                <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
-                                                  ${soItems.reduce((s: number, it: any) => {
-                                                    const qty = parseFloat(it.quantity || it.ordered || 0);
-                                                    const price = parseFloat(it.unit_price || it.price || 0);
-                                                    return s + parseFloat(it.amount || it.total_price || (qty * price) || 0);
-                                                  }, 0).toFixed(2)}
-                                                </td>
-                                              </tr>
-                                            </tfoot>
-                                          </table>
+                                                )}
+                                                {tax > 0 && (
+                                                  <tr>
+                                                    <td colSpan={5} className="px-3 py-1 text-right text-xs text-slate-500">Tax</td>
+                                                    <td className="px-3 py-1 text-right font-mono text-slate-600">${tax.toFixed(2)}</td>
+                                                  </tr>
+                                                )}
+                                                <tr className="border-t border-slate-300">
+                                                  <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-slate-700 uppercase">Order Total</td>
+                                                  <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 text-sm">
+                                                    ${totalAmt > 0 ? totalAmt.toFixed(2) : soItems.reduce((s: number, it: any) => {
+                                                      const qty = parseFloat(it.quantity || it.ordered || 0);
+                                                      const price = parseFloat(it.unit_price || it.price || 0);
+                                                      return s + parseFloat(it.amount || it.total_price || (qty * price) || 0);
+                                                    }, 0).toFixed(2)}
+                                                  </td>
+                                                </tr>
+                                              </tfoot>
+                                            </table>
+                                          </div>
                                         </div>
+                                      );
+                                    })()}
+
+                                    {/* Special instructions */}
+                                    {moParsedSO.special_instructions && (
+                                      <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3">
+                                        <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wider mb-1">Special Instructions</div>
+                                        <div className="text-sm text-yellow-900 whitespace-pre-wrap">{moParsedSO.special_instructions}</div>
                                       </div>
                                     )}
 
-                                    {/* Brokerage info if present */}
+                                    {/* Brokerage / carrier info */}
                                     {moParsedSO.brokerage?.broker_name && (
-                                      <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm">
-                                        <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Broker</span>
-                                        <div className="text-amber-900 font-medium mt-1">{moParsedSO.brokerage.broker_name}</div>
+                                      <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                                        <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Carrier / Customs Broker</div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                          <span className="font-semibold text-amber-900">{moParsedSO.brokerage.broker_name}</span>
+                                          {moParsedSO.brokerage.account_number && (
+                                            <span className="text-amber-700 font-mono">Acct: {moParsedSO.brokerage.account_number}</span>
+                                          )}
+                                        </div>
                                       </div>
                                     )}
 
                                     {/* Linkage note */}
                                     <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 text-xs text-blue-600 font-medium">
-                                      Linked to MO #{moView.moNo} · Source: Sales Order PDF from G Drive
+                                      Linked to MO #{moView.moNo} · Source: Sales Order PDF (G Drive)
                                       {moView.rawHeader?.['Sales Order Ship Date'] && (
                                         <span className="ml-2">· MO Ship Date: <span className="font-bold tabular-nums">{formatDisplayDate(moView.rawHeader['Sales Order Ship Date'])}</span></span>
                                       )}
