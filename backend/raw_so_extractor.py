@@ -1239,12 +1239,12 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
         
-        # CRITICAL: Use fallback when GPT fails OR when GPT returns FEWER items than raw table.
-        # GPT often drops items from merged rows (e.g. SO 3106: GPT returns 5, raw has 6 - 4X4L missing).
-        # DO NOT REMOVE - see .cursor/rules/canoil.mdc section 6c.
+        # CRITICAL: Prefer raw table when it has same or more items than GPT.
+        # GPT often drops items (SO 3106) OR returns different descriptions (SO 3172 on cloud).
+        # Raw table parsing is deterministic - exact PDF text. GPT can vary.
         gpt_items = structured_data.get('items', []) if structured_data else []
-        if len(fallback_items) > len(gpt_items):
-            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - using raw (GPT dropped items)")
+        if len(fallback_items) >= len(gpt_items) and len(fallback_items) > 0:
+            print(f"FALLBACK: Using raw table ({len(fallback_items)} items) over GPT ({len(gpt_items)} items) - deterministic match")
             fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
             if fallback.get('items'):
                 return fallback
