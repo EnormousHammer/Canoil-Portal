@@ -444,10 +444,10 @@ Return ONLY this JSON structure:
 If no proper carrier WITH account number found, return empty strings for both fields.
 Return ONLY valid JSON, no explanations."""
 
-        # Use gpt-5.2-chat-latest for faster, cheaper focused extraction
+        # Use gpt-4o-mini for faster, cheaper focused extraction
         client = get_openai_client()
         response = client.chat.completions.create(
-            model="gpt-5.2-chat-latest",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -548,7 +548,7 @@ Return ONLY valid JSON, no explanations or markdown.
 """
         
         response = client.chat.completions.create(
-            model="gpt-5.2",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system",
@@ -826,7 +826,7 @@ Return ONLY valid JSON, no explanations or markdown.
 """
         
         if DEBUG:
-            print(f"  Sending to OpenAI (model: gpt-5.2)...")
+            print(f"  Sending to OpenAI (model: gpt-4o)...")
             print(f"  Text length: {len(raw_data['raw_text'])} chars")
             print(f"  Tables: {len(raw_data['raw_tables'])}")
         
@@ -845,7 +845,7 @@ Return ONLY valid JSON, no explanations or markdown.
         
         try:
             response = client.chat.completions.create(
-            model="gpt-5.2",  # Use GPT-5.2 Thinking for better table parsing
+            model="gpt-4o",  # Use GPT-4o for better table parsing
             messages=[
                 {
                     "role": "system",
