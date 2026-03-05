@@ -1073,6 +1073,25 @@ Return ONLY valid JSON, no explanations or markdown.
         return None
 
 
+def _merge_size_only_items_into_previous(items):
+    """
+    Post-process: merge items that are ONLY a size format (e.g. "30 x 400g") into the previous product.
+    GPT and some parses can split "Canoil H1 Food & Beverage #2 master box" + "30 x 400g" into 2 items.
+    The size belongs to the previous product. Run on final items from BOTH GPT and fallback.
+    """
+    if not items or len(items) < 2:
+        return items
+    size_only_pattern = re.compile(r'^\s*\d+\s*[xX×]\s*\d+(?:\s*[A-Za-z]*)?\s*$')
+    result = []
+    for item in items:
+        desc = (item.get('description') or '').strip()
+        if result and size_only_pattern.match(desc):
+            result[-1]['description'] = (result[-1].get('description', '') + ' ' + desc).strip()
+        else:
+            result.append(item)
+    return result
+
+
 def parse_merged_table_items(raw_tables):
     """
     Parse items from merged table rows when GPT fails.
@@ -1229,7 +1248,11 @@ def extract_so_data_from_pdf(pdf_path):
             fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
             if fallback.get('items'):
                 return fallback
-        if not structured_data:
+        if structured_data and structured_data.get('items'):
+            structured_data['items'] = _merge_size_only_items_into_previous(structured_data['items'])
+            return structured_data
+
+        if not structured_data or not structured_data.get('items'):
             print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
             if fallback_items:
                 fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
@@ -1246,8 +1269,6 @@ def extract_so_data_from_pdf(pdf_path):
                 'so_number': None,
                 'customer_name': ''
             }
-        
-        return structured_data
         
     except Exception as e:
         print(f"ERROR in extract_so_data_from_pdf: {e}")

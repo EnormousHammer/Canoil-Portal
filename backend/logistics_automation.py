@@ -22,6 +22,80 @@ import traceback
 # Auto-save only runs when this path is mounted (local machine, not Render/cloud).
 POD_SHIPPED_BASE = r"G:\Shared drives\Logistics_Shipping\Logistics\POD\Shipped"
 
+# Packaging/size/weight words to strip when extracting core product for matching
+_PACKAGING_STRIP = frozenset({
+    'PAIL', 'PAILS', 'DRUM', 'DRUMS', 'KEG', 'KEGS', 'CASE', 'CASES', 'BOX', 'MASTER',
+    'TOTE', 'TOTES', 'IBC', 'KG', 'KEG', '55KG', '247KG', '18KG', '20L', '17KG', '400G',
+    'CALCIUM', 'SULFONATE', 'GREASE', 'EACH', 'GALLON', 'GALLONS', 'LITER', 'LITERS',
+})
+# Regex to remove: size (30x400g, 4X4L), weight (17 kg, 170 kg)
+_CORE_STRIP_PATTERNS = (
+    r'\d+\s*[xX×]\s*\d+(?:\s*[A-Za-z]*)?',  # 30x400g, 4X4L
+    r'\d+(?:\.\d+)?\s*(?:KG|LBS?|G|ML)\b',   # 17 kg, 170 kg, 400g
+)
+
+
+def _core_product_for_matching(desc):
+    """
+    Extract matchable core from any product description. Strips packaging, sizes, weights.
+    'Canoil H1 Food & Beverage #2 pail 17 kg' -> 'CANOIL H1 FOOD BEVERAGE 2'
+    'Canoil H1 Food & Beverage #2 master box 30 x 400g' -> 'CANOIL H1 FOOD BEVERAGE 2'
+    Enables robust matching regardless of how email vs SO phrases the product.
+    """
+    if not desc:
+        return ''
+    s = ' '.join(str(desc).upper().replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ').split())
+    for pat in _CORE_STRIP_PATTERNS:
+        s = re.sub(pat, ' ', s)
+    words = [w for w in s.split() if w not in _PACKAGING_STRIP and len(w) > 1]
+    return ' '.join(words)
+
+
+def _packaging_type_for_matching(desc):
+    """
+    Extract packaging type for logistics matching.
+    Returns normalized type: DRUM, PAIL, KEG, BOX, TOTE, or None if not detected.
+    """
+    if not desc:
+        return None
+    s = str(desc).upper()
+    if re.search(r'\b(?:MASTER\s+)?BOX(?:ES)?\b', s):
+        return 'BOX'
+    if re.search(r'\bDRUM(?:S)?\b', s):
+        return 'DRUM'
+    if re.search(r'\bPAIL(?:S)?\b', s):
+        return 'PAIL'
+    if re.search(r'\bKEG(?:S)?\b', s):
+        return 'KEG'
+    if re.search(r'\bCASE(?:S)?\b', s):
+        return 'CASE'
+    if re.search(r'\bTOTE(?:S)?\b|\bIBC\b', s):
+        return 'TOTE'
+    return None
+
+
+# Packaging equivalence: same family = compatible. Different families = reject.
+# BOX/CASE = boxed product (interchangeable in logistics). TOTE/IBC = same.
+_CASE_FAMILY = frozenset({'BOX', 'CASE'})
+
+
+def _packaging_compatible(email_pkg, so_pkg):
+    """
+    Smart packaging compatibility: allow when equivalent, reject when truly different.
+    - Both None or one None: compatible (don't punish missing info)
+    - Same family (drum/drums, box/case, tote/ibc): compatible
+    - Different families (drum vs pail): incompatible
+    """
+    if not email_pkg and not so_pkg:
+        return True
+    if not email_pkg or not so_pkg:
+        return True  # One side missing packaging - match by product name
+    if email_pkg == so_pkg:
+        return True
+    if email_pkg in _CASE_FAMILY and so_pkg in _CASE_FAMILY:
+        return True  # box = case
+    return False  # drum vs pail, etc.
+
 
 def _convert_html_to_pdf(html_filepath, pdf_folder):
     """Convert HTML to PDF (Playwright print-to-PDF). Returns (pdf_filename, pdf_path) or (None, None)."""
@@ -4138,8 +4212,14 @@ def process_email():
                         # Normalize descriptions for comparison (remove extra spaces, handle variations)
                         item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
                         so_desc_normalized = ' '.join(so_desc.split())
-                        item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
-                        so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ')
+                        item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
+                        so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
+                        
+                        # CORE PRODUCT MATCH (primary, most robust): strip packaging/size/weight, match on product identity
+                        email_core = _core_product_for_matching(item_desc)
+                        so_core = _core_product_for_matching(so_desc)
+                        core_match = (email_core and so_core and
+                            (email_core in so_core or so_core in email_core or email_core == so_core))
                         
                         # Exact match check (with and without special chars)
                         exact_match_1 = item_desc_normalized in so_desc_normalized or item_desc_clean in so_desc_clean
@@ -4171,6 +4251,7 @@ def process_email():
                         fuzzy_match_only = word_match or code_match
                         reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
                         
+                        print(f"      Check 0 (core product): {core_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
@@ -4179,7 +4260,17 @@ def process_email():
                         
                         if reject_size:
                             continue  # 4X4L vs 12x1L via fuzzy match - different products, skip
-                        if exact_match_1 or exact_match_2 or word_match or code_match:
+                        # Core match: when BOTH have size, they must match (4X4L != 12x1L)
+                        if core_match and email_sizes and so_sizes:
+                            if not (email_sizes & so_sizes):
+                                continue  # Same product name but different packaging size - skip
+                        # Packaging must be compatible: drum != pail, but box = case, tote = IBC
+                        email_pkg = _packaging_type_for_matching(item_desc)
+                        so_pkg = _packaging_type_for_matching(so_desc)
+                        if not _packaging_compatible(email_pkg, so_pkg):
+                            print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
+                            continue
+                        if core_match or exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
@@ -4358,6 +4449,8 @@ def process_email():
                     if not matched and email_sizes:
                         for i, so_desc in enumerate(so_item_names):
                             so_item = so_items_to_check[i]
+                            if not _packaging_compatible(_packaging_type_for_matching(item_desc), _packaging_type_for_matching(so_desc)):
+                                continue
                             so_sizes_fb = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', so_desc))
                             if email_sizes & so_sizes_fb:
                                 so_clean_fb = ' '.join((so_desc or '').replace('-', ' ').replace('/', ' ').split())
@@ -4373,6 +4466,9 @@ def process_email():
                         # Try matching by item code
                         for i, code in enumerate(so_item_codes):
                             so_item = so_items_to_check[i]  # Get the actual SO item object
+                            so_desc_ic = so_item_names[i] if i < len(so_item_names) else ''
+                            if so_desc_ic and not _packaging_compatible(_packaging_type_for_matching(item_desc), _packaging_type_for_matching(so_desc_ic)):
+                                continue
                             if code and (item_code in code or code in item_code):
                                 matched = True
                                 matched_so_item = so_item  # Store the matched item
