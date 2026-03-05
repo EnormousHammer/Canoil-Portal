@@ -1082,7 +1082,8 @@ def parse_merged_table_items(raw_tables):
     Returns list of item dicts or empty list if not parseable.
     """
     items = []
-    skip_desc = ['ADVISE WHEN', 'SUBTOTAL', 'HST', 'H - HST', 'TOTAL AMOUNT', 'EMAIL', 'michael@']
+    skip_desc = ['ADVISE WHEN', 'SUBTOTAL', 'HST', 'H - HST', 'TOTAL AMOUNT', 'EMAIL', 'michael@',
+                 'PALLET CHARGE', 'FREIGHT CHARGE', 'BROKERAGE', 'SHIPPED BY', 'SOLD BY']
     for table_info in raw_tables:
         table = table_info.get('data', [])
         if len(table) < 2:
@@ -1106,8 +1107,12 @@ def parse_merged_table_items(raw_tables):
                              and not any(s in p.upper() for s in skip_desc)
                              and re.search(r'[A-Z]{2,}|[0-9]', p)]
             desc_parts = []
+            size_pattern = re.compile(r'^\d+\s*[xX×]\s*\d+(?:\s*[A-Za-z]*)?$')  # e.g. "30 x 400g", "4X4L"
             for line in raw_desc_lines:
                 if desc_parts and len(line) < 10 and line.upper() in ('CASE', 'CASES', 'DRUM', 'PAIL', 'KEG'):
+                    desc_parts[-1] = desc_parts[-1] + ' ' + line
+                elif desc_parts and size_pattern.match(line.strip()):
+                    # Size format (e.g. "30 x 400g") - merge with previous product, not a separate item
                     desc_parts[-1] = desc_parts[-1] + ' ' + line
                 elif len(line) > 5:
                     desc_parts.append(line)

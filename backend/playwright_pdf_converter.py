@@ -1,43 +1,72 @@
 """
-HTML to PDF converter using pdfkit (wkhtmltopdf)
+HTML to PDF converter - Playwright (print-to-PDF) with WeasyPrint fallback.
+Uses Chromium's native print engine for best fidelity, no deformation.
 """
 import os
+import tempfile
 
-PDFKIT_AVAILABLE = False
+PLAYWRIGHT_AVAILABLE = False
+WEASYPRINT_AVAILABLE = False
 
 try:
-    import pdfkit
-    PDFKIT_AVAILABLE = True
-    print("[OK] pdfkit PDF converter available")
-except ImportError as e:
-    print(f"[WARN] pdfkit not available: {e}")
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    pass
 
 
 def html_to_pdf_sync(html_content, output_pdf_path):
     """
-    Convert HTML to PDF using pdfkit (wkhtmltopdf)
+    Convert HTML to PDF using Playwright (print-to-PDF) or WeasyPrint fallback.
+    Playwright uses Chromium's native print - best fidelity, no deformation.
     """
-    if not PDFKIT_AVAILABLE:
-        print("[ERROR] pdfkit not available - cannot generate PDF")
-        return False
-    
-    try:
-        options = {
-            'page-size': 'Letter',
-            'margin-top': '0.5in',
-            'margin-right': '0.5in',
-            'margin-bottom': '0.5in',
-            'margin-left': '0.5in',
-            'encoding': 'UTF-8',
-            'no-outline': None,
-            'enable-local-file-access': None,
-            'print-media-type': None
-        }
-        
-        pdfkit.from_string(html_content, output_pdf_path, options=options)
-        print(f"[OK] PDF generated: {os.path.basename(output_pdf_path)}")
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] PDF generation failed: {e}")
-        return False
+    output_pdf_path = os.path.abspath(output_pdf_path)
+    os.makedirs(os.path.dirname(output_pdf_path) or '.', exist_ok=True)
+
+    # Try Playwright first (true print-to-PDF)
+    if PLAYWRIGHT_AVAILABLE:
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                # Ensure print media for correct layout
+                page.emulate_media(media='print')
+                page.set_content(html_content, wait_until='networkidle')
+                page.pdf(
+                    path=output_pdf_path,
+                    format='Letter',
+                    margin={'top': '0.5in', 'right': '0.5in', 'bottom': '0.5in', 'left': '0.5in'},
+                    print_background=True
+                )
+                browser.close()
+            if os.path.exists(output_pdf_path):
+                print(f"[OK] PDF generated (Playwright): {os.path.basename(output_pdf_path)}")
+                return True
+        except Exception as e:
+            print(f"[WARN] Playwright PDF failed: {e} - trying WeasyPrint")
+
+    # Fallback: WeasyPrint (no browser)
+    if WEASYPRINT_AVAILABLE:
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                f.write(html_content)
+                tmp_html = f.name
+            try:
+                HTML(filename=tmp_html).write_pdf(output_pdf_path)
+                if os.path.exists(output_pdf_path):
+                    print(f"[OK] PDF generated (WeasyPrint): {os.path.basename(output_pdf_path)}")
+                    return True
+            finally:
+                if os.path.exists(tmp_html):
+                    os.unlink(tmp_html)
+        except Exception as e:
+            print(f"[ERROR] WeasyPrint PDF failed: {e}")
+
+    print("[ERROR] No PDF converter available (install playwright or weasyprint)")
+    return False

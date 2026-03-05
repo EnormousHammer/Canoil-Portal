@@ -22,6 +22,25 @@ import traceback
 # Auto-save only runs when this path is mounted (local machine, not Render/cloud).
 POD_SHIPPED_BASE = r"G:\Shared drives\Logistics_Shipping\Logistics\POD\Shipped"
 
+
+def _convert_html_to_pdf(html_filepath, pdf_folder):
+    """Convert HTML to PDF (Playwright print-to-PDF). Returns (pdf_filename, pdf_path) or (None, None)."""
+    if not os.path.exists(html_filepath):
+        return None, None
+    try:
+        from playwright_pdf_converter import html_to_pdf_sync
+        with open(html_filepath, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        html_basename = os.path.basename(html_filepath)
+        pdf_filename = html_basename.replace('.html', '.pdf')
+        pdf_path = os.path.join(pdf_folder, pdf_filename)
+        if html_to_pdf_sync(html_content, pdf_path):
+            return pdf_filename, pdf_path
+    except Exception as e:
+        print(f"[WARN] HTML to PDF conversion failed: {e}")
+    return None, None
+
+
 def generate_document_filename(doc_type: str, so_data: dict, file_ext: str = '.html') -> str:
     """
     Generate consistent filename format: "DOC_TYPE SO# | PO# | Date"
@@ -6165,20 +6184,18 @@ def generate_manual_documents():
             
             bol_html = populate_new_bol_html(so_data, email_analysis)
             bol_filename = generate_document_filename("BOL", so_data, '.html')
-            
-            # Save HTML version
             bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
             with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(bol_html)
-            
-            # HTML only - no PDF conversion
+            pdf_fn, _ = _convert_html_to_pdf(bol_html_filepath, folder_structure['pdf_folder'])
+            dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
             results['bol'] = {
                 'success': True,
-                'filename': bol_filename,
-                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                'file_type': 'html'
+                'filename': dl_fn,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                'file_type': 'pdf' if pdf_fn else 'html'
             }
-            print(f"✅ BOL generated: {bol_filename} (HTML)")
+            print(f"[OK] BOL generated: {dl_fn}")
         except Exception as e:
             print(f"❌ BOL generation error: {e}")
             traceback.print_exc()
@@ -6199,20 +6216,18 @@ def generate_manual_documents():
             
             ps_html = generate_packing_slip_html(so_data, email_analysis, formatted_items)
             ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
-            
-            # Save HTML version
             ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
             with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(ps_html)
-            
-            # HTML only - no PDF conversion
+            pdf_fn, _ = _convert_html_to_pdf(ps_html_filepath, folder_structure['pdf_folder'])
+            dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
             results['packing_slip'] = {
                 'success': True,
-                'filename': ps_filename,
-                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                'file_type': 'html'
+                'filename': dl_fn,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                'file_type': 'pdf' if pdf_fn else 'html'
             }
-            print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
+            print(f"[OK] Packing Slip generated: {dl_fn}")
         except Exception as e:
             print(f"❌ Packing Slip generation error: {e}")
             traceback.print_exc()
@@ -6229,15 +6244,15 @@ def generate_manual_documents():
             ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
             with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                 f.write(ci_html)
-            
-            # HTML only - no PDF conversion
+            pdf_fn, _ = _convert_html_to_pdf(ci_html_filepath, folder_structure['pdf_folder'])
+            dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ci_html_filename, folder_structure['html_folder_name'])
             results['commercial_invoice'] = {
                 'success': True,
-                'filename': ci_html_filename,
-                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ci_html_filename}',
-                'file_type': 'html'
+                'filename': dl_fn,
+                'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                'file_type': 'pdf' if pdf_fn else 'html'
             }
-            print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML)")
+            print(f"[OK] Commercial Invoice generated: {dl_fn}")
         except Exception as e:
             print(f"❌ Commercial Invoice generation error: {e}")
             traceback.print_exc()
@@ -6621,11 +6636,13 @@ def generate_all_documents():
                         bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
                         with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                             f.write(bol_html)
+                        pdf_fn, _ = _convert_html_to_pdf(bol_html_filepath, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
                         results['bols'].append({
                             'success': True,
-                            'filename': bol_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': so_num,
                             'po_number': po_num
                         })
@@ -6656,17 +6673,20 @@ def generate_all_documents():
                         tote_email['so_number'] = 'TOTES-RETURN'
                         bol_html = populate_new_bol_html(tote_so_data, tote_email)
                         bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
-                        with open(os.path.join(folder_structure['html_folder'], bol_filename), 'w', encoding='utf-8') as f:
+                        tote_html_path = os.path.join(folder_structure['html_folder'], bol_filename)
+                        with open(tote_html_path, 'w', encoding='utf-8') as f:
                             f.write(bol_html)
+                        pdf_fn, _ = _convert_html_to_pdf(tote_html_path, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
                         results['bols'].append({
                             'success': True,
-                            'filename': bol_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': 'TOTES-RETURN',
                             'po_number': 'TOTES-RETURN'
                         })
-                        print(f"   ✅ BOL Totes: {bol_filename}")
+                        print(f"   [OK] BOL Totes: {dl_fn}")
                     results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}  # First for backward compat
                 else:
                     # Standard: one combined BOL (or one BOL + separate totes BOL when has_totes)
@@ -6679,11 +6699,13 @@ def generate_all_documents():
                     bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
                     with open(bol_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(bol_html)
+                    pdf_fn, _ = _convert_html_to_pdf(bol_html_filepath, folder_structure['pdf_folder'])
+                    dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
                     results['bols'] = [{
                         'success': True,
-                        'filename': bol_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                        'file_type': 'html',
+                        'filename': dl_fn,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                        'file_type': 'pdf' if pdf_fn else 'html',
                         'so_number': so_data.get('so_number', ''),
                         'po_number': so_data.get('po_number', '')
                     }]
@@ -6711,19 +6733,22 @@ def generate_all_documents():
                         tote_email['so_number'] = 'TOTES-RETURN'
                         bol_html = populate_new_bol_html(tote_so_data, tote_email)
                         bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
-                        with open(os.path.join(folder_structure['html_folder'], bol_filename), 'w', encoding='utf-8') as f:
+                        tote_html_path = os.path.join(folder_structure['html_folder'], bol_filename)
+                        with open(tote_html_path, 'w', encoding='utf-8') as f:
                             f.write(bol_html)
+                        pdf_fn, _ = _convert_html_to_pdf(tote_html_path, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
                         results['bols'].append({
                             'success': True,
-                            'filename': bol_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{bol_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': 'TOTES-RETURN',
                             'po_number': 'TOTES-RETURN'
                         })
-                        print(f"   ✅ BOL Totes: {bol_filename}")
+                        print(f"   [OK] BOL Totes: {dl_fn}")
                     results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}
-                    print(f"✅ BOL generated: {bol_filename} (HTML)")
+                    print(f"[OK] BOL generated: {results['bols'][0]['filename']}")
                 
             except Exception as e:
                 print(f"❌ BOL generation error: {e}")
@@ -6772,15 +6797,17 @@ def generate_all_documents():
                         ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
                         with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                             f.write(ps_html)
+                        pdf_fn, _ = _convert_html_to_pdf(ps_html_filepath, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
                         results['packing_slips'].append({
                             'success': True,
-                            'filename': ps_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': so_num,
                             'po_number': po_num
                         })
-                        print(f"   ✅ Packing Slip {idx+1}/{len(so_data_list)}: {ps_filename} (SO {so_num}, PO {po_num})")
+                        print(f"   [OK] Packing Slip {idx+1}/{len(so_data_list)}: {dl_fn} (SO {so_num}, PO {po_num})")
                     # Totes: separate Packing Slip when Big Red + totes
                     if has_totes_separate:
                         empty_c = int(totes_return.get('empty_count', 0) or 0)
@@ -6802,17 +6829,20 @@ def generate_all_documents():
                         tote_email_ps['totes_return'] = {}  # Item has full description, no duplicate in comments
                         ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
                         ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
-                        with open(os.path.join(folder_structure['html_folder'], ps_filename), 'w', encoding='utf-8') as f:
+                        tote_ps_path = os.path.join(folder_structure['html_folder'], ps_filename)
+                        with open(tote_ps_path, 'w', encoding='utf-8') as f:
                             f.write(ps_html)
+                        pdf_fn, _ = _convert_html_to_pdf(tote_ps_path, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
                         results['packing_slips'].append({
                             'success': True,
-                            'filename': ps_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': 'TOTES-RETURN',
                             'po_number': 'TOTES-RETURN'
                         })
-                        print(f"   ✅ Packing Slip Totes: {ps_filename}")
+                        print(f"   [OK] Packing Slip Totes: {dl_fn}")
                     results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
                 else:
                     ps_email = copy.deepcopy(email_shipping or email_analysis)
@@ -6823,11 +6853,13 @@ def generate_all_documents():
                     ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
                     with open(ps_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ps_html)
+                    pdf_fn, _ = _convert_html_to_pdf(ps_html_filepath, folder_structure['pdf_folder'])
+                    dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
                     results['packing_slips'] = [{
                         'success': True,
-                        'filename': ps_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                        'file_type': 'html',
+                        'filename': dl_fn,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                        'file_type': 'pdf' if pdf_fn else 'html',
                         'so_number': so_data.get('so_number', ''),
                         'po_number': so_data.get('po_number', '')
                     }]
@@ -6850,19 +6882,22 @@ def generate_all_documents():
                         tote_email_ps['totes_return'] = {}
                         ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
                         ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
-                        with open(os.path.join(folder_structure['html_folder'], ps_filename), 'w', encoding='utf-8') as f:
+                        tote_ps_path = os.path.join(folder_structure['html_folder'], ps_filename)
+                        with open(tote_ps_path, 'w', encoding='utf-8') as f:
                             f.write(ps_html)
+                        pdf_fn, _ = _convert_html_to_pdf(tote_ps_path, folder_structure['pdf_folder'])
+                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
                         results['packing_slips'].append({
                             'success': True,
-                            'filename': ps_filename,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ps_filename}',
-                            'file_type': 'html',
+                            'filename': dl_fn,
+                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                            'file_type': 'pdf' if pdf_fn else 'html',
                             'so_number': 'TOTES-RETURN',
                             'po_number': 'TOTES-RETURN'
                         })
-                        print(f"   ✅ Packing Slip Totes: {ps_filename}")
+                        print(f"   [OK] Packing Slip Totes: {dl_fn}")
                     results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
-                    print(f"✅ Packing Slip generated: {ps_filename} (HTML)")
+                    print(f"[OK] Packing Slip generated: {results['packing_slips'][0]['filename']}")
                 
             except Exception as e:
                 print(f"❌ Packing Slip generation error: {e}")
@@ -6925,17 +6960,16 @@ def generate_all_documents():
                     ci_html_filepath = os.path.join(folder_structure['html_folder'], ci_html_filename)
                     with open(ci_html_filepath, 'w', encoding='utf-8') as f:
                         f.write(ci_html)
-                    
-                    # HTML only - no PDF conversion
+                    pdf_fn, _ = _convert_html_to_pdf(ci_html_filepath, folder_structure['pdf_folder'])
+                    dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ci_html_filename, folder_structure['html_folder_name'])
                     results['commercial_invoice'] = {
                         'success': True,
-                        'filename': ci_html_filename,
-                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{folder_structure["html_folder_name"]}/{ci_html_filename}',
-                        'file_type': 'html',
+                        'filename': dl_fn,
+                        'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
+                        'file_type': 'pdf' if pdf_fn else 'html',
                         'reason': f'Generated for cross-border shipment to {destination_country}'
                     }
-                    
-                    print(f"✅ Commercial Invoice generated: {ci_html_filename} (HTML)")
+                    print(f"[OK] Commercial Invoice generated: {dl_fn}")
                 else:
                     print(f"⏭️  Commercial Invoice skipped (domestic shipment within Canada)")
                     results['commercial_invoice'] = {
