@@ -4135,6 +4135,20 @@ def parse_so_for_proforma(so_number):
                         print(f"PROFORMA CHARGE: {charge_type} ${charge_item['amount']}")
                         break
 
+        # Detect currency from raw text if not already set by parser
+        if not so_data.get('currency'):
+            rt = (raw_text or '').upper()
+            cn = (so_data.get('customer_name') or '').upper()
+            # Explicit markers: US$ or USD → USD; CDN$ or Canadian → CAD
+            if 'US$' in rt or re.search(r'\bUSD\b', rt) or '-USD' in cn:
+                so_data['currency'] = 'USD'
+            elif 'CDN$' in rt or re.search(r'\bCAD\b', rt) or 'CANADIAN' in rt:
+                so_data['currency'] = 'CAD'
+            else:
+                # Fallback: Canoil is a Canadian company; domestic SOs are CAD
+                so_data['currency'] = 'CAD'
+            print(f"PROFORMA CURRENCY: {so_data['currency']} (auto-detected)")
+
         return jsonify({"success": True, "so_data": so_data})
 
     except Exception as e:

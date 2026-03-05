@@ -3860,18 +3860,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                           <div className="text-sm font-semibold text-sky-800">{moParsedSO.ship_via}</div>
                                         </div>
                                       )}
-                                      {(moParsedSO.currency || moParsedSO.source_currency) && (
-                                        <div className="rounded-lg bg-slate-50 p-3 text-center">
-                                          <div className="text-[10px] text-slate-400 mb-1 uppercase">Currency</div>
-                                          <div className="text-sm font-semibold">{moParsedSO.currency || moParsedSO.source_currency}</div>
+                                      <div className="rounded-lg bg-emerald-50 p-3 text-center">
+                                        <div className="text-[10px] text-emerald-500 mb-1 uppercase">SO Total</div>
+                                        <div className="text-sm font-bold text-emerald-700 font-mono">
+                                          {(moParsedSO.currency || moParsedSO.source_currency) && (
+                                            <span className="text-[10px] font-semibold text-emerald-600 mr-1">{moParsedSO.currency || moParsedSO.source_currency}</span>
+                                          )}
+                                          {(moParsedSO.total_amount || moParsedSO.total) > 0
+                                            ? `$${parseFloat(moParsedSO.total_amount || moParsedSO.total || 0).toFixed(2)}`
+                                            : '—'}
                                         </div>
-                                      )}
-                                      {(moParsedSO.total_amount || moParsedSO.total) > 0 && (
-                                        <div className="rounded-lg bg-emerald-50 p-3 text-center">
-                                          <div className="text-[10px] text-emerald-500 mb-1 uppercase">SO Total</div>
-                                          <div className="text-sm font-bold text-emerald-700 font-mono">${parseFloat(moParsedSO.total_amount || moParsedSO.total || 0).toFixed(2)}</div>
-                                        </div>
-                                      )}
+                                        {(moParsedSO.currency || moParsedSO.source_currency) && (
+                                          <div className="text-[10px] text-emerald-600 mt-0.5">{moParsedSO.currency || moParsedSO.source_currency}</div>
+                                        )}
+                                      </div>
                                     </div>
 
                                     {/* Bill To / Ship To addresses */}
@@ -3990,7 +3992,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                                   </tr>
                                                 )}
                                                 <tr className="border-t border-slate-300">
-                                                  <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-slate-700 uppercase">Order Total</td>
+                                                  <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-slate-700 uppercase">
+                                                    Order Total
+                                                    {moParsedSO.currency && <span className="ml-1.5 text-[10px] font-semibold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{moParsedSO.currency}</span>}
+                                                  </td>
                                                   <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 text-sm">
                                                     ${totalAmt > 0 ? totalAmt.toFixed(2) : soItems.reduce((s: number, it: any) => {
                                                       const qty = parseFloat(it.quantity || it.ordered || 0);
