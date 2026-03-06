@@ -1239,15 +1239,25 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
         
-        # CRITICAL: Prefer raw table when it has same or more items than GPT.
-        # GPT often drops items (SO 3106) OR returns different descriptions (SO 3172 on cloud).
-        # Raw table parsing is deterministic - exact PDF text. GPT can vary.
+        # CRITICAL: Item reconciliation strategy:
+        # - GPT provides rich structured data: dates, terms, addresses, items
+        # - Raw table provides exact PDF text items (deterministic, no hallucination)
+        # Strategy:
+        #   1. If raw table has MORE items than GPT → GPT dropped items (e.g. SO 3106).
+        #      Use full fallback (raw table wins entirely since GPT is unreliable here).
+        #   2. If raw table has SAME items as GPT → use GPT's rich metadata BUT replace
+        #      items with raw table items (exact PDF text, avoids GPT description drift).
+        #   3. If GPT has more items → trust GPT, use GPT entirely.
         gpt_items = structured_data.get('items', []) if structured_data else []
-        if len(fallback_items) >= len(gpt_items) and len(fallback_items) > 0:
-            print(f"FALLBACK: Using raw table ({len(fallback_items)} items) over GPT ({len(gpt_items)} items) - deterministic match")
+        if len(fallback_items) > len(gpt_items) and len(fallback_items) > 0:
+            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - GPT dropped items, using full fallback")
             fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
             if fallback.get('items'):
                 return fallback
+        if structured_data and len(fallback_items) == len(gpt_items) and len(fallback_items) > 0:
+            print(f"MERGE: GPT and raw table agree on {len(fallback_items)} items - using GPT metadata + raw table items (exact PDF text)")
+            structured_data['items'] = _merge_size_only_items_into_previous(fallback_items)
+            return structured_data
         if structured_data and structured_data.get('items'):
             structured_data['items'] = _merge_size_only_items_into_previous(structured_data['items'])
             return structured_data
