@@ -240,7 +240,7 @@ function App() {
     const gdriveLoader = GDriveDataLoader.getInstance();
     
     try {
-      const result = await gdriveLoader.loadAllData({ source: source === 'default' ? undefined : source });
+      const result = await gdriveLoader.loadAllData({ source: source === 'default' ? undefined : source, forceRefresh: true });
       if ((source === 'full_company_data' || source === 'live_sql') && result.fullCompanyDataReady === false && result.data) {
         const mpsUrl = getApiUrl('/api/mps');
         const mpsData = await fetch(mpsUrl).then(r => r.ok ? r.json() : { mps_orders: [], summary: { total_orders: 0 } }).catch(() => ({ mps_orders: [], summary: { total_orders: 0 } }));

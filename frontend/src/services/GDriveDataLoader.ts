@@ -135,8 +135,9 @@ export class GDriveDataLoader {
     }
   }
 
-  public async loadAllData(options?: { source?: 'default' | 'full_company_data' | 'live_sql' }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
+  public async loadAllData(options?: { source?: 'default' | 'full_company_data' | 'live_sql'; forceRefresh?: boolean }): Promise<{ data: any; folderInfo: any; source?: string; fullCompanyDataReady?: boolean }> {
     const source = options?.source ?? 'default';
+    const forceRefresh = options?.forceRefresh ?? false;
     try {
       // For live_sql: call the bridge directly to avoid loading 250MB through Render's memory.
       // Render just tells us the bridge URL via /api/live-sql-url, then we fetch directly.
@@ -169,10 +170,11 @@ export class GDriveDataLoader {
         };
       }
 
-      // Always pass refresh=true so the backend clears its 1-hour cache and reads the latest folder
+      // Pass refresh=true only on explicit user sync — not on every page load
+      const refreshParam = forceRefresh ? '&refresh=true' : '';
       const apiUrl = source === 'full_company_data'
-        ? getApiUrl('/api/data?source=full_company_data&refresh=true')
-        : getApiUrl('/api/data?refresh=true');
+        ? getApiUrl(`/api/data?source=full_company_data${refreshParam}`)
+        : getApiUrl(`/api/data${forceRefresh ? '?refresh=true' : ''}`);
       console.log('📡 Loading data from backend:', {
         url: apiUrl,
         source,
