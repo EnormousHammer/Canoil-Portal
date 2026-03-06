@@ -484,7 +484,7 @@ Return ONLY valid JSON, no explanations."""
         
     except Exception as e:
         if DEBUG:
-            print(f"  ⚠ Focused brokerage extraction failed: {e}")
+            print(f"  [WARN] Focused brokerage extraction failed: {e}")
         # Return empty on any failure - safe fallback
         return {'broker_name': '', 'account_number': ''}
 
@@ -504,7 +504,7 @@ def validate_and_clean_with_openai(structured_data, raw_data):
         client = get_openai_client()
     except:
         # If OpenAI not available, return data as-is
-        print("⚠️ OpenAI not available for validation - using original data")
+        print("[WARN] OpenAI not available for validation - using original data")
         return structured_data
     
     try:
@@ -577,11 +577,11 @@ Return ONLY valid JSON, no explanations or markdown.
         # Parse validated data
         validated_data = json.loads(result_text)
         
-        print("✅ OpenAI validation complete - duplicates removed, addresses cleaned")
+        print("[OK] OpenAI validation complete - duplicates removed, addresses cleaned")
         return validated_data
         
     except Exception as e:
-        print(f"⚠️ OpenAI validation failed (using original data): {e}")
+        print(f"[WARN] OpenAI validation failed (using original data): {e}")
         # Return original data if validation fails
         return structured_data
 
@@ -1118,21 +1118,21 @@ Return ONLY valid JSON, no explanations or markdown.
                     
                     structured_data['brokerage'] = focused_brokerage
                 elif DEBUG:
-                    print(f"  ℹ Focused extraction: no carrier/broker info found")
+                    print(f"  [INFO] Focused extraction: no carrier/broker info found")
                     
             except Exception as e:
                 if DEBUG:
-                    print(f"  ⚠ Focused brokerage extraction failed (using main extraction): {e}")
+                    print(f"  [WARN] Focused brokerage extraction failed (using main extraction): {e}")
                 # On any failure, keep whatever the main extraction got
                 pass
         
         # Add batch number from pre-extraction if found
         if batch_from_pdf:
             structured_data['batch_number'] = batch_from_pdf
-            print(f"📦 Batch number extracted from PDF: {batch_from_pdf}")
+            print(f"[PKG] Batch number extracted from PDF: {batch_from_pdf}")
         
         # CRITICAL: Use OpenAI to validate and clean - remove duplicates, fix bad parsing
-        print("\n🔍 OpenAI Validation: Checking for duplicates and bad parsing...")
+        print("\n[CHECK] OpenAI Validation: Checking for duplicates and bad parsing...")
         structured_data = validate_and_clean_with_openai(structured_data, raw_data)
         
         if DEBUG:
@@ -1472,14 +1472,14 @@ if __name__ == "__main__":
         print(f"Testing with: {test_so}")
         result = extract_so_data_from_pdf(test_so)
         if result:
-            print(f"\n✅ SUCCESS!")
+            print(f"\n[OK] SUCCESS!")
             print(f"SO Number: {result.get('so_number')}")
             print(f"Customer: {result.get('customer_name')}")
             print(f"Items: {len(result.get('items', []))}")
             for i, item in enumerate(result.get('items', [])[:5], 1):
                 print(f"  {i}. {item.get('item_code')} - {item.get('description')} - Qty: {item.get('quantity')} {item.get('unit')}")
         else:
-            print(f"\n❌ FAILED")
+            print(f"\n[FAIL] FAILED")
     else:
         print(f"Test file not found: {test_so}")
 
