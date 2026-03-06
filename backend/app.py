@@ -2635,6 +2635,13 @@ def get_all_data():
                 print("📂 Full Company Data: not loaded. Falling back to API Extractions.")
         
         # Check if we have valid cached response (pre-serialized)
+        # ?refresh=true bypasses cache — used when user explicitly clicks Sync to get latest data
+        force_refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
+        if force_refresh:
+            print("🔄 Force refresh requested — clearing cache to load latest data from disk...")
+            _cache_timestamp = None
+            _response_cache = None
+            _data_cache = None
         if _response_cache and _cache_timestamp:
             cache_age = time.time() - _cache_timestamp
             print(f"SEARCH: Cache check: age={cache_age:.1f}s, duration={_cache_duration}s, valid={cache_age < _cache_duration}")

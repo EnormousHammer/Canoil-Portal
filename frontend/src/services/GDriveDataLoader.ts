@@ -169,9 +169,10 @@ export class GDriveDataLoader {
         };
       }
 
+      // Always pass refresh=true so the backend clears its 1-hour cache and reads the latest folder
       const apiUrl = source === 'full_company_data'
-        ? getApiUrl('/api/data?source=full_company_data')
-        : getApiUrl('/api/data');
+        ? getApiUrl('/api/data?source=full_company_data&refresh=true')
+        : getApiUrl('/api/data?refresh=true');
       console.log('📡 Loading data from backend:', {
         url: apiUrl,
         source,
