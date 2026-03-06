@@ -560,7 +560,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic
-            max_tokens=8000
+            max_tokens=16384
         )
         
         result_text = response.choices[0].message.content.strip()
@@ -856,7 +856,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic output
-            max_tokens=16000
+            max_tokens=16384
             )
         except Exception as api_error:
             print(f"ERROR: OpenAI API call failed: {api_error}")

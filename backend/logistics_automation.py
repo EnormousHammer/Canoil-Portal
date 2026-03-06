@@ -592,7 +592,7 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
                 {"role": "user", "content": prompt}
             ],
             temperature=0,
-            max_tokens=3000,
+            max_tokens=16384,
             response_format={"type": "json_object"}
         )
         
@@ -1574,7 +1574,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                 {"role": "user", "content": prompt}
             ],
             temperature=0,
-            max_tokens=3000,  # Increased for multi-item emails
+            max_tokens=16384,
             response_format={"type": "json_object"}
         )
         
