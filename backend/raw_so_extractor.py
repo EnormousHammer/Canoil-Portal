@@ -560,7 +560,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic
-            max_tokens=4000
+            max_tokens=16384
         )
         
         result_text = response.choices[0].message.content.strip()
@@ -734,8 +734,7 @@ Extract and organize into this exact JSON structure:
     "broker_name": "customs broker company name if mentioned (e.g., Livingston International, Cole International)",
     "account_number": "broker account number if mentioned (e.g., 12345, ACCT-98765)"
   }},
-  "special_instructions": "any special instructions or comments",
-  "raw_text": "keep original raw text"
+  "special_instructions": "any special instructions or comments"
 }}
 
 IMPORTANT RULES:
@@ -857,7 +856,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic output
-            max_tokens=4000
+            max_tokens=16384
             )
         except Exception as api_error:
             print(f"ERROR: OpenAI API call failed: {api_error}")
@@ -1239,15 +1238,25 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
         
-        # CRITICAL: Use fallback when GPT fails OR when GPT returns FEWER items than raw table.
-        # GPT often drops items from merged rows (e.g. SO 3106: GPT returns 5, raw has 6 - 4X4L missing).
-        # DO NOT REMOVE - see .cursor/rules/canoil.mdc section 6c.
+        # CRITICAL: Item reconciliation strategy:
+        # - GPT provides rich structured data: dates, terms, addresses, items
+        # - Raw table provides exact PDF text items (deterministic, no hallucination)
+        # Strategy:
+        #   1. If raw table has MORE items than GPT → GPT dropped items (e.g. SO 3106).
+        #      Use full fallback (raw table wins entirely since GPT is unreliable here).
+        #   2. If raw table has SAME items as GPT → use GPT's rich metadata BUT replace
+        #      items with raw table items (exact PDF text, avoids GPT description drift).
+        #   3. If GPT has more items → trust GPT, use GPT entirely.
         gpt_items = structured_data.get('items', []) if structured_data else []
-        if len(fallback_items) > len(gpt_items):
-            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - using raw (GPT dropped items)")
+        if len(fallback_items) > len(gpt_items) and len(fallback_items) > 0:
+            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - GPT dropped items, using full fallback")
             fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
             if fallback.get('items'):
                 return fallback
+        if structured_data and len(fallback_items) == len(gpt_items) and len(fallback_items) > 0:
+            print(f"MERGE: GPT and raw table agree on {len(fallback_items)} items - using GPT metadata + raw table items (exact PDF text)")
+            structured_data['items'] = _merge_size_only_items_into_previous(fallback_items)
+            return structured_data
         if structured_data and structured_data.get('items'):
             structured_data['items'] = _merge_size_only_items_into_previous(structured_data['items'])
             return structured_data
