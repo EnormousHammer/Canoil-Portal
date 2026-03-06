@@ -586,6 +586,92 @@ Return ONLY valid JSON, no explanations or markdown.
         return structured_data
 
 
+def unmerge_table_rows(raw_tables):
+    """
+    Pre-process tables before sending to GPT.
+    Some PDFs (e.g. SO 3121, SO 3106) pack all items into ONE table row with newline-separated
+    values. This confuses GPT into miscounting items.
+    
+    This function detects merged rows and splits them into individual clean rows so GPT
+    always receives a properly formatted table regardless of how pdfplumber extracted it.
+    
+    Example merged row (before):
+      Ordered: "60\n180\n84\n84"    <- 4 items in 1 cell
+      Description: "Item A\nItem B\nItem C\nItem D\nSubtotal:\nGST"
+    
+    After unmerging (4 clean rows):
+      Row 1: Ordered=60, Description="Item A"
+      Row 2: Ordered=180, Description="Item B"
+      ...
+    """
+    _skip = {'SUBTOTAL', 'HST', 'GST', 'H - HST', 'G - GST', 'TOTAL AMOUNT', 'TOTAL',
+             'SHIPPED BY', 'SOLD BY', 'EMAIL', 'ADVISE WHEN'}
+
+    result = []
+    for table_info in raw_tables:
+        table = table_info.get('data', [])
+        if not table or len(table) < 2:
+            result.append(table_info)
+            continue
+
+        headers = [str(h or '').strip() for h in table[0]]
+        headers_upper = [h.upper() for h in headers]
+
+        # Find key column indices
+        ordered_idx = next((i for i, h in enumerate(headers_upper) if 'ORDERED' in h or 'QTY' in h), None)
+        desc_idx = next((i for i, h in enumerate(headers_upper) if 'DESCRIPTION' in h or 'DESC' in h), None)
+
+        if ordered_idx is None:
+            result.append(table_info)
+            continue
+
+        new_rows = [table[0]]  # keep header
+        for row in table[1:]:
+            if not row or len(row) <= ordered_idx:
+                new_rows.append(row)
+                continue
+
+            ordered_val = str(row[ordered_idx] or '').strip()
+            qty_parts = [p.strip() for p in ordered_val.split('\n')
+                         if p.strip() and re.match(r'^\d', p.strip())]
+
+            if len(qty_parts) <= 1:
+                # Not a merged row — keep as-is
+                new_rows.append(row)
+                continue
+
+            # Merged row detected — split each column by newline and zip into individual rows
+            n = len(qty_parts)
+            split_cols = []
+            for col_idx, cell in enumerate(row):
+                cell_str = str(cell or '').strip()
+                if col_idx == ordered_idx:
+                    split_cols.append(qty_parts)
+                elif desc_idx is not None and col_idx == desc_idx:
+                    # Filter out footer lines (Subtotal, GST, etc.) from description
+                    desc_lines = [l.strip() for l in cell_str.split('\n')
+                                  if l.strip() and not any(s in l.upper() for s in _skip)]
+                    # Pad or trim to match item count
+                    while len(desc_lines) < n:
+                        desc_lines.append('')
+                    split_cols.append(desc_lines[:n])
+                else:
+                    parts = [p.strip() for p in cell_str.split('\n') if p.strip()]
+                    # Pad or trim to match item count
+                    while len(parts) < n:
+                        parts.append(parts[-1] if parts else '')
+                    split_cols.append(parts[:n])
+
+            for i in range(n):
+                new_row = [col[i] if i < len(col) else '' for col in split_cols]
+                new_rows.append(new_row)
+
+            print(f"UNMERGE: Split 1 merged row into {n} individual rows for GPT")
+
+        result.append({**table_info, 'data': new_rows})
+    return result
+
+
 def structure_with_openai(raw_data):
     """
     Step 2: Send raw data to OpenAI for complete organization and structuring
@@ -673,6 +759,9 @@ MANDATORY RULES:
         print(f"PRE-EXTRACTED SOLD TO: {sold_to_hint}")
         print(f"PRE-EXTRACTED SHIP TO: {ship_to_hint}")
         
+        # Pre-process tables: split merged rows into individual rows so GPT sees a clean table
+        clean_tables = unmerge_table_rows(raw_data.get('raw_tables', []))
+
         # Prepare the prompt with raw data
         prompt = f"""You are a Sales Order data expert. Extract and organize ALL information from this raw PDF data into clean structured JSON.
 
@@ -682,7 +771,7 @@ RAW TEXT FROM PDF:
 {raw_data['raw_text']}
 
 RAW TABLES FROM PDF:
-{json.dumps(raw_data['raw_tables'], indent=2)}
+{json.dumps(clean_tables, indent=2)}
 
 Extract and organize into this exact JSON structure:
 {{
