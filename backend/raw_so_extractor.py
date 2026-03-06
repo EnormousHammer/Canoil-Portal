@@ -1179,34 +1179,108 @@ def parse_merged_table_items(raw_tables):
 
 
 def parse_fallback_so_from_raw(raw_data, pdf_path):
-    """Build minimal SO structure from raw extraction when GPT fails."""
+    """
+    Build SO structure from raw extraction when GPT fails.
+    Extracts ALL available fields from raw text via regex so no data is lost.
+    """
     items = parse_merged_table_items(raw_data.get('raw_tables', []))
     raw_text = raw_data.get('raw_text', '')
+
+    # SO number
     so_number = None
     so_match = re.search(r'Order\s+No\.?:\s*(\d+)', raw_text, re.I) or re.search(r'SO\s*#?\s*(\d+)', raw_text, re.I)
     if so_match:
         so_number = so_match.group(1)
+
+    # Order date: match "Date: XX/XX/XX" but NOT "Ship Date:"
+    order_date = None
+    for m in re.finditer(r'(Ship\s+)?Date:\s*([\d/\-]+)', raw_text, re.I):
+        if not m.group(1):  # no "Ship " prefix → order date
+            order_date = m.group(2).strip()
+            break
+
+    # Ship date
+    ship_date = None
+    ship_date_match = re.search(r'Ship\s+Date:\s*([\d/\-]+)', raw_text, re.I)
+    if ship_date_match:
+        ship_date = ship_date_match.group(1).strip()
+
+    # Terms
+    terms = None
+    terms_match = re.search(r'Terms:\s*(.+?)(?:\n|$)', raw_text, re.I)
+    if terms_match:
+        terms = terms_match.group(1).strip()
+
+    # PO number: "Comment: PO 7135" or "P.O. Number: 123" etc.
+    po_number = None
+    po_match = (re.search(r'Comment:\s*PO\s+([^\s\n]+)', raw_text, re.I) or
+                re.search(r'P\.?O\.?\s*(?:Number|No\.?|#)\s*[:\s]+([^\s\n,]+)', raw_text, re.I) or
+                re.search(r'Customer\s*P\.?O\.?\s*#?\s*:\s*([^\s\n]+)', raw_text, re.I))
+    if po_match:
+        po_number = po_match.group(1).strip()
+
+    # Business number
+    business_no = None
+    biz_match = re.search(r'Business\s+No\.?\s*[:\s]+([^\n]+)', raw_text, re.I)
+    if biz_match:
+        business_no = biz_match.group(1).strip()
+
+    # Addresses
     customer = ''
+    billing_address = {}
+    shipping_address = {}
     try:
         layout_addr = extract_addresses_from_layout_text(raw_text)
-        sold_raw = layout_addr.get('sold_to_raw', '')
+        sold_raw = layout_addr.get('sold_to_raw', '').strip()
+        ship_raw = layout_addr.get('ship_to_raw', '').strip()
+
         if sold_raw:
-            customer = sold_raw.split('\n')[0].strip()
+            lines = [l.strip() for l in sold_raw.split('\n') if l.strip()]
+            customer = lines[0] if lines else ''
+            billing_address = {
+                'company': customer,
+                'company_name': customer,
+                'full_address': sold_raw,
+                'address': '\n'.join(lines[1:]) if len(lines) > 1 else '',
+            }
+
+        if ship_raw:
+            lines = [l.strip() for l in ship_raw.split('\n') if l.strip()]
+            ship_company = lines[0] if lines else customer
+            shipping_address = {
+                'company': ship_company,
+                'company_name': ship_company,
+                'full_address': ship_raw,
+                'address': '\n'.join(lines[1:]) if len(lines) > 1 else '',
+            }
+
         if not customer:
             table_addr = extract_addresses_from_tables(raw_data.get('raw_tables', []))
             sold_raw = table_addr.get('sold_to_raw', '')
             if sold_raw:
                 customer = sold_raw.split('\n')[0].strip()
+                if not billing_address:
+                    billing_address = {'company': customer, 'full_address': sold_raw}
     except Exception:
         pass
+
     if not customer and 'Mosier' in raw_text:
         customer = 'Mosier International'
+    if not billing_address:
+        billing_address = {'company': customer}
+
     return {
         'so_number': so_number,
         'customer_name': customer,
         'items': items,
-        'billing_address': {'company': customer},
-        'shipping_address': {},
+        'order_date': order_date,
+        'ship_date': ship_date,
+        'due_date': ship_date,
+        'terms': terms,
+        'po_number': po_number,
+        'business_no': business_no,
+        'billing_address': billing_address,
+        'shipping_address': shipping_address,
         'status': 'Found in system',
         'data_source': 'Raw table fallback (GPT unavailable)',
         'structured': False
