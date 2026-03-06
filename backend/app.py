@@ -1644,22 +1644,27 @@ FULL_COMPANY_DATA_DRIVE_PATH = os.getenv(
 
 
 def get_latest_full_company_data_folder():
-    """Resolve the latest Full Company Data subfolder by name (local G: drive only).
-    NAMING CONVENTION: Use YYYY-MM-DD (e.g. 2026-02-18) for subfolders. Sorts correctly.
+    """Resolve the latest Full Company Data subfolder by modification time (local G: drive only).
+    Folders are named like 'March 6, 2026_09-13 AM' — not lexically sortable.
+    Uses mtime (same as sage_gdrive_service) and skips utility folders starting with '_'.
     Returns (full_path, folder_name) or (None, error_msg).
     """
     try:
         base = GDRIVE_FULL_COMPANY_DATA_BASE
         if not os.path.exists(base):
             return None, f"Full Company Data base folder not found: {base}"
-        subfolders = [f for f in os.listdir(base) if os.path.isdir(os.path.join(base, f))]
+        # Filter: directories only, skip utility folders like _vpn_config
+        subfolders = [
+            f for f in os.listdir(base)
+            if os.path.isdir(os.path.join(base, f)) and not f.startswith('_')
+        ]
         if not subfolders:
             return None, "No subfolders in Full Company Data"
-        # Sort by folder name descending (YYYY-MM-DD sorts correctly; latest first)
-        subfolders.sort(reverse=True)
+        # Sort by mtime descending — handles any folder naming convention correctly
+        subfolders.sort(key=lambda f: os.path.getmtime(os.path.join(base, f)), reverse=True)
         latest_name = subfolders[0]
         latest_path = os.path.join(base, latest_name)
-        print(f"[OK] Latest Full Company Data folder (by name): {latest_name}")
+        print(f"[OK] Latest Full Company Data folder (by mtime): {latest_name}")
         return latest_path, latest_name
     except Exception as e:
         print(f"[ERROR] get_latest_full_company_data_folder: {e}")
