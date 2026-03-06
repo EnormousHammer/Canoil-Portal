@@ -431,9 +431,11 @@ class GoogleDriveService:
 
     @retry_on_error(max_retries=3, delay=1, backoff=2)
     def get_latest_folder_by_name(self, parent_folder_id, drive_id=None):
-        """Get the latest subfolder by name (descending). Used for Full Company Data.
-        NAMING CONVENTION: Use YYYY-MM-DD (e.g. 2026-02-18) for subfolders. Sorts correctly.
-        
+        """Get the latest subfolder by modification time. Used for Full Company Data.
+        Folders are named 'March 6, 2026_09-13 AM' — not lexically sortable by name.
+        Sort by modifiedTime desc so the most recently synced folder is always first.
+        Skips utility folders whose names start with '_' (e.g. _vpn_config).
+
         Returns:
             (folder_id, folder_name, folder_metadata) where folder_metadata contains createdTime, modifiedTime
         """
@@ -441,8 +443,8 @@ class GoogleDriveService:
             query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             list_params = {
                 'q': query,
-                'orderBy': 'name desc',
-                'pageSize': 10,
+                'orderBy': 'modifiedTime desc',
+                'pageSize': 25,
                 'fields': "files(id, name, createdTime, modifiedTime)"
             }
             if drive_id:
@@ -452,9 +454,11 @@ class GoogleDriveService:
                 list_params['supportsAllDrives'] = True
             results = self.service.files().list(**list_params).execute()
             folders = results.get('files', [])
+            # Skip utility folders (e.g. _vpn_config) — they're not data folders
+            folders = [f for f in folders if not f['name'].startswith('_')]
             if folders:
                 latest = folders[0]
-                print(f"[OK] Latest Full Company Data folder (by name): {latest['name']} (ID: {latest['id']})")
+                print(f"[OK] Latest Full Company Data folder (by modifiedTime): {latest['name']} (ID: {latest['id']})")
                 return latest['id'], latest['name'], {
                     'createdTime': latest.get('createdTime'),
                     'modifiedTime': latest.get('modifiedTime')
