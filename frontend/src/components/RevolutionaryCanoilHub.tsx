@@ -229,9 +229,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     }
   }, [activeSection]);
 
-  const [poSortField, setPoSortField] = useState<string>('Order Date');
+  const [poSortField, setPoSortField] = useState<string>('PO No.');
   const [poSortDirection, setPoSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [moSortField, setMoSortField] = useState<string>('Order Date');
+  const [moSortField, setMoSortField] = useState<string>('Mfg. Order No.');
   const [moSortDirection, setMoSortDirection] = useState<'asc' | 'desc'>('desc');
   const [moStatusFilter, setMoStatusFilter] = useState<string>('all');
   const [moCustomerFilter, setMoCustomerFilter] = useState<string>('all');
@@ -898,7 +898,23 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     return [...data].sort((a, b) => {
       let aVal = a[field];
       let bVal = b[field];
-      
+      // Fallback keys for MO/PO numbers
+      if (field === 'Mfg. Order No.' && (aVal == null || bVal == null)) {
+        aVal = aVal ?? a['mohId'] ?? a['MO No.'];
+        bVal = bVal ?? b['mohId'] ?? b['MO No.'];
+      }
+      if (field === 'PO No.' && (aVal == null || bVal == null)) {
+        aVal = aVal ?? a['pohId'] ?? a['Purchase Order No.'];
+        bVal = bVal ?? b['pohId'] ?? b['Purchase Order No.'];
+      }
+      // Handle MO/PO number fields - coerce to number for proper numeric sort (latest first when desc)
+      if ((field === 'Mfg. Order No.' || field === 'PO No.') && (aVal != null || bVal != null)) {
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return direction === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+      }
       // Handle dates with proper MISys conversion
       if (field.includes('Date') && (aVal || bVal)) {
         const aDate = parseMISysDate(aVal);
