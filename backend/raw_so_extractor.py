@@ -560,7 +560,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic
-            max_tokens=4000
+            max_tokens=8000
         )
         
         result_text = response.choices[0].message.content.strip()
@@ -734,8 +734,7 @@ Extract and organize into this exact JSON structure:
     "broker_name": "customs broker company name if mentioned (e.g., Livingston International, Cole International)",
     "account_number": "broker account number if mentioned (e.g., 12345, ACCT-98765)"
   }},
-  "special_instructions": "any special instructions or comments",
-  "raw_text": "keep original raw text"
+  "special_instructions": "any special instructions or comments"
 }}
 
 IMPORTANT RULES:
@@ -857,7 +856,7 @@ Return ONLY valid JSON, no explanations or markdown.
                 }
             ],
             temperature=0,  # Deterministic output
-            max_tokens=4000
+            max_tokens=16000
             )
         except Exception as api_error:
             print(f"ERROR: OpenAI API call failed: {api_error}")
