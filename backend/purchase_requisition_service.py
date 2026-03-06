@@ -904,21 +904,43 @@ def get_recent_purchase_price(item_no, limit=5):
             if detail.get('Item No.') == item_no:
                 po_no = detail.get('PO No.')
                 po_header = po_lookup.get(po_no, {})
-                
+
+                # Price field: MISys exports 'price' -> mapped to 'Unit Cost' in converter,
+                # but some exports use 'Price' -> 'Unit Price'. Check both so we never miss it.
+                def _parse_price(val):
+                    if val is None:
+                        return 0.0
+                    try:
+                        return float(str(val).replace('$', '').replace(',', '').strip()) if val else 0.0
+                    except (ValueError, TypeError):
+                        return 0.0
+
+                raw_price = (detail.get('Unit Price') or detail.get('Unit Cost') or
+                             detail.get('Price') or detail.get('Cost') or
+                             detail.get('price') or detail.get('unitPrice') or
+                             detail.get('unitCost') or 0)
+                unit_price = _parse_price(raw_price)
+
+                qty = detail.get('Ordered', 0) or 0
+                try:
+                    qty = float(qty)
+                except (ValueError, TypeError):
+                    qty = 0.0
+
                 purchase = {
-                    'item_no': item_no,  # Include the item number
+                    'item_no': item_no,
                     'po_no': po_no,
-                    'unit_price': detail.get('Unit Price', 0),
-                    'order_date': po_header.get('Order Date', ''),  # From PO header
-                    'supplier_no': po_header.get('Supplier No.', ''),  # From PO header
-                    'quantity': detail.get('Ordered', 0),
-                    'total_amount': round(detail.get('Unit Price', 0) * detail.get('Ordered', 0), 2),
+                    'unit_price': unit_price,
+                    'order_date': po_header.get('Order Date', ''),
+                    'supplier_no': po_header.get('Supplier No.', ''),
+                    'quantity': qty,
+                    'total_amount': round(unit_price * qty, 2),
                     'description': detail.get('Description', ''),
                     'supplier_name': po_header.get('Name', ''),
                     'contact': po_header.get('Contact', ''),
                     'terms': po_header.get('Terms', ''),
-                    'purchase_unit': detail.get('Purchase U/M', ''),  # Real purchase unit
-                    'supplier_item_no': detail.get('Supplier Item No.', '')  # Supplier's item number
+                    'purchase_unit': detail.get('Purchase U/M', ''),
+                    'supplier_item_no': detail.get('Supplier Item No.', '')
                 }
                 item_purchases.append(purchase)
         
@@ -2401,13 +2423,24 @@ def create_pr_from_bom():
         # ========================================
         print(f"\n📦 Step 6: Returning {len(generated_files)} PR file(s)...")
         
+        # Build a clean customer/order reference for the filename
+        def _safe_name(s, maxlen=25):
+            """Strip characters illegal in filenames and truncate."""
+            s = str(s or '').strip()
+            s = re.sub(r'[\\/:*?"<>|]', '', s)
+            s = re.sub(r'\s+', '_', s)
+            return s[:maxlen].rstrip('_') or 'PR'
+
+        justification_label = _safe_name(user_info.get('justification', ''))
+        date_str = datetime.now().strftime('%Y-%m-%d')
+
         if len(generated_files) == 0:
             return jsonify({
                 "success": False,
                 "message": "No PRs generated - all items missing suppliers",
                 "warnings": warnings
             }), 400
-        
+
         elif len(generated_files) == 1:
             # Single file - return as ZIP with report
             zip_buffer = io.BytesIO()
@@ -2416,12 +2449,13 @@ def create_pr_from_bom():
                 file['data'].seek(0)
                 zf.writestr(file['filename'], file['data'].read())
                 # Add shortage report
-                report_filename = f"Shortage_Report_{datetime.now().strftime('%Y-%m-%d')}.txt"
+                report_filename = f"Shortage_Report_{date_str}.txt"
                 zf.writestr(report_filename, shortage_report)
-            
+
             zip_buffer.seek(0)
-            zip_filename = f"PR-{datetime.now().strftime('%Y-%m-%d')}-{file['supplier_name'][:20]}.zip"
-            
+            supplier_label = _safe_name(file['supplier_name'], 20)
+            zip_filename = f"PR_{justification_label}_{supplier_label}_{date_str}.zip"
+
             print(f"\n✅ SUCCESS: Generated ZIP with PR and shortage report")
             return send_file(
                 zip_buffer,
@@ -2429,7 +2463,7 @@ def create_pr_from_bom():
                 as_attachment=True,
                 download_name=zip_filename
             )
-        
+
         else:
             # Multiple files - return as ZIP with report
             zip_buffer = io.BytesIO()
@@ -2438,11 +2472,11 @@ def create_pr_from_bom():
                     file['data'].seek(0)
                     zf.writestr(file['filename'], file['data'].read())
                 # Add shortage report
-                report_filename = f"Shortage_Report_{datetime.now().strftime('%Y-%m-%d')}.txt"
+                report_filename = f"Shortage_Report_{date_str}.txt"
                 zf.writestr(report_filename, shortage_report)
-            
+
             zip_buffer.seek(0)
-            zip_filename = f"PRs-{datetime.now().strftime('%Y-%m-%d')}-{len(generated_files)}_Suppliers.zip"
+            zip_filename = f"PRs-Batch_{justification_label}_{date_str}_{len(generated_files)}Suppliers.zip"
             
             print(f"\n✅ SUCCESS: Generated ZIP with {len(generated_files)} PRs")
             if warnings:
