@@ -1312,35 +1312,42 @@ def extract_so_data_from_pdf(pdf_path):
         structured_data = structure_with_openai(raw_data)
         fallback_items = parse_merged_table_items(raw_data.get('raw_tables', []))
         
-        # CRITICAL: Item reconciliation strategy:
-        # - GPT provides rich structured data: dates, terms, addresses, items
-        # - Raw table provides exact PDF text items (deterministic, no hallucination)
-        # Strategy:
-        #   1. If raw table has MORE items than GPT → GPT dropped items (e.g. SO 3106).
-        #      Use full fallback (raw table wins entirely since GPT is unreliable here).
-        #   2. If raw table has SAME items as GPT → use GPT's rich metadata BUT replace
-        #      items with raw table items (exact PDF text, avoids GPT description drift).
-        #   3. If GPT has more items → trust GPT, use GPT entirely.
+        # Item reconciliation strategy:
+        # GPT = rich metadata (dates, terms, addresses) but sometimes miscounts merged table rows
+        # Raw table = exact item count from PDF (deterministic), but no metadata
+        #
+        # Rules (priority order):
+        #   1. GPT succeeded AND raw table has MORE items → GPT undercounted merged rows.
+        #      Keep ALL of GPT's metadata (dates/terms/addresses), replace items with raw table.
+        #   2. GPT succeeded AND counts match → use GPT metadata + raw table items (exact text).
+        #   3. GPT succeeded AND GPT has more items → trust GPT entirely.
+        #   4. GPT completely failed (None) → use enhanced regex fallback (extracts all fields).
         gpt_items = structured_data.get('items', []) if structured_data else []
-        if len(fallback_items) > len(gpt_items) and len(fallback_items) > 0:
-            print(f"FALLBACK: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - GPT dropped items, using full fallback")
-            fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
-            if fallback.get('items'):
-                return fallback
+
+        if structured_data and len(fallback_items) > len(gpt_items) and len(fallback_items) > 0:
+            # GPT got dates/terms/addresses right but undercounted items (merged table rows)
+            # NEVER discard GPT's metadata — just fix the items
+            print(f"ITEM FIX: GPT returned {len(gpt_items)} items but raw table has {len(fallback_items)} - keeping GPT metadata, replacing items with raw table")
+            structured_data['items'] = _merge_size_only_items_into_previous(fallback_items)
+            return structured_data
+
         if structured_data and len(fallback_items) == len(gpt_items) and len(fallback_items) > 0:
             print(f"MERGE: GPT and raw table agree on {len(fallback_items)} items - using GPT metadata + raw table items (exact PDF text)")
             structured_data['items'] = _merge_size_only_items_into_previous(fallback_items)
             return structured_data
+
         if structured_data and structured_data.get('items'):
             structured_data['items'] = _merge_size_only_items_into_previous(structured_data['items'])
             return structured_data
 
         if not structured_data or not structured_data.get('items'):
-            print(f"ERROR: Failed to structure data with OpenAI for {pdf_path}")
+            # GPT completely failed (API error, timeout, etc.) — use regex-based fallback
+            # The enhanced fallback now extracts dates, terms, PO, and addresses from raw text
+            print(f"ERROR: GPT structuring failed for {pdf_path} - using regex fallback")
             if fallback_items:
                 fallback = parse_fallback_so_from_raw(raw_data, pdf_path)
                 if fallback.get('items'):
-                    print(f"FALLBACK: Parsed {len(fallback['items'])} items from merged table (no GPT)")
+                    print(f"FALLBACK: Parsed {len(fallback['items'])} items + metadata from raw text (no GPT)")
                     return fallback
             print(f"FALLBACK: No items from raw table - returning minimal structure")
             return {
