@@ -1715,6 +1715,14 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             item_code = str(item.get('item_code', ''))
             # Enhance descriptions for cross-border CI (ANDEROL FGCS-2, MOV, etc.)
             description = enhance_description_for_ci(description, unit, item_code)
+            # Lubecore: add net weight in brackets after product name when applicable
+            if 'LUBECORE' in customer_name:
+                net_wt = item.get('net_weight') or item.get('gross_weight') or ''
+                if net_wt and '(' not in description.split('\n')[0]:
+                    # Add net weight after first line (product name)
+                    first_line = description.split('\n')[0]
+                    rest = '\n'.join(description.split('\n')[1:]) if '\n' in description else ''
+                    description = f"{first_line} ({net_wt})" + ('\n' + rest if rest else '')
             # Set rows to match content - no extra space
             line_count = description.count('\n') + 1
             desc_textarea = soup.new_tag('textarea', **{'class': 'item-description'}, rows=str(line_count))
@@ -1732,11 +1740,24 @@ def generate_commercial_invoice_html(so_data: Dict[str, Any], items: list, email
             new_row.append(hts_cell)
             
             # Unit Quantity cell - format as "6000 L" or "361 Pail"
+            # TOTES: show 1 pc (not 900 pcs/liters) - 1 tote = 1 pc for customs
             qty_cell = soup.new_tag('td')
             qty_input = soup.new_tag('input', type='text', **{'class': 'unit-qty'}, 
                                    onchange='calculateItemTotal(this)')
-            qty_value = item.get('quantity', 0)
-            unit_value = item.get('unit', '')
+            unit_for_qty = str(item.get('original_unit', item.get('unit', ''))).upper()
+            is_tote = unit_for_qty in ('TOTE', 'TOTES', 'LITER', 'LITERS', 'LITRE', 'IBC')
+            if is_tote:
+                qty_value = 1
+                unit_value = 'pc'
+                # 1 tote = 1 pc for customs; unit_price = total value so 1 * price = correct total
+                orig_qty = float(item.get('quantity', 0))
+                orig_price = float(item.get('unit_price', 0))
+                if orig_qty and orig_price:
+                    item['unit_price'] = orig_qty * orig_price
+                    item['quantity'] = 1
+            else:
+                qty_value = item.get('quantity', 0)
+                unit_value = item.get('unit', '')
             # Format qty with unit (e.g. "6,000 L" or "361 Pail")
             try:
                 qty_num = float(qty_value)

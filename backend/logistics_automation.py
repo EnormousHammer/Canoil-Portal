@@ -394,6 +394,13 @@ def extract_all_so_numbers(text: str) -> list:
     numbered_matches = re.findall(numbered_po_so_pattern, text, re.IGNORECASE)
     so_numbers.extend(numbered_matches)
     
+    # Pattern 5: SO hyphen format - "3095-1" = SO 3095 line 1, "3095-2" = SO 3095 line 2
+    # In logistics automation, -1 means line 1, -2 means line 2, etc.
+    hyphen_pattern = r'(?:order|SO|sales\s*order)\s*[#:]?\s*(\d{3,5})-(\d+)'
+    hyphen_matches = re.findall(hyphen_pattern, text, re.IGNORECASE)
+    for base, _line in hyphen_matches:
+        so_numbers.append(base)
+    
     # Remove duplicates while preserving order
     seen = set()
     unique_so_numbers = []
@@ -1052,6 +1059,11 @@ def parse_email_deterministic(email_text: str) -> dict:
     # This ensures we only catch: "sales order 2707 line 2" not "sales order 2932) ... Line 1:"
     so_match = re.search(r'(?:Canoil\s+sales\s+order|sales\s+order|SO)\s*(?:[#No.:]*\s*)?(\d+)\s+line\s+(?:item\s+)?(\d+)', text, re.IGNORECASE)
     
+    # SO hyphen format: "3095-1" = SO 3095 line 1, "order 3095-1 attached"
+    hyphen_match = re.search(r'(?:order|SO|sales\s*order)\s*[#:]?\s*(\d{3,5})-(\d+)', text, re.IGNORECASE)
+    if not so_match and hyphen_match:
+        so_match = hyphen_match
+    
     if so_match:
         # Found SO with line number right after (e.g., "SO 2707 line 2")
         data['so_number'] = so_match.group(1)
@@ -1462,7 +1474,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         Extract and return as JSON:
         {{
             "so_number": "extract sales order number (just the number, e.g. 3012)",
-            "so_line_numbers": [CRITICAL] Extract line numbers as INTEGER ARRAY if ANY of these phrases appear: 'line 2', 'line 1', 'lines 1 and 3', 'line item 2', etc. ALWAYS return as array like [2] or [1,3]. If NO line mention, return null. EXAMPLES: 'SO 2707 line 2' → [2], 'SO 3000 lines 1 and 3' → [1,3], 'SO 5000' → null",
+            "so_line_numbers": [CRITICAL] Extract line numbers as INTEGER ARRAY if ANY of these phrases appear: 'line 2', 'line 1', 'lines 1 and 3', 'line item 2', OR hyphen format '3095-1' (SO 3095 line 1), '3095-2' (SO 3095 line 2). In logistics automation, -1 means line 1, -2 means line 2. ALWAYS return as array like [2] or [1,3]. If NO line mention, return null. EXAMPLES: 'SO 2707 line 2' → [2], 'order 3095-1 attached' → [1], 'SO 3000 lines 1 and 3' → [1,3], 'SO 5000' → null",
             "is_partial_shipment": [CRITICAL] Set to TRUE if so_line_numbers has any values, FALSE if null. This determines if we ship specific lines only or the entire SO.",
             "po_number": "purchase order number if mentioned (e.g. 4500684127)",
             "company_name": "[CRITICAL] CUSTOMER company name - the company BUYING from us. NEVER extract 'Canoil' as company_name - Canoil is the SELLER (us). Look for the customer company name (e.g. 'Mississippi Power purchase order...' → company_name='Mississippi Power', 'TransCanada PipeLines Limited purchase order' → company_name='TransCanada PipeLines Limited')",
@@ -1502,6 +1514,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         - "Canoil sales order 2707 line 2, attached" → so_number="2707", so_line_numbers=[2], is_partial_shipment=true
         - "SO 5000 line 3" → so_number="5000", so_line_numbers=[3], is_partial_shipment=true
         - "order 3005 line 4 is ready" → so_number="3005", so_line_numbers=[4], is_partial_shipment=true
+        - "order 3095-1 attached" → so_number="3095", so_line_numbers=[1], is_partial_shipment=true (hyphen format: -1=line 1)
         
         FULL SHIPMENT (no line number after SO, or "Line X:" is formatting):
         - "Canoil sales order 3012" → so_number="3012", so_line_numbers=null, is_partial_shipment=false
@@ -1611,6 +1624,14 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         # More flexible pattern that handles spaces in SO number (e.g., "order3 005 line 4")
         pattern = r'(?:sales\s*order|order|SO)\s*[#No.:]*\s*([\d\s]+?)\s*line\s*(\d+)'
         manual_line_match = re.search(pattern, email_text, re.IGNORECASE)
+        # SO hyphen format: "3095-1" = SO 3095 line 1, "order 3095-1 attached"
+        if not manual_line_match:
+            hyphen_pattern = r'(?:order|SO|sales\s*order)\s*[#:]?\s*(\d{3,5})-(\d+)'
+            hyphen_match = re.search(hyphen_pattern, email_text, re.IGNORECASE)
+            if hyphen_match:
+                manual_line_match = type('HyphenMatch', (), {
+                    'group': lambda s, i: hyphen_match.group(1) if i == 1 else hyphen_match.group(2)
+                })()
         
         if manual_line_match:
             # Clean SO number (remove any spaces)
@@ -1628,6 +1649,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             # Always trust manual extraction for line numbers
             parsed_data['so_line_numbers'] = [manual_line_num]
             parsed_data['is_partial_shipment'] = True
+            parsed_data['so_number'] = so_from_match  # Ensure base SO (e.g. 3095 not 3095-1) for PDF lookup
             print(f"✅ USING MANUAL EXTRACTION: SO {so_from_match} line {manual_line_num}")
         elif gpt_line_numbers and isinstance(gpt_line_numbers, list) and len(gpt_line_numbers) > 0:
             # GPT found line numbers and manual didn't - trust GPT
@@ -1801,11 +1823,22 @@ def parse_email_fallback(email_text):
         'special_instructions': None,
         'ship_date': None,
         'carrier': None,
-        'truck_info': None
+        'truck_info': None,
+        'so_line_numbers': None,
+        'is_partial_shipment': False
     }
     
-    # Enhanced SO patterns - more comprehensive
-    so_patterns = [
+    # SO hyphen format FIRST: "3095-1" = SO 3095 line 1 (in logistics, -1 means line 1)
+    hyphen_match = re.search(r'(?:order|SO|sales\s*order)\s*[#:]?\s*(\d{3,5})-(\d+)', email_text, re.IGNORECASE)
+    if hyphen_match:
+        data['so_number'] = hyphen_match.group(1)
+        data['so_line_numbers'] = [int(hyphen_match.group(2))]
+        data['is_partial_shipment'] = True
+        print(f"SUCCESS: Fallback found SO {data['so_number']} line {hyphen_match.group(2)} (hyphen format)")
+    
+    # Enhanced SO patterns - more comprehensive (only if hyphen format not found)
+    if not data['so_number']:
+        so_patterns = [
         r'(?:sales\s*order|SO|S\.O\.|order)\s*#?\s*(\d{3,6})',
         r'SO\s*[-#:]?\s*(\d{3,6})',
         r'order\s+(\d{3,6})',
@@ -1815,12 +1848,12 @@ def parse_email_fallback(email_text):
         r'^\s*(\d{3,6})\s*$'  # Just the number on its own line
     ]
     
-    for pattern in so_patterns:
-        match = re.search(pattern, email_text, re.IGNORECASE | re.MULTILINE)
-        if match:
-            data['so_number'] = match.group(1)
-            print(f"SUCCESS: Fallback found SO: {data['so_number']}")
-            break
+        for pattern in so_patterns:
+            match = re.search(pattern, email_text, re.IGNORECASE | re.MULTILINE)
+            if match:
+                data['so_number'] = match.group(1)
+                print(f"SUCCESS: Fallback found SO: {data['so_number']}")
+                break
     
     # Extract PO number from email - enhanced patterns
     po_patterns = [
