@@ -5,6 +5,13 @@ Uses DIRECT XML editing to preserve all template structure (drawings, images, et
 Supports BOTH local G: Drive AND Cloud Run (Google Drive API)
 """
 
+# Force UTF-8 stdout so emoji print statements don't crash on Windows (CP1252)
+import sys as _sys
+if hasattr(_sys.stdout, 'reconfigure'):
+    _sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(_sys.stderr, 'reconfigure'):
+    _sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from flask import Blueprint, jsonify, request, send_file
 import os
 import json

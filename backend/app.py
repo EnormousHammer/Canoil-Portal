@@ -4,6 +4,13 @@
 # ║  sage_service.py has triple-layer protection enforcing this.    ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
+# Force UTF-8 stdout/stderr so emoji print statements don't crash on Windows (CP1252)
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 from flask_compress import Compress
