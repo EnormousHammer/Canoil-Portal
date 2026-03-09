@@ -112,9 +112,27 @@ def _get_gds():
     return None
 
 
+def _find_sage_subfolder_api(gds, drive_id, parent_id):
+    """Get latest data subfolder (excluding _*) under parent. Returns (folder_id, folder_name) or (None, None)."""
+    service = gds._get_fresh_service()
+    results = service.files().list(
+        q=f"'{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
+        orderBy="modifiedTime desc",
+        pageSize=10,
+        fields="files(id, name)",
+        corpora="drive",
+        driveId=drive_id,
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+    ).execute()
+    folders = [f for f in results.get("files", []) if not f.get("name", "").startswith("_")]
+    return (folders[0]["id"], folders[0]["name"]) if folders else (None, None)
+
+
 def _find_latest_sage_folder_api():
-    """Find the latest Sage export subfolder via Google Drive API.
-    Returns (gds, drive_id, folder_id, folder_name) — folder_name is an error string if gds is None.
+    """Find the Sage data folder via Google Drive API.
+    Returns (gds, drive_id, folder_id, folder_name).
+    Uses parent folder (Full Company Data From SAGE) directly — CSVs may be there.
     """
     gds = _get_gds()
     if not gds:
@@ -128,27 +146,9 @@ def _find_latest_sage_folder_api():
         if not parent_id:
             return None, None, None, f"Sage folder path not found in Drive: {SAGE_GDRIVE_DRIVE_PATH}"
 
-        service = gds._get_fresh_service()
-        results = service.files().list(
-            q=f"'{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
-            orderBy="modifiedTime desc",
-            pageSize=5,
-            fields="files(id, name, modifiedTime)",
-            corpora="drive",
-            driveId=drive_id,
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-        ).execute()
-
-        folders = results.get("files", [])
-        # Skip utility folders (e.g. __pycache__, _vpn_config) — same as get_latest_folder() locally
-        folders = [f for f in folders if not f.get("name", "").startswith("_")]
-        if not folders:
-            return None, None, None, f"No Sage export subfolders found under {SAGE_GDRIVE_DRIVE_PATH}"
-
-        latest = folders[0]
-        print(f"[sage_gdrive] Latest Sage folder via API: {latest['name']}")
-        return gds, drive_id, latest["id"], latest["name"]
+        # Use parent folder directly — CSVs may be in Full Company Data From SAGE (flat structure on Drive)
+        print(f"[sage_gdrive] Using folder: {SAGE_GDRIVE_DRIVE_PATH}")
+        return gds, drive_id, parent_id, "(base)"
     except Exception as e:
         return None, None, None, str(e)
 
@@ -206,11 +206,25 @@ def _load_via_api():
             print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
         else:
             print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
+    # If parent had no CSVs, try latest subfolder (date folders like 2024-11-15)
+    if not tables:
+        sub_id, sub_name = _find_sage_subfolder_api(gds, drive_id, folder_id)
+        if sub_id:
+            print(f"[sage_gdrive] No CSVs in base; trying subfolder: {sub_name}")
+            for tbl in REQUIRED_TABLES:
+                df = _load_csv_from_api(gds, sub_id, drive_id, tbl)
+                if df is not None:
+                    tables[tbl] = df
+                    print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
+                else:
+                    print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
+            folder_name = sub_name
+
     print(f"[sage_gdrive] API load complete: {len(tables)} tables in {time.time() - t0:.1f}s")
     if not tables:
         return {}, (
             f"Found folder '{folder_name}' but no CSV files loaded. "
-            f"Ensure tcustomr.CSV, tsalordr.CSV, tsoline.CSV, etc. exist in the latest subfolder. "
+            f"Ensure tcustomr.CSV, tsalordr.CSV, tsoline.CSV, etc. exist in {SAGE_GDRIVE_DRIVE_PATH} or a date subfolder. "
             f"Service account must be a member of shared drive '{SAGE_SHARED_DRIVE_NAME}' with Content Viewer."
         )
     return tables, folder_name
