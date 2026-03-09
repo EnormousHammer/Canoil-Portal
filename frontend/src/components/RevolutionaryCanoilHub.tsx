@@ -348,6 +348,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showInventoryActionsModal, setShowInventoryActionsModal] = useState(false);
   const [inventoryActionsInitialTab, setInventoryActionsInitialTab] = useState<'adjust' | 'transfer' | 'reorder' | 'reserve' | 'allocate' | 'scrap' | 'assemble' | 'supplier' | 'ship' | 'stockcheck'>('adjust');
   const [planningTab, setPlanningTab] = useState<'bom' | 'shortages' | 'whatif'>('bom');
+  /** Inventory: one view at a time - items (default), planning, lot, log. Prevents glitch of multiple panels open. */
+  const [inventoryView, setInventoryView] = useState<'items' | 'planning' | 'lot' | 'log'>('items');
   // MiSys Capabilities panel (collapsible info)
   const [showMISysCapabilities, setShowMISysCapabilities] = useState(false);
 
@@ -1196,6 +1198,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   useEffect(() => {
     setCurrentPage(1);
   }, [inventoryFilter, inventorySearchQuery, sortBy, filterStatus]);
+
+  // Reset inventory view to Items when navigating to Inventory (prevents glitch of wrong panel)
+  useEffect(() => {
+    if (activeSection === 'inventory') {
+      setInventoryView('items');
+    }
+  }, [activeSection]);
 
   // Function to close item modal
   const closeItemModal = () => {
@@ -7151,25 +7160,25 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 )}
                 
-                {/* Tools Row - BOM, Shortage, Lot history, Cart, History, Actions */}
-                <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 border-t border-slate-100">
-                  <div className="flex flex-wrap items-center gap-2">
-                  {/* Planning - BOM Explosion, Shortages, What If */}
-                    <button 
-                      onClick={() => { setPlanningTab('bom'); setShowBOMPlanning(!showBOMPlanning); }}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        showBOMPlanning 
-                          ? 'bg-purple-600 text-white shadow-md' 
-                          : 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200'
+                {/* Inventory tab bar - one view at a time, no glitches */}
+                <div className="px-4 py-2 flex flex-wrap items-center gap-1 border-t border-slate-200 bg-slate-50/80">
+                  <div className="flex flex-wrap items-center gap-1 flex-1">
+                    <button
+                      onClick={() => setInventoryView('items')}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryView === 'items' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                       }`}
-                      title="Inventory Planning - BOM explosion, shortages, what-if"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
+                      Items
+                    </button>
+                    <button
+                      onClick={() => { setPlanningTab('bom'); setInventoryView('planning'); }}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                        inventoryView === 'planning' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200'
+                      }`}
+                    >
                       Planning
                     </button>
-                  {/* Shortage (MRP) - same Inventory section */}
                     <button
                       type="button"
                       disabled={shortageLoading}
@@ -7180,50 +7189,24 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           const j = await res.json();
                           setShortageList(j.shortage || []);
                           setPlanningTab('shortages');
-                          setShowBOMPlanning(true);
+                          setInventoryView('planning');
                         } finally {
                           setShortageLoading(false);
                         }
                       }}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        shortageList.length > 0 ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        shortageList.length > 0 ? 'bg-amber-500 text-white' : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
                       }`}
-                      title="Load shortages and open Planning"
                     >
                       {shortageLoading ? '…' : 'Shortage'}
-                      {shortageList.length > 0 && <span className="bg-white/90 text-amber-700 px-1.5 py-0.5 rounded text-xs font-bold">{shortageList.length}</span>}
+                      {shortageList.length > 0 && <span className="ml-1 bg-white/90 text-amber-700 px-1 rounded text-xs font-bold">{shortageList.length}</span>}
                     </button>
-                    {shortageList.length > 0 && (
+                    {dataCatalog.hasLotTrace && (
                       <button
                         type="button"
-                        disabled={autoCreatePOLoading}
+                        disabled={lotHistoryLoading}
                         onClick={async () => {
-                          setAutoCreatePOLoading(true);
-                          try {
-                            const res = await fetch(getApiUrl('/api/mrp/auto-create-po'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-                            const j = await res.json();
-                            if (j.po_no) {
-                              setShortageList([]);
-                              onRefreshData?.();
-                            }
-                          } finally {
-                            setAutoCreatePOLoading(false);
-                          }
-                        }}
-                        className="px-4 py-3 rounded-xl font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        {autoCreatePOLoading ? 'Creating…' : 'Auto-create PO'}
-                      </button>
-                    )}
-                  {/* Lot history - portal + optional Full Company Data */}
-                    {dataCatalog.hasLotTrace && (
-                    <button
-                      type="button"
-                      disabled={lotHistoryLoading}
-                      onClick={async () => {
-                        const next = !showLotHistory;
-                        setShowLotHistory(next);
-                        if (next) {
+                          setInventoryView('lot');
                           setLotHistoryLoading(true);
                           try {
                             const [histRes, byLotRes] = await Promise.all([
@@ -7237,100 +7220,71 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           } finally {
                             setLotHistoryLoading(false);
                           }
-                        }
-                      }}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        showLotHistory ? 'bg-cyan-600 text-white shadow-md' : 'bg-white text-cyan-600 hover:bg-cyan-50 border border-cyan-200'
-                      }`}
-                      title="Lot/serial history and inventory by lot"
-                    >
-                      {lotHistoryLoading ? '…' : 'Lot history'}
-                    </button>
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          inventoryView === 'lot' ? 'bg-cyan-600 text-white shadow-sm' : 'bg-white text-cyan-600 hover:bg-cyan-50 border border-cyan-200'
+                        }`}
+                      >
+                        {lotHistoryLoading ? '…' : 'Lot'}
+                      </button>
                     )}
                     {dataCatalog.hasTransactions && (
-                    <button
-                      onClick={() => setShowTransactionExplorer(!showTransactionExplorer)}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        showTransactionExplorer ? 'bg-violet-600 text-white shadow-md' : 'bg-white text-violet-600 hover:bg-violet-50 border border-violet-200'
-                      }`}
-                      title="Inventory Log - search by item, MO, lot, date"
-                    >
-                      <Activity className="w-4 h-4" />
-                      Inventory Log
-                    </button>
+                      <button
+                        onClick={() => setInventoryView('log')}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                          inventoryView === 'log' ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-violet-600 hover:bg-violet-50 border border-violet-200'
+                        }`}
+                      >
+                        <Activity className="w-4 h-4" /> Log
+                      </button>
                     )}
-                    <button 
-                      onClick={() => setShowBomCart(!showBomCart)}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        showBomCart 
-                          ? 'bg-orange-600 text-white shadow-md' 
-                          : bomCart.length > 0 
-                            ? 'bg-orange-100 text-orange-600 border border-orange-300 animate-pulse' 
-                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      Cart
-                      {bomCart.length > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                          {bomCart.length}
-                        </span>
-                      )}
-                    </button>
-                    
-                    <button 
-                      onClick={() => {
-                        setShowPRHistory(!showPRHistory);
-                        if (!showPRHistory) {
-                          fetchPRHistory();
-                        }
-                      }}
-                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
-                        showPRHistory 
-                          ? 'bg-indigo-600 text-white shadow-md' 
-                          : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      History
-                    </button>
+                    {inventoryView === 'planning' && (
+                      <button
+                        onClick={() => setShowBomCart(!showBomCart)}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
+                          showBomCart ? 'bg-orange-600 text-white' : bomCart.length > 0 ? 'bg-orange-100 text-orange-600 border border-orange-300' : 'bg-white text-slate-500 border border-slate-200'
+                        }`}
+                      >
+                        Cart {bomCart.length > 0 && <span className="bg-red-500 text-white text-xs px-1 rounded">{bomCart.length}</span>}
+                      </button>
+                    )}
+                    {inventoryView === 'planning' && (
+                      <button
+                        onClick={() => { setShowPRHistory(!showPRHistory); if (!showPRHistory) fetchPRHistory(); }}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          showPRHistory ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200'
+                        }`}
+                      >
+                        History
+                      </button>
+                    )}
                   </div>
-                  {/* Inventory Actions - Adjust, Transfer, Reorder */}
                   <button
                     onClick={() => { setInventoryActionsInitialTab('adjust'); setShowInventoryActionsModal(true); }}
-                    className="px-4 py-2.5 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center gap-2"
-                    title="Adjust stock (add/remove)"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center gap-2"
                   >
                     <Edit className="w-4 h-4" /> Actions
                   </button>
                 </div>
-                {/* Shortage table (below reorder level) - inline in same Inventory card when loaded */}
-                {shortageList.length > 0 && (
-                  <div className="px-6 py-3 border-t border-amber-200 bg-amber-50/50">
-                    <div className="text-sm font-semibold text-amber-800 mb-2">Items below reorder level</div>
-                    <div className="overflow-x-auto max-h-28 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead><tr><th className="text-left p-1 font-medium text-slate-600">Item</th><th className="text-right p-1 font-medium text-slate-600">Shortage</th><th className="text-right p-1 font-medium text-slate-600">On hand</th><th className="text-right p-1 font-medium text-slate-600">Open PO</th></tr></thead>
-                        <tbody>
-                          {shortageList.slice(0, 15).map((s: any, i: number) => (
-                            <tr key={i} className="border-t border-amber-100"><td className="p-1 font-mono text-red-600">{s.item_no}</td><td className="p-1 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-1 text-right text-slate-600">{Number(s.on_hand).toLocaleString()}</td><td className="p-1 text-right text-slate-600">{Number(s.open_po).toLocaleString()}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {shortageList.length > 15 && <p className="text-xs text-slate-500 mt-1">+ {shortageList.length - 15} more</p>}
-                    </div>
+                {/* Shortage alert - compact, only when on Items view */}
+                {inventoryView === 'items' && shortageList.length > 0 && (
+                  <div className="px-4 py-2 border-t border-amber-200 bg-amber-50/50 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-amber-800">{shortageList.length} items below reorder</span>
+                    <button
+                      type="button"
+                      onClick={() => { setPlanningTab('shortages'); setInventoryView('planning'); }}
+                      className="text-sm font-semibold text-amber-700 hover:text-amber-900 underline"
+                    >
+                      View in Planning
+                    </button>
                   </div>
                 )}
-                {/* Lot history panel - portal-recorded + Full Company Data when present */}
-                {showLotHistory && (
-                  <div className="px-6 py-3 border-t border-cyan-200 bg-cyan-50/50">
-                    <div className="flex items-center justify-between mb-2">
+                {/* Lot history - only when inventoryView==='lot' */}
+                {inventoryView === 'lot' && (
+                  <div className="px-6 py-4 border-t border-cyan-200 bg-cyan-50/50">
+                    <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-semibold text-cyan-800">Lot / serial history &amp; inventory by lot</span>
-                      <button type="button" onClick={() => setShowLotHistory(false)} className="text-cyan-600 hover:text-cyan-800 text-sm font-medium">Close</button>
+                      <button type="button" onClick={() => setInventoryView('items')} className="text-cyan-600 hover:text-cyan-800 text-sm font-medium">← Items</button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -7381,12 +7335,12 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                 )}
-                {/* Transaction Explorer (Inventory Log) - indexed search */}
-                {showTransactionExplorer && (
-                  <div ref={transactionExplorerRef} className="px-6 py-3 border-t border-violet-200 bg-violet-50/50">
+                {/* Transaction Explorer (Inventory Log) - only when inventoryView==='log' */}
+                {inventoryView === 'log' && (
+                  <div ref={transactionExplorerRef} className="px-6 py-4 border-t border-violet-200 bg-violet-50/50">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-semibold text-violet-800">Inventory Log</span>
-                      <button type="button" onClick={() => setShowTransactionExplorer(false)} className="text-violet-600 hover:text-violet-800 text-sm font-medium">Close</button>
+                      <button type="button" onClick={() => setInventoryView('items')} className="text-violet-600 hover:text-violet-800 text-sm font-medium">← Items</button>
                     </div>
                     <div className="flex flex-wrap gap-2 mb-3 items-center">
                       <input type="text" placeholder="Item No." className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg w-28" value={txExplorerFilters.itemNo ?? ''} onChange={(e) => setTxExplorerFilters((f) => ({ ...f, itemNo: e.target.value || undefined }))} />
@@ -7436,7 +7390,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                 )}
-                {showBOMPlanning && (
+                {/* Planning panel - only when inventoryView==='planning' */}
+                {inventoryView === 'planning' && (
                 <div className="bg-white rounded-2xl shadow-xl border border-purple-200 p-6 mt-4 mx-6 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -7459,7 +7414,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       {planningTab === 'whatif' && 'What If Analysis'}
                     </span>
                     <button 
-                      onClick={() => setShowBOMPlanning(false)}
+                      onClick={() => setInventoryView('items')}
                       className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8632,15 +8587,16 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               </div>
               )}
 
-              {/* Inventory Cards - Main Grid */}
-              {!data || Object.keys(data).length === 0 ? (
+              {/* Inventory Cards - Main Grid (only when Items view) */}
+              {inventoryView === 'items' && (
+              !data || Object.keys(data).length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-4xl mb-4">⏳</div>
                   <div className="text-xl text-gray-600">Loading inventory data...</div>
                 </div>
               ) : (
               <>
-                {/* Search & Controls Bar - User-friendly layout */}
+                {/* Search & Controls Bar */}
                 <div className="mb-6 space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[200px]">
@@ -8764,7 +8720,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         setItemModalActiveView('master');
                         setShowItemModal(true);
                         setShowAnalytics(false);
-                        setShowBOMPlanning(false);
                       }}
                       className={`group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 ${
                         stock <= 0 
@@ -8977,7 +8932,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </>
                 )}
               </>
-              )}
+              ))}
             </div>
           )}
 
