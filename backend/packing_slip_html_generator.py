@@ -250,11 +250,39 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         items_to_show = physical_items[:10]  # Max 10 items (matches TSCA, template has 10 pre-defined rows)
         print(f"DEBUG: Using {len(items_to_show)} items for packing slip")
     
+    # Lubecore totes & pickups: show net weight instead of 900 (liters) in qty column
+    customer_name_upper = (so_data.get('customer_name', '') or '').upper()
+    is_lubecore = 'LUBECORE' in customer_name_upper
+    is_pickup = shipping_addr.get('is_pickup', False) or so_data.get('is_pickup_order', False)
+    
+    def _extract_weight_value(weight_str):
+        """Extract numeric value from '180 kg' or '635.5 kg' -> '180' or '635.5'"""
+        if not weight_str:
+            return None
+        m = re.search(r'([\d,]+(?:\.\d+)?)\s*(?:kg|KG)?', str(weight_str))
+        return m.group(1).replace(',', '') if m else None
+    
     # Populate only the items that exist
     for i, item in enumerate(items_to_show, 1):
         quantity = item.get('quantity', '')
+        unit = str(item.get('unit', '')).upper()
+        is_tote = unit in ('TOTE', 'TOTES', 'LITER', 'LITERS', 'LITRE', 'IBC')
+        use_net_weight = is_lubecore and (is_tote or is_pickup)
+        
+        if use_net_weight:
+            net_wt = item.get('net_weight') or item.get('gross_weight') or ''
+            if not net_wt:
+                # Fallback: extract from description (e.g. "HEAVY DUTY EP2 180 KG")
+                desc_match = re.search(r'(\d+(?:\.\d+)?)\s*KG', str(item.get('description', '')), re.IGNORECASE)
+                net_wt = f"{desc_match.group(1)} kg" if desc_match else ''
+            wt_val = _extract_weight_value(net_wt)
+            if wt_val:
+                quantity = wt_val
+                unit = 'kg'
+            # else: fall through to original quantity/unit
+        
         field_values[f'item_description_{i}'] = item.get('description', '')
-        field_values[f'unit_{i}'] = item.get('unit', '')
+        field_values[f'unit_{i}'] = unit
         field_values[f'ordered_qty_{i}'] = str(quantity)
         field_values[f'shipped_qty_{i}'] = str(quantity)
         

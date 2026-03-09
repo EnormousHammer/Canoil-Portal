@@ -347,6 +347,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Inventory actions (B4 B5 B6)
   const [showInventoryActionsModal, setShowInventoryActionsModal] = useState(false);
   const [inventoryActionsInitialTab, setInventoryActionsInitialTab] = useState<'adjust' | 'transfer' | 'reorder'>('adjust');
+  // MiSys Capabilities panel (collapsible info)
+  const [showMISysCapabilities, setShowMISysCapabilities] = useState(false);
 
   // Redo PR Modal State
   const [showRedoPRModal, setShowRedoPRModal] = useState(false);
@@ -6946,8 +6948,26 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
                     </div>
                     
-                    {/* Quick Stats */}
-                    <div className="flex items-center gap-2">
+                    {/* MiSys Capabilities toggle */}
+                    <button
+                      onClick={() => setShowMISysCapabilities(!showMISysCapabilities)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                        showMISysCapabilities 
+                          ? 'bg-slate-700 text-white shadow-md' 
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                      title="What MiSys Manufacturing can do"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {showMISysCapabilities ? 'Hide' : 'What MiSys Can Do'}
+                    </button>
+                  </div>
+                  
+                  {/* Quick Stats - Compact pills */}
+                  <div className="flex flex-wrap items-center gap-2 mt-4">
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
                       <button 
                         onClick={() => setInventoryFilter('all')}
                         className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
@@ -7009,8 +7029,75 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
                 
-                {/* Tools Row - BOM, Shortage, Lot history, Cart, History */}
-                <div className="px-6 py-3 flex items-center justify-end gap-2 bg-slate-50/50 border-t border-slate-100">
+                {/* MiSys Capabilities Panel - Collapsible */}
+                {showMISysCapabilities && (
+                  <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      MiSys Manufacturing Capabilities
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Planning & MRP</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• Shortages Today / Future Shortages</li>
+                          <li>• What If Today / Future What If</li>
+                          <li>• Buyer&apos;s Advice → MRP → Purchase Orders</li>
+                          <li>• MRP → Work Orders / Mfg. Orders</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Item Transfers</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• Dispense/Return Stock</li>
+                          <li>• Allocate/Deallocate Stock</li>
+                          <li>• Reserve/Relieve Stock</li>
+                          <li>• Move Stock, Scrap/Recover</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Assembly & BOM</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• Assemble/Disassemble Stock</li>
+                          <li>• Assemble/Disassemble WIP</li>
+                          <li>• Reserve/Relieve Assembly</li>
+                          <li>• BOM explosion & Where Used</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Supplier & Sales</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• Receive/Return from Supplier</li>
+                          <li>• Receive/Return on PO</li>
+                          <li>• Sales Transfers (Item, Assembly, Range)</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Stock Control</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• Stock Check & Stock Status</li>
+                          <li>• Batch Check (Edit/Check Batch)</li>
+                          <li>• Lot/Serial tracking</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white rounded-xl p-3 border border-slate-200">
+                        <div className="font-semibold text-slate-700 mb-1">Portal Integration</div>
+                        <ul className="text-slate-600 space-y-0.5 text-xs">
+                          <li>• BOM Planning & Explosion</li>
+                          <li>• Shortage (MRP) & Auto-create PO</li>
+                          <li>• Lot history & Inventory Log</li>
+                          <li>• Adjust, Transfer, Reorder (via Actions)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Tools Row - BOM, Shortage, Lot history, Cart, History, Actions */}
+                <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
                   {/* BOM Tools */}
                     <button 
                       onClick={() => setShowBOMPlanning(!showBOMPlanning)}
@@ -7151,6 +7238,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </svg>
                       History
                     </button>
+                  </div>
+                  {/* Inventory Actions - Adjust, Transfer, Reorder */}
+                  <button
+                    onClick={() => { setInventoryActionsInitialTab('adjust'); setShowInventoryActionsModal(true); }}
+                    className="px-4 py-2.5 rounded-xl font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center gap-2"
+                    title="Adjust stock (add/remove)"
+                  >
+                    <Edit className="w-4 h-4" /> Actions
+                  </button>
                 </div>
                 {/* Shortage table (below reorder level) - inline in same Inventory card when loaded */}
                 {shortageList.length > 0 && (
@@ -7280,11 +7376,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* COLLAPSIBLE BOM Planning Section - Only shows when toggled */}
-              {showBOMPlanning && (
-              <div className="bg-white rounded-2xl shadow-xl border border-purple-200 p-6">
+                {showBOMPlanning && (
+                <div className="bg-white rounded-2xl shadow-xl border border-purple-200 p-6 mt-4 mx-6 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -8384,19 +8477,49 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </div>
               ) : (
               <>
-                {/* Search Bar - ALWAYS VISIBLE regardless of results */}
-                <div className="relative mb-6">
-                  <input
-                    type="text"
-                    value={inventorySearchQuery}
-                    onChange={(e) => setInventorySearchQuery(e.target.value)}
-                    placeholder="🔍 Smart search: 'tx case', 'bottle 1l', 'semi synthetic'... (finds partial matches!)"
-                    className="w-full px-6 py-4 text-lg rounded-2xl border-2 border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition-all"
-                  />
-                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                    <div className="flex items-center space-x-2">
-                      <div className="text-blue-500 text-xl">⚡</div>
-                      <div className="text-xs text-gray-500">SMART SEARCH</div>
+                {/* Search & Controls Bar - User-friendly layout */}
+                <div className="mb-6 space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <input
+                        type="text"
+                        value={inventorySearchQuery}
+                        onChange={(e) => setInventorySearchQuery(e.target.value)}
+                        placeholder="🔍 Smart search: 'tx case', 'bottle 1l', 'semi synthetic'... (finds partial matches!)"
+                        className="w-full px-6 py-3.5 text-base rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
+                      />
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-emerald-500">
+                        <span className="text-lg">⚡</span>
+                        <span className="text-[10px] font-semibold uppercase">Smart</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-sm text-slate-600 font-medium">Sort:</label>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                      >
+                        <option value="name">Item No. A–Z</option>
+                        <option value="name-desc">Item No. Z–A</option>
+                        <option value="description">Description A–Z</option>
+                        <option value="quantity">Stock High→Low</option>
+                        <option value="quantity-asc">Stock Low→High</option>
+                        <option value="status">Status (Out first)</option>
+                      </select>
+                      <label className="text-sm text-slate-600 font-medium ml-2">Show:</label>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                      >
+                        <option value={12}>12</option>
+                        <option value={20}>20</option>
+                        <option value={40}>40</option>
+                        <option value={60}>60</option>
+                        <option value={100}>100</option>
+                        <option value={999999}>All</option>
+                      </select>
                     </div>
                   </div>
                 </div>
