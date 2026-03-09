@@ -22,6 +22,8 @@ import InventoryActionsModal from './InventoryActionsModal';
 import { ProformaInvoiceMaker } from './ProformaInvoiceMaker';
 import { ERPPortal } from './ERPPortal';
 import { CleanIntelligentSOEntry } from './CleanIntelligentSOEntry';
+import { MISysProductionWorkflowModal } from './MISysProductionWorkflowModal';
+import type { MoWorkflowTab } from './MISysProductionWorkflowModal';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
   BarChart3, 
@@ -328,6 +330,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [poStatusFilter, setPoStatusFilter] = useState<string>('all');
   const [poSupplierFilter, setPoSupplierFilter] = useState<string>('all');
   const [showCreateMOModal, setShowCreateMOModal] = useState(false);
+  const [showMoWorkflowModal, setShowMoWorkflowModal] = useState(false);
+  const [moWorkflowTab, setMoWorkflowTab] = useState<MoWorkflowTab>('work-order');
   const [createMOForm, setCreateMOForm] = useState({
     build_item_no: '',
     quantity: '',
@@ -2668,6 +2672,14 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                         LIVE
                       </span>
+                      <button
+                        onClick={() => setShowMoWorkflowModal(true)}
+                        className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
+                        title="View MISys Production Workflow"
+                      >
+                        <Layers className="w-4 h-4" />
+                        Production Workflow
+                      </button>
                       <button
                         onClick={() => setShowExportAllCompanyDataModal(true)}
                         className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-slate-200 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2"
@@ -11750,6 +11762,17 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           </div>
         </div>
       )}
+
+      {/* MISys Production Workflow Modal */}
+      <MISysProductionWorkflowModal
+        isOpen={showMoWorkflowModal}
+        onClose={() => setShowMoWorkflowModal(false)}
+        activeTab={moWorkflowTab}
+        onTabChange={setMoWorkflowTab}
+        onCreateMO={() => setShowCreateMOModal(true)}
+        onProcessSalesOrders={() => { onOpenProductionSchedule ? onOpenProductionSchedule() : setActiveSection('production-schedule'); }}
+        onCreateFromMRP={() => { setActiveSection('inventory'); setPlanningTab('shortages'); setInventoryView('planning'); }}
+      />
 
       {/* Create MO Modal - batch number + optional Sales Order # (for future Sage link) */}
       {showCreateMOModal && (
