@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CompactLoading, DataLoading } from './LoadingComponents';
 import { ToastNotification, useToasts } from './ToastNotification';
@@ -268,7 +268,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   });
   const [createPOSubmitting, setCreatePOSubmitting] = useState(false);
   const [shortageList, setShortageList] = useState<any[]>([]);
+  const [customAlertsTriggered, setCustomAlertsTriggered] = useState<any[]>([]);
+  const [customAlerts, setCustomAlerts] = useState<any[]>([]);
   const [shortageLoading, setShortageLoading] = useState(false);
+  const [addCustomAlertItemNo, setAddCustomAlertItemNo] = useState('');
+  const [addCustomAlertThreshold, setAddCustomAlertThreshold] = useState('');
+  const [addCustomAlertSubmitting, setAddCustomAlertSubmitting] = useState(false);
+  const [showCustomAlertSuggestions, setShowCustomAlertSuggestions] = useState(false);
   const [autoCreatePOLoading, setAutoCreatePOLoading] = useState(false);
   // Lot history (portal-recorded + optional Full Company Data)
   const [showLotHistory, setShowLotHistory] = useState(false);
@@ -1205,6 +1211,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
       setInventoryView('items');
     }
   }, [activeSection]);
+
+  // Auto-load shortage when entering Inventory (data already in backend from app load)
+  const fetchShortage = useCallback(async () => {
+    setShortageLoading(true);
+    try {
+      const r = await fetch(getApiUrl('/api/shortage'));
+      const j = await r.json();
+      setShortageList(j.shortage || []);
+      setCustomAlertsTriggered(j.custom_alerts_triggered || []);
+      setCustomAlerts(j.custom_alerts || []);
+    } catch {
+      setShortageList([]);
+      setCustomAlertsTriggered([]);
+      setCustomAlerts([]);
+    } finally {
+      setShortageLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (activeSection === 'inventory') fetchShortage();
+  }, [activeSection, fetchShortage]);
+
+  // Smart search suggestions for custom alert Item No. (same logic as inventory page)
+  const customAlertItemSuggestions = useMemo(() => {
+    const items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
+    if (!addCustomAlertItemNo.trim() || items.length === 0) return [];
+    const searchTerms = addCustomAlertItemNo.toLowerCase().trim().split(/\s+/);
+    return items
+      .filter((item: any) => {
+        const searchableText = [
+          item['Item No.'] || item['item_no'] || '',
+          item['Description'] || '',
+          item['Part Number'] || '',
+          item['Manufacturer'] || '',
+        ].join(' ').toLowerCase();
+        return searchTerms.every((term: string) => searchableText.includes(term));
+      })
+      .slice(0, 12);
+  }, [data, addCustomAlertItemNo]);
 
   // Function to close item modal
   const closeItemModal = () => {
@@ -7178,28 +7223,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                     >
                       Planning
-                    </button>
-                    <button
-                      type="button"
-                      disabled={shortageLoading}
-                      onClick={async () => {
-                        setShortageLoading(true);
-                        try {
-                          const res = await fetch(getApiUrl('/api/shortage'));
-                          const j = await res.json();
-                          setShortageList(j.shortage || []);
-                          setPlanningTab('shortages');
-                          setInventoryView('planning');
-                        } finally {
-                          setShortageLoading(false);
-                        }
-                      }}
-                      className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        shortageList.length > 0 ? 'bg-amber-500 text-white' : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
-                      }`}
-                    >
-                      {shortageLoading ? '…' : 'Shortage'}
-                      {shortageList.length > 0 && <span className="ml-1 bg-white/90 text-amber-700 px-1 rounded text-xs font-bold">{shortageList.length}</span>}
+                      {(shortageList.length + customAlertsTriggered.length) > 0 && <span className="ml-1 bg-white/90 text-amber-700 px-1 rounded text-xs font-bold">{shortageList.length + customAlertsTriggered.length}</span>}
                     </button>
                     {dataCatalog.hasLotTrace && (
                       <button
@@ -7267,9 +7291,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </button>
                 </div>
                 {/* Shortage alert - compact, only when on Items view */}
-                {inventoryView === 'items' && shortageList.length > 0 && (
+                {inventoryView === 'items' && (shortageList.length + customAlertsTriggered.length) > 0 && (
                   <div className="px-4 py-2 border-t border-amber-200 bg-amber-50/50 flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-amber-800">{shortageList.length} items below reorder</span>
+                    <span className="text-sm font-medium text-amber-800">{shortageList.length + customAlertsTriggered.length} items below threshold</span>
                     <button
                       type="button"
                       onClick={() => { setPlanningTab('shortages'); setInventoryView('planning'); }}
@@ -7410,7 +7434,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         );
                         return `${assembledItems.length} Assembled Items`;
                       })()}
-                      {planningTab === 'shortages' && `${shortageList.length} Shortages`}
+                      {planningTab === 'shortages' && `${shortageList.length + customAlertsTriggered.length} Shortages`}
                       {planningTab === 'whatif' && 'What If Analysis'}
                     </span>
                     <button 
@@ -7436,7 +7460,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                     >
                       {t === 'bom' && 'BOM Explosion'}
-                      {t === 'shortages' && <>Shortages {shortageList.length > 0 && <span className="ml-1 bg-white/90 text-amber-700 px-1.5 py-0.5 rounded text-xs">{shortageList.length}</span>}</>}
+                      {t === 'shortages' && <>Shortages {(shortageList.length + customAlertsTriggered.length) > 0 && <span className="ml-1 bg-white/90 text-amber-700 px-1.5 py-0.5 rounded text-xs">{shortageList.length + customAlertsTriggered.length}</span>}</>}
                       {t === 'whatif' && 'What If'}
                     </button>
                   ))}
@@ -8509,33 +8533,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 {planningTab === 'shortages' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm text-slate-600">Items below reorder level. Load via Shortage button if empty.</p>
+                      <p className="text-sm text-slate-600">Items below reorder level (auto-loaded).</p>
                       <button
                         type="button"
                         disabled={shortageLoading}
-                        onClick={async () => {
-                          setShortageLoading(true);
-                          try {
-                            const res = await fetch(getApiUrl('/api/shortage'));
-                            const j = await res.json();
-                            setShortageList(j.shortage || []);
-                          } finally {
-                            setShortageLoading(false);
-                          }
-                        }}
+                        onClick={fetchShortage}
                         className="px-3 py-1.5 text-sm font-medium bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200"
                       >
                         {shortageLoading ? 'Loading…' : 'Refresh Shortages'}
                       </button>
                     </div>
-                    {shortageList.length > 0 ? (
+                    {(shortageList.length > 0 || customAlertsTriggered.length > 0) ? (
                       <>
                         <div className="overflow-x-auto max-h-64 overflow-y-auto border border-slate-200 rounded-lg">
                           <table className="w-full text-sm">
-                            <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left p-2 font-medium text-slate-600">Item</th><th className="text-right p-2 font-medium text-slate-600">Shortage</th><th className="text-right p-2 font-medium text-slate-600">On hand</th><th className="text-right p-2 font-medium text-slate-600">Open PO</th></tr></thead>
+                            <thead className="bg-slate-50 sticky top-0"><tr><th className="text-left p-2 font-medium text-slate-600">Item</th><th className="text-right p-2 font-medium text-slate-600">Shortage</th><th className="text-right p-2 font-medium text-slate-600">On hand</th><th className="text-right p-2 font-medium text-slate-600">Open PO</th><th className="text-left p-2 font-medium text-slate-600">Source</th></tr></thead>
                             <tbody>
                               {shortageList.map((s: any, i: number) => (
-                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50"><td className="p-2 font-mono text-red-600">{s.item_no}</td><td className="p-2 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-2 text-right text-slate-600">{Number(s.on_hand).toLocaleString()}</td><td className="p-2 text-right text-slate-600">{Number(s.open_po || 0).toLocaleString()}</td></tr>
+                                <tr key={`reorder-${i}`} className="border-t border-slate-100 hover:bg-slate-50"><td className="p-2 font-mono text-red-600">{s.item_no}</td><td className="p-2 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-2 text-right text-slate-600">{Number(s.on_hand).toLocaleString()}</td><td className="p-2 text-right text-slate-600">{Number(s.open_po || 0).toLocaleString()}</td><td className="p-2 text-xs text-slate-500">Reorder</td></tr>
+                              ))}
+                              {customAlertsTriggered.map((s: any) => (
+                                <tr key={`custom-${s.id}`} className="border-t border-slate-100 hover:bg-slate-50"><td className="p-2 font-mono text-red-600">{s.item_no}</td><td className="p-2 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-2 text-right text-slate-600">{Number(s.stock).toLocaleString()}</td><td className="p-2 text-right text-slate-400">—</td><td className="p-2 text-xs text-slate-500">Custom &lt;{s.threshold}</td></tr>
                               ))}
                             </tbody>
                           </table>
@@ -8549,8 +8567,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               const res = await fetch(getApiUrl('/api/mrp/auto-create-po'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
                               const j = await res.json();
                               if (j.po_no) {
-                                setShortageList([]);
                                 onRefreshData?.();
+                                fetchShortage();
                               }
                             } finally {
                               setAutoCreatePOLoading(false);
@@ -8560,9 +8578,136 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         >
                           {autoCreatePOLoading ? 'Creating…' : 'Auto-create PO'}
                         </button>
+                        <div className="pt-3 border-t border-slate-200">
+                          {customAlerts.length > 0 && (
+                            <>
+                              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Custom alerts</div>
+                              <div className="flex flex-wrap gap-2 mb-3">{customAlerts.map((a: any) => <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 rounded text-sm"><span className="font-mono">{a.item_no}</span>&lt;{a.threshold} <button type="button" onClick={async () => { await fetch(getApiUrl(`/api/custom-alerts/${a.id}`), { method: 'DELETE' }); fetchShortage(); }} className="text-red-500 hover:text-red-700">×</button></span>)}</div>
+                            </>
+                          )}
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Add custom alert</div>
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={addCustomAlertItemNo}
+                                onChange={(e) => { setAddCustomAlertItemNo(e.target.value); setShowCustomAlertSuggestions(true); }}
+                                onFocus={() => addCustomAlertItemNo && setShowCustomAlertSuggestions(true)}
+                                onBlur={() => setTimeout(() => setShowCustomAlertSuggestions(false), 150)}
+                                placeholder="Smart search: item no, description..."
+                                className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-52"
+                              />
+                              {showCustomAlertSuggestions && customAlertItemSuggestions.length > 0 && (
+                                <div className="absolute z-50 top-full left-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg w-64">
+                                  {customAlertItemSuggestions.map((item: any) => (
+                                    <button key={item['Item No.'] || item['item_no']} type="button" onMouseDown={(e) => { e.preventDefault(); setAddCustomAlertItemNo((item['Item No.'] || item['item_no'] || '').toString()); setShowCustomAlertSuggestions(false); }} className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm border-b border-slate-100 last:border-0">
+                                      <span className="font-mono text-slate-800">{item['Item No.'] || item['item_no']}</span>
+                                      <span className="text-slate-500 ml-2 truncate block">{(item['Description'] || '').slice(0, 35)}{(item['Description'] || '').length > 35 ? '…' : ''}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <input type="number" min={0} value={addCustomAlertThreshold} onChange={(e) => setAddCustomAlertThreshold(e.target.value)} placeholder="Threshold" className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-20" />
+                            <button type="button" disabled={addCustomAlertSubmitting || !addCustomAlertItemNo.trim()} onClick={async () => { setAddCustomAlertSubmitting(true); try { const r = await fetch(getApiUrl('/api/custom-alerts'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_no: addCustomAlertItemNo.trim(), threshold: Number(addCustomAlertThreshold) || 0 }) }); const j = await r.json(); if (r.ok && j.id) { setAddCustomAlertItemNo(''); setAddCustomAlertThreshold(''); fetchShortage(); } else alert(j.error || 'Failed'); } finally { setAddCustomAlertSubmitting(false); } }} className="px-3 py-2 rounded-lg text-sm bg-slate-600 text-white hover:bg-slate-700 disabled:opacity-50">{addCustomAlertSubmitting ? 'Adding…' : 'Add'}</button>
+                          </div>
+                        </div>
                       </>
                     ) : (
-                      <p className="text-slate-500 py-4">No shortages. Click Shortage in the tools row to load, or run MRP.</p>
+                      <div className="space-y-4 py-4">
+                        <p className="text-slate-500">No reorder-based shortages. Add custom alerts to watch items when stock drops below a threshold.</p>
+                        <div className="flex flex-wrap items-end gap-3 p-3 bg-slate-50 rounded-lg">
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Item No.</label>
+                            <input
+                              type="text"
+                              value={addCustomAlertItemNo}
+                              onChange={(e) => { setAddCustomAlertItemNo(e.target.value); setShowCustomAlertSuggestions(true); }}
+                              onFocus={() => addCustomAlertItemNo && setShowCustomAlertSuggestions(true)}
+                              onBlur={() => setTimeout(() => setShowCustomAlertSuggestions(false), 150)}
+                              placeholder="Smart search: item no, description..."
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-56"
+                            />
+                            {showCustomAlertSuggestions && customAlertItemSuggestions.length > 0 && (
+                              <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                                {customAlertItemSuggestions.map((item: any) => (
+                                  <button
+                                    key={item['Item No.'] || item['item_no']}
+                                    type="button"
+                                    onMouseDown={(e) => { e.preventDefault(); setAddCustomAlertItemNo((item['Item No.'] || item['item_no'] || '').toString()); setShowCustomAlertSuggestions(false); }}
+                                    className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm border-b border-slate-100 last:border-0"
+                                  >
+                                    <span className="font-mono text-slate-800">{item['Item No.'] || item['item_no']}</span>
+                                    <span className="text-slate-500 ml-2 truncate block">{(item['Description'] || '').slice(0, 40)}{(item['Description'] || '').length > 40 ? '…' : ''}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Alert when stock &lt;</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={addCustomAlertThreshold}
+                              onChange={(e) => setAddCustomAlertThreshold(e.target.value)}
+                              placeholder="e.g. 100"
+                              className="px-3 py-2 border border-slate-200 rounded-lg text-sm w-24"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={addCustomAlertSubmitting || !addCustomAlertItemNo.trim()}
+                            onClick={async () => {
+                              setAddCustomAlertSubmitting(true);
+                              try {
+                                const res = await fetch(getApiUrl('/api/custom-alerts'), {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ item_no: addCustomAlertItemNo.trim(), threshold: Number(addCustomAlertThreshold) || 0 }),
+                                });
+                                const j = await res.json();
+                                if (res.ok && j.id) {
+                                  setAddCustomAlertItemNo('');
+                                  setAddCustomAlertThreshold('');
+                                  fetchShortage();
+                                } else {
+                                  alert(j.error || 'Failed to add alert');
+                                }
+                              } finally {
+                                setAddCustomAlertSubmitting(false);
+                              }
+                            }}
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {addCustomAlertSubmitting ? 'Adding…' : 'Add Alert'}
+                          </button>
+                        </div>
+                        {customAlerts.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your custom alerts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {customAlerts.map((a: any) => (
+                                <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 rounded text-sm">
+                                  <span className="font-mono">{a.item_no}</span>
+                                  <span className="text-slate-500">&lt; {a.threshold}</span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await fetch(getApiUrl(`/api/custom-alerts/${a.id}`), { method: 'DELETE' });
+                                      fetchShortage();
+                                    }}
+                                    className="text-red-500 hover:text-red-700 ml-1"
+                                    title="Remove"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                     <div className="pt-3 border-t border-slate-200">
                       <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">MRP Process</div>

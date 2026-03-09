@@ -5354,18 +5354,106 @@ def _compute_shortage(data):
     return shortage_list
 
 
+def _compute_custom_alerts_triggered(data, custom_alerts):
+    """For each custom alert, if stock < threshold, return triggered entry."""
+    if not data or not custom_alerts:
+        return []
+    items = data.get("Items.json") or []
+    stock_by_item = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        ino = item.get("Item No.") or item.get("item_no") or ""
+        if ino:
+            stock_by_item[ino] = float(item.get("Stock") or item.get("stock") or 0)
+    triggered = []
+    for a in custom_alerts:
+        ino = a.get("item_no") or ""
+        threshold = float(a.get("threshold") or 0)
+        stock = stock_by_item.get(ino, 0)
+        if stock < threshold:
+            triggered.append({
+                "id": a.get("id"),
+                "item_no": ino,
+                "threshold": threshold,
+                "stock": stock,
+                "shortage_qty": round(threshold - stock, 4),
+            })
+    return triggered
+
+
 @app.route('/api/shortage', methods=['GET'])
 def get_shortage():
     """J2: Shortage report – items below reorder level (stock + open PO). Uses cached app data.
+    Also returns custom_alerts and custom_alerts_triggered (user-defined thresholds).
     Optional ?horizon=7 for future shortage (days) – currently returns same data; MRP engine can extend."""
     global _data_cache
     try:
         data = _data_cache
         horizon = request.args.get('horizon', type=int)
+        custom_alerts = []
+        custom_triggered = []
+        if portal_store:
+            custom_alerts = portal_store.get_custom_alerts()
+            if data:
+                custom_triggered = _compute_custom_alerts_triggered(data, custom_alerts)
         if not data:
-            return jsonify({"shortage": [], "message": "Load app data first (GET /api/data)", "horizon": horizon}), 200
+            return jsonify({
+                "shortage": [],
+                "custom_alerts": custom_alerts,
+                "custom_alerts_triggered": custom_triggered,
+                "message": "Load app data first (GET /api/data)",
+                "horizon": horizon,
+            }), 200
         shortage = _compute_shortage(data)
-        return jsonify({"shortage": shortage, "horizon": horizon}), 200
+        return jsonify({
+            "shortage": shortage,
+            "custom_alerts": custom_alerts,
+            "custom_alerts_triggered": custom_triggered,
+            "horizon": horizon,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/custom-alerts', methods=['GET'])
+def get_custom_alerts_api():
+    """List user-defined custom alerts (item_no + threshold)."""
+    try:
+        if not portal_store:
+            return jsonify({"custom_alerts": []}), 200
+        return jsonify({"custom_alerts": portal_store.get_custom_alerts()}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/custom-alerts', methods=['POST'])
+def add_custom_alert_api():
+    """Add custom alert: { item_no, threshold }. Alert when stock < threshold."""
+    try:
+        if not portal_store:
+            return jsonify({"error": "Portal store not available"}), 503
+        body = request.get_json() or {}
+        item_no = (body.get("item_no") or body.get("Item No.") or "").strip()
+        threshold = body.get("threshold")
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        alert = portal_store.add_custom_alert(item_no, threshold)
+        if not alert:
+            return jsonify({"error": "Invalid item_no"}), 400
+        return jsonify(alert), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/custom-alerts/<alert_id>', methods=['DELETE'])
+def remove_custom_alert_api(alert_id):
+    """Remove a custom alert by id."""
+    try:
+        if not portal_store:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.remove_custom_alert(alert_id)
+        return jsonify({"ok": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

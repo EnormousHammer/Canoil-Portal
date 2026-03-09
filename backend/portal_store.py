@@ -37,6 +37,7 @@ def _default_store():
         "po_receives": [],
         "mo_completion_lots": [],
         "wo_updates": [],
+        "custom_alerts": [],  # [{ id, item_no, threshold, at }] - alert when stock < threshold
     }
 
 def load():
@@ -429,6 +430,37 @@ def add_wo_update(wo_no, status=None, release_date=None, completed=None, complet
         })
     s["wo_updates"] = updates
     save(s)
+
+
+def get_custom_alerts():
+    return load().get("custom_alerts", [])
+
+
+def add_custom_alert(item_no, threshold):
+    """Add a custom alert: notify when stock < threshold. Returns the new alert."""
+    import uuid
+    s = load()
+    alerts = s.get("custom_alerts", [])
+    item_no = (item_no or "").strip()
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        threshold = 0
+    if not item_no:
+        return None
+    alert = {"id": str(uuid.uuid4()), "item_no": item_no, "threshold": threshold, "at": datetime.utcnow().isoformat() + "Z"}
+    alerts.append(alert)
+    s["custom_alerts"] = alerts
+    save(s)
+    return alert
+
+
+def remove_custom_alert(alert_id):
+    s = load()
+    alerts = [a for a in s.get("custom_alerts", []) if a.get("id") != alert_id]
+    s["custom_alerts"] = alerts
+    save(s)
+
 
 def apply_to_data(data):
     """Apply portal store to raw data dict. Mutates data in place."""
