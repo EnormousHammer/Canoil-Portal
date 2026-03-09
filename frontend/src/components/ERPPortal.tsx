@@ -126,40 +126,59 @@ const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavi
   const [refreshing, setRefreshing] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const fetchStatus = async () => {
     const r = await apiGet('/api/sage/gdrive/status');
+    if (!r.ok && r.data?.error) throw new Error(r.data.error);
     return r.data;
   };
 
   const triggerLoad = async () => {
-    await apiPost('/api/sage/gdrive/load', {});
+    const r = await apiPost('/api/sage/gdrive/load', {});
+    if (!r.ok && r.data?.error) throw new Error(r.data.error);
   };
 
   const load = async (autoLoadIfEmpty = true) => {
     setLoading(true);
+    setLoadError(null);
     setLoadingMsg('Checking data…');
-    const st = await fetchStatus();
-    // If cache is empty, auto-trigger a load so user sees real numbers immediately
-    if (autoLoadIfEmpty && (!st?.cache_loaded || !st?.row_counts || Object.keys(st.row_counts || {}).length === 0)) {
-      setLoadingMsg('Loading Sage data from Google Drive… (first load takes ~30s)');
-      await triggerLoad();
-      const st2 = await fetchStatus();
-      setStatus(st2);
-    } else {
-      setStatus(st);
+    try {
+      const st = await fetchStatus();
+      // If cache is empty, auto-trigger a load so user sees real numbers immediately
+      if (autoLoadIfEmpty && (!st?.cache_loaded || !st?.row_counts || Object.keys(st.row_counts || {}).length === 0)) {
+        setLoadingMsg('Loading Sage data from Google Drive… (first load takes ~30s)');
+        await triggerLoad();
+        const st2 = await fetchStatus();
+        setStatus(st2);
+      } else {
+        setStatus(st);
+      }
+      setLoadedAt(new Date());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(msg || 'Failed to load Sage data');
+      setStatus({ available: false, error: msg });
+    } finally {
+      setLoading(false);
     }
-    setLoadedAt(new Date());
-    setLoading(false);
   };
 
   const forceRefresh = async () => {
     setRefreshing(true);
+    setLoadError(null);
     setLoadingMsg('Refreshing from Google Drive…');
-    await triggerLoad();
-    const st = await fetchStatus();
-    setStatus(st);
-    setLoadedAt(new Date());
-    setRefreshing(false);
+    try {
+      await triggerLoad();
+      const st = await fetchStatus();
+      setStatus(st);
+      setLoadedAt(new Date());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(msg || 'Failed to refresh');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -217,6 +236,25 @@ const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavi
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
         </svg>
         <p className="text-sm text-slate-500 text-center max-w-xs">{loadingMsg}</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 p-6">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 max-w-md">
+          <p className="text-sm font-medium text-amber-800">Sage G Drive unavailable</p>
+          <p className="text-xs text-amber-700 mt-1">{loadError}</p>
+          <p className="text-xs text-slate-500 mt-2">Ensure the backend can reach Google Drive. On Render, check that GOOGLE_DRIVE_* env vars are set.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => load()}
+          className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 text-sm font-medium"
+        >
+          Retry
+        </button>
       </div>
     );
   }

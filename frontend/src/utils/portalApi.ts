@@ -39,15 +39,27 @@ function authHeaders(): Record<string, string> {
 }
 
 async function apiRequest(url: string, options: RequestInit = {}): Promise<any> {
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers as Record<string, string> || {}) },
-  });
-  if (res.status === 401) {
-    clearToken();
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers as Record<string, string> || {}) },
+    });
+    if (res.status === 401) {
+      clearToken();
+    }
+    const contentType = res.headers.get('content-type');
+    let data: any;
+    if (contentType?.includes('application/json')) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { error: text || `Request failed (${res.status})` };
+    }
+    return { data, status: res.status, ok: res.ok };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { data: { error: msg || 'Network error' }, status: 0, ok: false };
   }
-  const data = await res.json();
-  return { data, status: res.status, ok: res.ok };
 }
 
 export async function apiGet(endpoint: string): Promise<any> {
