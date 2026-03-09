@@ -243,10 +243,13 @@ const ERPOverview: React.FC<{ onNavigate: (s: ERPSection) => void }> = ({ onNavi
   if (loadError) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4 p-6">
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 max-w-md">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 max-w-lg">
           <p className="text-sm font-medium text-amber-800">Sage G Drive unavailable</p>
           <p className="text-xs text-amber-700 mt-1">{loadError}</p>
-          <p className="text-xs text-slate-500 mt-2">Ensure the backend can reach Google Drive. On Render, check that GOOGLE_DRIVE_* env vars are set.</p>
+          <p className="text-xs text-slate-500 mt-2">
+            Ensure the backend (Render) can reach Google Drive: set GOOGLE_DRIVE_* env vars and service account JSON.
+            Check Render logs for the full error.
+          </p>
         </div>
         <button
           type="button"

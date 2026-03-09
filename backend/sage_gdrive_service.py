@@ -141,6 +141,8 @@ def _find_latest_sage_folder_api():
         ).execute()
 
         folders = results.get("files", [])
+        # Skip utility folders (e.g. __pycache__, _vpn_config) — same as get_latest_folder() locally
+        folders = [f for f in folders if not f.get("name", "").startswith("_")]
         if not folders:
             return None, None, None, f"No Sage export subfolders found under {SAGE_GDRIVE_DRIVE_PATH}"
 
@@ -205,6 +207,12 @@ def _load_via_api():
         else:
             print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
     print(f"[sage_gdrive] API load complete: {len(tables)} tables in {time.time() - t0:.1f}s")
+    if not tables:
+        return {}, (
+            f"Found folder '{folder_name}' but no CSV files loaded. "
+            f"Ensure tcustomr.CSV, tsalordr.CSV, tsoline.CSV, etc. exist in the latest subfolder. "
+            f"Service account must be a member of shared drive '{SAGE_SHARED_DRIVE_NAME}' with Content Viewer."
+        )
     return tables, folder_name
 
 

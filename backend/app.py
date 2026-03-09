@@ -9417,11 +9417,22 @@ def sage_gdrive_load():
     try:
         tables, err = s.load_data(force=True)
         if err and not tables:
-            return jsonify({"error": err}), 500
+            err_msg = err if isinstance(err, str) else str(err)
+            print(f"[sage_gdrive_load] Load failed: {err_msg}")
+            return jsonify({
+                "error": err_msg,
+                "hint": "On Render: ensure GOOGLE_DRIVE_* env vars and service account JSON are set. Check shared drive path."
+            }), 503
         return jsonify({"ok": True, "tables_loaded": len(tables),
                         "row_counts": {k: len(v) for k, v in tables.items()}})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"[sage_gdrive_load] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "error": str(e),
+            "hint": "Check Render logs for full traceback. Verify Google Drive API credentials."
+        }), 500
 
 
 @app.route('/api/sage/gdrive/customers')
