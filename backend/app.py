@@ -4763,14 +4763,37 @@ def _get_item_stock(data, item_no, location=""):
     return stock, reserved, allocated, scrapped
 
 
+def _get_item_wip(data, item_no, location=""):
+    """Get current WIP for item from merged data."""
+    wip = 0
+    if location:
+        for row in (data.get("MIILOC.json") or []):
+            if not isinstance(row, dict):
+                continue
+            ino = row.get("Item No.") or row.get("Item No") or row.get("itemId") or ""
+            loc = row.get("Location No.") or row.get("locId") or ""
+            if ino == item_no and loc == location:
+                wip = float(row.get("qWip") or row.get("qWIP") or 0)
+                break
+    else:
+        for item in (data.get("Items.json") or []):
+            if not isinstance(item, dict):
+                continue
+            if (item.get("Item No.") or item.get("item_no")) == item_no:
+                wip = float(item.get("WIP") or item.get("totQWip") or 0)
+                break
+    return wip
+
+
 @app.route('/api/inventory/assemble-preview', methods=['GET'])
 def inventory_assemble_preview():
-    """Return BOM components that would be consumed for assemble (or released for disassemble)."""
+    """Return BOM components that would be consumed for assemble (or released for disassemble). Supports from_wip."""
     global _data_cache
     try:
         parent_item = (request.args.get('parent_item') or request.args.get('parent_item_no') or '').strip()
         qty = request.args.get('qty', '1')
         action = (request.args.get('action') or 'assemble').strip().lower()
+        from_wip = request.args.get('from_wip') in ('true', '1', 'yes')
         if not parent_item:
             return jsonify({"error": "parent_item is required"}), 400
         try:
@@ -4784,8 +4807,11 @@ def inventory_assemble_preview():
         result = []
         for comp_item, req_qty in components:
             need = req_qty * qty
-            stock, res, alloc, scrap = _get_item_stock(data, comp_item, "")
-            available = stock - res - alloc - scrap
+            if from_wip:
+                available = _get_item_wip(data, comp_item, "")
+            else:
+                stock, res, alloc, scrap = _get_item_stock(data, comp_item, "")
+                available = stock - res - alloc - scrap
             result.append({
                 "item_no": comp_item,
                 "required_per_unit": req_qty,
@@ -4797,6 +4823,7 @@ def inventory_assemble_preview():
             "parent_item": parent_item,
             "qty": qty,
             "action": action,
+            "from_wip": from_wip,
             "components": result,
             "has_bom": len(components) > 0,
         }), 200
@@ -4806,13 +4833,15 @@ def inventory_assemble_preview():
 
 @app.route('/api/inventory/assemble', methods=['POST'])
 def inventory_assemble():
-    """Tier 4: Assemble stock - consume BOM components, add finished good. Persisted in portal_store."""
+    """Tier 4: Assemble stock - consume BOM components, add finished good. Supports from_wip/to_wip (Tier 4.3)."""
     global _cache_timestamp, _response_cache, _data_cache
     try:
         body = request.get_json() or {}
         parent_item = (body.get('parent_item') or body.get('Parent Item No.') or body.get('parent_item_no') or '').strip()
         qty = body.get('qty') or body.get('quantity')
         location = (body.get('location') or body.get('Location No.') or '').strip()
+        from_wip = body.get('from_wip') in (True, 'true', '1', 1)
+        to_wip = body.get('to_wip') in (True, 'true', '1', 1)
         if not parent_item:
             return jsonify({"error": "parent_item is required"}), 400
         try:
@@ -4832,30 +4861,41 @@ def inventory_assemble():
         components_consumed = []
         for comp_item, req_qty in components:
             need_qty = req_qty * qty
-            stock, res, alloc, scrap = _get_item_stock(data, comp_item, location)
-            available = stock - res - alloc - scrap
-            if available < need_qty:
-                return jsonify({"error": f"Insufficient stock for component {comp_item}: need {need_qty}, available {available}"}), 400
-            portal_store.add_inventory_adjustment(comp_item, location, -need_qty, f"Assembly {parent_item}")
+            if from_wip:
+                wip = _get_item_wip(data, comp_item, location)
+                if wip < need_qty:
+                    return jsonify({"error": f"Insufficient WIP for component {comp_item}: need {need_qty}, WIP {wip}"}), 400
+                portal_store.add_wip_adjustment(comp_item, location, -need_qty, f"Assembly {parent_item}")
+            else:
+                stock, res, alloc, scrap = _get_item_stock(data, comp_item, location)
+                available = stock - res - alloc - scrap
+                if available < need_qty:
+                    return jsonify({"error": f"Insufficient stock for component {comp_item}: need {need_qty}, available {available}"}), 400
+                portal_store.add_inventory_adjustment(comp_item, location, -need_qty, f"Assembly {parent_item}")
             components_consumed.append((comp_item, need_qty))
-        portal_store.add_inventory_adjustment(parent_item, location, qty, "Assembly")
-        portal_store.add_assembly(parent_item, qty, location, components_consumed)
+        if to_wip:
+            portal_store.add_wip_adjustment(parent_item, location, qty, "Assembly")
+        else:
+            portal_store.add_inventory_adjustment(parent_item, location, qty, "Assembly")
+        portal_store.add_assembly(parent_item, qty, location, components_consumed, from_wip=from_wip, to_wip=to_wip)
         _cache_timestamp = None
         _response_cache = None
-        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_consumed)}), 201
+        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_consumed), "from_wip": from_wip, "to_wip": to_wip}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/inventory/disassemble', methods=['POST'])
 def inventory_disassemble():
-    """Tier 4: Disassemble stock - reduce finished good, add components per BOM. Persisted in portal_store."""
+    """Tier 4: Disassemble stock - reduce finished good, add components per BOM. Supports from_wip/to_wip (Tier 4.3)."""
     global _cache_timestamp, _response_cache, _data_cache
     try:
         body = request.get_json() or {}
         parent_item = (body.get('parent_item') or body.get('Parent Item No.') or body.get('parent_item_no') or '').strip()
         qty = body.get('qty') or body.get('quantity')
         location = (body.get('location') or body.get('Location No.') or '').strip()
+        from_wip = body.get('from_wip') in (True, 'true', '1', 1)
+        to_wip = body.get('to_wip') in (True, 'true', '1', 1)
         if not parent_item:
             return jsonify({"error": "parent_item is required"}), 400
         try:
@@ -4872,20 +4912,29 @@ def inventory_disassemble():
         components = _get_bom_components_for_item(data, parent_item)
         if not components:
             return jsonify({"error": f"No BOM found for {parent_item}"}), 400
-        stock, res, alloc, scrap = _get_item_stock(data, parent_item, location)
-        available = stock - res - alloc - scrap
-        if available < qty:
-            return jsonify({"error": f"Insufficient stock for {parent_item}: need {qty}, available {available}"}), 400
+        if from_wip:
+            wip = _get_item_wip(data, parent_item, location)
+            if wip < qty:
+                return jsonify({"error": f"Insufficient WIP for {parent_item}: need {qty}, WIP {wip}"}), 400
+            portal_store.add_wip_adjustment(parent_item, location, -qty, "Disassembly")
+        else:
+            stock, res, alloc, scrap = _get_item_stock(data, parent_item, location)
+            available = stock - res - alloc - scrap
+            if available < qty:
+                return jsonify({"error": f"Insufficient stock for {parent_item}: need {qty}, available {available}"}), 400
+            portal_store.add_inventory_adjustment(parent_item, location, -qty, "Disassembly")
         components_released = []
         for comp_item, req_qty in components:
             release_qty = req_qty * qty
-            portal_store.add_inventory_adjustment(comp_item, location, release_qty, f"Disassembly {parent_item}")
+            if to_wip:
+                portal_store.add_wip_adjustment(comp_item, location, release_qty, f"Disassembly {parent_item}")
+            else:
+                portal_store.add_inventory_adjustment(comp_item, location, release_qty, f"Disassembly {parent_item}")
             components_released.append((comp_item, release_qty))
-        portal_store.add_inventory_adjustment(parent_item, location, -qty, "Disassembly")
-        portal_store.add_disassembly(parent_item, qty, location, components_released)
+        portal_store.add_disassembly(parent_item, qty, location, components_released, from_wip=from_wip, to_wip=to_wip)
         _cache_timestamp = None
         _response_cache = None
-        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_released)}), 201
+        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_released), "from_wip": from_wip, "to_wip": to_wip}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4948,6 +4997,73 @@ def inventory_stock_check():
             "count": len(snapshot),
             "at": datetime.now().isoformat(),
         }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/stock-check-post', methods=['POST'])
+def inventory_stock_check_post():
+    """Tier 6: Post physical inventory adjustments. Accepts variances from stock check."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        variances = body.get('variances') or body.get('adjustments') or []
+        if not isinstance(variances, list):
+            return jsonify({"error": "variances must be an array"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        posted = 0
+        for v in variances:
+            item_no = (v.get('item_no') or v.get('Item No.') or '').strip()
+            location = (v.get('location') or v.get('Location No.') or '').strip()
+            system_qty = v.get('system') if 'system' in v else v.get('stock') if 'stock' in v else v.get('system_qty')
+            physical_qty = v.get('physical') if 'physical' in v else v.get('physical_qty')
+            if not item_no:
+                continue
+            try:
+                sys_val = float(system_qty) if system_qty not in (None, '') else 0
+            except (TypeError, ValueError):
+                sys_val = 0
+            try:
+                phys_val = float(physical_qty) if physical_qty not in (None, '') else None
+            except (TypeError, ValueError):
+                phys_val = None
+            if phys_val is None:
+                continue
+            delta = phys_val - sys_val
+            if abs(delta) < 1e-9:
+                continue
+            portal_store.add_inventory_adjustment(item_no, location, delta, "Physical count")
+            posted += 1
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "posted": posted, "message": f"Posted {posted} adjustment(s)"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/lot-edit', methods=['POST'])
+def inventory_lot_edit():
+    """Tier 6.3: Edit lot/batch attributes (Description, Status, Expiration Date)."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        lot_no = (body.get('lot_no') or body.get('Lot No.') or body.get('lotNo') or '').strip()
+        serial_no = (body.get('serial_no') or body.get('Serial No.') or body.get('serialNo') or '').strip()
+        description = body.get('description')
+        status = body.get('status')
+        expiration_date = body.get('expiration_date') if 'expiration_date' in body else body.get('expiry')
+        if not item_no or not lot_no:
+            return jsonify({"error": "item_no and lot_no are required"}), 400
+        if description is None and status is None and expiration_date is None:
+            return jsonify({"error": "At least one of description, status, expiration_date must be provided"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_lot_edit(item_no, lot_no, serial_no, description=description, status=status, expiration_date=expiration_date)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "lot_no": lot_no}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -201,6 +201,96 @@ type PoLine = {
   remainingQty: number;   // computed
 };
 
+function LotEditModal({
+  itemNo,
+  lotNo,
+  serialNo,
+  initialDescription,
+  initialStatus,
+  initialExpiry,
+  onClose,
+  onSuccess,
+}: {
+  itemNo: string;
+  lotNo: string;
+  serialNo: string;
+  initialDescription: string;
+  initialStatus: string;
+  initialExpiry: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [description, setDescription] = useState(initialDescription);
+  const [status, setStatus] = useState(initialStatus);
+  const [expiry, setExpiry] = useState(initialExpiry);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  useEffect(() => {
+    setDescription(initialDescription);
+    setStatus(initialStatus);
+    setExpiry(initialExpiry);
+  }, [initialDescription, initialStatus, initialExpiry]);
+
+  const handleSave = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const body: Record<string, string> = { item_no: itemNo, lot_no: lotNo };
+      if (serialNo) body.serial_no = serialNo;
+      if (description !== undefined) body.description = description;
+      if (status !== undefined) body.status = status;
+      if (expiry !== undefined) body.expiration_date = expiry;
+      const res = await fetch(getApiUrl('/api/inventory/lot-edit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || `Failed (${res.status})` });
+        return;
+      }
+      onSuccess();
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Request failed.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10001 }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h3 className="text-lg font-bold text-slate-800">Edit batch attributes</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-200"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="text-sm text-slate-600">Item: <span className="font-mono font-medium">{itemNo}</span> · Lot: <span className="font-mono font-medium">{lotNo}</span>{serialNo ? ` · Serial: ${serialNo}` : ''}</div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="Description" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+            <input type="text" value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="e.g. Active, Expired" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Expiration date</label>
+            <input type="text" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="YYYY-MM-DD" />
+          </div>
+          {message && <div className={`text-sm ${message.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>{message.text}</div>}
+          <div className="flex gap-2 justify-end pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={handleSave} disabled={loading} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface RevolutionaryCanoilHubProps {
   data: any;
   dataSource?: string;
@@ -830,6 +920,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   // Drilldown "See more" modals (Lot, Supplier, Location, Bin, WO)
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [showLotDetail, setShowLotDetail] = useState(false);
+  const [showLotEditModal, setShowLotEditModal] = useState(false);
+  const [lotEditRow, setLotEditRow] = useState<{ itemNo: string; lotNo: string; serialNo: string; description: string; status: string; expiry: string } | null>(null);
   const [selectedSuplId, setSelectedSuplId] = useState<string | null>(null);
   const [showSupplierDetail, setShowSupplierDetail] = useState(false);
   const [selectedLocId, setSelectedLocId] = useState<string | null>(null);
@@ -5702,6 +5794,21 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           document.body
           )}
 
+          {/* Edit Batch modal (Tier 6.3) - edit lot attributes */}
+          {showLotEditModal && lotEditRow && createPortal(
+            <LotEditModal
+              itemNo={lotEditRow.itemNo}
+              lotNo={lotEditRow.lotNo}
+              serialNo={lotEditRow.serialNo}
+              initialDescription={lotEditRow.description}
+              initialStatus={lotEditRow.status}
+              initialExpiry={lotEditRow.expiry}
+              onClose={() => { setShowLotEditModal(false); setLotEditRow(null); }}
+              onSuccess={() => { setShowLotEditModal(false); setLotEditRow(null); onRefreshData?.(); }}
+            />,
+            document.body
+          )}
+
           {/* Supplier detail drilldown (MISUPL + POs by suplId) - portal */}
           {showSupplierDetail && selectedSuplId && createPortal(
             <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => { setShowSupplierDetail(false); setSelectedSuplId(null); }}>
@@ -9836,6 +9943,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         const currentStock = iv.stock;
         const currentWIP = iv.wip;
         const reserve = iv.reserve;
+        const allocated = iv.allocated ?? 0;
         const onOrder = iv.onOrder;
         const reorderLevel = iv.reorderLevel;
         const reorderQty = iv.reorderQuantity;
@@ -9985,7 +10093,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                 <button onClick={() => { setInventoryActionsInitialTab('adjust'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition-colors" title="Adjust stock (add/remove)">
                   <Edit className="w-4 h-4" /> Adjust
                 </button>
@@ -9994,6 +10102,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 </button>
                 <button onClick={() => { setInventoryActionsInitialTab('reorder'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" title="Min/Max/Reorder settings">
                   <Settings className="w-4 h-4" /> Reorder
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('reserve'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors" title="Reserve/Relieve stock">
+                  <Lock className="w-4 h-4" /> Reserve
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('allocate'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium transition-colors" title="Allocate/Deallocate stock">
+                  <Target className="w-4 h-4" /> Allocate
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('scrap'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors" title="Scrap/Recover stock">
+                  <Trash2 className="w-4 h-4" /> Scrap
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('assemble'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors" title="Assemble/Disassemble">
+                  <Layers className="w-4 h-4" /> Assemble
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('supplier'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors" title="Receive/Return from supplier">
+                  <Briefcase className="w-4 h-4" /> Supplier
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('ship'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors" title="Sales transfer / Ship">
+                  <Truck className="w-4 h-4" /> Ship
+                </button>
+                <button onClick={() => { setInventoryActionsInitialTab('stockcheck'); setShowInventoryActionsModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-sm font-medium transition-colors" title="Stock check / Physical count">
+                  <ClipboardList className="w-4 h-4" /> Stock Check
                 </button>
                 <button onClick={() => { setQuickAddItem(item); setQuickAddQty(1); setShowQuickAddPopup(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors">
                   <Plus className="w-4 h-4" /> Add to PR
@@ -10120,12 +10249,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Aggregated stock</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">On Hand</div><div className="text-2xl font-bold text-emerald-700">{currentStock.toLocaleString()}</div></div>
                       <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">WIP</div><div className="text-2xl font-bold text-blue-700">{currentWIP.toLocaleString()}</div></div>
                       <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Reserve</div><div className="text-2xl font-bold text-amber-700">{reserve.toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-teal-200 bg-teal-50/80 p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Allocated</div><div className="text-2xl font-bold text-teal-700">{allocated.toLocaleString()}</div></div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">On Order</div><div className="text-2xl font-bold text-slate-800">{onOrder.toLocaleString()}</div></div>
-                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Available</div><div className="text-2xl font-bold text-slate-800">{(currentStock + currentWIP + onOrder).toLocaleString()}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1">Available</div><div className="text-2xl font-bold text-slate-800">{Math.max(0, currentStock - reserve - allocated).toLocaleString()}</div></div>
                     </div>
                   </div>
                   {byLoc.length > 0 && (
@@ -10133,9 +10263,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">By location (MIILOCQT)</h3>
                       <div className="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
                         <table className="w-full text-sm">
-                          <thead className="bg-white/95 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Location</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">On Hand</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">WIP</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Reserve</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">On Order</th></tr></thead>
+                          <thead className="bg-white/95 border-b border-slate-200"><tr><th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Location</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">On Hand</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">WIP</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Reserve</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Allocated</th><th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">On Order</th></tr></thead>
                           <tbody className="divide-y divide-slate-100 bg-white">{byLoc.map((row, i) => (
-                            <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { setSelectedLocId(row.location || null); setShowLocationDetail(true); }}><td className="px-4 py-3 font-mono font-medium text-blue-600 underline decoration-blue-600/50">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
+                            <tr key={i} className={`bg-white border-b border-slate-100 cursor-pointer hover:bg-blue-50/80 transition-colors`} onClick={() => { setSelectedLocId(row.location || null); setShowLocationDetail(true); }}><td className="px-4 py-3 font-mono font-medium text-blue-600 underline decoration-blue-600/50">{row.location}</td><td className="px-4 py-3 text-right font-medium tabular-nums">{row.onHand?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.wip?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.reserve?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.allocated?.toLocaleString() ?? '0'}</td><td className="px-4 py-3 text-right tabular-nums">{row.onOrder?.toLocaleString() ?? '0'}</td></tr>
                           ))}</tbody>
                         </table>
                       </div>
@@ -11056,6 +11186,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                           {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>}
                           {hasExtraCols && <th className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Expiration</th>}
                           <th className="text-right px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500">Quantity</th>
+                          <th className="w-10 px-2 py-3"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
@@ -11067,6 +11198,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             {hasExtraCols && <td className="px-4 py-3"><span className={r.status === 'Active' ? 'text-emerald-600' : 'text-slate-500'}>{r.status || '—'}</span></td>}
                             {hasExtraCols && <td className="px-4 py-3 text-slate-700">{r.expiry || '—'}</td>}
                             <td className="px-4 py-3 text-right font-medium">{r.qty.toLocaleString()}</td>
+                            <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" onClick={() => { setLotEditRow({ itemNo: selectedItemNo || slv.itemNo, lotNo: r.lotNo || '', serialNo: r.serialNo || '', description: r.description || '', status: r.status || '', expiry: r.expiry || '' }); setShowLotEditModal(true); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-700" title="Edit batch attributes"><Edit className="w-4 h-4" /></button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

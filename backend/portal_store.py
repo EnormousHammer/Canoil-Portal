@@ -21,6 +21,7 @@ def _default_store():
         "mo_updates": [],
         "mo_events": [],
         "inventory_adjustments": [],
+        "wip_adjustments": [],
         "location_transfers": [],
         "reserve_transactions": [],
         "allocations": [],
@@ -37,6 +38,7 @@ def _default_store():
         "po_receives": [],
         "mo_completion_lots": [],
         "wo_updates": [],
+        "lot_edits": [],  # [{ item_no, lot_no, serial_no?, description?, status?, expiration_date?, at }]
         "custom_alerts": [],  # [{ id, item_no, threshold, at }] - alert when stock < threshold
     }
 
@@ -113,6 +115,23 @@ def add_inventory_adjustment(item_no, location, delta, reason=""):
         "at": datetime.utcnow().isoformat() + "Z",
     })
     save(s)
+
+def get_wip_adjustments():
+    return load().get("wip_adjustments", [])
+
+
+def add_wip_adjustment(item_no, location, delta, reason=""):
+    """Adjust WIP (work in progress) qty. Used for Assemble/Disassemble from/to WIP."""
+    s = load()
+    s.setdefault("wip_adjustments", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "delta": float(delta),
+        "reason": reason or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
 
 def get_location_transfers():
     return load().get("location_transfers", [])
@@ -228,31 +247,41 @@ def get_assembly_transactions():
     return load().get("assembly_transactions", [])
 
 
-def add_assembly(parent_item, qty, location, components_consumed=None):
+def add_assembly(parent_item, qty, location, components_consumed=None, from_wip=False, to_wip=False):
     """Record assembly: consume components, add finished good. components_consumed: [(item_no, qty), ...]."""
     s = load()
-    s.setdefault("assembly_transactions", []).append({
+    rec = {
         "parent_item": parent_item,
         "qty": float(qty),
         "location": location or "",
         "type": "assemble",
         "components_consumed": components_consumed or [],
         "at": datetime.utcnow().isoformat() + "Z",
-    })
+    }
+    if from_wip:
+        rec["from_wip"] = True
+    if to_wip:
+        rec["to_wip"] = True
+    s.setdefault("assembly_transactions", []).append(rec)
     save(s)
 
 
-def add_disassembly(parent_item, qty, location, components_released=None):
+def add_disassembly(parent_item, qty, location, components_released=None, from_wip=False, to_wip=False):
     """Record disassembly: reduce finished good, add components. components_released: [(item_no, qty), ...]."""
     s = load()
-    s.setdefault("assembly_transactions", []).append({
+    rec = {
         "parent_item": parent_item,
         "qty": float(qty),
         "location": location or "",
         "type": "disassemble",
         "components_released": components_released or [],
         "at": datetime.utcnow().isoformat() + "Z",
-    })
+    }
+    if from_wip:
+        rec["from_wip"] = True
+    if to_wip:
+        rec["to_wip"] = True
+    s.setdefault("assembly_transactions", []).append(rec)
     save(s)
 
 
@@ -387,6 +416,35 @@ def add_mo_completion_lot(mo_no, item_no, qty, lot=""):
     })
     save(s)
 
+def get_lot_edits():
+    return load().get("lot_edits", [])
+
+def add_lot_edit(item_no, lot_no, serial_no="", description=None, status=None, expiration_date=None):
+    """Add or update a lot attribute edit. Matches by (item_no, lot_no, serial_no). Only stores fields explicitly provided."""
+    s = load()
+    edits = s.get("lot_edits", [])
+    key = (str(item_no or "").strip(), str(lot_no or "").strip(), str(serial_no or "").strip())
+    existing = next((e for e in edits if (e.get("item_no") or "").strip() == key[0] and (e.get("lot_no") or "").strip() == key[1] and (e.get("serial_no") or "").strip() == key[2]), None)
+    if existing:
+        if description is not None:
+            existing["description"] = description
+        if status is not None:
+            existing["status"] = status
+        if expiration_date is not None:
+            existing["expiration_date"] = expiration_date
+        existing["at"] = datetime.utcnow().isoformat() + "Z"
+    else:
+        rec = {"item_no": key[0], "lot_no": key[1], "serial_no": key[2], "at": datetime.utcnow().isoformat() + "Z"}
+        if description is not None:
+            rec["description"] = description
+        if status is not None:
+            rec["status"] = status
+        if expiration_date is not None:
+            rec["expiration_date"] = expiration_date
+        edits.append(rec)
+    s["lot_edits"] = edits
+    save(s)
+
 def get_wo_updates():
     return load().get("wo_updates", [])
 
@@ -509,6 +567,37 @@ def apply_to_data(data):
                     row["Stock"] = row["qStk"]
                 break
 
+    # WIP adjustments (Assemble/Disassemble from/to WIP)
+    wip_adj = store.get("wip_adjustments") or []
+    for adj in wip_adj:
+        ino = adj.get("item_no")
+        loc = adj.get("location") or ""
+        delta = float(adj.get("delta", 0))
+        if not ino:
+            continue
+        for item in (data.get("Items.json") or []):
+            if not isinstance(item, dict):
+                continue
+            if (item.get("Item No.") or item.get("item_no")) == ino:
+                try:
+                    item["WIP"] = float(item.get("WIP") or item.get("totQWip") or 0) + delta
+                except (TypeError, ValueError):
+                    item["WIP"] = max(0, delta)
+                if "totQWip" in item:
+                    item["totQWip"] = item["WIP"]
+                break
+        for row in (data.get("MIILOC.json") or []):
+            if not isinstance(row, dict):
+                continue
+            if (row.get("Item No.") or row.get("Item No") or row.get("itemId")) == ino and (row.get("Location No.") or row.get("locId") or "") == loc:
+                try:
+                    row["qWip"] = float(row.get("qWip") or row.get("qWIP") or 0) + delta
+                except (TypeError, ValueError):
+                    row["qWip"] = max(0, delta)
+                if "qWIP" in row:
+                    row["qWIP"] = row["qWip"]
+                break
+
     # Location transfers (B6): move qty from one loc to another in MIILOC
     transfers = store.get("location_transfers") or []
     for t in transfers:
@@ -592,6 +681,14 @@ def apply_to_data(data):
         row["_reserved"] = max(0, reserve_by_key.get(key, 0))
         row["_allocated"] = max(0, alloc_by_key.get(key, 0))
         row["_scrapped"] = max(0, scrap_by_key.get(key, 0))
+    for row in (data.get("MIILOCQT.json") or []):
+        if not isinstance(row, dict):
+            continue
+        ino = row.get("Item No.") or row.get("Item No") or row.get("itemId") or ""
+        loc = row.get("Location No.") or row.get("locId") or ""
+        key = (ino, loc)
+        row["_reserved"] = max(0, reserve_by_key.get(key, 0))
+        row["_allocated"] = max(0, alloc_by_key.get(key, 0))
     for item in (data.get("Items.json") or []):
         if not isinstance(item, dict):
             continue
@@ -602,6 +699,31 @@ def apply_to_data(data):
         item["_reserved"] = max(0, total_res)
         item["_allocated"] = max(0, total_alloc)
         item["_scrapped"] = max(0, total_scrap)
+
+    # Lot edits (6.3): overlay Description, Status, Expiration Date on LotSerialDetail
+    lot_edits = store.get("lot_edits") or []
+    for edit in lot_edits:
+        ino = (edit.get("item_no") or "").strip()
+        lot_no = (edit.get("lot_no") or "").strip()
+        serial_no = (edit.get("serial_no") or "").strip()
+        if not ino or not lot_no:
+            continue
+        for row in (data.get("LotSerialDetail.json") or []):
+            if not isinstance(row, dict):
+                continue
+            r_item = (row.get("Item No.") or row.get("itemId") or row.get("Parent Item No.") or row.get("prntItemId") or "").strip()
+            r_lot = (row.get("Lot No.") or row.get("lotId") or row.get("prntLotId") or "").strip()
+            r_serial = (row.get("Serial No.") or row.get("entry") or row.get("detail") or "").strip()
+            if r_item != ino or r_lot != lot_no:
+                continue
+            if serial_no and r_serial != serial_no:
+                continue
+            if "description" in edit:
+                row["Description"] = edit.get("description") or ""
+            if "status" in edit:
+                row["Status"] = edit.get("status") or ""
+            if "expiration_date" in edit:
+                row["Expiration Date"] = edit.get("expiration_date") or ""
 
     # BOM edits (C5): append portal-created BOMs
     bom_edits = store.get("bom_edits") or _default_store()["bom_edits"]
@@ -690,6 +812,8 @@ def apply_to_data(data):
     mo_evts = store.get("mo_events") or []
     po_rec = store.get("po_receives") or []
     adj_list = [{"_type": "ADJUST", "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("delta", 0), "reason": a.get("reason", ""), "user": "portal"} for a in adjustments]
+    wip_adj = store.get("wip_adjustments") or []
+    wip_list = [{"_type": "WIP_ADJUST", "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("delta", 0), "reason": a.get("reason", ""), "user": "portal"} for a in wip_adj]
     xfr_list = [{"_type": "TRANSFER", "ts": t.get("at", ""), "itemNo": t.get("item_no", ""), "fromLoc": t.get("from_loc", ""), "toLoc": t.get("to_loc", ""), "qty": t.get("qty", 0), "user": "portal"} for t in transfers]
     res_list = [{"_type": r.get("type", "RESERVE").upper(), "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "location": r.get("location", ""), "qty": r.get("qty", 0), "ref": r.get("ref", ""), "user": "portal"} for r in reserve_tx]
     alloc_list = [{"_type": a.get("type", "ALLOCATE").upper(), "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("qty", 0), "ref": a.get("ref", ""), "user": "portal"} for a in alloc_tx]
@@ -700,7 +824,7 @@ def apply_to_data(data):
     sales_list = [{"_type": "SALES_TRANSFER", "ts": t.get("at", ""), "soNo": t.get("so_no", ""), "items": t.get("items", []), "user": "portal"} for t in sales_tx]
     mo_list = [{"_type": e.get("type", "MO_EVENT"), "ts": e.get("ts", ""), "itemNo": e.get("itemNo", ""), "moNo": e.get("moNo", ""), "qty": e.get("qty", 0), "location": e.get("location", ""), "user": e.get("user", ""), "ref": e.get("ref", "")} for e in mo_evts]
     po_list = [{"_type": "PO_RECEIVE", "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "poNo": r.get("po_no", ""), "qty": r.get("qty", 0), "location": r.get("location", ""), "lot": r.get("lot", ""), "user": r.get("user", "portal")} for r in po_rec]
-    data["portalEvents"] = adj_list + xfr_list + res_list + alloc_list + scrap_list + asm_list + sup_rec_list + sup_ret_list + sales_list + mo_list + po_list
+    data["portalEvents"] = adj_list + wip_list + xfr_list + res_list + alloc_list + scrap_list + asm_list + sup_rec_list + sup_ret_list + sales_list + mo_list + po_list
 
     # WO updates (E2/E3): apply release/complete to WorkOrders.json and WorkOrderDetails.json
     wo_updates = store.get("wo_updates") or []

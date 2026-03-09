@@ -24,6 +24,7 @@ export type ItemStockByLocation = {
   onHand: number;
   wip: number;
   reserve: number;
+  allocated?: number;
   onOrder: number;
 };
 
@@ -62,6 +63,7 @@ export type ItemView = {
   stock: number;
   wip: number;
   reserve: number;
+  allocated: number;
   onOrder: number;
   recentCost: number;
   standardCost: number;
@@ -102,7 +104,8 @@ export function buildItemView(
 
   const stock = toNum(item["Stock"] ?? item["totQStk"] ?? item["On Hand"] ?? 0);
   const wip = toNum(item["WIP"] ?? item["totQWip"] ?? 0);
-  const reserve = toNum(item["Reserve"] ?? item["totQRes"] ?? 0);
+  const reserve = toNum(item["_reserved"] ?? item["Reserve"] ?? item["totQRes"] ?? 0);
+  const allocated = toNum(item["_allocated"] ?? item["Allocated"] ?? 0);
   const onOrder = toNum(item["On Order"] ?? item["totQOrd"] ?? 0);
   const recentCost = toNum(
     String(item["Recent Cost"] ?? item["cLast"] ?? item["Last Cost"] ?? 0).replace(/[$,]/g, "")
@@ -120,17 +123,18 @@ export function buildItemView(
   const stockingUnit = toStr(item["Stocking Units"] ?? item["uOfM"] ?? "EA");
 
   const ilocqt = indexes.ilocqtByItemNo.get(itemNoUpper) ?? [];
-  const latestByLoc: Record<string, { onHand: number; wip: number; reserve: number; onOrder: number; _date: string }> = {};
+  const latestByLoc: Record<string, { onHand: number; wip: number; reserve: number; allocated: number; onOrder: number; _date: string }> = {};
   for (const r of ilocqt) {
     const loc = toStr(r["Location No."] ?? r["locId"] ?? "");
     if (!loc) continue;
     const dateKey = toStr(r["Date ISO"] ?? r["dateISO"] ?? r["Date"] ?? "");
     const onHand = toNum(r["On Hand"] ?? r["qStk"] ?? 0);
     const w = toNum(r["WIP"] ?? r["qWip"] ?? 0);
-    const res = toNum(r["Reserve"] ?? r["qRes"] ?? 0);
+    const res = toNum(r["_reserved"] ?? r["Reserve"] ?? r["qRes"] ?? 0);
+    const alloc = toNum(r["_allocated"] ?? r["Allocated"] ?? 0);
     const ord = toNum(r["On Order"] ?? r["qOrd"] ?? 0);
     if (!latestByLoc[loc] || dateKey > (latestByLoc[loc]._date ?? "")) {
-      latestByLoc[loc] = { onHand, wip: w, reserve: res, onOrder: ord, _date: dateKey };
+      latestByLoc[loc] = { onHand, wip: w, reserve: res, allocated: alloc, onOrder: ord, _date: dateKey };
     }
   }
   const stockByLocation: ItemStockByLocation[] = Object.entries(latestByLoc).map(([loc, v]) => ({
@@ -138,6 +142,7 @@ export function buildItemView(
     onHand: v.onHand,
     wip: v.wip,
     reserve: v.reserve,
+    allocated: v.allocated,
     onOrder: v.onOrder,
   }));
 
@@ -225,6 +230,7 @@ export function buildItemView(
     stock,
     wip,
     reserve,
+    allocated,
     onOrder,
     recentCost,
     standardCost,

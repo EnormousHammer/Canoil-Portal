@@ -64,8 +64,8 @@ Features are ordered so each builds on the previous. Backend must be implemented
 |---|---------|---------|----------|--------|
 | 4.1 | **Assemble Stock** | Add `portal_store.assembly_transactions`. Consume BOM components (reduce Stock), add finished good (increase Stock). | New modal: Assemble – select parent item, qty, location | 🔲 To build |
 | 4.2 | **Disassemble Stock** | Reverse: reduce finished good, add components per BOM | New modal: Disassemble | 🔲 To build |
-| 4.3 | **Assemble/Disassemble WIP** | Same logic but apply to WIP instead of Stock | Extend 4.1/4.2 with WIP flag | 🔲 To build |
-| 4.4 | **Reserve/Relieve Assembly** | Reserve components for an assembly (before actual build) | Extend Reserve with assembly ref | 🔲 To build |
+| 4.3 | **Assemble/Disassemble WIP** | `add_wip_adjustment`, `from_wip`, `to_wip` in assemble/disassemble | Assemble tab: Consume from WIP, Add to WIP checkboxes | ✅ Done |
+| 4.4 | **Reserve/Relieve Assembly** | Reserve components for an assembly (before actual build) | Extend Reserve with assembly ref | ✅ Done |
 
 **Dependencies:** BOM data must exist. `buildBOMView` / explosion logic already in place.
 
@@ -87,9 +87,9 @@ Features are ordered so each builds on the previous. Backend must be implemented
 
 | # | Feature | Backend | Frontend | Status |
 |---|---------|---------|----------|--------|
-| 6.1 | **Stock Check** | Snapshot current stock by item/location; compare to physical | `GET /api/inventory/stock-check` (snapshot), compare UI | 🔲 To build |
-| 6.2 | **Stock Status** | Read-only view of Stock/WIP/Reserve/Allocated by location | Already in Item modal Stock tab; ensure Reserve/Allocated shown | 🔲 Verify/enhance |
-| 6.3 | **Batch Check – Edit Batch** | Edit lot/batch attributes | Add batch edit if lot data exists | 🔲 To build |
+| 6.1 | **Stock Check** | Snapshot current stock by item/location; compare to physical | `GET /api/inventory/stock-check`, `POST /api/inventory/stock-check-post` (post batch) | ✅ Done |
+| 6.2 | **Stock Status** | Read-only view of Stock/WIP/Reserve/Allocated by location | Already in Item modal Stock tab; ensure Reserve/Allocated shown | ✅ Done |
+| 6.3 | **Batch Check – Edit Batch** | Edit lot/batch attributes | Add batch edit if lot data exists | ✅ Done |
 | 6.4 | **Batch Check – Check Batch** | Validate batch against specs | QC-style check; may need spec data | 🔲 To build |
 
 ---

@@ -29,6 +29,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
     { value: 'Shrinkage', label: 'Shrinkage' },
     { value: 'Dispense', label: 'Dispense' },
     { value: 'Return', label: 'Return' },
+    { value: 'Recorded movement', label: 'Recorded movement' },
     { value: 'Other', label: 'Other' },
   ];
   const [adjust, setAdjust] = useState({ location: '', delta: '', reasonCode: '', note: '' });
@@ -37,7 +38,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
   const [reserve, setReserve] = useState({ location: '', qty: '', action: 'reserve' as 'reserve' | 'relieve', ref: '' });
   const [allocate, setAllocate] = useState({ location: '', qty: '', ref: '', action: 'allocate' as 'allocate' | 'deallocate' });
   const [scrap, setScrap] = useState({ location: '', qty: '', action: 'scrap' as 'scrap' | 'recover', ref: '' });
-  const [assemble, setAssemble] = useState({ parent_item: '', qty: '', location: '', action: 'assemble' as 'assemble' | 'disassemble', componentsPreview: [] as { item_no: string; required_per_unit: number; total_required: number; available: number; sufficient: boolean }[] });
+  const [assemble, setAssemble] = useState({ parent_item: '', qty: '', location: '', action: 'assemble' as 'assemble' | 'disassemble', from_wip: false, to_wip: false, componentsPreview: [] as { item_no: string; required_per_unit: number; total_required: number; available: number; sufficient: boolean }[] });
   const [supplier, setSupplier] = useState({ item_no: '', qty: '', location: '', supplier: '', ref: '', action: 'receive' as 'receive' | 'return' });
   const [ship, setShip] = useState({ so_no: '', items: [{ item_no: '', qty: '' }], location: '' });
   const [stockCheck, setStockCheck] = useState({ snapshot: [] as { item_no: string; location: string; stock: number; reserved: number; allocated: number; available: number; physical?: string }[], loading: false });
@@ -299,7 +300,9 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
       return;
     }
     try {
-      const res = await fetch(getApiUrl(`/api/inventory/assemble-preview?parent_item=${encodeURIComponent(parent)}&qty=${qty}&action=${assemble.action}`));
+      const params = new URLSearchParams({ parent_item: parent, qty: String(qty), action: assemble.action });
+      if (assemble.action === 'assemble' && assemble.from_wip) params.set('from_wip', 'true');
+      const res = await fetch(getApiUrl(`/api/inventory/assemble-preview?${params}`));
       const data = await res.json().catch(() => ({}));
       setAssemble((a) => ({ ...a, componentsPreview: data.components || [] }));
     } catch {
@@ -312,7 +315,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
       const t = setTimeout(fetchAssemblePreview, 300);
       return () => clearTimeout(t);
     }
-  }, [tab, assemble.parent_item, assemble.qty, assemble.action]);
+  }, [tab, assemble.parent_item, assemble.qty, assemble.action, assemble.from_wip]);
 
   const handleAssemble = async () => {
     const parent = assemble.parent_item.trim();
@@ -336,6 +339,8 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
           parent_item: parent,
           qty,
           location: assemble.location || undefined,
+          from_wip: assemble.from_wip || undefined,
+          to_wip: assemble.to_wip || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -455,6 +460,45 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
       ...s,
       snapshot: s.snapshot.map((r, i) => (i === idx ? { ...r, physical: val } : r)),
     }));
+  };
+
+  const handleStockCheckPost = async () => {
+    const variances = stockCheck.snapshot
+      .filter((r) => {
+        const phys = parseFloat(String(r.physical || ''));
+        return !Number.isNaN(phys) && Math.abs(phys - r.stock) > 1e-9;
+      })
+      .map((r) => ({
+        item_no: r.item_no,
+        location: r.location || '',
+        stock: r.stock,
+        physical: parseFloat(String(r.physical || '0')),
+      }));
+    if (variances.length === 0) {
+      setMessage({ type: 'error', text: 'Enter physical counts that differ from system to post adjustments.' });
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(getApiUrl('/api/inventory/stock-check-post'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variances }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || `Failed (${res.status})` });
+        return;
+      }
+      setMessage({ type: 'success', text: `Posted ${data.posted ?? variances.length} adjustment(s). Refresh to see updated stock.` });
+      setStockCheck((s) => ({ ...s, snapshot: s.snapshot.map((r) => ({ ...r, physical: '' })) }));
+      onSuccess?.();
+    } catch (e) {
+      setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Request failed.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -714,8 +758,9 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
                   value={reserve.ref}
                   onChange={(e) => setReserve((r) => ({ ...r, ref: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  placeholder="e.g. SO-1234"
+                  placeholder="e.g. SO-1234, ASSEMBLY:FG-001, or MO-456"
                 />
+                <p className="text-xs text-slate-500 mt-1">For assembly: use ASSEMBLY:&lt;parent item&gt; to reserve components for a build.</p>
               </div>
               <button
                 type="button"
@@ -888,6 +933,30 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
                   placeholder="e.g. 62TODD"
                 />
               </div>
+              {assemble.action === 'assemble' && (
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={assemble.from_wip} onChange={(e) => setAssemble((a) => ({ ...a, from_wip: e.target.checked }))} className="rounded border-slate-300" />
+                    Consume components from WIP
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={assemble.to_wip} onChange={(e) => setAssemble((a) => ({ ...a, to_wip: e.target.checked }))} className="rounded border-slate-300" />
+                    Add finished good to WIP
+                  </label>
+                </div>
+              )}
+              {assemble.action === 'disassemble' && (
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={assemble.from_wip} onChange={(e) => setAssemble((a) => ({ ...a, from_wip: e.target.checked }))} className="rounded border-slate-300" />
+                    Consume finished good from WIP
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={assemble.to_wip} onChange={(e) => setAssemble((a) => ({ ...a, to_wip: e.target.checked }))} className="rounded border-slate-300" />
+                    Add components to WIP
+                  </label>
+                </div>
+              )}
               {assemble.componentsPreview.length > 0 && (
                 <div className="text-sm border border-slate-200 rounded-lg p-2 bg-slate-50 max-h-24 overflow-y-auto">
                   <div className="font-medium text-slate-700 mb-1">BOM preview:</div>
@@ -1073,6 +1142,18 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
                 {stockCheck.loading ? 'Loading…' : 'Get stock snapshot'}
               </button>
               {stockCheck.snapshot.length > 0 && (
+                <>
+                <button
+                  type="button"
+                  onClick={handleStockCheckPost}
+                  disabled={loading || !stockCheck.snapshot.some((r) => {
+                    const phys = parseFloat(String(r.physical || ''));
+                    return !Number.isNaN(phys) && Math.abs(phys - r.stock) > 1e-9;
+                  })}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium disabled:opacity-50"
+                >
+                  {loading ? 'Posting…' : 'Post batch (apply adjustments)'}
+                </button>
                 <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg text-xs">
                   <table className="w-full">
                     <thead className="bg-slate-100 sticky top-0">
@@ -1115,6 +1196,7 @@ export function InventoryActionsModal({ isOpen, onClose, itemNo = '', onSuccess,
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </>
           )}
