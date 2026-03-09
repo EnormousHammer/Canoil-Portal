@@ -24,6 +24,7 @@ import { ERPPortal } from './ERPPortal';
 import { CleanIntelligentSOEntry } from './CleanIntelligentSOEntry';
 import { MISysProductionWorkflowModal } from './MISysProductionWorkflowModal';
 import type { MoWorkflowTab } from './MISysProductionWorkflowModal';
+import { CreateMOModal } from './CreateMOModal';
 import { 
   // ULTRA PREMIUM NAVIGATION ICONS
   BarChart3, 
@@ -332,14 +333,6 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showCreateMOModal, setShowCreateMOModal] = useState(false);
   const [showMoWorkflowModal, setShowMoWorkflowModal] = useState(false);
   const [moWorkflowTab, setMoWorkflowTab] = useState<MoWorkflowTab>('work-order');
-  const [createMOForm, setCreateMOForm] = useState({
-    build_item_no: '',
-    quantity: '',
-    due_date: '',
-    batch_number: '',
-    sales_order_no: '',
-    description: ''
-  });
   const [createMOSubmitting, setCreateMOSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [inventoryFilter, setInventoryFilter] = useState('all');
@@ -11774,99 +11767,45 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
         onCreateFromMRP={() => { setActiveSection('inventory'); setPlanningTab('shortages'); setInventoryView('planning'); }}
       />
 
-      {/* Create MO Modal - batch number + optional Sales Order # (for future Sage link) */}
-      {showCreateMOModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }} onClick={() => !createMOSubmitting && setShowCreateMOModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">Create Manufacturing Order</h3>
-              <button onClick={() => !createMOSubmitting && setShowCreateMOModal(false)} className="text-white/80 hover:text-white p-1"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Build Item *</label>
-                <select
-                  value={createMOForm.build_item_no}
-                  onChange={(e) => setCreateMOForm(f => ({ ...f, build_item_no: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-sm"
-                  required
-                >
-                  <option value="">Select item...</option>
-                  {((data?.['Items.json'] || [])).map((item: any) => {
-                    const no = item['Item No.'] || item['Item_No'];
-                    const desc = item['Description'] || '';
-                    if (!no) return null;
-                    return <option key={no} value={no}>{no} {desc ? ` – ${desc.slice(0, 50)}${desc.length > 50 ? '…' : ''}` : ''}</option>;
-                  })}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Quantity *</label>
-                  <input type="number" min="0.000001" step="any" value={createMOForm.quantity} onChange={(e) => setCreateMOForm(f => ({ ...f, quantity: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm" placeholder="0" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Due Date</label>
-                  <input type="date" value={createMOForm.due_date} onChange={(e) => setCreateMOForm(f => ({ ...f, due_date: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Batch Number</label>
-                <input type="text" value={createMOForm.batch_number} onChange={(e) => setCreateMOForm(f => ({ ...f, batch_number: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm" placeholder="e.g. WH5H01G002" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Sales Order # (optional, for Sage link)</label>
-                <input type="text" value={createMOForm.sales_order_no} onChange={(e) => setCreateMOForm(f => ({ ...f, sales_order_no: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm" placeholder="e.g. 2707" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Description (optional)</label>
-                <input type="text" value={createMOForm.description} onChange={(e) => setCreateMOForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-500 text-sm" placeholder="Customer or notes" />
-              </div>
-            </div>
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
-              <button type="button" onClick={() => !createMOSubmitting && setShowCreateMOModal(false)} className="px-4 py-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 text-sm font-semibold">Cancel</button>
-              <button
-                type="button"
-                disabled={createMOSubmitting || !createMOForm.build_item_no || !createMOForm.quantity || parseFloat(createMOForm.quantity) <= 0}
-                onClick={async () => {
-                  setCreateMOSubmitting(true);
-                  try {
-                    const res = await fetch(getApiUrl('/api/manufacturing-orders'), {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        build_item_no: createMOForm.build_item_no,
-                        quantity: parseFloat(createMOForm.quantity),
-                        due_date: createMOForm.due_date || undefined,
-                        batch_number: createMOForm.batch_number || undefined,
-                        sales_order_no: createMOForm.sales_order_no || undefined,
-                        description: createMOForm.description || undefined
-                      })
-                    });
-                    if (!res.ok) {
-                      const err = await res.json().catch(() => ({}));
-                      toastError('Create MO failed', err.error || res.statusText);
-                      return;
-                    }
-                    const created = await res.json();
-                    toastSuccess('MO created', `MO ${created['Mfg. Order No.']} created. Refreshing data…`);
-                    setShowCreateMOModal(false);
-                    setCreateMOForm({ build_item_no: '', quantity: '', due_date: '', batch_number: '', sales_order_no: '', description: '' });
-                    if (onRefreshData) await onRefreshData();
-                  } catch (e) {
-                    toastError('Create MO failed', e instanceof Error ? e.message : 'Network error');
-                  } finally {
-                    setCreateMOSubmitting(false);
-                  }
-                }}
-                className="px-4 py-2.5 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold flex items-center gap-2"
-              >
-                {createMOSubmitting ? 'Creating…' : 'Create MO'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create MO Modal - intelligent, smart-fill, Create from SO / recent */}
+      <CreateMOModal
+        isOpen={showCreateMOModal}
+        onClose={() => !createMOSubmitting && setShowCreateMOModal(false)}
+        data={data}
+        isSubmitting={createMOSubmitting}
+        onSubmit={async (form) => {
+          setCreateMOSubmitting(true);
+          try {
+            const res = await fetch(getApiUrl('/api/manufacturing-orders'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                build_item_no: form.build_item_no,
+                quantity: parseFloat(form.quantity),
+                due_date: form.due_date || undefined,
+                batch_number: form.batch_number || undefined,
+                lot_number: form.lot_number || undefined,
+                expiry_date: form.expiry_date || undefined,
+                sales_order_no: form.sales_order_no || undefined,
+                description: form.description || undefined
+              })
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              toastError('Create MO failed', err.error || res.statusText);
+              throw new Error(err.error || res.statusText);
+            }
+            const created = await res.json();
+            toastSuccess('MO created', `MO ${created['Mfg. Order No.']} created. Refreshing data…`);
+            if (onRefreshData) await onRefreshData();
+          } catch (e) {
+            if (e instanceof Error && e.message !== 'AbortError') toastError('Create MO failed', e.message);
+            throw e;
+          } finally {
+            setCreateMOSubmitting(false);
+          }
+        }}
+      />
 
       {/* Quick Add to Cart Popup */}
       {showQuickAddPopup && quickAddItem && (

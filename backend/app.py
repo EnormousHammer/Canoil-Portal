@@ -4217,6 +4217,8 @@ def create_manufacturing_order():
         quantity = body.get('quantity') or body.get('Ordered') or body.get('ordered')
         due_date = (body.get('due_date') or body.get('Due Date') or body.get('Sales Order Ship Date') or '').strip()
         batch_number = (body.get('batch_number') or body.get('Batch No.') or body.get('Batch Number') or '').strip()
+        lot_number = (body.get('lot_number') or body.get('Lot No.') or body.get('lotNo') or '').strip()
+        expiry_date = (body.get('expiry_date') or body.get('Expiry Date') or body.get('Expiration Date') or '').strip()
         sales_order_no = (body.get('sales_order_no') or body.get('SO No.') or body.get('Sales Order No.') or '').strip()
         description = (body.get('description') or '').strip()
 
@@ -4252,6 +4254,8 @@ def create_manufacturing_order():
             'Projected Material Cost': 0,
             'Cumulative Cost': 0,
             'Batch No.': batch_number,
+            'Lot No.': lot_number or batch_number,
+            'Expiry Date': expiry_date or '',
             'Sales Order No.': sales_order_no or '',
             '_created_at': now_iso,
             '_source': 'portal',
@@ -4260,7 +4264,7 @@ def create_manufacturing_order():
             portal_store.add_created_mo(mo_record)
         _cache_timestamp = None
         _response_cache = None
-        print(f"Created MO: {mo_no} Item={build_item_no} Qty={qty} Batch={batch_number or '(none)'} SO={sales_order_no or '(none)'}")
+        print(f"Created MO: {mo_no} Item={build_item_no} Qty={qty} Batch={batch_number or '(none)'} Lot={lot_number or '(none)'} SO={sales_order_no or '(none)'}")
         return jsonify(mo_record), 201
     except Exception as e:
         print(f"ERROR create_manufacturing_order: {e}")
