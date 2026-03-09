@@ -346,7 +346,10 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [showExportAllCompanyDataModal, setShowExportAllCompanyDataModal] = useState(false);
   // Inventory actions (B4 B5 B6)
   const [showInventoryActionsModal, setShowInventoryActionsModal] = useState(false);
-  const [inventoryActionsInitialTab, setInventoryActionsInitialTab] = useState<'adjust' | 'transfer' | 'reorder'>('adjust');
+  const [inventoryActionsInitialTab, setInventoryActionsInitialTab] = useState<'adjust' | 'transfer' | 'reorder' | 'reserve' | 'allocate' | 'scrap' | 'assemble' | 'supplier' | 'ship' | 'stockcheck'>('adjust');
+  const [showInventoryPlanning, setShowInventoryPlanning] = useState(false);
+  const [inventoryPlanningTab, setInventoryPlanningTab] = useState<'shortages-today' | 'whatif-today' | 'future-shortages' | 'future-whatif'>('shortages-today');
+  const [expandedPlanningTree, setExpandedPlanningTree] = useState<Set<string>>(new Set(['stock-check']));
   // MiSys Capabilities panel (collapsible info)
   const [showMISysCapabilities, setShowMISysCapabilities] = useState(false);
 
@@ -3263,6 +3266,61 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 <div className="flex justify-between pt-1.5 border-t border-emerald-200"><span className="font-semibold text-slate-700">Total</span><span className="font-mono font-bold text-emerald-800">${(parseFloat(moView.rawHeader?.['Cumulative Cost'] || moView.rawHeader?.['Total Material Cost'] || 0)).toFixed(2)}</span></div>
                               </div>
                             </div>
+                          </div>
+                          {/* MO Actions: Release, Issue, Complete */}
+                          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-200">
+                            {(moView.status === 0 || moView.status === '0') && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(moView.moNo!)}/release`), { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                                    if (res.ok) onRefreshData?.();
+                                  } catch (_) {}
+                                }}
+                                className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200"
+                              >
+                                Release
+                              </button>
+                            )}
+                            {(moView.status === 1 || moView.status === '1') && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(moView.moNo!)}/issue`), {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ issue_qty: moView.orderedQty || undefined }),
+                                    });
+                                    if (res.ok) onRefreshData?.();
+                                  } catch (_) {}
+                                }}
+                                className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200"
+                              >
+                                Issue materials
+                              </button>
+                            )}
+                            {(moView.status === 1 || moView.status === '1' || moView.status === 2 || moView.status === '2') && (moView.orderedQty || 0) > (moView.completedQty || 0) && (
+                              <button
+                                onClick={async () => {
+                                  const qtyStr = prompt('Completed quantity?', String((moView.orderedQty || 0) - (moView.completedQty || 0)));
+                                  if (qtyStr == null) return;
+                                  const qty = parseFloat(qtyStr);
+                                  if (isNaN(qty) || qty <= 0) return;
+                                  const lotStr = prompt('Lot number (optional)?', '');
+                                  try {
+                                    const res = await fetch(getApiUrl(`/api/manufacturing-orders/${encodeURIComponent(moView.moNo!)}/complete`), {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ completed_qty: qty, lot: lotStr || undefined }),
+                                    });
+                                    if (res.ok) onRefreshData?.();
+                                  } catch (_) {}
+                                }}
+                                className="px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-sm font-medium hover:bg-violet-200"
+                              >
+                                Complete
+                              </button>
+                            )}
                           </div>
                           {/* Audit inline */}
                           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
@@ -7155,6 +7213,20 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         {autoCreatePOLoading ? 'Creating…' : 'Auto-create PO'}
                       </button>
                     )}
+                  {/* Inventory Planning - MISys-style tree + Shortages/What If tabs */}
+                    <button
+                      type="button"
+                      onClick={() => setShowInventoryPlanning(!showInventoryPlanning)}
+                      className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all flex items-center gap-2 ${
+                        showInventoryPlanning ? 'bg-teal-600 text-white shadow-md' : 'bg-white text-teal-600 hover:bg-teal-50 border border-teal-200'
+                      }`}
+                      title="Inventory Planning - Buyer's Advice, Stock Check, Shortages, What If"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      Planning
+                    </button>
                   {/* Lot history - portal + optional Full Company Data */}
                     {dataCatalog.hasLotTrace && (
                     <button
@@ -7373,6 +7445,124 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         </table>
                       )}
                       {txExplorerView.totalCount > 300 && <p className="text-xs text-slate-500 p-2 border-t">Showing 300 of {txExplorerView.totalCount}</p>}
+                    </div>
+                  </div>
+                )}
+                {/* Inventory Planning panel - MISys-style tree + Shortages/What If tabs */}
+                {showInventoryPlanning && (
+                  <div className="px-6 py-4 border-t border-teal-200 bg-teal-50/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-teal-800">Inventory Planning</span>
+                      <button type="button" onClick={() => setShowInventoryPlanning(false)} className="text-teal-600 hover:text-teal-800 text-sm font-medium">Close</button>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {/* Left: Tree (MISys-style) */}
+                      <div className="lg:col-span-1 bg-white rounded-xl border border-teal-200 p-3 shadow-sm">
+                        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Planning</div>
+                        <ul className="space-y-0.5 text-sm">
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => { setInventoryActionsInitialTab('adjust'); setShowInventoryActionsModal(true); }}
+                              className="w-full text-left px-2 py-1.5 rounded hover:bg-teal-50 text-slate-700 hover:text-teal-700"
+                            >
+                              Buyer&apos;s Advice
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => { setInventoryActionsInitialTab('reserve'); setShowInventoryActionsModal(true); }}
+                              className="w-full text-left px-2 py-1.5 rounded hover:bg-teal-50 text-slate-700 hover:text-teal-700"
+                            >
+                              Reserve / Relieve Stock
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedPlanningTree(s => { const next = new Set(s); if (next.has('stock-check')) next.delete('stock-check'); else next.add('stock-check'); return next; })}
+                              className="w-full text-left px-2 py-1.5 rounded hover:bg-teal-50 text-slate-700 hover:text-teal-700 flex items-center justify-between"
+                            >
+                              Stock Check
+                              <span className={`inline-block transition-transform ${expandedPlanningTree.has('stock-check') ? 'rotate-90' : ''}`}>▶</span>
+                            </button>
+                            {expandedPlanningTree.has('stock-check') && (
+                              <ul className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2">
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('transfer'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Item Transfers</button></li>
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('assemble'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Assembly Transfers</button></li>
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('supplier'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Supplier Transfers</button></li>
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('ship'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Sales Transfers</button></li>
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('stockcheck'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Batch Check</button></li>
+                                <li><button type="button" onClick={() => { setInventoryActionsInitialTab('stockcheck'); setShowInventoryActionsModal(true); }} className="w-full text-left px-2 py-1 rounded hover:bg-teal-50 text-slate-600 text-xs">Stock Status</button></li>
+                              </ul>
+                            )}
+                          </li>
+                        </ul>
+                      </div>
+                      {/* Right: Tabs + content */}
+                      <div className="lg:col-span-2 bg-white rounded-xl border border-teal-200 p-3 shadow-sm">
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {(['shortages-today', 'whatif-today', 'future-shortages', 'future-whatif'] as const).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setInventoryPlanningTab(t)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                inventoryPlanningTab === t ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {t === 'shortages-today' && 'Shortages Today'}
+                              {t === 'whatif-today' && 'What If Today'}
+                              {t === 'future-shortages' && 'Future Shortages'}
+                              {t === 'future-whatif' && 'Future What If'}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="text-sm text-slate-600 space-y-2">
+                          {inventoryPlanningTab === 'shortages-today' && (
+                            <>
+                              <p>Items below reorder level (today).</p>
+                              {shortageList.length > 0 ? (
+                                <div className="overflow-x-auto max-h-32 overflow-y-auto border border-slate-200 rounded-lg">
+                                  <table className="w-full text-sm">
+                                    <thead><tr><th className="text-left p-1 font-medium text-slate-600">Item</th><th className="text-right p-1 font-medium text-slate-600">Shortage</th><th className="text-right p-1 font-medium text-slate-600">On hand</th></tr></thead>
+                                    <tbody>
+                                      {shortageList.slice(0, 10).map((s: any, i: number) => (
+                                        <tr key={i} className="border-t border-slate-100"><td className="p-1 font-mono text-red-600">{s.item_no}</td><td className="p-1 text-right font-medium text-red-600">{Number(s.shortage_qty).toLocaleString()}</td><td className="p-1 text-right text-slate-600">{Number(s.on_hand).toLocaleString()}</td></tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  {shortageList.length > 10 && <p className="text-xs text-slate-500 p-1">+ {shortageList.length - 10} more</p>}
+                                </div>
+                              ) : (
+                                <p className="text-slate-500">No shortages. Load Shortage above or run MRP.</p>
+                              )}
+                            </>
+                          )}
+                          {inventoryPlanningTab === 'whatif-today' && (
+                            <p>What-if analysis for today. Use MRP What If API to simulate changes.</p>
+                          )}
+                          {inventoryPlanningTab === 'future-shortages' && (
+                            <p>Future shortages (horizon). Use <code className="bg-slate-100 px-1 rounded">/api/shortage?horizon=30</code> for 30-day horizon.</p>
+                          )}
+                          {inventoryPlanningTab === 'future-whatif' && (
+                            <p>Future what-if analysis. Use MRP What If with horizon.</p>
+                          )}
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-200">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Process</div>
+                          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                            <span className="px-2 py-1 bg-teal-100 rounded">Create Buyer&apos;s Advice</span>
+                            <span>→</span>
+                            <span className="px-2 py-1 bg-teal-100 rounded">Create MRP</span>
+                            <span>→</span>
+                            <span className="px-2 py-1 bg-teal-100 rounded">Create POs from MRP</span>
+                            <span>→</span>
+                            <span className="px-2 py-1 bg-teal-100 rounded">Purchase Orders</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

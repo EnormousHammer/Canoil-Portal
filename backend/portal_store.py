@@ -22,6 +22,14 @@ def _default_store():
         "mo_events": [],
         "inventory_adjustments": [],
         "location_transfers": [],
+        "reserve_transactions": [],
+        "allocations": [],
+        "scrap_transactions": [],
+        "assembly_transactions": [],
+        "supplier_receives": [],
+        "supplier_returns": [],
+        "sales_transfers": [],
+        "buyers_advice": [],
         "item_overrides": {},
         "bom_edits": {"MIBOMH.json": [], "MIBOMD.json": [], "BillsOfMaterial.json": [], "BillOfMaterialDetails.json": []},
         "created_pos": [],
@@ -123,6 +131,183 @@ def add_location_transfer(from_loc, to_loc, item_no, qty, from_bin="", to_bin=""
         rec["to_bin"] = to_bin
     s.setdefault("location_transfers", []).append(rec)
     save(s)
+
+
+def get_reserve_transactions():
+    return load().get("reserve_transactions", [])
+
+
+def add_reserve(item_no, location, qty, ref=""):
+    s = load()
+    s.setdefault("reserve_transactions", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "type": "reserve",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_relieve_reserve(item_no, location, qty, ref=""):
+    s = load()
+    s.setdefault("reserve_transactions", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "type": "relieve",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def get_allocations():
+    return load().get("allocations", [])
+
+
+def add_allocation(item_no, location, qty, ref):
+    s = load()
+    s.setdefault("allocations", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "ref": ref or "",
+        "type": "allocate",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_deallocation(item_no, location, qty, ref):
+    s = load()
+    s.setdefault("allocations", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "ref": ref or "",
+        "type": "deallocate",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def get_scrap_transactions():
+    return load().get("scrap_transactions", [])
+
+
+def add_scrap(item_no, location, qty, ref=""):
+    s = load()
+    s.setdefault("scrap_transactions", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "type": "scrap",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_recover(item_no, location, qty, ref=""):
+    s = load()
+    s.setdefault("scrap_transactions", []).append({
+        "item_no": item_no,
+        "location": location or "",
+        "qty": float(qty),
+        "type": "recover",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def get_assembly_transactions():
+    return load().get("assembly_transactions", [])
+
+
+def add_assembly(parent_item, qty, location, components_consumed=None):
+    """Record assembly: consume components, add finished good. components_consumed: [(item_no, qty), ...]."""
+    s = load()
+    s.setdefault("assembly_transactions", []).append({
+        "parent_item": parent_item,
+        "qty": float(qty),
+        "location": location or "",
+        "type": "assemble",
+        "components_consumed": components_consumed or [],
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_disassembly(parent_item, qty, location, components_released=None):
+    """Record disassembly: reduce finished good, add components. components_released: [(item_no, qty), ...]."""
+    s = load()
+    s.setdefault("assembly_transactions", []).append({
+        "parent_item": parent_item,
+        "qty": float(qty),
+        "location": location or "",
+        "type": "disassemble",
+        "components_released": components_released or [],
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_supplier_receive(item_no, qty, location, supplier="", ref=""):
+    s = load()
+    s.setdefault("supplier_receives", []).append({
+        "item_no": item_no,
+        "qty": float(qty),
+        "location": location or "",
+        "supplier": supplier or "",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_supplier_return(item_no, qty, location, supplier="", ref=""):
+    s = load()
+    s.setdefault("supplier_returns", []).append({
+        "item_no": item_no,
+        "qty": float(qty),
+        "location": location or "",
+        "supplier": supplier or "",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def add_sales_transfer(so_no, items, line_ref=""):
+    """items: [{item_no, qty}, ...]"""
+    s = load()
+    s.setdefault("sales_transfers", []).append({
+        "so_no": so_no,
+        "line_ref": line_ref or "",
+        "items": items,
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
+
+def get_buyers_advice():
+    return load().get("buyers_advice", [])
+
+
+def add_buyers_advice(item_no, qty, need_date="", ref=""):
+    s = load()
+    s.setdefault("buyers_advice", []).append({
+        "item_no": item_no,
+        "qty": float(qty),
+        "need_date": need_date or "",
+        "ref": ref or "",
+        "at": datetime.utcnow().isoformat() + "Z",
+    })
+    save(s)
+
 
 def get_item_overrides():
     return load().get("item_overrides", {})
@@ -323,6 +508,69 @@ def apply_to_data(data):
             if "Stock" in to_row:
                 to_row["Stock"] = to_row["qStk"]
 
+    # Reserve/Allocation overlays: compute net reserved and allocated per (item_no, location)
+    reserve_tx = store.get("reserve_transactions") or []
+    alloc_tx = store.get("allocations") or []
+    reserve_by_key = {}  # (item_no, loc) -> net qty
+    alloc_by_key = {}
+    for r in reserve_tx:
+        ino = r.get("item_no") or ""
+        loc = r.get("location") or ""
+        qty = float(r.get("qty", 0))
+        key = (ino, loc)
+        if r.get("type") == "reserve":
+            reserve_by_key[key] = reserve_by_key.get(key, 0) + qty
+        else:
+            reserve_by_key[key] = reserve_by_key.get(key, 0) - qty
+    for a in alloc_tx:
+        ino = a.get("item_no") or ""
+        loc = a.get("location") or ""
+        qty = float(a.get("qty", 0))
+        key = (ino, loc)
+        if a.get("type") == "allocate":
+            alloc_by_key[key] = alloc_by_key.get(key, 0) + qty
+        else:
+            alloc_by_key[key] = alloc_by_key.get(key, 0) - qty
+    for key, qty in list(reserve_by_key.items()):
+        if qty <= 0:
+            del reserve_by_key[key]
+    for key, qty in list(alloc_by_key.items()):
+        if qty <= 0:
+            del alloc_by_key[key]
+    scrap_tx = store.get("scrap_transactions") or []
+    scrap_by_key = {}
+    for s in scrap_tx:
+        ino = s.get("item_no") or ""
+        loc = s.get("location") or ""
+        qty = float(s.get("qty", 0))
+        key = (ino, loc)
+        if s.get("type") == "scrap":
+            scrap_by_key[key] = scrap_by_key.get(key, 0) + qty
+        else:
+            scrap_by_key[key] = scrap_by_key.get(key, 0) - qty
+    for key, qty in list(scrap_by_key.items()):
+        if qty <= 0:
+            del scrap_by_key[key]
+    for row in (data.get("MIILOC.json") or []):
+        if not isinstance(row, dict):
+            continue
+        ino = row.get("Item No.") or row.get("Item No") or row.get("itemId") or ""
+        loc = row.get("Location No.") or row.get("locId") or ""
+        key = (ino, loc)
+        row["_reserved"] = max(0, reserve_by_key.get(key, 0))
+        row["_allocated"] = max(0, alloc_by_key.get(key, 0))
+        row["_scrapped"] = max(0, scrap_by_key.get(key, 0))
+    for item in (data.get("Items.json") or []):
+        if not isinstance(item, dict):
+            continue
+        ino = item.get("Item No.") or item.get("item_no") or ""
+        total_res = sum(v for k, v in reserve_by_key.items() if k[0] == ino)
+        total_alloc = sum(v for k, v in alloc_by_key.items() if k[0] == ino)
+        total_scrap = sum(v for k, v in scrap_by_key.items() if k[0] == ino)
+        item["_reserved"] = max(0, total_res)
+        item["_allocated"] = max(0, total_alloc)
+        item["_scrapped"] = max(0, total_scrap)
+
     # BOM edits (C5): append portal-created BOMs
     bom_edits = store.get("bom_edits") or _default_store()["bom_edits"]
     for key in ["MIBOMH.json", "MIBOMD.json", "BillsOfMaterial.json", "BillOfMaterialDetails.json"]:
@@ -400,13 +648,27 @@ def apply_to_data(data):
     # Portal events for Inventory Ledger (all overlay transactions)
     adjustments = store.get("inventory_adjustments") or []
     transfers = store.get("location_transfers") or []
+    reserve_tx = store.get("reserve_transactions") or []
+    alloc_tx = store.get("allocations") or []
+    scrap_tx = store.get("scrap_transactions") or []
+    asm_tx = store.get("assembly_transactions") or []
+    sup_rec = store.get("supplier_receives") or []
+    sup_ret = store.get("supplier_returns") or []
+    sales_tx = store.get("sales_transfers") or []
     mo_evts = store.get("mo_events") or []
     po_rec = store.get("po_receives") or []
     adj_list = [{"_type": "ADJUST", "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("delta", 0), "reason": a.get("reason", ""), "user": "portal"} for a in adjustments]
     xfr_list = [{"_type": "TRANSFER", "ts": t.get("at", ""), "itemNo": t.get("item_no", ""), "fromLoc": t.get("from_loc", ""), "toLoc": t.get("to_loc", ""), "qty": t.get("qty", 0), "user": "portal"} for t in transfers]
+    res_list = [{"_type": r.get("type", "RESERVE").upper(), "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "location": r.get("location", ""), "qty": r.get("qty", 0), "ref": r.get("ref", ""), "user": "portal"} for r in reserve_tx]
+    alloc_list = [{"_type": a.get("type", "ALLOCATE").upper(), "ts": a.get("at", ""), "itemNo": a.get("item_no", ""), "location": a.get("location", ""), "qty": a.get("qty", 0), "ref": a.get("ref", ""), "user": "portal"} for a in alloc_tx]
+    scrap_list = [{"_type": s.get("type", "SCRAP").upper(), "ts": s.get("at", ""), "itemNo": s.get("item_no", ""), "location": s.get("location", ""), "qty": s.get("qty", 0), "ref": s.get("ref", ""), "user": "portal"} for s in scrap_tx]
+    asm_list = [{"_type": a.get("type", "ASSEMBLE").upper(), "ts": a.get("at", ""), "itemNo": a.get("parent_item", ""), "location": a.get("location", ""), "qty": a.get("qty", 0), "user": "portal"} for a in asm_tx]
+    sup_rec_list = [{"_type": "SUPPLIER_RECEIVE", "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "location": r.get("location", ""), "qty": r.get("qty", 0), "ref": r.get("ref", ""), "user": "portal"} for r in sup_rec]
+    sup_ret_list = [{"_type": "SUPPLIER_RETURN", "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "location": r.get("location", ""), "qty": r.get("qty", 0), "ref": r.get("ref", ""), "user": "portal"} for r in sup_ret]
+    sales_list = [{"_type": "SALES_TRANSFER", "ts": t.get("at", ""), "soNo": t.get("so_no", ""), "items": t.get("items", []), "user": "portal"} for t in sales_tx]
     mo_list = [{"_type": e.get("type", "MO_EVENT"), "ts": e.get("ts", ""), "itemNo": e.get("itemNo", ""), "moNo": e.get("moNo", ""), "qty": e.get("qty", 0), "location": e.get("location", ""), "user": e.get("user", ""), "ref": e.get("ref", "")} for e in mo_evts]
     po_list = [{"_type": "PO_RECEIVE", "ts": r.get("at", ""), "itemNo": r.get("item_no", ""), "poNo": r.get("po_no", ""), "qty": r.get("qty", 0), "location": r.get("location", ""), "lot": r.get("lot", ""), "user": r.get("user", "portal")} for r in po_rec]
-    data["portalEvents"] = adj_list + xfr_list + mo_list + po_list
+    data["portalEvents"] = adj_list + xfr_list + res_list + alloc_list + scrap_list + asm_list + sup_rec_list + sup_ret_list + sales_list + mo_list + po_list
 
     # WO updates (E2/E3): apply release/complete to WorkOrders.json and WorkOrderDetails.json
     wo_updates = store.get("wo_updates") or []

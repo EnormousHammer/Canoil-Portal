@@ -4310,6 +4310,64 @@ def _get_bom_components_for_item(data, parent_item_no):
     return out
 
 
+@app.route('/api/manufacturing-orders/<mo_no>/issue', methods=['POST'])
+def issue_manufacturing_order(mo_no):
+    """Tier 8: MO Issue Components – deduct BOM components when MO starts. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        mo_no = (mo_no or '').strip()
+        if not mo_no:
+            return jsonify({"error": "mo_no required"}), 400
+        body = request.get_json() or {}
+        issue_qty = body.get("issue_qty") or body.get("quantity") or body.get("ordered")
+        try:
+            issue_qty = float(issue_qty) if issue_qty is not None else None
+        except (TypeError, ValueError):
+            issue_qty = None
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first"}), 503
+        all_mos = data.get("ManufacturingOrderHeaders.json") or []
+        build_item_no = None
+        ordered = 0
+        for mo in all_mos:
+            if not isinstance(mo, dict):
+                continue
+            if (mo.get("Mfg. Order No.") or mo.get("mohId")) == mo_no:
+                build_item_no = (mo.get("Build Item No.") or mo.get("buildItem") or "").strip()
+                ordered = float(mo.get("Ordered") or mo.get("ordQty") or 0)
+                break
+        if not build_item_no:
+            return jsonify({"error": f"MO {mo_no} not found"}), 404
+        qty_to_issue = issue_qty if issue_qty is not None and issue_qty > 0 else ordered
+        if qty_to_issue <= 0:
+            return jsonify({"error": "issue_qty or MO ordered qty must be positive"}), 400
+        components = _get_bom_components_for_item(data, build_item_no)
+        if not components:
+            return jsonify({"error": f"No BOM found for {build_item_no}"}), 400
+        user = body.get("user") or "portal"
+        location = (body.get("location") or "").strip()
+        for comp_item, req_qty in components:
+            deduct_qty = req_qty * qty_to_issue
+            portal_store.add_inventory_adjustment(comp_item, location, -deduct_qty, f"MO issue {mo_no}")
+            portal_store.add_mo_event({
+                "type": "MO_ISSUE",
+                "moNo": mo_no,
+                "itemNo": comp_item,
+                "qty": -deduct_qty,
+                "location": location,
+                "user": user,
+                "ref": "issue",
+            })
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "mo_no": mo_no, "issue_qty": qty_to_issue, "components_issued": len(components)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/manufacturing-orders/<mo_no>/complete', methods=['POST'])
 def complete_manufacturing_order(mo_no):
     """D6/D7: Complete MO (report completed qty, set status, backflush components). Persisted in portal_store."""
@@ -4498,6 +4556,505 @@ def inventory_transfer():
         _cache_timestamp = None
         _response_cache = None
         return jsonify({"ok": True, "item_no": item_no, "from_loc": from_loc, "to_loc": to_loc, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/reserve', methods=['POST'])
+def inventory_reserve():
+    """Tier 2: Reserve stock. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_reserve(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/relieve', methods=['POST'])
+def inventory_relieve():
+    """Tier 2: Relieve (release) reserved stock. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_relieve_reserve(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/allocate', methods=['POST'])
+def inventory_allocate():
+    """Tier 2: Allocate stock to MO/SO/Job. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or body.get('mo_no') or body.get('so_no') or body.get('job_no') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        if not ref:
+            return jsonify({"error": "ref (MO/SO/Job number) is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_allocation(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty, "ref": ref}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/deallocate', methods=['POST'])
+def inventory_deallocate():
+    """Tier 2: Deallocate stock from MO/SO/Job. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or body.get('mo_no') or body.get('so_no') or body.get('job_no') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        if not ref:
+            return jsonify({"error": "ref (MO/SO/Job number) is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_deallocation(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty, "ref": ref}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/scrap', methods=['POST'])
+def inventory_scrap():
+    """Tier 3: Scrap stock. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_scrap(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/recover', methods=['POST'])
+def inventory_recover():
+    """Tier 3: Recover (unscrap) stock. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_recover(item_no, location, qty, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "location": location, "qty": qty}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _get_item_stock(data, item_no, location=""):
+    """Get current stock for item from merged data. Returns (stock, reserved, allocated, scrapped)."""
+    stock = 0
+    reserved = 0
+    allocated = 0
+    scrapped = 0
+    if location:
+        for row in (data.get("MIILOC.json") or []):
+            if not isinstance(row, dict):
+                continue
+            ino = row.get("Item No.") or row.get("Item No") or row.get("itemId") or ""
+            loc = row.get("Location No.") or row.get("locId") or ""
+            if ino == item_no and loc == location:
+                stock = float(row.get("qStk") or row.get("Stock") or 0)
+                reserved = float(row.get("_reserved") or 0)
+                allocated = float(row.get("_allocated") or 0)
+                scrapped = float(row.get("_scrapped") or 0)
+                break
+    else:
+        for item in (data.get("Items.json") or []):
+            if not isinstance(item, dict):
+                continue
+            if (item.get("Item No.") or item.get("item_no")) == item_no:
+                stock = float(item.get("Stock") or 0)
+                reserved = float(item.get("_reserved") or 0)
+                allocated = float(item.get("_allocated") or 0)
+                scrapped = float(item.get("_scrapped") or 0)
+                break
+    return stock, reserved, allocated, scrapped
+
+
+@app.route('/api/inventory/assemble-preview', methods=['GET'])
+def inventory_assemble_preview():
+    """Return BOM components that would be consumed for assemble (or released for disassemble)."""
+    global _data_cache
+    try:
+        parent_item = (request.args.get('parent_item') or request.args.get('parent_item_no') or '').strip()
+        qty = request.args.get('qty', '1')
+        action = (request.args.get('action') or 'assemble').strip().lower()
+        if not parent_item:
+            return jsonify({"error": "parent_item is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            qty = 1.0
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"components": [], "parent_item": parent_item, "qty": qty, "message": "Load app data first"}), 200
+        components = _get_bom_components_for_item(data, parent_item)
+        result = []
+        for comp_item, req_qty in components:
+            need = req_qty * qty
+            stock, res, alloc, scrap = _get_item_stock(data, comp_item, "")
+            available = stock - res - alloc - scrap
+            result.append({
+                "item_no": comp_item,
+                "required_per_unit": req_qty,
+                "total_required": need,
+                "available": available,
+                "sufficient": available >= need,
+            })
+        return jsonify({
+            "parent_item": parent_item,
+            "qty": qty,
+            "action": action,
+            "components": result,
+            "has_bom": len(components) > 0,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/assemble', methods=['POST'])
+def inventory_assemble():
+    """Tier 4: Assemble stock - consume BOM components, add finished good. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        body = request.get_json() or {}
+        parent_item = (body.get('parent_item') or body.get('Parent Item No.') or body.get('parent_item_no') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        if not parent_item:
+            return jsonify({"error": "parent_item is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first (open the app or call GET /api/data), then assemble"}), 503
+        components = _get_bom_components_for_item(data, parent_item)
+        if not components:
+            return jsonify({"error": f"No BOM found for {parent_item}"}), 400
+        components_consumed = []
+        for comp_item, req_qty in components:
+            need_qty = req_qty * qty
+            stock, res, alloc, scrap = _get_item_stock(data, comp_item, location)
+            available = stock - res - alloc - scrap
+            if available < need_qty:
+                return jsonify({"error": f"Insufficient stock for component {comp_item}: need {need_qty}, available {available}"}), 400
+            portal_store.add_inventory_adjustment(comp_item, location, -need_qty, f"Assembly {parent_item}")
+            components_consumed.append((comp_item, need_qty))
+        portal_store.add_inventory_adjustment(parent_item, location, qty, "Assembly")
+        portal_store.add_assembly(parent_item, qty, location, components_consumed)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_consumed)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/disassemble', methods=['POST'])
+def inventory_disassemble():
+    """Tier 4: Disassemble stock - reduce finished good, add components per BOM. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        body = request.get_json() or {}
+        parent_item = (body.get('parent_item') or body.get('Parent Item No.') or body.get('parent_item_no') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        if not parent_item:
+            return jsonify({"error": "parent_item is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first (open the app or call GET /api/data), then disassemble"}), 503
+        components = _get_bom_components_for_item(data, parent_item)
+        if not components:
+            return jsonify({"error": f"No BOM found for {parent_item}"}), 400
+        stock, res, alloc, scrap = _get_item_stock(data, parent_item, location)
+        available = stock - res - alloc - scrap
+        if available < qty:
+            return jsonify({"error": f"Insufficient stock for {parent_item}: need {qty}, available {available}"}), 400
+        components_released = []
+        for comp_item, req_qty in components:
+            release_qty = req_qty * qty
+            portal_store.add_inventory_adjustment(comp_item, location, release_qty, f"Disassembly {parent_item}")
+            components_released.append((comp_item, release_qty))
+        portal_store.add_inventory_adjustment(parent_item, location, -qty, "Disassembly")
+        portal_store.add_disassembly(parent_item, qty, location, components_released)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "parent_item": parent_item, "qty": qty, "location": location, "components": len(components_released)}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/stock-check', methods=['GET'])
+def inventory_stock_check():
+    """Tier 6: Snapshot of current stock by item/location (from merged data)."""
+    global _data_cache
+    try:
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"snapshot": [], "message": "Load app data first"}), 200
+        items = data.get("Items.json") or []
+        miloc = data.get("MIILOC.json") or []
+        snapshot = []
+        if miloc:
+            for row in miloc:
+                if not isinstance(row, dict):
+                    continue
+                ino = row.get("Item No.") or row.get("Item No") or row.get("itemId") or ""
+                loc = row.get("Location No.") or row.get("locId") or ""
+                stock = float(row.get("qStk") or row.get("Stock") or 0)
+                res = float(row.get("_reserved") or 0)
+                alloc = float(row.get("_allocated") or 0)
+                scrap = float(row.get("_scrapped") or 0)
+                available = stock - res - alloc - scrap
+                if ino:
+                    snapshot.append({
+                        "item_no": ino,
+                        "location": loc,
+                        "stock": stock,
+                        "reserved": res,
+                        "allocated": alloc,
+                        "scrapped": scrap,
+                        "available": available,
+                    })
+        else:
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                ino = item.get("Item No.") or item.get("item_no") or ""
+                if not ino:
+                    continue
+                stock = float(item.get("Stock") or 0)
+                res = float(item.get("_reserved") or 0)
+                alloc = float(item.get("_allocated") or 0)
+                scrap = float(item.get("_scrapped") or 0)
+                available = stock - res - alloc - scrap
+                snapshot.append({
+                    "item_no": ino,
+                    "location": "",
+                    "stock": stock,
+                    "reserved": res,
+                    "allocated": alloc,
+                    "scrapped": scrap,
+                    "available": available,
+                })
+        return jsonify({
+            "snapshot": snapshot,
+            "count": len(snapshot),
+            "at": datetime.now().isoformat(),
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/supplier-receive', methods=['POST'])
+def inventory_supplier_receive():
+    """Tier 5: Receive from supplier (no PO). Blind receive - adds stock."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        supplier = (body.get('supplier') or body.get('Supplier No.') or '').strip()
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_inventory_adjustment(item_no, location, qty, f"Supplier receive{f' {ref}' if ref else ''}")
+        portal_store.add_supplier_receive(item_no, qty, location, supplier, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "qty": qty, "location": location}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/supplier-return', methods=['POST'])
+def inventory_supplier_return():
+    """Tier 5: Return to supplier. Reduces stock."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        supplier = (body.get('supplier') or body.get('Supplier No.') or '').strip()
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_inventory_adjustment(item_no, location, -qty, f"Supplier return{f' {ref}' if ref else ''}")
+        portal_store.add_supplier_return(item_no, qty, location, supplier, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "qty": qty, "location": location}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/inventory/sales-transfer', methods=['POST'])
+def inventory_sales_transfer():
+    """Tier 5: Sales transfer - deduct stock, link to SO. items: [{item_no, qty}, ...]"""
+    global _cache_timestamp, _response_cache, _data_cache
+    try:
+        body = request.get_json() or {}
+        so_no = (body.get('so_no') or body.get('SO No.') or body.get('so_no') or '').strip()
+        items = body.get('items') or body.get('Items') or []
+        line_ref = (body.get('line_ref') or body.get('Line Ref') or '').strip()
+        location = (body.get('location') or body.get('Location No.') or '').strip()
+        if not so_no:
+            return jsonify({"error": "so_no is required"}), 400
+        if not items or not isinstance(items, list):
+            return jsonify({"error": "items array is required (e.g. [{item_no, qty}])"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first"}), 503
+        normalized = []
+        for it in items:
+            ino = (it.get('item_no') or it.get('Item No.') or '').strip()
+            q = it.get('qty') or it.get('quantity')
+            if not ino:
+                continue
+            try:
+                q = float(q)
+            except (TypeError, ValueError):
+                continue
+            if q <= 0:
+                continue
+            stock, res, alloc, scrap = _get_item_stock(data, ino, location)
+            available = stock - res - alloc - scrap
+            if available < q:
+                return jsonify({"error": f"Insufficient stock for {ino}: need {q}, available {available}"}), 400
+            portal_store.add_inventory_adjustment(ino, location, -q, f"Sales transfer SO {so_no}")
+            normalized.append({"item_no": ino, "qty": q})
+        if not normalized:
+            return jsonify({"error": "No valid items"}), 400
+        portal_store.add_sales_transfer(so_no, normalized, line_ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "so_no": so_no, "items": normalized}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4799,14 +5356,90 @@ def _compute_shortage(data):
 
 @app.route('/api/shortage', methods=['GET'])
 def get_shortage():
-    """J2: Shortage report – items below reorder level (stock + open PO). Uses cached app data."""
+    """J2: Shortage report – items below reorder level (stock + open PO). Uses cached app data.
+    Optional ?horizon=7 for future shortage (days) – currently returns same data; MRP engine can extend."""
     global _data_cache
     try:
         data = _data_cache
+        horizon = request.args.get('horizon', type=int)
         if not data:
-            return jsonify({"shortage": [], "message": "Load app data first (GET /api/data)"}), 200
+            return jsonify({"shortage": [], "message": "Load app data first (GET /api/data)", "horizon": horizon}), 200
         shortage = _compute_shortage(data)
-        return jsonify({"shortage": shortage}), 200
+        return jsonify({"shortage": shortage, "horizon": horizon}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/mrp/buyers-advice', methods=['POST'])
+def mrp_buyers_advice():
+    """Tier 7: Add buyer's advice (manual demand) for MRP. Persisted in portal_store."""
+    global _cache_timestamp, _response_cache
+    try:
+        body = request.get_json() or {}
+        item_no = (body.get('item_no') or body.get('Item No.') or '').strip()
+        qty = body.get('qty') or body.get('quantity')
+        need_date = (body.get('need_date') or body.get('Need Date') or '').strip()
+        ref = (body.get('ref') or '').strip()
+        if not item_no:
+            return jsonify({"error": "item_no is required"}), 400
+        try:
+            qty = float(qty)
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        if portal_store is None:
+            return jsonify({"error": "Portal store not available"}), 503
+        portal_store.add_buyers_advice(item_no, qty, need_date, ref)
+        _cache_timestamp = None
+        _response_cache = None
+        return jsonify({"ok": True, "item_no": item_no, "qty": qty, "need_date": need_date}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/mrp/what-if', methods=['POST'])
+def mrp_what_if():
+    """Tier 7: Run shortage with hypothetical scenario (transfers, builds). Body: { scenario: { adjustments?, transfers? }, horizon? }."""
+    global _data_cache
+    try:
+        data = _data_cache
+        if not data or not isinstance(data, dict):
+            return jsonify({"error": "Load app data first"}), 503
+        import copy
+        body = request.get_json() or {}
+        scenario = body.get("scenario") or {}
+        data_copy = copy.deepcopy(data)
+        adjustments = scenario.get("adjustments") or []
+        for adj in adjustments:
+            ino = adj.get("item_no") or ""
+            delta = float(adj.get("delta") or 0)
+            if not ino:
+                continue
+            for item in (data_copy.get("Items.json") or []):
+                if isinstance(item, dict) and (item.get("Item No.") or item.get("item_no")) == ino:
+                    item["Stock"] = float(item.get("Stock") or 0) + delta
+                    break
+        transfers = scenario.get("transfers") or []
+        for t in transfers:
+            from_loc = t.get("from_loc") or ""
+            to_loc = t.get("to_loc") or ""
+            ino = t.get("item_no") or ""
+            qty = float(t.get("qty") or 0)
+            if not ino or not qty:
+                continue
+            miloc = data_copy.get("MIILOC.json") or []
+            for r in miloc:
+                if not isinstance(r, dict):
+                    continue
+                it = r.get("Item No.") or r.get("Item No") or r.get("itemId")
+                loc = r.get("Location No.") or r.get("locId") or ""
+                if it == ino and loc == from_loc:
+                    r["qStk"] = max(0, float(r.get("qStk") or 0) - qty)
+                if it == ino and loc == to_loc:
+                    r["qStk"] = float(r.get("qStk") or 0) + qty
+        shortage = _compute_shortage(data_copy)
+        return jsonify({"shortage": shortage, "scenario_applied": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
