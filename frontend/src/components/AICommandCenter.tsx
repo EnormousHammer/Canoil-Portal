@@ -133,6 +133,9 @@ interface ChatMessage {
   category?: 'bom' | 'stock' | 'analytics' | 'sales' | 'production' | 'logistics' | 'general';
   confidence?: number;
   sources?: string[];
+  action_file?: string;
+  action_filename?: string;
+  action_result?: { type: string; item_no?: string; description?: string; quantity?: number; filename?: string };
 }
 
 interface AIInsight {
@@ -818,7 +821,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         timestamp: new Date(),
         category: 'general',
         confidence: 0.9,
-        sources: result.sources || []
+        sources: result.sources || [],
+        action_file: result.action_file,
+        action_filename: result.action_filename,
+        action_result: result.action_result
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -888,6 +894,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       icon: DollarSign,
       action: "What is our accounts receivable aging? Current, 30-60, 60-90, 90+ days.",
       category: "financial"
+    },
+    { 
+      title: "Pricing / Quote", 
+      description: "Look up price and draft quote email",
+      icon: FileText,
+      action: "I need pricing for a customer and help drafting a quote email. Which customer and product? Look up our price, ask me how much the customer wants, then draft the quote email.",
+      category: "sales"
+    },
+    { 
+      title: "Create PR", 
+      description: "Create purchase requisition for items",
+      icon: ShoppingCart,
+      action: "Create a PR for 2 cases of MOV Long Life 0 Kegs",
+      category: "procurement"
     }
   ];
 
@@ -1030,7 +1050,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               content: result.response || 'I received your request but encountered an issue.',
                               timestamp: new Date(),
                               category: action.category as any,
-                              sources: result.sources || []
+                              sources: result.sources || [],
+                              action_file: result.action_file,
+                              action_filename: result.action_filename,
+                              action_result: result.action_result
                             };
                             
                             setMessages(prev => [...prev, assistantMessage]);
@@ -1231,7 +1254,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           value={inputMessage}
                           onChange={(e) => setInputMessage(e.target.value)}
                           onKeyPress={handleKeyPress}
-                          placeholder="Ask me anything about your business data..."
+                          placeholder="Ask anything... e.g. What's our price for [Customer] for [Product]? I need a quote email."
                           className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-white pr-11 text-slate-800 placeholder-slate-400 transition-shadow"
                           disabled={isProcessing}
                         />
@@ -1255,7 +1278,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         { label: "Active MOs by customer & build item", query: "How many active manufacturing orders do we have? List them by customer name and build item." },
                         { label: "Items below reorder level", query: "Items below reorder level" },
                         { label: "Open POs by supplier", query: "Open POs by supplier" },
-                        { label: "Top customers by revenue", query: "Top customers by revenue" }
+                        { label: "Top customers by revenue", query: "Top customers by revenue" },
+                        { label: "Create PR for items", query: "Create a PR for 2 cases of MOV Long Life 0 Kegs" }
                       ].map((suggestion, index) => (
                         <button
                           key={index}

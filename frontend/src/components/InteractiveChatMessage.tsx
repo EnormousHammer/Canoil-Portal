@@ -1,5 +1,5 @@
-﻿import React from "react";
-import { Brain, User, FileText } from "lucide-react";
+import React from "react";
+import { Brain, User, FileText, Download } from "lucide-react";
 
 // â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtNum(s: string): string {
@@ -23,6 +23,9 @@ interface InteractiveChatMessageProps {
     category?: string;
     confidence?: number;
     sources?: string[];
+    action_file?: string;
+    action_filename?: string;
+    action_result?: { type: string; item_no?: string; description?: string; quantity?: number; filename?: string };
   };
   onItemClick?: (item: any) => void;
   onSOClick?: (soNumber: string) => void;
@@ -296,6 +299,35 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
           <div className="text-sm leading-relaxed">{render(message.content)}</div>
         ) : (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        )}
+
+        {message.action_file && message.action_filename && (
+          <div className="mt-3 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => {
+                try {
+                  const bin = atob(message.action_file!);
+                  const bytes = new Uint8Array(bin.length);
+                  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = message.action_filename || "PR.xlsx";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                } catch (e) {
+                  console.error("Download failed:", e);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Download {message.action_result?.type === "pr" ? "PR" : "File"}
+            </button>
+          </div>
         )}
 
         {message.sources && message.sources.length > 0 && (

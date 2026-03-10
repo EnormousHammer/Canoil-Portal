@@ -7376,6 +7376,7 @@ _MISYS_INTENT_FILES = {
     "inventory":       ["Items.json", "MIILOC.json"],
     "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json"],
     "bom":             ["BillsOfMaterial.json", "BillOfMaterialDetails.json"],
+    "pricing":         ["Items.json", "MIILOC.json"],
 }
 
 
@@ -7509,6 +7510,28 @@ def chat_query():
             return jsonify({"error": "No query provided"}), 400
         
         print(f"🤖 Processing ChatGPT query: {user_query}")
+        
+        # ── AI TASK ACTIONS (create PR, proforma, etc.) ─────────────────────────
+        try:
+            from ai_actions import is_create_pr_request, execute_create_pr
+            if is_create_pr_request(user_query):
+                resp_text, action_result, file_bytes, filename = execute_create_pr(user_query, app)
+                result = {
+                    "query": user_query,
+                    "response": resp_text,
+                    "intent": "create_pr",
+                    "action_result": action_result,
+                    "data_context": {"folder": "AI Actions", "total_items": 0, "active_orders": 0},
+                }
+                if file_bytes and filename:
+                    import base64
+                    result["action_file"] = base64.b64encode(file_bytes).decode("utf-8")
+                    result["action_filename"] = filename
+                return jsonify(result)
+        except ImportError:
+            pass
+        except Exception as _action_err:
+            print(f"⚠️ AI action error (falling through to chat): {_action_err}")
         
         # Check if OpenAI is available
         if not openai_available:
@@ -7927,7 +7950,13 @@ NEVER say "no data available" or "no specific details" - YOU HAVE ALL THE DATA F
 
 **GREETINGS & GENERAL:**
 - "Hi" → Natural greeting + offer to help with any business analysis
-- "What can you help me with?" → List all capabilities with examples
+- "What can you help me with?" → List all capabilities including: data queries, pricing, quotes, and task actions (create PR, proforma)
+
+**TASK ACTIONS (user can request these by natural language):**
+- "Create a PR for 2 cases of MOV Long Life 0 Kegs" → Creates a Purchase Requisition (handled by AI Actions)
+- "Create purchase requisition for 5 drums of [product]" → Same
+- "Generate proforma for SO 1234" → Proforma invoice (user should go to Proforma Invoice Maker for full workflow)
+- When user asks to create a PR, direct them to use the exact format: "Create a PR for [qty] [unit] of [product]"
 
 **SALES ORDER QUERIES:**
 - "Do we have stock for SO 2296?" → Complete SO breakdown + stock analysis + fulfillment plan

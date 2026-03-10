@@ -233,8 +233,13 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             "charge for",
             "cost per",
             "rate for",
+            "quote",
+            "quote email",
+            "draft quote",
+            "quote for",
+            "email quote",
         ],
-        "data_sources": ["price_list"],
+        "data_sources": ["price_list", "misys_inventory"],
         "model": "gpt-5.2-chat-latest",
     },
 }
@@ -245,8 +250,8 @@ FOCUSED_INTENTS = frozenset(INTENT_DEFINITIONS.keys()) - {"so_detail"}
 # Intents that are purely Sage-based (no MiSys raw_data needed)
 SAGE_ONLY_INTENTS = frozenset({"so_list", "ar_aging", "customers"})
 
-# Intents that need MiSys raw_data
-MISYS_INTENTS = frozenset({"inventory", "manufacturing", "purchase_orders", "bom"})
+# Intents that need MiSys raw_data (pricing needs inventory for lead-time check)
+MISYS_INTENTS = frozenset({"inventory", "manufacturing", "purchase_orders", "bom", "pricing"})
 
 # Intents that use the Google Drive price list
 PRICE_LIST_INTENTS = frozenset({"pricing"})
@@ -608,7 +613,27 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "- Do NOT fabricate any prices — only use values from the DATA section\n"
         "- If the product or customer is not in the data, say so clearly and show the "
         "  closest matches found\n"
-        "- Never output raw markdown symbols like ** or ## in your prose text"
+        "- Never output raw markdown symbols like ** or ## in your prose text\n\n"
+        "QUOTE EMAIL FLOW (when user wants a quote or quote email):\n"
+        "- If the user did NOT specify quantity, ask: \"How much does the customer want?\" "
+        "(e.g. 4 drums, 10 pails). If they ALREADY said the quantity (e.g. \"2 cases\"), skip this — use it.\n"
+        "- Draft a professional quote email using the prices from DATA.\n"
+        "- QUOTE EMAIL FORMAT: Start with \"Hi,\" and end with \"Best Regards,\" (exactly as written).\n"
+        "- In the email body, ALWAYS show BOTH: (1) unit price for 1x, and (2) line total for the quantity requested.\n"
+        "  Example: \"Unit price (1 case): $XXX.XX | Quantity: 2 cases | Total: $X,XXX.XX\"\n"
+        "- If customer/product not specified, ask for them before showing prices.\n\n"
+        "LEAD TIME (when drafting a quote email):\n"
+        "- Use the inventory_items / inventory_by_location data in DATA to check stock for the quoted product.\n"
+        "- Match the product by Item No. or Description (e.g. Anderol FGCS-2, 61203671-58).\n"
+        "- If stock (On Hand, qStk, Stock, or Quantity on Hand) >= quantity requested: "
+        "\"Lead Time: 5-7 days\"\n"
+        "- If stock < quantity requested or item not found: "
+        "\"Lead Time: To be confirmed (subject to availability)\" or similar.\n"
+        "- Include the Lead Time line in the quote email body.\n\n"
+        "CAD vs USD (when company has both):\n"
+        "- If the DATA shows the same company/customer with BOTH CAD and USD rows (different currency), "
+        "you MUST ask: \"Is this for [Company Name] CAD or USD?\" before showing prices or drafting the quote.\n"
+        "- Do not assume — always clarify which location/currency the user needs."
     ),
 }
 
