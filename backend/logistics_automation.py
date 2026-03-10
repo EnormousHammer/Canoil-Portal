@@ -534,20 +534,21 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
             ]
         }},
         "combined_totals": {{
-            "total_gross_weight": "Sum ALL weights from ALL SOs. If email says 'NEW TOTAL GROSS WEIGHT' use that value instead (Big Red tote returns).",
-            "total_pallet_count": 0  // Sum ALL pallets from ALL SOs (e.g., 6 + 2 = 8)
+            "total_gross_weight": "4626 kg",
+            "total_pallet_count": 6
         }},
         "totes_info": "Combined totes information if mentioned",
         "totes_return": {{
             "empty_count": 0,
             "partial_count": 0,
-            "partial_by_product": [{{"product": "SAE 5W-40", "kg": 635.5}}, {{"product": "0W-16", "kg": 214.35}}]
+            "partial_by_product": [{{"product": "5W-30", "batch": "N60047", "kg": 505}}, {{"product": "5W-20", "batch": "N55099", "kg": 529}}]
         }},
-        "new_total_gross_weight": "Use when email says 'NEW TOTAL GROSS WEIGHT' (e.g. '4,441.85 KG') - overrides sum for Big Red tote returns"
+        "new_total_gross_weight": ""
     }}
     
     CRITICAL: Extract the EXACT weight values from the email. Do NOT invent or use default values.
-    CRITICAL: For combined_totals.total_gross_weight, you MUST ADD all individual SO weights together.
+    CRITICAL: total_gross_weight and new_total_gross_weight must contain ONLY the numeric value with unit (e.g. "4626 kg"). NEVER put instruction text or explanations in these fields.
+    CRITICAL: For combined_totals.total_gross_weight, use "Total Gross Weight" from email or ADD all individual SO weights together.
     CRITICAL: For combined_totals.total_pallet_count, you MUST ADD all individual SO pallet counts together.
     
     IMPORTANT RULES:
@@ -573,7 +574,7 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
        - partial_count: total partial totes
        - partial_by_product: for EACH partial tote, associate it with its product and batch from the SAME SO/section. Extract product shorthand (5W-30, 5W-20, etc.) and batch (N60047, etc.) from context. If a partial has "approx X kg" or similar, use that kg value.
        - Match partial totes to their SO's product/batch by section proximity - whatever product and batch are in the same SO block as the partial tote.
-       - Use "NEW TOTAL GROSS WEIGHT" or "Total Gross Weight" when provided
+       - new_total_gross_weight: Put the ACTUAL weight value (e.g. "4626 kg", "4,441.85 kg") when email says "Total Gross Weight", "NEW TOTAL GROSS WEIGHT", or "Combined Shipment Totals" with a weight. NEVER put instruction text here - only the numeric value with unit.
     
     SPECIAL INSTRUCTIONS (CRITICAL):
     Look for instructions at the end of the email like:
@@ -3345,11 +3346,15 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     # CRITICAL: Ensure weights and pallets are properly summed
     # Big Red tote returns: Use new_total_gross_weight when provided (includes partial tote amounts)
     new_total = multi_so_email_data.get('new_total_gross_weight', '')
-    if new_total:
+    # Reject if GPT returned instruction text instead of actual weight (e.g. "Use when email says...")
+    is_instruction = new_total and any(x in str(new_total).lower() for x in ['use when', 'overrides', 'e.g.', 'example'])
+    if new_total and not is_instruction:
         total_weight_str = str(new_total).strip()
         print(f"   📦 Using NEW TOTAL GROSS WEIGHT (Big Red totes): {total_weight_str}")
     else:
         total_weight_str = combined_totals.get('total_gross_weight', '')
+        if total_weight_str and any(x in str(total_weight_str).lower() for x in ['use when', 'overrides', 'e.g.']):
+            total_weight_str = ''  # Reject instruction text in combined_totals too
     total_pallets = combined_totals.get('total_pallet_count', 0)
     
     # If totals are missing or zero, calculate from individual SO items
