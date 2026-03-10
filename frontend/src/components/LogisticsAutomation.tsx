@@ -50,6 +50,7 @@ interface GeneratedDocument {
   download_url: string;
   content_type?: string;
   generated_at?: string;
+  file_type?: 'pdf' | 'html';  // When 'html', PDF conversion failed - show Convert to PDF button
 }
 
 const LogisticsAutomation: React.FC = () => {
@@ -1019,10 +1020,12 @@ const LogisticsAutomation: React.FC = () => {
         // Process all documents from the main documents array (includes BOL, Packing Slip, CI, DG, SDS, COFA, TSCA, USMCA)
         if (data.documents && Array.isArray(data.documents)) {
           data.documents.forEach((doc: any) => {
+            const isHtml = (doc.filename || '').toLowerCase().endsWith('.html') || doc.file_type === 'html';
             newDocs.push({
               type: doc.document_type,
               filename: doc.filename,
               download_url: doc.download_url,
+              file_type: isHtml ? 'html' : 'pdf',
               generated_at: new Date().toISOString()
             });
           });
@@ -3510,13 +3513,112 @@ const LogisticsAutomation: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.map((doc, index) => (
+              {documents.map((doc, index) => {
+                const isHtmlOnly = doc.file_type === 'html' || (doc.filename || '').toLowerCase().endsWith('.html');
+                const htmlPath = doc.download_url?.replace(/^\/download\/logistics\//, '') || '';
+                return (
                 <div key={index} className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all">
                       <div className="flex items-center justify-between">
                           <div className="flex-1">
                       <h3 className="font-bold text-slate-900 capitalize text-sm mb-1">{(doc.type || 'Document').replace('_', ' ')}</h3>
                       <p className="text-xs text-slate-600 font-mono bg-white px-2 py-1 rounded inline-block border border-slate-200">{doc.filename || 'Unknown'}</p>
+                      {isHtmlOnly && (
+                        <p className="text-xs text-amber-600 mt-1 font-medium">PDF conversion failed — use Convert below</p>
+                      )}
                     </div>
+                    <div className="flex items-center gap-2 ml-3">
+                    {isHtmlOnly && (
+                      <>
+                      {htmlPath && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            setLoading(true);
+                            setError('');
+                            const res = await fetch(getApiUrl('/api/logistics/convert-html-to-pdf'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ html_path: htmlPath })
+                            });
+                            const data = await res.json();
+                            if (data.success && data.download_url) {
+                              const fileResponse = await fetch(getApiUrl(data.download_url));
+                              const blob = await fileResponse.blob();
+                              const blobUrl = window.URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = data.filename;
+                              link.style.display = 'none';
+                              document.body.appendChild(link);
+                              link.click();
+                              setTimeout(() => {
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                              }, 100);
+                              setDocuments(prev => prev.map((d, i) => i === index ? { ...d, filename: data.filename, download_url: data.download_url, file_type: 'pdf' as const } : d));
+                            } else {
+                              setError(data.error || 'PDF conversion failed');
+                            }
+                          } catch (err) {
+                            setError(`Convert failed: ${(err as Error).message}`);
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg text-sm font-medium"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Convert to PDF
+                      </button>
+                      )}
+                      <label className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg text-sm font-medium cursor-pointer">
+                        <FileText className="w-4 h-4" />
+                        Upload edited HTML → PDF
+                        <input
+                          type="file"
+                          accept=".html,.htm"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            e.target.value = '';
+                            try {
+                              setLoading(true);
+                              setError('');
+                              const form = new FormData();
+                              form.append('html_file', file);
+                              const res = await fetch(getApiUrl('/api/logistics/convert-html-to-pdf'), {
+                                method: 'POST',
+                                body: form
+                              });
+                              const ct = res.headers.get('content-type') || '';
+                              if (ct.includes('application/json')) {
+                                const data = await res.json();
+                                if (!data.success) setError(data.error || 'Conversion failed');
+                                return;
+                              }
+                              const blob = await res.blob();
+                              const blobUrl = window.URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = file.name.replace(/\.(html?|htm)$/i, '.pdf');
+                              link.style.display = 'none';
+                              document.body.appendChild(link);
+                              link.click();
+                              setTimeout(() => {
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                              }, 100);
+                            } catch (err) {
+                              setError(`Upload/convert failed: ${(err as Error).message}`);
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      </>
+                    )}
                     <button
                       onClick={async () => {
                         try {
@@ -3564,14 +3666,15 @@ const LogisticsAutomation: React.FC = () => {
                           alert(`Download failed for ${doc.filename}:\n${(error as Error).message}`);
                         }
                       }}
-                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg ml-3"
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-md hover:shadow-lg"
                     >
                       <Download className="w-4 h-4" />
                       <span className="font-medium text-sm">Download</span>
                     </button>
+                    </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           </div>
         )}

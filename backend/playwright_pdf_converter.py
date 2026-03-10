@@ -37,34 +37,30 @@ def _wkhtmltopdf_available():
 
 def html_to_pdf_sync(html_content, output_pdf_path):
     """
-    Convert HTML to PDF using Playwright, wkhtmltopdf, WeasyPrint, or PDFShift.
-    Playwright uses Chromium's native print - best fidelity. wkhtmltopdf is pre-installed in Docker.
+    Convert HTML to PDF - NO API KEY. Order: WeasyPrint (no browser) -> wkhtmltopdf -> Playwright.
+    On Render: WeasyPrint/wkhtmltopdf first to avoid Chromium segfaults.
     """
     output_pdf_path = os.path.abspath(output_pdf_path)
     os.makedirs(os.path.dirname(output_pdf_path) or '.', exist_ok=True)
 
-    # Try Playwright first (true print-to-PDF)
-    if PLAYWRIGHT_AVAILABLE:
+    # 1. WeasyPrint FIRST - no browser, no segfault risk, no API key
+    if WEASYPRINT_AVAILABLE:
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-                page.emulate_media(media='print')
-                page.set_content(html_content, wait_until='networkidle')
-                page.pdf(
-                    path=output_pdf_path,
-                    format='Letter',
-                    margin={'top': '0.5in', 'right': '0.5in', 'bottom': '0.5in', 'left': '0.5in'},
-                    print_background=True
-                )
-                browser.close()
-            if os.path.exists(output_pdf_path):
-                print(f"[OK] PDF generated (Playwright): {os.path.basename(output_pdf_path)}")
-                return True
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                f.write(html_content)
+                tmp_html = f.name
+            try:
+                HTML(filename=tmp_html).write_pdf(output_pdf_path)
+                if os.path.exists(output_pdf_path):
+                    print(f"[OK] PDF generated (WeasyPrint): {os.path.basename(output_pdf_path)}")
+                    return True
+            finally:
+                if os.path.exists(tmp_html):
+                    os.unlink(tmp_html)
         except Exception as e:
-            print(f"[WARN] Playwright PDF failed: {e} - trying wkhtmltopdf")
+            print(f"[WARN] WeasyPrint failed: {e} - trying wkhtmltopdf")
 
-    # Fallback: wkhtmltopdf (pre-installed in Docker, no API key needed)
+    # 2. wkhtmltopdf (pre-installed in Docker, no API key)
     if _wkhtmltopdf_available():
         try:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
@@ -94,26 +90,30 @@ def html_to_pdf_sync(html_content, output_pdf_path):
                 if os.path.exists(tmp_html):
                     os.unlink(tmp_html)
         except Exception as e:
-            print(f"[WARN] wkhtmltopdf failed: {e} - trying WeasyPrint")
+            print(f"[WARN] wkhtmltopdf failed: {e} - trying Playwright")
 
-    # Fallback: WeasyPrint (no browser)
-    if WEASYPRINT_AVAILABLE:
+    # 3. Playwright LAST - SKIP on Render (Chromium causes segfault status 139)
+    if PLAYWRIGHT_AVAILABLE and not os.environ.get('RENDER'):
         try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
-                f.write(html_content)
-                tmp_html = f.name
-            try:
-                HTML(filename=tmp_html).write_pdf(output_pdf_path)
-                if os.path.exists(output_pdf_path):
-                    print(f"[OK] PDF generated (WeasyPrint): {os.path.basename(output_pdf_path)}")
-                    return True
-            finally:
-                if os.path.exists(tmp_html):
-                    os.unlink(tmp_html)
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.emulate_media(media='print')
+                page.set_content(html_content, wait_until='networkidle')
+                page.pdf(
+                    path=output_pdf_path,
+                    format='Letter',
+                    margin={'top': '0.5in', 'right': '0.5in', 'bottom': '0.5in', 'left': '0.5in'},
+                    print_background=True
+                )
+                browser.close()
+            if os.path.exists(output_pdf_path):
+                print(f"[OK] PDF generated (Playwright): {os.path.basename(output_pdf_path)}")
+                return True
         except Exception as e:
-            print(f"[ERROR] WeasyPrint PDF failed: {e}")
+            print(f"[WARN] Playwright failed: {e}")
 
-    # Fallback: PDFShift API (optional - only if key set)
+    # 4. PDFShift (only if key set - user said no key)
     api_key = os.environ.get('PDFSHIFT_API_KEY', '').strip()
     if api_key:
         try:

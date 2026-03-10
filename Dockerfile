@@ -1,7 +1,7 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies including wkhtmltopdf dependencies
+# Install system deps: WeasyPrint (no browser), wkhtmltopdf, Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -18,6 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     xfonts-75dpi \
     xfonts-base \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install wkhtmltopdf binary (Debian Bookworm compatible)
@@ -36,8 +42,8 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 # Install Python dependencies
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# Install Playwright Chromium for HTML-to-PDF (logistics BOL, packing slip, etc.)
-RUN python -m playwright install --with-deps chromium
+# WeasyPrint + wkhtmltopdf for PDF (no Chromium - avoids segfault status 139 on Render)
+# Playwright/Chromium removed - was causing crashes under memory pressure
 
 # Copy the entire backend directory
 COPY backend /app/backend

@@ -5316,6 +5316,95 @@ def generate_bol():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@logistics_bp.route('/api/logistics/convert-html-to-pdf', methods=['POST', 'OPTIONS'])
+def convert_html_to_pdf():
+    """
+    Convert HTML to PDF. Two modes:
+    1) Server file: JSON { "html_path": "CompanyName/.../HTML Format/BOL.html" }
+    2) Upload edited HTML: Form-data "html_file" - use when you edited HTML locally
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        html_content = None
+        pdf_filename = None
+        save_to_folder = None
+        
+        # Mode 2: Uploaded file (edited HTML from user's computer)
+        if request.files and 'html_file' in request.files:
+            f = request.files['html_file']
+            if f and f.filename and (f.filename.lower().endswith('.html') or f.filename.lower().endswith('.htm')):
+                html_content = f.read().decode('utf-8', errors='replace')
+                pdf_filename = os.path.basename(f.filename).replace('.html', '').replace('.htm', '') + '.pdf'
+                save_to_folder = (request.form.get('save_path') or '').strip().replace('\\', '/')
+            else:
+                return jsonify({'success': False, 'error': 'Upload a valid .html file'}), 400
+        
+        # Mode 1: Server file path
+        if html_content is None:
+            data = request.get_json() or {}
+            html_path = data.get('html_path', '').strip()
+            if not html_path:
+                return jsonify({'success': False, 'error': 'Provide html_path (JSON) or html_file (form upload)'}), 400
+        
+            html_path = html_path.replace('\\', '/').lstrip('/')
+            if '..' in html_path or html_path.startswith('/'):
+                return jsonify({'success': False, 'error': 'Invalid path'}), 400
+            
+            uploads_dir = get_uploads_dir()
+            full_html_path = os.path.normpath(os.path.join(uploads_dir, html_path))
+            if not full_html_path.startswith(os.path.normpath(uploads_dir)):
+                return jsonify({'success': False, 'error': 'Invalid path'}), 400
+            
+            if not os.path.exists(full_html_path) or not full_html_path.lower().endswith('.html'):
+                return jsonify({'success': False, 'error': 'HTML file not found'}), 404
+            
+            with open(full_html_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            
+            pdf_filename = os.path.basename(full_html_path).replace('.html', '.pdf')
+            if 'HTML Format' in full_html_path:
+                save_to_folder = os.path.dirname(full_html_path.replace('HTML Format', 'PDF Format'))
+                save_to_folder = os.path.relpath(save_to_folder, get_uploads_dir()).replace('\\', '/')
+            else:
+                save_to_folder = os.path.relpath(os.path.dirname(full_html_path), get_uploads_dir()).replace('\\', '/')
+        
+        if not html_content:
+            return jsonify({'success': False, 'error': 'No HTML content'}), 400
+        
+        from playwright_pdf_converter import html_to_pdf_sync
+        from flask import send_file
+        import tempfile
+        uploads_dir = get_uploads_dir()
+        
+        if save_to_folder:
+            pdf_folder = os.path.join(uploads_dir, save_to_folder)
+            os.makedirs(pdf_folder, exist_ok=True)
+            pdf_path = os.path.join(pdf_folder, pdf_filename)
+        else:
+            pdf_folder = tempfile.mkdtemp()
+            pdf_path = os.path.join(pdf_folder, pdf_filename)
+        
+        if html_to_pdf_sync(html_content, pdf_path):
+            if save_to_folder:
+                rel_pdf = os.path.relpath(pdf_path, uploads_dir).replace('\\', '/')
+                return jsonify({
+                    'success': True,
+                    'filename': pdf_filename,
+                    'download_url': f'/download/logistics/{rel_pdf}',
+                    'message': 'PDF generated from HTML'
+                })
+            else:
+                return send_file(pdf_path, as_attachment=True, download_name=pdf_filename, mimetype='application/pdf')
+        
+        return jsonify({'success': False, 'error': 'PDF conversion failed (WeasyPrint, wkhtmltopdf, and Playwright all failed)'}), 500
+    except Exception as e:
+        print(f"ERROR: convert-html-to-pdf: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # Routes are already defined above, removing duplicates
 
 @logistics_bp.route('/download/logistics/<path:filepath>', methods=['GET', 'OPTIONS'])
@@ -7693,13 +7782,15 @@ def generate_all_documents():
                     documents.append({
                         'document_type': f"Bill of Lading (BOL) - SO{bol.get('so_number', '')}",
                         'filename': bol['filename'],
-                        'download_url': bol['download_url']
+                        'download_url': bol['download_url'],
+                        'file_type': bol.get('file_type', 'pdf')
                     })
         elif results.get('bol', {}).get('success'):
             documents.append({
                 'document_type': 'Bill of Lading (BOL)',
                 'filename': results['bol']['filename'],
-                'download_url': results['bol']['download_url']
+                'download_url': results['bol']['download_url'],
+                'file_type': results['bol'].get('file_type', 'pdf')
             })
         
         # Add Packing Slip(s) - Big Red multi-SO has multiple (one per SO/PO)
@@ -7709,13 +7800,15 @@ def generate_all_documents():
                     documents.append({
                         'document_type': f"Packing Slip - SO{ps.get('so_number', '')}",
                         'filename': ps['filename'],
-                        'download_url': ps['download_url']
+                        'download_url': ps['download_url'],
+                        'file_type': ps.get('file_type', 'pdf')
                     })
         elif results.get('packing_slip', {}).get('success'):
             documents.append({
                 'document_type': 'Packing Slip',
                 'filename': results['packing_slip']['filename'],
-                'download_url': results['packing_slip']['download_url']
+                'download_url': results['packing_slip']['download_url'],
+                'file_type': results['packing_slip'].get('file_type', 'pdf')
             })
         
         # Add Commercial Invoice
@@ -7723,7 +7816,8 @@ def generate_all_documents():
             documents.append({
                 'document_type': 'Commercial Invoice',
                 'filename': results['commercial_invoice']['filename'],
-                'download_url': results['commercial_invoice']['download_url']
+                'download_url': results['commercial_invoice']['download_url'],
+                'file_type': results['commercial_invoice'].get('file_type', 'pdf')
             })
             print(f"✅ Added Commercial Invoice to documents array: {results['commercial_invoice']['filename']}")
         else:
