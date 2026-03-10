@@ -538,10 +538,10 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
             "total_pallet_count": 6
         }},
         "totes_info": "Combined totes information if mentioned",
-        "totes_return": {{
-            "empty_count": 0,
-            "partial_count": 0,
-            "partial_by_product": [{{"product": "5W-30", "batch": "N60047", "kg": 505}}, {{"product": "5W-20", "batch": "N55099", "kg": 529}}]
+        "totes_return": {{ "empty_count": 4, "partial_count": 2, "partial_by_product": [...] }},
+        "totes_by_so": {{
+            "3097": {{ "empty_count": 2, "partial_count": 1, "partial_by_product": [{{"product": "5W-30", "batch": "N60047", "kg": 505}}] }},
+            "3099": {{ "empty_count": 2, "partial_count": 1, "partial_by_product": [{{"product": "5W-20", "batch": "N55099", "kg": 529}}] }}
         }},
         "new_total_gross_weight": ""
     }}
@@ -570,11 +570,10 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
     6. The SO number in items_by_so keys MUST match exactly the SO numbers in so_numbers array (as strings: "3024", "3064")
     7. MANDATORY: If you find 2 SOs, you MUST create items_by_so entries for BOTH. Do NOT skip any SO.
     8. TOTE RETURNS (any format): If the email mentions totes to return - empty and/or partial - extract them.
-       - empty_count: total empty totes (sum across all SOs)
-       - partial_count: total partial totes
-       - partial_by_product: for EACH partial tote, associate it with its product and batch from the SAME SO/section. Extract product shorthand (5W-30, 5W-20, etc.) and batch (N60047, etc.) from context. If a partial has "approx X kg" or similar, use that kg value.
-       - Match partial totes to their SO's product/batch by section proximity - whatever product and batch are in the same SO block as the partial tote.
-       - new_total_gross_weight: Put the ACTUAL weight value (e.g. "4626 kg", "4,441.85 kg") when email says "Total Gross Weight", "NEW TOTAL GROSS WEIGHT", or "Combined Shipment Totals" with a weight. NEVER put instruction text here - only the numeric value with unit.
+       - totes_by_so: BIG RED FORMAT ONLY - when each SO has its own "Totes for Return" (e.g. "Sales Order 3097: ... Totes for Return: 3 Totes (2 empty + 1 with approx. 505 kg)"), create totes_by_so with key = SO number. Each SO gets its own empty_count, partial_count, partial_by_product from that SO's section. Used only for Big Red.
+       - totes_return: Keep for backward compatibility - empty_count/partial_count = sum across all SOs, partial_by_product = all partials combined.
+       - partial_by_product: for EACH partial tote, associate it with its product and batch from the SAME SO/section. Extract product shorthand (5W-30, 5W-20) and batch (N60047) from context. "approx X kg" or "X kg / Y L" -> use kg value.
+       - new_total_gross_weight: Put the ACTUAL weight value (e.g. "4626 kg") when email says "Total Gross Weight" or "Combined Shipment Totals". NEVER put instruction text here.
     
     SPECIAL INSTRUCTIONS (CRITICAL):
     Look for instructions at the end of the email like:
@@ -644,11 +643,29 @@ def parse_multi_so_fallback(email_text: str) -> dict:
         'combined_totals': {}
     }
     
-    # Extract PO numbers
-    po_pattern = r'(?:purchase\s*orders?\s*(?:numbers?)?|POs?)\s*[#:]?\s*(\d+)\s*(?:&|,|and)\s*(\d+)'
-    po_match = re.search(po_pattern, email_text, re.IGNORECASE)
-    if po_match:
-        data['po_numbers'] = list(po_match.groups())
+    # Extract PO numbers - try per-SO first: "Sales Order 3097 (PO C121125-2)"
+    po_numbers = []
+    for so_num in so_numbers:
+        so_str = str(so_num).strip()
+        section_patterns = [
+            rf'Sales\s*Order\s*{re.escape(so_str)}\s*\(\s*PO\s+([A-Z0-9\-]+)\s*\)',
+            rf'(?:SO|Order)\s*{re.escape(so_str)}\s*\(\s*PO\s+([A-Z0-9\-]+)\s*\)',
+            rf'{re.escape(so_str)}\s*[:\s(].*?PO\s+([A-Z0-9\-]+)',
+        ]
+        for sp in section_patterns:
+            m = re.search(sp, email_text, re.IGNORECASE)
+            if m:
+                po_numbers.append(m.group(1))
+                break
+        else:
+            po_numbers.append('')
+    if po_numbers and any(po_numbers):
+        data['po_numbers'] = po_numbers
+    else:
+        po_pattern = r'(?:purchase\s*orders?\s*(?:numbers?)?|POs?)\s*[#:]?\s*(\d+)\s*(?:&|,|and)\s*(\d+)'
+        po_match = re.search(po_pattern, email_text, re.IGNORECASE)
+        if po_match:
+            data['po_numbers'] = list(po_match.groups())
     
     # Try to extract items per SO from structured format
     # Handle both "Sales Order 3004:" format AND numbered format "2) PO C092525-2 / SO 3024"
@@ -769,50 +786,32 @@ def parse_multi_so_fallback(email_text: str) -> dict:
         else:
             print(f"   ⚠️ Fallback: No items extracted for SO {so_num}")
     
-    # Big Red tote returns: Parse TOTES from "TOTES:" section OR from "Totes for Return"/"with approx. X kg" format
+    # Big Red tote returns ONLY: Parse TOTES per SO - "Totes for Return: 3 Totes (2 empty + 1 with approx. 505 kg)" per section
     totes_return = None
-    totes_section = re.search(r'TOTES:\s*(.+?)(?=NEW TOTAL|$)', email_text, re.IGNORECASE | re.DOTALL)
-    if totes_section:
-        totes_text = totes_section.group(1).strip()
-        empty_m = re.search(r'(\d+)\s*EMPTY', totes_text, re.IGNORECASE)
-        partial_m = re.search(r'(\d+)\s*PARTIAL', totes_text, re.IGNORECASE)
-        partial_by_product = []
-        for m in re.finditer(r'([A-Za-z0-9\s\-\.]+)\s*-\s*([\d,]+(?:\.\d+)?)\s*KG', totes_text):
-            partial_by_product.append({'product': m.group(1).strip(), 'kg': float(m.group(2).replace(',', ''))})
-        totes_return = {
-            'empty_count': int(empty_m.group(1)) if empty_m else 0,
-            'partial_count': int(partial_m.group(1)) if partial_m else 0,
-            'partial_by_product': partial_by_product
-        }
-    # Also search per-SO for totes / partial with kg - associate each partial with that SO's product + batch
-    # Flexible: "Sales Order 3097", "SO 3097", "Order 3097" - and "approx 505 kg", "~505 kg", "505 kg", "with 505 kg"
-    if not totes_return or not totes_return.get('partial_by_product'):
-        partial_by_product = []
-        for so_num in so_numbers:
-            # Multiple section patterns - format-agnostic
-            section_patterns = [
-                rf'Sales\s*Order\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
-                rf'(?:SO|Order)\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
-                rf'{so_num}\s*[:\s(].*?\)\s*:\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
-            ]
-            section_match = None
-            for sp in section_patterns:
-                section_match = re.search(sp, email_text, re.IGNORECASE | re.DOTALL)
-                if section_match:
-                    break
-            if not section_match:
-                continue
-            section_text = section_match.group(1)
-            # Flexible kg extraction: "approx 505 kg", "~505 kg", "with 505 kg", "505 kg", "about 505 kg"
-            approx_m = re.search(
-                r'(?:with\s+)?(?:approx\.?|~|about)\s*([\d,]+(?:\.\d+)?)\s*kg|'
-                r'(\d+(?:\.\d+)?)\s*kg\s*(?:/|and)\s*\d+\s*L|'
-                r'(?:partial|with)\s+([\d,]+(?:\.\d+)?)\s*kg',
-                section_text, re.IGNORECASE
-            )
-            if not approx_m:
-                continue
-            kg_val = float((approx_m.group(1) or approx_m.group(2) or approx_m.group(3) or '').replace(',', ''))
+    totes_by_so = {}
+    for so_num in so_numbers:
+        so_str = str(so_num).strip()
+        section_patterns = [
+            rf'Sales\s*Order\s*{re.escape(so_str)}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+            rf'(?:SO|Order)\s*{re.escape(so_str)}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+        ]
+        section_match = None
+        for sp in section_patterns:
+            section_match = re.search(sp, email_text, re.IGNORECASE | re.DOTALL)
+            if section_match:
+                break
+        if not section_match:
+            continue
+        section_text = section_match.group(1)
+        # "Totes for Return: 3 Totes (2 empty + 1 with approx. 505 kg / 591 L)"
+        totes_match = re.search(
+            r'Totes\s+for\s+Return\s*:\s*\d+\s+Totes?\s*\(\s*(\d+)\s+empty\s*\+\s*(\d+)\s+with\s+approx\.?\s*([\d,]+(?:\.\d+)?)\s*kg',
+            section_text, re.IGNORECASE
+        )
+        if totes_match:
+            empty_c = int(totes_match.group(1))
+            partial_c = int(totes_match.group(2))
+            kg_val = float(totes_match.group(3).replace(',', ''))
             product_short = ''
             product_match = re.search(
                 r'BRO\s+SAE\s+([\dW\-]+)|SAE\s+([\dW\-]+)|(?:Synthetic\s+Blend\s+)?([\d]W[\-\d]+)',
@@ -822,24 +821,22 @@ def parse_multi_so_fallback(email_text: str) -> dict:
                 product_short = (product_match.group(1) or product_match.group(2) or product_match.group(3) or '').strip()
             batch_match = re.search(r'[Bb]atch\s*(?:[Nn]umber)?\s*[#:]?\s*([A-Z0-9\-]+)', section_text)
             batch = batch_match.group(1) if batch_match else ''
-            partial_by_product.append({
-                'product': product_short or 'Partial',
-                'batch': batch,
-                'kg': kg_val
-            })
-        if partial_by_product:
-            empty_total = sum(int(m.group(1)) for m in re.finditer(r'(\d+)\s+empty', email_text, re.IGNORECASE))
-            partial_from_text = sum(int(m.group(1)) for m in re.finditer(r'(\d+)\s+partial', email_text, re.IGNORECASE))
-            partial_with_approx = sum(int(m.group(1)) for m in re.finditer(r'(\d+)\s+with\s+approx', email_text, re.IGNORECASE))
-            partial_total = partial_from_text or partial_with_approx or len(partial_by_product)
-            if not totes_return:
-                totes_return = {'empty_count': 0, 'partial_count': 0, 'partial_by_product': []}
-            totes_return['partial_by_product'] = partial_by_product
-            totes_return['partial_count'] = max(totes_return.get('partial_count', 0), partial_total)
-            totes_return['empty_count'] = max(totes_return.get('empty_count', 0), empty_total)
-    if totes_return:
+            totes_by_so[so_str] = {
+                'empty_count': empty_c,
+                'partial_count': partial_c,
+                'partial_by_product': [{'product': product_short or 'Partial', 'batch': batch, 'kg': kg_val}]
+            }
+            print(f"   📦 Fallback: SO {so_str} totes: {empty_c} empty, {partial_c} partial ({kg_val} kg)")
+    if totes_by_so:
+        data['totes_by_so'] = totes_by_so
+        empty_total = sum(t.get('empty_count', 0) for t in totes_by_so.values())
+        partial_total = sum(t.get('partial_count', 0) for t in totes_by_so.values())
+        partial_all = []
+        for t in totes_by_so.values():
+            partial_all.extend(t.get('partial_by_product', []))
+        totes_return = {'empty_count': empty_total, 'partial_count': partial_total, 'partial_by_product': partial_all}
         data['totes_return'] = totes_return
-        print(f"   📦 Fallback: Parsed totes: {data['totes_return']}")
+        print(f"   📦 Fallback: totes_by_so for {list(totes_by_so.keys())}")
     
     new_weight_m = re.search(r'NEW\s+TOTAL\s+GROSS\s+WEIGHT\s*[:\s]*([\d,\s]+(?:\.\d+)?)\s*KG', email_text, re.IGNORECASE)
     if new_weight_m:
@@ -3404,7 +3401,8 @@ def process_multi_so_email(email_content: str, so_numbers: list):
         'pallet_count': total_pallets,
         'items_by_so': items_by_so,
         'totes_info': multi_so_email_data.get('totes_info', ''),
-        'totes_return': multi_so_email_data.get('totes_return', {}),  # Big Red: empty/partial totes
+        'totes_return': multi_so_email_data.get('totes_return', {}),
+        'totes_by_so': multi_so_email_data.get('totes_by_so', {}),  # Per-SO totes (SO 3097: 2 empty + 1 partial, etc.)
         'new_total_gross_weight': multi_so_email_data.get('new_total_gross_weight', ''),
         # Preserve original email text so downstream generators (BOL/CI)
         # can run broker/exporter detection exactly like single-SO flow.
@@ -6828,9 +6826,10 @@ def generate_all_documents():
                                so_data.get('is_multi_so') and 
                                len(so_data_list) >= 2)
         totes_return = email_analysis.get('totes_return', {}) or {}
+        totes_by_so = email_analysis.get('totes_by_so', {}) or {}
         has_totes = bool(totes_return and (totes_return.get('empty_count', 0) or totes_return.get('partial_count', 0)))
-        # Big Red only: create separate totes paperwork when totes are involved
-        has_totes_separate = has_totes and 'BIG RED' in customer_name_upper
+        # Big Red: each SO's totes go on THAT SO's BOL/PS (totes_by_so) or fallback: all on first (totes_return)
+        has_totes_separate = False
         
         # Generate BOL (NEW professional format) - only if requested
         # Big Red multi-SO: Customer requires SEPARATE BOL per SO/PO (one per order)
@@ -6898,8 +6897,30 @@ def generate_all_documents():
                                 per_so_email['new_total_gross_weight'] = total_weight_str
                         else:
                             per_so_email['new_total_gross_weight'] = total_weight_str
-                        # Only add totes to case BOLs when NOT creating separate totes paperwork
-                        per_so_email['totes_return'] = {} if has_totes_separate else email_analysis.get('totes_return', {})
+                        # Add totes: Big Red only - use totes_by_so[so_num] when per-SO totes, else first BOL gets totes_return
+                        so_totes = (totes_by_so.get(so_num) or totes_by_so.get(str(so_num))) if 'BIG RED' in customer_name_upper else None
+                        if so_totes:
+                            per_so_email['totes_return'] = so_totes
+                        elif idx == 0 and has_totes:
+                            per_so_email['totes_return'] = totes_return
+                        else:
+                            per_so_email['totes_return'] = {}
+                        # BOL with totes: add tote weight to total
+                        tr_for_weight = so_totes or (totes_return if idx == 0 else None)
+                        if tr_for_weight:
+                            empty_c = int(tr_for_weight.get('empty_count', 0) or 0)
+                            partial_list = tr_for_weight.get('partial_by_product', [])
+                            partial_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
+                            EMPTY_TOTE_TARE_KG = 55.5
+                            tote_weight_kg = (empty_c * EMPTY_TOTE_TARE_KG) + partial_weight_kg
+                            curr = per_so_email.get('new_total_gross_weight', '')
+                            m = re.search(r'([\d,\s]+(?:\.\d+)?)', str(curr)) if curr else None
+                            if m:
+                                try:
+                                    so_kg = float(m.group(1).replace(',', '').replace(' ', ''))
+                                    per_so_email['new_total_gross_weight'] = f"{so_kg + tote_weight_kg:.2f} kg"
+                                except Exception:
+                                    pass
                         
                         bol_html = populate_new_bol_html(per_so_data, per_so_email)
                         bol_filename = generate_document_filename("BOL", per_so_data, '.html')
@@ -6917,57 +6938,13 @@ def generate_all_documents():
                             'po_number': po_num
                         })
                         print(f"   ✅ BOL {idx+1}/{len(so_data_list)}: {bol_filename} (SO {so_num}, PO {po_num})")
-                    # Totes: separate BOL when Big Red + totes
-                    if has_totes_separate:
-                        empty_c = int(totes_return.get('empty_count', 0) or 0)
-                        partial_c = int(totes_return.get('partial_count', 0) or 0)
-                        partial_list = totes_return.get('partial_by_product', [])
-                        partial_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
-                        EMPTY_TOTE_TARE_KG = 55.5  # Each empty tote (container) weighs 55.5 kg
-                        tote_weight_kg = (empty_c * EMPTY_TOTE_TARE_KG) + partial_weight_kg
-                        # BOL format: X empty totes, then 1st partial tote, 2nd partial tote, etc. (no redundant "2 Partial Totes" row)
-                        tote_bol_items = []
-                        if empty_c:
-                            tote_bol_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA', 'gross_weight': f"{empty_c * EMPTY_TOTE_TARE_KG:.1f} kg"})
-                        for idx, p in enumerate(partial_list):
-                            kg_val = float(p.get('kg', 0))
-                            if kg_val > 0:
-                                ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][idx] if idx < 10 else f"{idx+1}th"
-                                tote_bol_items.append({'description': f"{ord_str} partial tote", 'quantity': 1, 'unit': 'EA', 'gross_weight': f"{kg_val:.2f} kg"})
-                        tote_so_data = copy.deepcopy(so_data_list[0])
-                        tote_so_data['so_number'] = 'TOTES-RETURN'
-                        tote_so_data['po_number'] = 'TOTES-RETURN'
-                        tote_so_data['is_multi_so'] = False
-                        tote_so_data['items'] = tote_bol_items
-                        tote_email = copy.deepcopy(email_analysis)
-                        tote_email['totes_return'] = {}  # Don't add duplicate row - we have it in the item
-                        tote_email['new_total_gross_weight'] = f"{tote_weight_kg:.2f} kg"
-                        tote_email['skid_info'] = ''
-                        tote_email['po_number'] = 'TOTES-RETURN'
-                        tote_email['so_number'] = 'TOTES-RETURN'
-                        bol_html = populate_new_bol_html(tote_so_data, tote_email)
-                        bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
-                        tote_html_path = os.path.join(folder_structure['html_folder'], bol_filename)
-                        with open(tote_html_path, 'w', encoding='utf-8') as f:
-                            f.write(bol_html)
-                        pdf_fn, _ = _convert_html_to_pdf(tote_html_path, folder_structure['pdf_folder'])
-                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
-                        results['bols'].append({
-                            'success': True,
-                            'filename': dl_fn,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
-                            'file_type': 'pdf' if pdf_fn else 'html',
-                            'so_number': 'TOTES-RETURN',
-                            'po_number': 'TOTES-RETURN'
-                        })
-                        print(f"   [OK] BOL Totes: {dl_fn}")
+                    # No separate totes BOL - totes are on first BOL above
                     results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}  # First for backward compat
                 else:
-                    # Standard: one combined BOL (or one BOL + separate totes BOL when has_totes)
+                    # Standard: one BOL with items + totes together (no separate totes BOL)
                     print(f"DEBUG: Generating BOL for SO {so_data.get('so_number', 'Unknown')}")
                     bol_email_data = copy.deepcopy(email_analysis or email_shipping)
-                    if has_totes_separate:
-                        bol_email_data['totes_return'] = {}  # Separate totes BOL will be created
+                    # totes_return stays - totes go on main BOL
                     bol_html = populate_new_bol_html(so_data, bol_email_data)
                     bol_filename = generate_document_filename("BOL", so_data, '.html')
                     bol_html_filepath = os.path.join(folder_structure['html_folder'], bol_filename)
@@ -6983,48 +6960,7 @@ def generate_all_documents():
                         'so_number': so_data.get('so_number', ''),
                         'po_number': so_data.get('po_number', '')
                     }]
-                    if has_totes_separate:
-                        empty_c = int(totes_return.get('empty_count', 0) or 0)
-                        partial_c = int(totes_return.get('partial_count', 0) or 0)
-                        partial_list = totes_return.get('partial_by_product', [])
-                        partial_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
-                        EMPTY_TOTE_TARE_KG = 55.5  # Each empty tote (container) weighs 55.5 kg
-                        tote_weight_kg = (empty_c * EMPTY_TOTE_TARE_KG) + partial_weight_kg
-                        # BOL format: X empty totes, then 1st partial tote, 2nd partial tote, etc. (no redundant "2 Partial Totes" row)
-                        tote_bol_items = []
-                        if empty_c:
-                            tote_bol_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA', 'gross_weight': f"{empty_c * EMPTY_TOTE_TARE_KG:.1f} kg"})
-                        for idx, p in enumerate(partial_list):
-                            kg_val = float(p.get('kg', 0))
-                            if kg_val > 0:
-                                ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][idx] if idx < 10 else f"{idx+1}th"
-                                tote_bol_items.append({'description': f"{ord_str} partial tote", 'quantity': 1, 'unit': 'EA', 'gross_weight': f"{kg_val:.2f} kg"})
-                        tote_so_data = copy.deepcopy(so_data)
-                        tote_so_data['so_number'] = 'TOTES-RETURN'
-                        tote_so_data['po_number'] = 'TOTES-RETURN'
-                        tote_so_data['items'] = tote_bol_items
-                        tote_email = copy.deepcopy(email_analysis or email_shipping)
-                        tote_email['totes_return'] = {}
-                        tote_email['new_total_gross_weight'] = f"{tote_weight_kg:.2f} kg"
-                        tote_email['skid_info'] = ''
-                        tote_email['po_number'] = 'TOTES-RETURN'
-                        tote_email['so_number'] = 'TOTES-RETURN'
-                        bol_html = populate_new_bol_html(tote_so_data, tote_email)
-                        bol_filename = generate_document_filename("BOL", tote_so_data, '.html')
-                        tote_html_path = os.path.join(folder_structure['html_folder'], bol_filename)
-                        with open(tote_html_path, 'w', encoding='utf-8') as f:
-                            f.write(bol_html)
-                        pdf_fn, _ = _convert_html_to_pdf(tote_html_path, folder_structure['pdf_folder'])
-                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (bol_filename, folder_structure['html_folder_name'])
-                        results['bols'].append({
-                            'success': True,
-                            'filename': dl_fn,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
-                            'file_type': 'pdf' if pdf_fn else 'html',
-                            'so_number': 'TOTES-RETURN',
-                            'po_number': 'TOTES-RETURN'
-                        })
-                        print(f"   [OK] BOL Totes: {dl_fn}")
+                    # No separate totes BOL - totes are on main BOL above
                     results['bol'] = {'success': True, 'filename': results['bols'][0]['filename'], 'download_url': results['bols'][0]['download_url']}
                     print(f"[OK] BOL generated: {results['bols'][0]['filename']}")
                 
@@ -7066,11 +7002,34 @@ def generate_all_documents():
                                                        for skip in ['FREIGHT', 'CHARGE', 'PALLET CHARGE', 'BROKERAGE'])]
                         per_so_data['items'] = per_so_items
                         
-                        # Don't add totes to case packing slips when we have separate totes paperwork
+                        # Add totes: Big Red only - use totes_by_so[so_num] when per-SO, else first PS gets totes_return
                         per_so_email_ps = copy.deepcopy(email_analysis)
-                        if has_totes_separate:
+                        ps_items = list(per_so_items)
+                        ps_totes = (totes_by_so.get(so_num) or totes_by_so.get(str(so_num))) if 'BIG RED' in customer_name_upper else None
+                        if not ps_totes and idx == 0 and has_totes:
+                            ps_totes = totes_return
+                        if ps_totes:
+                            empty_c = int(ps_totes.get('empty_count', 0) or 0)
+                            partial_list = ps_totes.get('partial_by_product', [])
+                            if empty_c:
+                                ps_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA'})
+                            for pidx, p in enumerate(partial_list):
+                                kg_val = float(p.get('kg', 0))
+                                if kg_val > 0:
+                                    ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][pidx] if pidx < 10 else f"{pidx+1}th"
+                                    product_short = p.get('product', '') or ''
+                                    batch = p.get('batch', '') or ''
+                                    desc = f"{ord_str} partial tote"
+                                    if product_short and product_short != 'Partial':
+                                        desc = f"{ord_str} partial tote ({product_short})"
+                                    item = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': so_num, 'net_weight': f"{kg_val:.2f} kg"}
+                                    if batch:
+                                        item['batch_number'] = batch
+                                    ps_items.append(item)
+                            per_so_email_ps['totes_return'] = {}  # Line items have totes, no duplicate in comments
+                        else:
                             per_so_email_ps['totes_return'] = {}
-                        ps_html = generate_packing_slip_html(per_so_data, per_so_email_ps, per_so_items)
+                        ps_html = generate_packing_slip_html(per_so_data, per_so_email_ps, ps_items)
                         ps_filename = generate_document_filename("PackingSlip", per_so_data, '.html')
                         ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
                         with open(ps_html_filepath, 'w', encoding='utf-8') as f:
@@ -7086,60 +7045,33 @@ def generate_all_documents():
                             'po_number': po_num
                         })
                         print(f"   [OK] Packing Slip {idx+1}/{len(so_data_list)}: {dl_fn} (SO {so_num}, PO {po_num})")
-                    # Totes: separate Packing Slip when Big Red + totes
-                    if has_totes_separate:
-                        empty_c = int(totes_return.get('empty_count', 0) or 0)
-                        partial_c = int(totes_return.get('partial_count', 0) or 0)
-                        partial_list = totes_return.get('partial_by_product', [])
-                        tote_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
-                        # Packing Slip format: 4 empty totes on one line, then Partial tote 1, Partial tote 2 with their kgs
-                        tote_ps_items = []
-                        if empty_c:
-                            tote_ps_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA'})
-                        if partial_list:
-                            for idx, p in enumerate(partial_list):
-                                kg_val = float(p.get('kg', 0))
-                                if kg_val > 0:
-                                    ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][idx] if idx < 10 else f"{idx+1}th"
-                                    product_short = p.get('product', '') or ''
-                                    batch = p.get('batch', '') or ''
-                                    desc = f"{ord_str} partial tote"
-                                    if product_short and product_short != 'Partial':
-                                        desc = f"{ord_str} partial tote ({product_short})"
-                                    item = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': 'TOTES', 'net_weight': f"{kg_val:.2f} kg"}
-                                    if batch:
-                                        item['batch_number'] = batch
-                                    tote_ps_items.append(item)
-                        elif partial_c:
-                            tote_ps_items.append({'description': f"{partial_c} Partial Totes", 'quantity': partial_c, 'unit': 'EA'})
-                        tote_so_data = copy.deepcopy(so_data_list[0])
-                        tote_so_data['so_number'] = 'TOTES-RETURN'
-                        tote_so_data['po_number'] = 'TOTES-RETURN'
-                        tote_so_data['items'] = tote_ps_items
-                        tote_email_ps = copy.deepcopy(email_analysis)
-                        tote_email_ps['totes_return'] = {}  # Item has full description, no duplicate in comments
-                        ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
-                        ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
-                        tote_ps_path = os.path.join(folder_structure['html_folder'], ps_filename)
-                        with open(tote_ps_path, 'w', encoding='utf-8') as f:
-                            f.write(ps_html)
-                        pdf_fn, _ = _convert_html_to_pdf(tote_ps_path, folder_structure['pdf_folder'])
-                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
-                        results['packing_slips'].append({
-                            'success': True,
-                            'filename': dl_fn,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
-                            'file_type': 'pdf' if pdf_fn else 'html',
-                            'so_number': 'TOTES-RETURN',
-                            'po_number': 'TOTES-RETURN'
-                        })
-                        print(f"   [OK] Packing Slip Totes: {dl_fn}")
+                    # No separate totes Packing Slip - totes are on first PS above
                     results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
                 else:
+                    # Standard: one Packing Slip with items + totes together
                     ps_email = copy.deepcopy(email_shipping or email_analysis)
-                    if has_totes_separate:
-                        ps_email['totes_return'] = {}
-                    ps_html = generate_packing_slip_html(so_data, ps_email, items)
+                    # totes_return stays - totes go on main Packing Slip (comments or we need to add to items)
+                    ps_items = list(items)
+                    if has_totes and totes_return:
+                        empty_c = int(totes_return.get('empty_count', 0) or 0)
+                        partial_list = totes_return.get('partial_by_product', [])
+                        if empty_c:
+                            ps_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA'})
+                        for pidx, p in enumerate(partial_list):
+                            kg_val = float(p.get('kg', 0))
+                            if kg_val > 0:
+                                ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][pidx] if pidx < 10 else f"{pidx+1}th"
+                                product_short = p.get('product', '') or ''
+                                batch = p.get('batch', '') or ''
+                                desc = f"{ord_str} partial tote"
+                                if product_short and product_short != 'Partial':
+                                    desc = f"{ord_str} partial tote ({product_short})"
+                                it = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': so_data.get('so_number', ''), 'net_weight': f"{kg_val:.2f} kg"}
+                                if batch:
+                                    it['batch_number'] = batch
+                                ps_items.append(it)
+                        ps_email['totes_return'] = {}  # Line items have totes
+                    ps_html = generate_packing_slip_html(so_data, ps_email, ps_items)
                     ps_filename = generate_document_filename("PackingSlip", so_data, '.html')
                     ps_html_filepath = os.path.join(folder_structure['html_folder'], ps_filename)
                     with open(ps_html_filepath, 'w', encoding='utf-8') as f:
@@ -7154,53 +7086,7 @@ def generate_all_documents():
                         'so_number': so_data.get('so_number', ''),
                         'po_number': so_data.get('po_number', '')
                     }]
-                    if has_totes_separate:
-                        empty_c = int(totes_return.get('empty_count', 0) or 0)
-                        partial_c = int(totes_return.get('partial_count', 0) or 0)
-                        partial_list = totes_return.get('partial_by_product', [])
-                        tote_weight_kg = sum(float(p.get('kg', 0)) for p in partial_list)
-                        # Packing Slip format: 4 empty totes on one line, then Partial tote 1, Partial tote 2 with their kgs
-                        tote_ps_items = []
-                        if empty_c:
-                            tote_ps_items.append({'description': f"{empty_c} Empty Totes", 'quantity': empty_c, 'unit': 'EA'})
-                        if partial_list:
-                            for idx, p in enumerate(partial_list):
-                                kg_val = float(p.get('kg', 0))
-                                if kg_val > 0:
-                                    ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][idx] if idx < 10 else f"{idx+1}th"
-                                    product_short = p.get('product', '') or ''
-                                    batch = p.get('batch', '') or ''
-                                    desc = f"{ord_str} partial tote"
-                                    if product_short and product_short != 'Partial':
-                                        desc = f"{ord_str} partial tote ({product_short})"
-                                    item = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': 'TOTES', 'net_weight': f"{kg_val:.2f} kg"}
-                                    if batch:
-                                        item['batch_number'] = batch
-                                    tote_ps_items.append(item)
-                        elif partial_c:
-                            tote_ps_items.append({'description': f"{partial_c} Partial Totes", 'quantity': partial_c, 'unit': 'EA'})
-                        tote_so_data = copy.deepcopy(so_data)
-                        tote_so_data['so_number'] = 'TOTES-RETURN'
-                        tote_so_data['po_number'] = 'TOTES-RETURN'
-                        tote_so_data['items'] = tote_ps_items
-                        tote_email_ps = copy.deepcopy(email_analysis or email_shipping)
-                        tote_email_ps['totes_return'] = {}
-                        ps_html = generate_packing_slip_html(tote_so_data, tote_email_ps, tote_so_data['items'])
-                        ps_filename = generate_document_filename("PackingSlip", tote_so_data, '.html')
-                        tote_ps_path = os.path.join(folder_structure['html_folder'], ps_filename)
-                        with open(tote_ps_path, 'w', encoding='utf-8') as f:
-                            f.write(ps_html)
-                        pdf_fn, _ = _convert_html_to_pdf(tote_ps_path, folder_structure['pdf_folder'])
-                        dl_fn, dl_folder = (pdf_fn, folder_structure['pdf_folder_name']) if pdf_fn else (ps_filename, folder_structure['html_folder_name'])
-                        results['packing_slips'].append({
-                            'success': True,
-                            'filename': dl_fn,
-                            'download_url': f'/download/logistics/{folder_structure["folder_name"]}/{dl_folder}/{dl_fn}',
-                            'file_type': 'pdf' if pdf_fn else 'html',
-                            'so_number': 'TOTES-RETURN',
-                            'po_number': 'TOTES-RETURN'
-                        })
-                        print(f"   [OK] Packing Slip Totes: {dl_fn}")
+                    # No separate totes Packing Slip - totes are on main PS above
                     results['packing_slip'] = {'success': True, 'filename': results['packing_slips'][0]['filename'], 'download_url': results['packing_slips'][0]['download_url']}
                     print(f"[OK] Packing Slip generated: {results['packing_slips'][0]['filename']}")
                 

@@ -1,8 +1,9 @@
 """
-HTML to PDF converter - Playwright (print-to-PDF) with WeasyPrint fallback.
-Uses Chromium's native print engine for best fidelity, no deformation.
+HTML to PDF converter - Playwright (print-to-PDF) with wkhtmltopdf and WeasyPrint fallbacks.
+Uses Chromium's native print engine for best fidelity. wkhtmltopdf is pre-installed in Docker.
 """
 import os
+import subprocess
 import tempfile
 
 PLAYWRIGHT_AVAILABLE = False
@@ -21,10 +22,23 @@ except ImportError:
     pass
 
 
+def _wkhtmltopdf_available():
+    """Check if wkhtmltopdf is installed (comes with Docker image)."""
+    try:
+        result = subprocess.run(
+            ['wkhtmltopdf', '--version'],
+            capture_output=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def html_to_pdf_sync(html_content, output_pdf_path):
     """
-    Convert HTML to PDF using Playwright (print-to-PDF) or WeasyPrint fallback.
-    Playwright uses Chromium's native print - best fidelity, no deformation.
+    Convert HTML to PDF using Playwright, wkhtmltopdf, WeasyPrint, or PDFShift.
+    Playwright uses Chromium's native print - best fidelity. wkhtmltopdf is pre-installed in Docker.
     """
     output_pdf_path = os.path.abspath(output_pdf_path)
     os.makedirs(os.path.dirname(output_pdf_path) or '.', exist_ok=True)
@@ -35,7 +49,6 @@ def html_to_pdf_sync(html_content, output_pdf_path):
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page()
-                # Ensure print media for correct layout
                 page.emulate_media(media='print')
                 page.set_content(html_content, wait_until='networkidle')
                 page.pdf(
@@ -49,7 +62,39 @@ def html_to_pdf_sync(html_content, output_pdf_path):
                 print(f"[OK] PDF generated (Playwright): {os.path.basename(output_pdf_path)}")
                 return True
         except Exception as e:
-            print(f"[WARN] Playwright PDF failed: {e} - trying WeasyPrint")
+            print(f"[WARN] Playwright PDF failed: {e} - trying wkhtmltopdf")
+
+    # Fallback: wkhtmltopdf (pre-installed in Docker, no API key needed)
+    if _wkhtmltopdf_available():
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+                f.write(html_content)
+                tmp_html = f.name
+            try:
+                result = subprocess.run(
+                    [
+                        'wkhtmltopdf',
+                        '--quiet',
+                        '--page-size', 'Letter',
+                        '--margin-top', '10mm',
+                        '--margin-right', '10mm',
+                        '--margin-bottom', '10mm',
+                        '--margin-left', '10mm',
+                        '--enable-local-file-access',
+                        os.path.abspath(tmp_html),
+                        output_pdf_path
+                    ],
+                    capture_output=True,
+                    timeout=60
+                )
+                if result.returncode == 0 and os.path.exists(output_pdf_path):
+                    print(f"[OK] PDF generated (wkhtmltopdf): {os.path.basename(output_pdf_path)}")
+                    return True
+            finally:
+                if os.path.exists(tmp_html):
+                    os.unlink(tmp_html)
+        except Exception as e:
+            print(f"[WARN] wkhtmltopdf failed: {e} - trying WeasyPrint")
 
     # Fallback: WeasyPrint (no browser)
     if WEASYPRINT_AVAILABLE:
@@ -68,7 +113,7 @@ def html_to_pdf_sync(html_content, output_pdf_path):
         except Exception as e:
             print(f"[ERROR] WeasyPrint PDF failed: {e}")
 
-    # Fallback: PDFShift API (works in cloud/serverless when Playwright unavailable)
+    # Fallback: PDFShift API (optional - only if key set)
     api_key = os.environ.get('PDFSHIFT_API_KEY', '').strip()
     if api_key:
         try:
@@ -87,5 +132,5 @@ def html_to_pdf_sync(html_content, output_pdf_path):
         except Exception as e:
             print(f"[WARN] PDFShift failed: {e}")
 
-    print("[ERROR] No PDF converter available (install playwright, weasyprint, or set PDFSHIFT_API_KEY)")
+    print("[ERROR] No PDF converter available (Playwright, wkhtmltopdf, WeasyPrint, and PDFShift all failed)")
     return False
