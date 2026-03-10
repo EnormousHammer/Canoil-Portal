@@ -68,5 +68,24 @@ def html_to_pdf_sync(html_content, output_pdf_path):
         except Exception as e:
             print(f"[ERROR] WeasyPrint PDF failed: {e}")
 
-    print("[ERROR] No PDF converter available (install playwright or weasyprint)")
+    # Fallback: PDFShift API (works in cloud/serverless when Playwright unavailable)
+    api_key = os.environ.get('PDFSHIFT_API_KEY', '').strip()
+    if api_key:
+        try:
+            import httpx
+            resp = httpx.post(
+                'https://api.pdfshift.io/v3/convert/pdf',
+                auth=('api', api_key),
+                json={'source': html_content},
+                timeout=60.0
+            )
+            if resp.status_code == 200:
+                with open(output_pdf_path, 'wb') as f:
+                    f.write(resp.content)
+                print(f"[OK] PDF generated (PDFShift): {os.path.basename(output_pdf_path)}")
+                return True
+        except Exception as e:
+            print(f"[WARN] PDFShift failed: {e}")
+
+    print("[ERROR] No PDF converter available (install playwright, weasyprint, or set PDFSHIFT_API_KEY)")
     return False

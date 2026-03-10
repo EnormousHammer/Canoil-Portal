@@ -36,6 +36,9 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 # Install Python dependencies
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
+# Install Playwright Chromium for HTML-to-PDF (logistics BOL, packing slip, etc.)
+RUN python -m playwright install --with-deps chromium
+
 # Copy the entire backend directory
 COPY backend /app/backend
 
