@@ -492,9 +492,12 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
         return parse_multi_so_fallback(email_text)
     
     prompt = f"""
-    Parse this logistics email that contains MULTIPLE Sales Orders shipping together.
+    Parse this logistics email. Extract ALL required data for BOL, packing slip, and customs paperwork.
     
-    CRITICAL: Extract data EXACTLY as written in the email. DO NOT use example values.
+    FORMAT-AGNOSTIC: The email may be structured in many ways - bullet points, paragraphs, tables, different wording.
+    If the information is present, EXTRACT IT. Don't require a specific format. Infer associations (e.g. which batch goes with which SO) from context and proximity.
+    
+    CRITICAL: Extract data EXACTLY as written. DO NOT use example values. Use ACTUAL values from the email.
     
     Email Content:
     {email_text}
@@ -565,13 +568,12 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
        - Each numbered section is a COMPLETE SO with its own items, batch, weight, pallets
     6. The SO number in items_by_so keys MUST match exactly the SO numbers in so_numbers array (as strings: "3024", "3064")
     7. MANDATORY: If you find 2 SOs, you MUST create items_by_so entries for BOTH. Do NOT skip any SO.
-    8. BIG RED TOTE RETURNS: Parse totes from "TOTES:" section OR from per-SO lines like "Totes for Return: 3 Totes (2 empty + 1 with approx. 505 kg / 591 L)":
-       - Parse totes_return: empty_count (sum all empty), partial_count (sum all partial), partial_by_product (product shorthand + batch + kg per partial)
-       - For each SO with "with approx. X kg": associate that partial with THAT SO's product and batch. Use product shorthand (e.g. "5W-30", "5W-20") from product line.
-       - Example: SO3097 has BRO SAE 5W-30, batch N60047, 1 partial 505 kg -> {{"product": "5W-30", "batch": "N60047", "kg": 505}}
-       - Example: SO3099 has BRO SAE 5W-20, batch N55099, 1 partial 529 kg -> {{"product": "5W-20", "batch": "N55099", "kg": 529}}
-       - COMBINE: empty_count: 4, partial_count: 2, partial_by_product: [{{"product": "5W-30", "batch": "N60047", "kg": 505}}, {{"product": "5W-20", "batch": "N55099", "kg": 529}}]
-       - Use "NEW TOTAL GROSS WEIGHT" when provided - put in new_total_gross_weight AND combined_totals.total_gross_weight
+    8. TOTE RETURNS (any format): If the email mentions totes to return - empty and/or partial - extract them.
+       - empty_count: total empty totes (sum across all SOs)
+       - partial_count: total partial totes
+       - partial_by_product: for EACH partial tote, associate it with its product and batch from the SAME SO/section. Extract product shorthand (5W-30, 5W-20, etc.) and batch (N60047, etc.) from context. If a partial has "approx X kg" or similar, use that kg value.
+       - Match partial totes to their SO's product/batch by section proximity - whatever product and batch are in the same SO block as the partial tote.
+       - Use "NEW TOTAL GROSS WEIGHT" or "Total Gross Weight" when provided
     
     SPECIAL INSTRUCTIONS (CRITICAL):
     Look for instructions at the end of the email like:
@@ -599,7 +601,7 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a logistics parsing expert. Parse multi-SO shipping emails accurately. Include any special instructions like samples or free items."},
+                {"role": "system", "content": "You are a logistics parsing expert. Extract all required data from shipping emails regardless of format or structure. Be flexible - if SO numbers, batch numbers, weights, products, totes, etc. are present anywhere in the email, extract and associate them correctly. Handle variations in wording, bullet style, and section order. Include any special instructions like samples or free items."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0,
@@ -708,16 +710,23 @@ def parse_multi_so_fallback(email_text: str) -> dict:
                 items.append(item)
                 print(f"   ✅ Extracted item: {description} ({quantity} {unit})")
         
-        # Pattern 2: Traditional format like "Sales Order 3097 (PO C121125-2):\n  - Product:..."
+        # Pattern 2: Traditional format - "Sales Order 3097" or "SO 3097" with bullets (Product:, Batch:, etc.)
         if not items:
-            section_pattern = rf'Sales\s*Order\s*{so_num}(?:\s*\([^)]+\))?\s*:\s*\n(.*?)(?=Sales\s*Order|Combined\s+Shipment|\Z)'
-            section_match = re.search(section_pattern, email_text, re.IGNORECASE | re.DOTALL)
+            section_patterns = [
+                rf'Sales\s*Order\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+                rf'(?:SO|Order)\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+            ]
+            section_match = None
+            for sp in section_patterns:
+                section_match = re.search(sp, email_text, re.IGNORECASE | re.DOTALL)
+                if section_match:
+                    break
             
             if section_match:
                 section_text = section_match.group(1)
                 
-                # Extract item from section
-                item_pattern = r'(\d+)\s+(pails?|drums?|cases?|gallons?)\s+of\s+([^\n,]+)'
+                # Extract item from section - "210 cases of BRO SAE 5W-30" or "Product: 210 cases of..."
+                item_pattern = r'(?:Product:\s*)?(\d+)\s+(pails?|drums?|cases?|gallons?)\s+of\s+([^\n,(]+)'
                 item_match = re.search(item_pattern, section_text, re.IGNORECASE)
                 if item_match:
                     item = {
@@ -731,15 +740,25 @@ def parse_multi_so_fallback(email_text: str) -> dict:
                     if batch_match:
                         item['batch_number'] = batch_match.group(1)
                     
-                    # Extract weight
-                    weight_match = re.search(r'([\d,\.]+)\s*kg\s*(?:total\s*)?gross', section_text, re.IGNORECASE)
+                    # Extract weight - "2313 kg gross", "2040 kg net / 2313 kg gross", "Total gross: 2313 kg"
+                    weight_match = re.search(
+                        r'([\d,\.]+)\s*kg\s*(?:total\s*)?gross|'
+                        r'[\d,\.]+\s*kg\s*net\s*/\s*([\d,\.]+)\s*kg\s*gross|'
+                        r'[Ww]eights?:\s*[\d,\.]+\s*kg[^/]*/\s*([\d,\.]+)\s*kg',
+                        section_text, re.IGNORECASE
+                    )
                     if weight_match:
-                        item['gross_weight'] = f"{weight_match.group(1)} kg"
+                        wt = (weight_match.group(1) or weight_match.group(2) or weight_match.group(3) or '').replace(',', '')
+                        if wt:
+                            item['gross_weight'] = f"{wt} kg"
                     
-                    # Extract pallet info
-                    pallet_match = re.search(r'[Oo]n\s+(\d+)\s+pallets?', section_text)
+                    # Extract pallet info - "3 pallets (45×45×63 inches)", "On 3 pallets"
+                    pallet_match = re.search(r'(?:[Oo]n\s+)?(\d+)\s+pallets?(?:\s*\([^)]+\))?', section_text)
                     if pallet_match:
                         item['pallet_count'] = int(pallet_match.group(1))
+                    dim_match = re.search(r'(\d+[×x]\d+[×x]\d+)\s*inches?', section_text, re.IGNORECASE)
+                    if dim_match:
+                        item['pallet_dimensions'] = dim_match.group(1) + ' inches'
                     
                     items.append(item)
         
@@ -764,23 +783,42 @@ def parse_multi_so_fallback(email_text: str) -> dict:
             'partial_count': int(partial_m.group(1)) if partial_m else 0,
             'partial_by_product': partial_by_product
         }
-    # Also search per-SO for "Totes for Return" / "with approx. X kg" - associate each partial with that SO's product + batch
+    # Also search per-SO for totes / partial with kg - associate each partial with that SO's product + batch
+    # Flexible: "Sales Order 3097", "SO 3097", "Order 3097" - and "approx 505 kg", "~505 kg", "505 kg", "with 505 kg"
     if not totes_return or not totes_return.get('partial_by_product'):
         partial_by_product = []
         for so_num in so_numbers:
-            section_pattern = rf'Sales\s*Order\s*{so_num}(?:\s*\([^)]+\))?\s*:\s*\n(.*?)(?=Sales\s*Order|Combined\s+Shipment|\Z)'
-            section_match = re.search(section_pattern, email_text, re.IGNORECASE | re.DOTALL)
+            # Multiple section patterns - format-agnostic
+            section_patterns = [
+                rf'Sales\s*Order\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+                rf'(?:SO|Order)\s*{so_num}(?:\s*\([^)]+\))?\s*[:\s]\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+                rf'{so_num}\s*[:\s(].*?\)\s*:\s*\n(.*?)(?=Sales\s*Order|SO\s*\d+|Combined\s+Shipment|\Z)',
+            ]
+            section_match = None
+            for sp in section_patterns:
+                section_match = re.search(sp, email_text, re.IGNORECASE | re.DOTALL)
+                if section_match:
+                    break
             if not section_match:
                 continue
             section_text = section_match.group(1)
-            approx_m = re.search(r'with\s+approx\.?\s*([\d,]+(?:\.\d+)?)\s*kg|approx\.?\s*([\d,]+(?:\.\d+)?)\s*kg', section_text, re.IGNORECASE)
+            # Flexible kg extraction: "approx 505 kg", "~505 kg", "with 505 kg", "505 kg", "about 505 kg"
+            approx_m = re.search(
+                r'(?:with\s+)?(?:approx\.?|~|about)\s*([\d,]+(?:\.\d+)?)\s*kg|'
+                r'(\d+(?:\.\d+)?)\s*kg\s*(?:/|and)\s*\d+\s*L|'
+                r'(?:partial|with)\s+([\d,]+(?:\.\d+)?)\s*kg',
+                section_text, re.IGNORECASE
+            )
             if not approx_m:
                 continue
-            kg_val = float((approx_m.group(1) or approx_m.group(2) or '').replace(',', ''))
+            kg_val = float((approx_m.group(1) or approx_m.group(2) or approx_m.group(3) or '').replace(',', ''))
             product_short = ''
-            product_match = re.search(r'BRO\s+SAE\s+([\dW\-]+)|SAE\s+([\dW\-]+)', section_text, re.IGNORECASE)
+            product_match = re.search(
+                r'BRO\s+SAE\s+([\dW\-]+)|SAE\s+([\dW\-]+)|(?:Synthetic\s+Blend\s+)?([\d]W[\-\d]+)',
+                section_text, re.IGNORECASE
+            )
             if product_match:
-                product_short = (product_match.group(1) or product_match.group(2) or '').strip()
+                product_short = (product_match.group(1) or product_match.group(2) or product_match.group(3) or '').strip()
             batch_match = re.search(r'[Bb]atch\s*(?:[Nn]umber)?\s*[#:]?\s*([A-Z0-9\-]+)', section_text)
             batch = batch_match.group(1) if batch_match else ''
             partial_by_product.append({
