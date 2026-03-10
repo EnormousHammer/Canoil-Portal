@@ -251,6 +251,7 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         print(f"DEBUG: Using {len(items_to_show)} items for packing slip")
     
     # Lubecore totes & pickups: show net weight instead of 900 (liters) in qty column
+    # Big Red Oil totes return: show net weight when weights are provided (per rules)
     customer_name_upper = (so_data.get('customer_name', '') or '').upper()
     is_lubecore = 'LUBECORE' in customer_name_upper
     is_pickup = shipping_addr.get('is_pickup', False) or so_data.get('is_pickup_order', False)
@@ -268,6 +269,9 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         unit = str(item.get('unit', '')).upper()
         is_tote = unit in ('TOTE', 'TOTES', 'LITER', 'LITERS', 'LITRE', 'IBC')
         use_net_weight = is_lubecore and (is_tote or is_pickup)
+        # Big Red Oil totes return: when weight is provided, show it in Ordered/Shipped qty (unit = kg)
+        if not use_net_weight and item.get('source_so') == 'TOTES' and (item.get('net_weight') or item.get('gross_weight')):
+            use_net_weight = True
         
         if use_net_weight:
             net_wt = item.get('net_weight') or item.get('gross_weight') or ''

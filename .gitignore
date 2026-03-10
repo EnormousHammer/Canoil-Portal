@@ -49,6 +49,7 @@ ENV/
 
 # Backend specific
 backend/uploads/
+backend/generated_totes_docs/
 backend/*.db
 backend/instance/
 backend/data/
