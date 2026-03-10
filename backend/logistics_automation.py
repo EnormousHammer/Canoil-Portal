@@ -7113,12 +7113,11 @@ def generate_all_documents():
                             for pidx, p in enumerate(partial_list):
                                 kg_val = float(p.get('kg', 0))
                                 if kg_val > 0:
-                                    ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][pidx] if pidx < 10 else f"{pidx+1}th"
                                     product_short = p.get('product', '') or ''
                                     batch = p.get('batch', '') or ''
-                                    desc = f"{ord_str} partial tote"
+                                    desc = "partial tote"
                                     if product_short and product_short != 'Partial':
-                                        desc = f"{ord_str} partial tote ({product_short})"
+                                        desc = f"partial tote ({product_short})"
                                     item = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': so_num, 'net_weight': f"{kg_val:.2f} kg"}
                                     if batch:
                                         item['batch_number'] = batch
@@ -7157,12 +7156,11 @@ def generate_all_documents():
                         for pidx, p in enumerate(partial_list):
                             kg_val = float(p.get('kg', 0))
                             if kg_val > 0:
-                                ord_str = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'][pidx] if pidx < 10 else f"{pidx+1}th"
                                 product_short = p.get('product', '') or ''
                                 batch = p.get('batch', '') or ''
-                                desc = f"{ord_str} partial tote"
+                                desc = "partial tote"
                                 if product_short and product_short != 'Partial':
-                                    desc = f"{ord_str} partial tote ({product_short})"
+                                    desc = f"partial tote ({product_short})"
                                 it = {'description': desc, 'quantity': kg_val, 'unit': 'kg', 'source_so': so_data.get('so_number', ''), 'net_weight': f"{kg_val:.2f} kg"}
                                 if batch:
                                     it['batch_number'] = batch

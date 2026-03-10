@@ -851,7 +851,7 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         
         # SMART ROW BUILDING:
         # Row 1: Item | Batch(es) (batches on first row)
-        # Totes return: skip "EA of" prefix - "4 Empty Totes" and "1st partial tote" are self-explanatory
+        # Totes return: skip "EA of" prefix - "4 Empty Totes" and "partial tote" are self-explanatory
         product_lower = product.lower()
         if 'empty totes' in product_lower or 'partial tote' in product_lower:
             row_parts = [product]
