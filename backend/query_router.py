@@ -213,6 +213,9 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             r"\bwhat.*(price|cost|rate)\b",
             r"\blatest\s+price\b",
             r"\bcurrent\s+price\b",
+            # Follow-up: "Motion industries, ANDEROL food grade, cases" (customer, product, size)
+            r"^[A-Za-z][^,]+,.*(?:anderol|mov|reolube|grease|vsg|fgcs|sulfonate)\b",
+            r"^[A-Za-z][^,]+,.*(?:cases?|drums?|pails?|kegs?|totes?)\s*$",
         ],
         "keywords": [
             "price for",
@@ -491,13 +494,21 @@ def fetch_targeted_data(
         elif source == "price_list":
             try:
                 from price_list_service import search_price
-                # Extract a customer name from the query if present
                 import re as _re
-                # Heuristic: look for "for [CustomerName]" at the end of the query
-                cust_match = _re.search(r"\bfor\s+([A-Z][A-Za-z\s&'.\-]+)$", raw_data.get("_query", ""))
-                customer = cust_match.group(1).strip() if cust_match else None
+                q = raw_data.get("_query", "")
+                customer = None
+                # "for [CustomerName]" at end
+                cust_match = _re.search(r"\bfor\s+([A-Z][A-Za-z\s&'.\-]+)$", q)
+                if cust_match:
+                    customer = cust_match.group(1).strip()
+                # "Customer, Product, Size" format (e.g. "Motion industries, ANDEROL food grade, cases")
+                elif "," in q:
+                    parts = [p.strip() for p in q.split(",", 2)]
+                    if len(parts) >= 2:
+                        customer = parts[0]
+                        q = q  # full query for product/size matching
                 result = search_price(
-                    query=raw_data.get("_query", ""),
+                    query=q,
                     customer=customer,
                     limit=60,
                 )

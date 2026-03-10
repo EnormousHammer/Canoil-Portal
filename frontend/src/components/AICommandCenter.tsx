@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { getApiUrl } from '../utils/apiConfig';
 import { CompactLoading } from './LoadingComponents';
 import { InteractiveChatMessage } from './InteractiveChatMessage';
@@ -187,6 +187,61 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const [sageAnalyticsError, setSageAnalyticsError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showSmartSuggestions, setShowSmartSuggestions] = useState(false);
+
+  // Smart suggestions: items + customers (same pattern as inventory, PR modal, etc.)
+  const smartSuggestions = useMemo(() => {
+    const items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
+    const salesOrders = (data?.['RealSalesOrders'] ?? data?.['ParsedSalesOrders.json'] ?? data?.['SalesOrders.json'] ?? []) as any[];
+    const customers = Array.from(new Set(
+      salesOrders
+        .map((so: any) => so.customer_name || so.customerName || so.Customer || so.sName || so.sCustomerName || '')
+        .filter(Boolean)
+    )).sort() as string[];
+
+    const q = inputMessage.trim();
+    if (!q || q.length < 2) return [];
+
+    const terms = q.toLowerCase().split(/[\s,]+/).filter((t: string) => t.length >= 2);
+    const lastTerm = terms[terms.length - 1] || '';
+
+    const out: { type: 'item' | 'customer' | 'template'; label: string; value: string }[] = [];
+
+    // Item matches (Item No. + Description) — same logic as inventory/PR modal
+    if (items.length > 0 && lastTerm.length >= 2) {
+      const itemMatches = items
+        .filter((item: any) => {
+          const searchable = [
+            item['Item No.'] || item['item_no'] || '',
+            item['Description'] || '',
+          ].join(' ').toLowerCase();
+          return terms.every((t: string) => searchable.includes(t)) || searchable.includes(lastTerm);
+        })
+        .slice(0, 8)
+        .map((item: any) => ({
+          type: 'item' as const,
+          label: `${item['Item No.'] || item['item_no']} — ${(item['Description'] || '').slice(0, 40)}${(item['Description'] || '').length > 40 ? '…' : ''}`,
+          value: item['Description'] || item['Item No.'] || item['item_no'] || '',
+        }));
+      out.push(...itemMatches);
+    }
+
+    // Customer matches
+    if (customers.length > 0 && lastTerm.length >= 2) {
+      const custMatches = customers
+        .filter((c: string) => c.toLowerCase().includes(lastTerm))
+        .slice(0, 5)
+        .map((c: string) => ({
+          type: 'customer' as const,
+          label: c,
+          value: c,
+        }));
+      out.push(...custMatches);
+    }
+
+    return out.slice(0, 12);
+  }, [data, inputMessage]);
 
   // Fetch year-by-year Sage analytics from backend
   const loadSageAnalytics = async (year: number) => {
@@ -771,6 +826,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     return { query, dateContext, dataSources: dataSourcesSummary };
   };
 
+  // Build messages array for conversation context (last 4 messages)
+  const buildConversationContext = () => {
+    const last = messages.slice(-4);
+    return last.map((m) => ({
+      role: m.type === 'user' ? 'user' : 'assistant',
+      content: m.content,
+    }));
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -787,7 +851,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     setInputMessage('');
     setIsProcessing(true);
 
-    const requestBody = buildChatRequestBody(currentInput);
+    const requestBody = {
+      ...buildChatRequestBody(currentInput),
+      conversationContext: buildConversationContext(),
+    };
 
     try {
       
@@ -845,11 +912,24 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
+    if (e.key === 'Escape') setShowSmartSuggestions(false);
+  };
+
+  const applySuggestion = (suggestion: { type: string; label: string; value: string }) => {
+    const text = inputMessage;
+    const lastComma = text.lastIndexOf(',');
+    const lastSpace = text.lastIndexOf(' ');
+    const lastBreak = Math.max(lastComma, lastSpace);
+    const prefix = lastBreak >= 0 ? text.slice(0, lastBreak + 1) : '';
+    const newText = prefix ? `${prefix}${suggestion.value}` : suggestion.value;
+    setInputMessage(newText);
+    setShowSmartSuggestions(false);
+    textareaRef.current?.focus();
   };
 
   const quickActions = [
@@ -942,7 +1022,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       setInputMessage(insight.query);
       // Focus and optionally send after a brief delay so user sees it
       setTimeout(() => {
-        const input = document.querySelector('input[placeholder*="Ask"]') as HTMLInputElement;
+        const input = document.querySelector('textarea[placeholder*="Ask"]') as HTMLTextAreaElement;
         input?.focus();
       }, 100);
     }
@@ -1035,7 +1115,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               headers: {
                                 'Content-Type': 'application/json',
                               },
-                              body: JSON.stringify(buildChatRequestBody(action.action))
+                              body: JSON.stringify({
+                                ...buildChatRequestBody(action.action),
+                                conversationContext: buildConversationContext(),
+                              })
                             });
                             
                             if (!response.ok) {
@@ -1249,16 +1332,35 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <div className="p-4 border-t border-slate-200 bg-slate-50/50">
                     <div className="flex gap-3">
                       <div className="flex-1 relative">
-                        <input
-                          type="text"
+                        <textarea
+                          ref={textareaRef}
                           value={inputMessage}
-                          onChange={(e) => setInputMessage(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          placeholder="Ask anything... e.g. What's our price for [Customer] for [Product]? I need a quote email."
-                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-white pr-11 text-slate-800 placeholder-slate-400 transition-shadow"
+                          onChange={(e) => { setInputMessage(e.target.value); setShowSmartSuggestions(true); }}
+                          onFocus={() => inputMessage.trim().length >= 2 && setShowSmartSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowSmartSuggestions(false), 180)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="Ask anything... e.g. What's our price for [Customer] for [Product]? I need a quote email. (Shift+Enter for new line)"
+                          rows={2}
+                          className="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-white text-slate-800 placeholder-slate-400 transition-shadow resize-y min-h-[44px] max-h-[120px]"
                           disabled={isProcessing}
                         />
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <Search className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                        {showSmartSuggestions && smartSuggestions.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+                            {smartSuggestions.map((s, i) => (
+                              <button
+                                key={`${s.type}-${i}-${s.value.slice(0, 20)}`}
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); applySuggestion(s); }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-violet-50 text-slate-700 text-sm border-b border-slate-50 last:border-0 flex items-center gap-2"
+                              >
+                                {s.type === 'item' && <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                {s.type === 'customer' && <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                                <span className="truncate">{s.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={handleSendMessage}

@@ -101,7 +101,7 @@ try:
     import sage_gdrive_service
     SAGE_GDRIVE_AVAILABLE = True
     print("Sage G Drive CSV service loaded")
-except ImportError as e:
+except (ImportError, ValueError, OSError) as e:
     sage_gdrive_service = None
     SAGE_GDRIVE_AVAILABLE = False
     print(f"Sage G Drive service not available: {e}")
@@ -7434,9 +7434,10 @@ def _load_misys_files_for_intent(intent: str) -> dict:
 def chat_query():
     """Handle ChatGPT queries about inventory data with smart SO search"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         user_query = data.get('query', '')
         date_context = data.get('dateContext', {})
+        conversation_context = data.get('conversationContext', [])
         
         # 🧠 SMART SALES ORDER DETECTION AND SEARCH
         import re
@@ -7594,12 +7595,14 @@ def chat_query():
                         f"prompt={len(_focused_sys_prompt)} chars records={_record_count}"
                     )
                     try:
+                        _msgs = [{"role": "system", "content": _focused_sys_prompt}]
+                        for ctx in conversation_context[-4:]:
+                            if ctx.get("role") in ("user", "assistant") and ctx.get("content"):
+                                _msgs.append({"role": ctx["role"], "content": ctx["content"]})
+                        _msgs.append({"role": "user", "content": user_query})
                         _focused_resp = client.chat.completions.create(
                             model=_model,
-                            messages=[
-                                {"role": "system", "content": _focused_sys_prompt},
-                                {"role": "user", "content": user_query},
-                            ],
+                            messages=_msgs,
                             max_completion_tokens=2000,
                             timeout=45,
                         )
@@ -8792,12 +8795,14 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
         # Query ChatGPT with the enhanced prompt
         try:
             print(f"🤖 Calling {selected_model} with prompt length: {len(system_prompt)} characters")
+            _msgs = [{"role": "system", "content": system_prompt}]
+            for ctx in conversation_context[-4:]:
+                if ctx.get("role") in ("user", "assistant") and ctx.get("content"):
+                    _msgs.append({"role": ctx["role"], "content": ctx["content"]})
+            _msgs.append({"role": "user", "content": user_query})
             response = client.chat.completions.create(
                 model=selected_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ],
+                messages=_msgs,
                 max_completion_tokens=max_tokens,
                 timeout=45  # Longer timeout for GPT-4o
             )
