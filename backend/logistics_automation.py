@@ -103,14 +103,22 @@ def _packaging_compatible(email_pkg, so_pkg):
 
 
 def _convert_html_to_pdf(html_filepath, pdf_folder):
-    """Convert HTML to PDF (Playwright print-to-PDF). Returns (pdf_filename, pdf_path) or (None, None)."""
+    """Convert HTML to PDF and place both HTML and PDF in the PDF folder. Returns (pdf_filename, pdf_path) or (None, None)."""
     if not os.path.exists(html_filepath):
         return None, None
+    html_basename = os.path.basename(html_filepath)
+    # Always copy HTML to PDF folder (so PDF folder has both HTML and PDF)
+    try:
+        html_dest = os.path.join(pdf_folder, html_basename)
+        shutil.copy2(html_filepath, html_dest)
+        print(f"[OK] HTML copied to PDF folder: {html_basename}")
+    except Exception as e:
+        print(f"[WARN] Could not copy HTML to PDF folder: {e}")
+    # Convert to PDF
     try:
         from playwright_pdf_converter import html_to_pdf_sync
         with open(html_filepath, 'r', encoding='utf-8') as f:
             html_content = f.read()
-        html_basename = os.path.basename(html_filepath)
         pdf_filename = html_basename.replace('.html', '.pdf')
         pdf_path = os.path.join(pdf_folder, pdf_filename)
         if html_to_pdf_sync(html_content, pdf_path):

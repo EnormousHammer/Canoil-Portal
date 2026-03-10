@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Test HTML to PDF conversion - no API key needed.
+Test HTML to PDF conversion with BOL SO3177 - PO334804 - 2026-03-10
 Uses: Playwright -> wkhtmltopdf -> WeasyPrint (wkhtmltopdf is in Docker).
 Run: python test_html_to_pdf.py
-Output: test_output.pdf in backend folder
+Output: BOL SO3177 - PO334804 - 2026-03-10.html and .pdf in backend folder
 """
 import os
 
-# Sample BOL-like HTML (Big Red style with SO/PO)
-SAMPLE_HTML = """<!DOCTYPE html>
+# BOL SO3177 - PO334804 style HTML
+BOL_HTML = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -21,38 +21,43 @@ SAMPLE_HTML = """<!DOCTYPE html>
 </head>
 <body>
     <div class="header">Bill of Lading - Canoil Canada Ltd</div>
+    <p><strong>SO# 3177</strong> | <strong>PO# 334804</strong> | 2026-03-10</p>
     <table>
         <tr><th>Description</th><th>Pieces</th><th>Weight</th></tr>
-        <tr><td>2 Empty Totes</td><td>2</td><td>111.0 kg</td></tr>
-        <tr><td>1st partial tote (5W-30)</td><td>1</td><td>180.5 kg</td></tr>
-        <tr><td>PO# C121125-2 & C121125-1 | SO# 3097 & 3099</td><td></td><td></td></tr>
+        <tr><td>Drum of Product A</td><td>10</td><td>2000 kg</td></tr>
+        <tr><td>Drum of Product B</td><td>5</td><td>1000 kg</td></tr>
+        <tr><td colspan="2">Total Gross Weight</td><td>3000 kg</td></tr>
     </table>
-    <p style="margin-top: 20px;">Big Red Oil Products Inc. - Totes related to SO 3097 & 3099, PO C121125-2 & C121125-1</p>
+    <p style="margin-top: 20px;">Consignee: Example Customer Inc.</p>
 </body>
 </html>"""
 
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path = os.path.join(script_dir, 'test_output.pdf')
+    base_name = "BOL SO3177 - PO334804 - 2026-03-10"
+    html_path = os.path.join(script_dir, f"{base_name}.html")
+    pdf_path = os.path.join(script_dir, f"{base_name}.pdf")
 
-    print("HTML to PDF test (no API key)")
+    print(f"BOL HTML to PDF: {base_name}")
     print("=" * 50)
-    print("Sample HTML:")
-    print(SAMPLE_HTML[:300] + "...")
-    print()
 
+    # 1. Save HTML
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(BOL_HTML)
+    print(f"[OK] HTML saved: {html_path}")
+
+    # 2. Convert to PDF (same flow as _convert_html_to_pdf)
     from playwright_pdf_converter import html_to_pdf_sync
 
-    success = html_to_pdf_sync(SAMPLE_HTML, output_path)
+    success = html_to_pdf_sync(BOL_HTML, pdf_path)
 
     if success:
-        print(f"\nSUCCESS: PDF saved to {output_path}")
-        print("   Open it to verify - Big Red totes with SO/PO should be visible.")
+        print(f"[OK] PDF saved: {pdf_path}")
+        print(f"\nSUCCESS: Both {base_name}.html and .pdf created.")
     else:
-        print("\nFAILED: Check console for [WARN]/[ERROR] above.")
+        print(f"\nPDF conversion FAILED - HTML is at {html_path}")
         print("   On Render (Docker): wkhtmltopdf is pre-installed - should work.")
-        print("   Locally: Install wkhtmltopdf or run in Docker to test.")
 
 
 if __name__ == '__main__':
