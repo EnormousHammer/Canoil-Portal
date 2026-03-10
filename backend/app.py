@@ -5730,7 +5730,7 @@ def debug_column_mapping():
     try:
         data = _data_cache
         if not data:
-            data, _ = get_data_for_export()
+            data, _ = _get_company_data_for_export()
         items = data.get("Items.json") or data.get("MIITEM.json") or [] if data else []
         ilocqt = data.get("MIILOCQT.json") or [] if data else []
         sample_item = items[0] if items else {}
