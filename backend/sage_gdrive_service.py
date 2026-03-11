@@ -769,6 +769,7 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
     }
     """
     import re
+    import difflib
     tables = _tables()
     so_df = tables.get("tsalordr")
     line_df = tables.get("tsoline")
@@ -790,6 +791,22 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
     item_parts = re.sub(r"[^a-z0-9]", "", item_lower)
     if len(item_parts) < 2:
         item_parts = item_lower
+
+    # Product name → Sage code variants (e.g. reolube46b → reol46b for REOL46bdrm)
+    _PRODUCT_ALIASES = [
+        (r"reolube\s*", "reol"),
+        (r"reolibe\s*", "reol"),   # common typo
+        (r"reolue\s*", "reol"),    # missing b
+        (r"anderol\s*", "anderol"),
+        (r"mov\s*", "mov"),
+    ]
+    item_variants = [item_lower, item_parts]
+    for pat, repl in _PRODUCT_ALIASES:
+        if re.search(pat, item_lower):
+            normalized = re.sub(pat, repl, item_lower, flags=re.IGNORECASE).replace(" ", "")
+            item_variants.append(normalized)
+            item_variants.append(re.sub(r"[^a-z0-9]", "", normalized))
+            break
 
     cust_name_map = {}
     if cust_df is not None and not cust_df.empty and "lId" in cust_df.columns:
@@ -859,7 +876,18 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         part = info["sPartCode"].lower()
         name = info["sName"].lower()
         part_clean = re.sub(r"[^a-z0-9]", "", part)
-        part_match = item_lower in part or item_lower in name or (len(item_parts) >= 2 and item_parts in part_clean)
+        part_match = any(
+            v in part or v in name or (len(v) >= 2 and v in part_clean)
+            for v in item_variants
+        )
+        if not part_match and len(item_parts) >= 4:
+            for v in item_variants:
+                if len(v) >= 4 and (
+                    difflib.SequenceMatcher(None, v, part).ratio() >= 0.75
+                    or difflib.SequenceMatcher(None, v, part_clean).ratio() >= 0.75
+                ):
+                    part_match = True
+                    break
         if not part_match:
             continue
         so_id = int(row.get("lSOId", 0) or 0)
