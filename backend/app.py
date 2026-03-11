@@ -7632,10 +7632,11 @@ def chat_query():
         # Use frontend-provided data when available (same data user sees in main app)
         raw_data = {}
         frontend_data = data.get('data')
-        _metadata_keys = frozenset(('folderInfo', 'LoadTimestamp', 'source', 'message', 'folder', 'size', 'fileCount', 'created', 'syncDate', 'lastModified', 'fullCompanyDataReady'))
+        _metadata_keys = frozenset(('folderInfo', 'LoadTimestamp', 'source', 'message', 'folder', 'size', 'fileCount', 'created', 'syncDate', 'lastModified', 'fullCompanyDataReady', 'loaded'))
         if frontend_data and isinstance(frontend_data, dict):
             for k, v in frontend_data.items():
-                if k in _metadata_keys:
+                # Only process string keys (JSON keys); skip non-hashable keys to avoid "unhashable type: 'slice'" etc
+                if not isinstance(k, str) or k in _metadata_keys:
                     continue
                 if isinstance(v, list) and len(v) > 0:
                     raw_data[k] = v
@@ -7650,7 +7651,7 @@ def chat_query():
             global _data_cache
             if _data_cache and isinstance(_data_cache, dict):
                 for k, v in _data_cache.items():
-                    if k in _metadata_keys:
+                    if not isinstance(k, str) or k in _metadata_keys:
                         continue
                     if isinstance(v, list) and len(v) > 0:
                         raw_data[k] = v
@@ -8287,10 +8288,13 @@ For time-sensitive queries like "sales orders made today", filter data by the cu
         total_so_from_pdf = len(raw_data.get('RealSalesOrders', []))
         total_so_by_status = sum(len(orders) for orders in raw_data.get('SalesOrdersByStatus', {}).values()) if isinstance(raw_data.get('SalesOrdersByStatus'), dict) else 0
         
-        # Get folder breakdown for Sales Orders
+        # Get folder breakdown for Sales Orders (guard against unhashable keys / unexpected structure)
         so_folder_breakdown = ""
         if 'SalesOrdersByStatus' in raw_data and isinstance(raw_data['SalesOrdersByStatus'], dict):
-            so_folder_breakdown = "\n".join([f"  - {folder}: {len(orders)} orders" for folder, orders in raw_data['SalesOrdersByStatus'].items()])
+            try:
+                so_folder_breakdown = "\n".join([f"  - {folder}: {len(orders)} orders" for folder, orders in raw_data['SalesOrdersByStatus'].items() if isinstance(folder, str)])
+            except (TypeError, ValueError) as _e:
+                print(f"⚠️ SalesOrdersByStatus iteration error: {_e}")
         
         data_context_info = f"""
 **🚨 CRITICAL: SALES ORDERS ARE PDF FILES IN GOOGLE DRIVE - NOT JSON:**
