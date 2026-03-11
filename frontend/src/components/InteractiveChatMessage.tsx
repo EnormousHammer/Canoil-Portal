@@ -35,6 +35,7 @@ interface InteractiveChatMessageProps {
 
 export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
   message,
+  onItemClick,
   onSOClick,
   onCustomerClick,
 }) => {
@@ -88,6 +89,16 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     while ((m = custRe.exec(text)) !== null)
       matches.push({ start: m.index, end: m.index + m[0].length, type: "customer", val: m[1].trim(), disp: m[1].trim() });
 
+    // Item codes: alphanumeric 3–15 chars with digit (e.g. MOVLL0, 12345, ITEM-001) — only when onItemClick exists
+    if (onItemClick) {
+      const itemRe = /\b([A-Z0-9][A-Za-z0-9\-_]{2,14})\b/g;
+      while ((m = itemRe.exec(text)) !== null) {
+        const val = m[1];
+        if (/\d/.test(val) && !/^(USD|CAD|CDN)$/i.test(val) && val.length >= 3)
+          matches.push({ start: m.index, end: m.index + m[0].length, type: "item", val, disp: m[0] });
+      }
+    }
+
     matches.sort((a, b) => a.start - b.start);
     const kept: typeof matches = [];
     for (const x of matches) {
@@ -103,6 +114,8 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
         parts.push(<button key={x.start} onClick={() => onSOClick?.(x.val)} className="text-blue-600 hover:underline font-medium">{x.disp}</button>);
       else if (x.type === "customer")
         parts.push(<button key={x.start} onClick={() => onCustomerClick?.(x.val)} className="text-violet-600 hover:underline font-medium">{x.disp}</button>);
+      else if (x.type === "item" && onItemClick)
+        parts.push(<button key={x.start} onClick={() => onItemClick({ itemCode: x.val })} className="text-emerald-600 hover:underline font-medium font-mono text-[13px]">{x.disp}</button>);
       else if (x.type === "curramt")
         parts.push(<MoneyAmt key={x.start} value={x.val} curr={x.extra} />);
       else if (x.type === "money")
@@ -302,7 +315,7 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
         )}
 
         {message.action_file && message.action_filename && (
-          <div className="mt-3 pt-2 border-t border-slate-100">
+          <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
                 try {
@@ -327,6 +340,14 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
               <Download className="w-4 h-4" />
               Download {message.action_result?.type === "pr" ? "PR" : "File"}
             </button>
+            {message.action_result?.item_no && onItemClick && (
+              <button
+                onClick={() => onItemClick({ itemCode: message.action_result!.item_no! })}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors border border-slate-200"
+              >
+                View item {message.action_result.item_no}
+              </button>
+            )}
           </div>
         )}
 

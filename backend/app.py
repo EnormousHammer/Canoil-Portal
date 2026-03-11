@@ -7645,7 +7645,22 @@ def chat_query():
                 total_rec = sum(len(v) if isinstance(v, list) else 1 for v in raw_data.values())
                 print(f"✅ Chat using frontend data: {list(raw_data.keys())} ({total_rec} records)")
         
-        # Fallback: load from API Extractions folder when no frontend data
+        # Fallback 1: Use _data_cache (same data /api/data returned when user loaded the app)
+        if not raw_data:
+            global _data_cache
+            if _data_cache and isinstance(_data_cache, dict):
+                for k, v in _data_cache.items():
+                    if k in _metadata_keys:
+                        continue
+                    if isinstance(v, list) and len(v) > 0:
+                        raw_data[k] = v
+                    elif isinstance(v, dict) and len(v) > 0:
+                        raw_data[k] = v
+                if raw_data:
+                    total_rec = sum(len(v) if isinstance(v, list) else 1 for v in raw_data.values())
+                    print(f"✅ Chat using _data_cache: {list(raw_data.keys())} ({total_rec} records)")
+        
+        # Fallback 2: load from API Extractions folder when no frontend data and no cache
         latest_folder = "backend"  # default; overwritten below if we load from G Drive
         if not raw_data:
             latest_folder, error = get_latest_folder()

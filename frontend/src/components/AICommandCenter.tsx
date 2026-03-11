@@ -286,15 +286,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
   // Generate enterprise analytics from existing data (no API call needed!)
   const generateEnterpriseAnalytics = () => {
-    console.log('📊 Generating analytics from existing data...');
-    console.log('🔍 Available data keys:', Object.keys(data));
-    console.log('🔍 Data structure:', {
-      'RealSalesOrders': data['RealSalesOrders']?.length || 0,
-      'ParsedSalesOrders.json': data['ParsedSalesOrders.json']?.length || 0,
-      'SalesOrderHeaders.json': data['SalesOrderHeaders.json']?.length || 0,
-      'SalesOrders.json': data['SalesOrders.json']?.length || 0,
-    });
-    
     setIsLoadingAnalytics(true);
     
     try {
@@ -309,20 +300,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       const inventoryItems = data['Items.json'] || data['MIITEM.json'] || [];
       const moHeaders = data['ManufacturingOrderHeaders.json'] || [];
       const poOrders = data['PurchaseOrders.json'] || [];
-      
-      console.log(`📈 Found: ${realSalesOrders.length} sales orders, ${inventoryItems.length} inventory items`);
-      
-      // If still no sales orders, log sample data to see structure
-      if (realSalesOrders.length > 0) {
-        console.log('📋 Sample SO data:', realSalesOrders[0]);
-      } else {
-        console.warn('⚠️ NO SALES ORDERS FOUND - checking all data keys...');
-        Object.keys(data).forEach(key => {
-          if (Array.isArray(data[key]) && data[key].length > 0) {
-            console.log(`📦 ${key}: ${data[key].length} items`);
-          }
-        });
-      }
       
       // Calculate KPIs
       const totalRevenue = realSalesOrders.reduce((sum: number, so: any) => {
@@ -430,9 +407,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       };
       
       setEnterpriseAnalytics(analytics);
-      console.log('✅ Analytics generated from existing data');
     } catch (error) {
-      console.error('❌ Error generating analytics:', error);
+      console.error('Error generating analytics:', error);
     } finally {
       setIsLoadingAnalytics(false);
     }
@@ -463,45 +439,29 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
   // Interactive handlers
   const handleItemClick = (item: any) => {
-    console.log('🔍 AI Chat Item clicked:', item);
-    
-    // Find the full item data from the app data
-    const inventory = data?.['Items.json'] || [];
-    console.log('📊 Searching in inventory with', inventory.length, 'items');
-    
-    // Try multiple matching strategies
+    const inventory = data?.['Items.json'] || data?.['MIITEM.json'] || [];
     let fullItem = inventory.find((invItem: any) => 
-      invItem['Item No.']?.toLowerCase() === item.itemCode.toLowerCase()
+      invItem['Item No.']?.toLowerCase() === item.itemCode?.toLowerCase()
     );
-    
     if (!fullItem) {
       fullItem = inventory.find((invItem: any) => 
-        invItem['Item No.']?.toLowerCase().includes(item.itemCode.toLowerCase()) ||
-        invItem['Description']?.toLowerCase().includes(item.itemCode.toLowerCase()) ||
-        invItem['Description 2']?.toLowerCase().includes(item.itemCode.toLowerCase())
+        invItem['Item No.']?.toLowerCase().includes(item.itemCode?.toLowerCase()) ||
+        invItem['Description']?.toLowerCase().includes(item.itemCode?.toLowerCase()) ||
+        invItem['Description 2']?.toLowerCase().includes(item.itemCode?.toLowerCase())
       );
     }
-    
-    console.log('🎯 Found item:', fullItem ? fullItem['Item No.'] : 'Not found');
-    
     if (fullItem && onItemClick) {
-      console.log('✅ Opening item modal for:', fullItem['Item No.']);
-      // Use the exact same behavior as inventory section
       onItemClick(fullItem);
     } else {
-      console.log('❌ Item not found, falling back to chat query');
-      // Fallback to chat query if item not found
       setInputMessage(`Tell me more about item ${item.itemCode}`);
     }
   };
 
   const handleSOClick = (soNumber: string) => {
-    console.log('SO clicked:', soNumber);
     setInputMessage(`Show me details for sales order ${soNumber}`);
   };
 
   const handleCustomerClick = (customer: string) => {
-    console.log('Customer clicked:', customer);
     setInputMessage(`Show me information about customer ${customer}`);
   };
 
@@ -532,7 +492,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const generateDataSummary = (): DataSummary => {
     const now = Date.now();
     // Always compute fresh when called — cache can return stale data when data prop changes
-    console.log('🔄 Processing AI data summary...');
 
     // Get ALL Sales Orders from every available source
     const realSalesOrders = data['RealSalesOrders'] || [];
@@ -563,8 +522,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     const uniqueSalesOrders = allSalesOrders.filter((so, index, self) =>
       getSoNum(so) === '' || index === self.findIndex(s => getSoNum(s) === getSoNum(so))
     );
-    
-    console.log(`📊 AI Summary - TOTAL Sales Orders found: ${uniqueSalesOrders.length} orders (GDrive: ${gdriveSalesOrders.length}, PDF: ${realSalesOrders.length}, Parsed: ${parsedSalesOrders.length})`);
     
     // Use the unique sales orders for calculations
     allSalesOrders = uniqueSalesOrders;
@@ -820,9 +777,38 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       sageData: 'Available server-side (customers, open SOs, AR aging)',
       googleDriveData: 'Available server-side (MiSys, Sales Orders PDFs)'
     };
-    // NOTE: We intentionally do NOT send the full `data` object here.
-    // Sending 600k+ records in the POST body was crashing the backend (OOM on Render).
-    // The backend loads its own data from Google Drive / Sage for each query.
+    // Send data so AI answers match what the user sees. Backend expects key "data".
+    // Without it, AI returns "0 MOs", "no inventory" etc. (backend fallback has no data on Render).
+    const _metadata_keys = new Set(['folderInfo', 'LoadTimestamp', 'source', 'message', 'folder', 'size', 'fileCount', 'created', 'syncDate', 'lastModified', 'fullCompanyDataReady', 'loaded']);
+    const dataToSend: Record<string, unknown> = {};
+    const maxPayloadBytes = 5 * 1024 * 1024; // 5MB limit to avoid OOM
+    if (data && typeof data === 'object') {
+      for (const [k, v] of Object.entries(data)) {
+        if (_metadata_keys.has(k)) continue;
+        if (Array.isArray(v) && v.length > 0) {
+          dataToSend[k] = v;
+        } else if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0) {
+          dataToSend[k] = v;
+        }
+      }
+      const payloadStr = JSON.stringify(dataToSend);
+      if (payloadStr.length > maxPayloadBytes) {
+        // Send only essential keys for chat (MO, PO, Items, SO) when full payload too large
+        const essential = ['ManufacturingOrderHeaders.json', 'MIMOH.json', 'ManufacturingOrderDetails.json', 'MIMOMD.json', 'Items.json', 'MIITEM.json', 'MIILOC.json', 'PurchaseOrders.json', 'MIPOH.json', 'PurchaseOrderDetails.json', 'MIPOD.json', 'SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'RealSalesOrders', 'ParsedSalesOrders.json', 'SalesOrdersByStatus', 'SalesOrders_InProduction', 'SalesOrders_Completed', 'SalesOrders_New', 'SalesOrders_Scheduled'];
+        const trimmed: Record<string, unknown> = {};
+        for (const k of essential) {
+          const v = data[k];
+          if (Array.isArray(v) && v.length > 0) trimmed[k] = v;
+          else if (v && typeof v === 'object' && Object.keys(v).length > 0) trimmed[k] = v;
+        }
+        // Always send trimmed when available (better than no data)
+        if (Object.keys(trimmed).length > 0) {
+          return { query, dateContext, dataSources: dataSourcesSummary, data: trimmed };
+        }
+      } else {
+        return { query, dateContext, dataSources: dataSourcesSummary, data: dataToSend };
+      }
+    }
     return { query, dateContext, dataSources: dataSourcesSummary };
   };
 
@@ -858,8 +844,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
     try {
       
-      console.log('🚀 Sending chat request to:', getApiUrl('/api/chat'));
-      
       const response = await fetch(getApiUrl('/api/chat'), {
         method: 'POST',
         headers: {
@@ -868,10 +852,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         body: JSON.stringify(requestBody)
       });
 
-      console.log('📥 RESPONSE:');
-      console.log('Status:', response.status, response.statusText);
-      console.log('Headers:', Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error Response:', errorText);
@@ -879,7 +859,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       }
 
       const result = await response.json();
-      console.log('✅ AI Response received:', result);
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -1019,12 +998,45 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const handleInsightAction = (insight: AIInsight) => {
     if (insight.query) {
       setActiveTab('chat');
-      setInputMessage(insight.query);
-      // Focus and optionally send after a brief delay so user sees it
-      setTimeout(() => {
-        const input = document.querySelector('textarea[placeholder*="Ask"]') as HTMLTextAreaElement;
-        input?.focus();
-      }, 100);
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: insight.query,
+        timestamp: new Date(),
+        category: insight.category as any
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setIsProcessing(true);
+      fetch(getApiUrl('/api/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...buildChatRequestBody(insight.query),
+          conversationContext: buildConversationContext(),
+        })
+      }).then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const res = await r.json();
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: res.response || 'I could not process that request.',
+          timestamp: new Date(),
+          category: insight.category as any,
+          sources: res.sources,
+          action_file: res.action_file,
+          action_filename: res.action_filename,
+          action_result: res.action_result
+        }]);
+      }).catch((err) => {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: `⚠️ Cannot connect to AI backend. Error: ${err}`,
+          timestamp: new Date(),
+          category: 'general'
+        }]);
+      }).finally(() => setIsProcessing(false));
     }
   };
 
@@ -1193,7 +1205,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               dataSummary: null,
                               lastProcessed: 0
                             });
-                            console.log('🗑️ AI Command cache cleared');
                           }}
                         className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 transition-colors"
                           title="Clear AI cache"
@@ -1228,12 +1239,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           <div className="text-sm font-semibold text-gray-800 mb-3">📊 Available Data Sources:</div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                             {(() => {
-                              // DEBUG: Log what data keys we have
-                              console.log('🔍 AI Command Center - Available data keys:', Object.keys(data));
-                              console.log('🔍 RealSalesOrders:', data['RealSalesOrders']?.length || 0);
-                              console.log('🔍 ParsedSalesOrders.json:', data['ParsedSalesOrders.json']?.length || 0);
-                              console.log('🔍 SalesOrdersByStatus:', typeof data['SalesOrdersByStatus'], data['SalesOrdersByStatus']);
-                              
                               // Collect all sales orders from ALL sources
                               const _getSoNum = (so: any) =>
                                 so.so_number || so.soNumber || so['SO Number'] || so.SO_Number || so.so_no || so['SO#'] || '';
@@ -1263,7 +1268,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               );
                               
                               const salesOrdersCount = uniqueSalesOrders.length;
-                              console.log('✅ AI panel SO count:', salesOrdersCount, '(GDrive:', data['SalesOrders.json']?.length || 0, ')');
                               
                               return (
                                 <>
@@ -1374,19 +1378,60 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         )}
                       </button>
                     </div>
-                    {/* Quick Suggestions — concrete queries only */}
+                    {/* Quick Suggestions — one-click send */}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
                         { label: "Active MOs by customer & build item", query: "How many active manufacturing orders do we have? List them by customer name and build item." },
-                        { label: "Items below reorder level", query: "Items below reorder level" },
-                        { label: "Open POs by supplier", query: "Open POs by supplier" },
-                        { label: "Top customers by revenue", query: "Top customers by revenue" },
+                        { label: "Items below reorder level", query: "Which items are below reorder level? Give me the list with stock and reorder quantities." },
+                        { label: "Open POs by supplier", query: "How many open purchase orders do we have? List by supplier." },
+                        { label: "Top customers by revenue", query: "Who are our top customers by revenue this year? Use the Sage data." },
                         { label: "Create PR for items", query: "Create a PR for 2 cases of MOV Long Life 0 Kegs" }
                       ].map((suggestion, index) => (
                         <button
                           key={index}
-                          onClick={() => setInputMessage(suggestion.query)}
-                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-600 hover:text-violet-700 rounded-lg text-sm transition-colors"
+                          onClick={() => {
+                            const userMsg: ChatMessage = {
+                              id: Date.now().toString(),
+                              type: 'user',
+                              content: suggestion.query,
+                              timestamp: new Date(),
+                              category: 'general'
+                            };
+                            setMessages(prev => [...prev, userMsg]);
+                            setIsProcessing(true);
+                            fetch(getApiUrl('/api/chat'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                ...buildChatRequestBody(suggestion.query),
+                                conversationContext: buildConversationContext(),
+                              })
+                            }).then(async (r) => {
+                              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                              const res = await r.json();
+                              setMessages(prev => [...prev, {
+                                id: (Date.now() + 1).toString(),
+                                type: 'assistant',
+                                content: res.response || 'I could not process that request.',
+                                timestamp: new Date(),
+                                category: 'general',
+                                sources: res.sources,
+                                action_file: res.action_file,
+                                action_filename: res.action_filename,
+                                action_result: res.action_result
+                              }]);
+                            }).catch((err) => {
+                              setMessages(prev => [...prev, {
+                                id: (Date.now() + 1).toString(),
+                                type: 'assistant',
+                                content: `⚠️ Cannot connect to AI backend. Error: ${err}`,
+                                timestamp: new Date(),
+                                category: 'general'
+                              }]);
+                            }).finally(() => setIsProcessing(false));
+                          }}
+                          disabled={isProcessing}
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-600 hover:text-violet-700 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {suggestion.label}
                         </button>
@@ -1441,7 +1486,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         onClick={() => handleInsightAction(insight)}
                         className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm font-medium"
                       >
-                        {insight.action || 'Ask in Chat'}
+                        {insight.action || 'Get answer'}
                     </button>
                   )}
                 </div>
