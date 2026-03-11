@@ -969,10 +969,12 @@ def get_sales_order_by_number(so_number: str) -> dict | None:
     lines = []
     for _, row in lines_df.iterrows():
         iid = int(row.get("lInventId", 0) or 0)
-        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
         qty = float(row.get("_qty", 0) or 0)
         amt = float(row.get("_amt", 0) or 0)
         price = float(row.get("_price", 0) or 0)
+        if iid == 0 and qty == 0 and amt == 0:
+            continue
+        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
         lines.append({
             "item_code": info["sPartCode"],
             "item_name": info["sName"],
@@ -984,16 +986,24 @@ def get_sales_order_by_number(so_number: str) -> dict | None:
 
     cur_id = int(r.get("lCurrncyId", 1) or 1)
     currency = "USD" if cur_id == 2 else "CAD"
-    return {
+    total = round(_safe_float(r.get("dTotal")), 2)
+    subtotal = round(_safe_float(r.get("dSubTotal")), 2) if "dSubTotal" in r.index else None
+    tax_amt = round(_safe_float(r.get("dTaxAmt")), 2) if "dTaxAmt" in r.index else None
+    result = {
         "so_number": _safe_str(r.get("sSONum")),
         "customer_name": cust_name,
         "order_date": _safe_date(r.get("dtSODate")),
         "ship_date": _safe_date(r.get("dtShipDate")),
-        "total": round(_safe_float(r.get("dTotal")), 2),
+        "total": total,
         "currency": currency,
         "lines": lines,
         "source": "gdrive",
     }
+    if subtotal is not None:
+        result["subtotal"] = subtotal
+    if tax_amt is not None and tax_amt != 0:
+        result["tax"] = tax_amt
+    return result
 
 
 # ---------------------------------------------------------------------------

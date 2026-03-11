@@ -1958,9 +1958,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       {showSODetailModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]" onClick={() => setShowSODetailModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-xl font-bold">Sales Order Details</h2>
-              <button onClick={() => setShowSODetailModal(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 text-white px-6 py-5 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Sales Order #{soDetailData?.so_number || '...'}</h2>
+                  <p className="text-slate-300 text-sm mt-0.5">{soDetailData?.customer_name || ''}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSODetailModal(false)} className="p-2.5 hover:bg-white/10 rounded-xl transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1977,40 +1985,58 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 </div>
               )}
               {!soDetailLoading && !soDetailError && soDetailData && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div><span className="text-slate-500">SO #</span><p className="font-semibold text-slate-800">{soDetailData.so_number}</p></div>
-                    <div><span className="text-slate-500">Customer</span><p className="font-semibold text-slate-800">{soDetailData.customer_name}</p></div>
-                    <div><span className="text-slate-500">Order Date</span><p className="font-semibold text-slate-800">{soDetailData.order_date}</p></div>
-                    <div><span className="text-slate-500">Ship Date</span><p className="font-semibold text-slate-800">{soDetailData.ship_date || '—'}</p></div>
-                    <div><span className="text-slate-500">Total</span><p className="font-semibold text-emerald-700">{soDetailData.currency} ${(soDetailData.total || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</p></div>
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div><span className="text-slate-500 text-xs font-medium uppercase tracking-wider">Order Date</span><p className="font-semibold text-slate-800 mt-0.5">{soDetailData.order_date}</p></div>
+                    <div><span className="text-slate-500 text-xs font-medium uppercase tracking-wider">Ship Date</span><p className="font-semibold text-slate-800 mt-0.5">{soDetailData.ship_date || '—'}</p></div>
+                    <div><span className="text-slate-500 text-xs font-medium uppercase tracking-wider">Currency</span><p className="font-semibold text-slate-800 mt-0.5">{soDetailData.currency}</p></div>
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">Line Items</h3>
-                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                       <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50">
+                        <thead className="bg-gradient-to-r from-slate-50 to-slate-100">
                           <tr>
-                            <th className="px-3 py-2 text-left font-semibold text-slate-600">Item</th>
-                            <th className="px-3 py-2 text-right font-semibold text-slate-600">Qty</th>
-                            <th className="px-3 py-2 text-right font-semibold text-slate-600">Unit Price</th>
-                            <th className="px-3 py-2 text-right font-semibold text-slate-600">Total</th>
+                            <th className="px-4 py-3 text-left font-semibold text-slate-600">Item</th>
+                            <th className="px-4 py-3 text-right font-semibold text-slate-600">Qty</th>
+                            <th className="px-4 py-3 text-right font-semibold text-slate-600">Unit Price</th>
+                            <th className="px-4 py-3 text-right font-semibold text-slate-600">Total</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {(soDetailData.lines || []).map((line: any, i: number) => (
-                            <tr key={i} className="border-t border-slate-100">
-                              <td className="px-3 py-2">
-                                <p className="font-medium text-slate-800">{line.item_code}</p>
-                                {line.item_name && <p className="text-slate-500 text-xs">{line.item_name}</p>}
+                          {(soDetailData.lines || [])
+                            .filter((line: any) => !(String(line.item_code || '').startsWith('ID:0') && (line.quantity || 0) === 0 && (line.line_total || 0) === 0))
+                            .map((line: any, i: number) => (
+                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/50">
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-slate-800 font-mono">{line.item_code}</p>
+                                {line.item_name && <p className="text-slate-500 text-xs mt-0.5">{line.item_name}</p>}
                               </td>
-                              <td className="px-3 py-2 text-right tabular-nums">{line.quantity}</td>
-                              <td className="px-3 py-2 text-right tabular-nums">${(line.unit_price || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</td>
-                              <td className="px-3 py-2 text-right font-semibold text-emerald-700 tabular-nums">${(line.line_total || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-3 text-right tabular-nums">{line.quantity}</td>
+                              <td className="px-4 py-3 text-right tabular-nums">${(line.unit_price || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-emerald-700 tabular-nums">${(line.line_total || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                  <div className="border-t border-slate-200 pt-4 space-y-2">
+                    {soDetailData.subtotal != null && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Subtotal</span>
+                        <span className="font-medium tabular-nums">{soDetailData.currency} ${(soDetailData.subtotal || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {soDetailData.tax != null && soDetailData.tax !== 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Tax</span>
+                        <span className="font-medium tabular-nums">{soDetailData.currency} ${(soDetailData.tax || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-bold pt-2 border-t border-slate-200">
+                      <span className="text-slate-700">Total</span>
+                      <span className="text-emerald-700 tabular-nums">{soDetailData.currency} ${(soDetailData.total || 0).toLocaleString('en-CA', { minimumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>

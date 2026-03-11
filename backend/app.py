@@ -9425,15 +9425,18 @@ def sage_sales_order_by_number(so_number):
                         lines = detail.get('lines', [])
                         formatted_lines = []
                         for ln in lines:
+                            iid = ln.get('lInventId') or 0
                             qty = float(ln.get('dQuantity') or ln.get('dOrdered') or ln.get('dQty') or 0)
                             price = float(ln.get('dPrice') or 0)
                             amt = float(ln.get('dAmount') or 0)
+                            if iid == 0 and qty == 0 and amt == 0:
+                                continue
                             if qty == 0 and amt > 0 and price > 0:
                                 qty = amt / price
                             if amt == 0 and qty and price:
                                 amt = qty * price
                             formatted_lines.append({
-                                'item_code': ln.get('sPartCode') or f"ID:{ln.get('lInventId')}",
+                                'item_code': ln.get('sPartCode') or f"ID:{iid}",
                                 'item_name': ln.get('sItemName', ''),
                                 'unit': ln.get('sSellUnit', ''),
                                 'quantity': round(qty, 2),
@@ -9450,6 +9453,10 @@ def sage_sales_order_by_number(so_number):
                             'lines': formatted_lines,
                             'source': 'sage_live',
                         }
+                        if order.get('dSubTotal') is not None:
+                            formatted['subtotal'] = round(float(order.get('dSubTotal') or 0), 2)
+                        if order.get('dTaxAmt') is not None and float(order.get('dTaxAmt') or 0) != 0:
+                            formatted['tax'] = round(float(order.get('dTaxAmt') or 0), 2)
                         return jsonify(formatted)
         return jsonify({'error': f'Sales order {so_number} not found'}), 404
     except Exception as e:
