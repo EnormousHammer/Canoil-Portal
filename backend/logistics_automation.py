@@ -570,9 +570,10 @@ def parse_multi_so_email_with_gpt4(email_text: str) -> dict:
         }},
         "combined_totals": {{
             "total_gross_weight": "4626 kg",
-            "total_pallet_count": 6
+            "total_pallet_count": 6,
+            "total_tote_count": 0
         }},
-        "totes_info": "Combined totes information if mentioned",
+        "totes_info": "Combined totes information if mentioned. When email says 'X totes' (shipping out), put total_tote_count. TOTES are NOT pallets.",
         "totes_return": {{ "empty_count": 4, "partial_count": 2, "partial_by_product": [...] }},
         "totes_by_so": {{
             "3097": {{ "empty_count": 2, "partial_count": 1, "partial_by_product": [{{"product": "5W-30", "batch": "N60047", "kg": 505}}] }},
@@ -1366,7 +1367,7 @@ def parse_email_deterministic(email_text: str) -> dict:
                     print(f"DEBUG: Found weight: {data['total_weight']}")
                     break
     
-    # Pallet info - multiple patterns
+    # Pallet info - only when email says "pallets" or "skids" (NOT totes)
     pallet_patterns = [
         r'On\s+(\d+)\s+pallets?',
         r'(\d+)\s+pallets?\s+of',
@@ -1380,6 +1381,11 @@ def parse_email_deterministic(email_text: str) -> dict:
                 break
             except:
                 pass
+    
+    # Tote count - when email says "X totes" (separate from pallets)
+    tote_m = re.search(r'(?:in\s+)?(\d+)\s+totes?', text, re.IGNORECASE)
+    if tote_m:
+        data['tote_count'] = int(tote_m.group(1))
     
     # Pallet dimensions - flexible pattern (2 or 3 dimensions, with/without "inches")
     # Extract dimensions and detect packaging type (case, skid, pallet)
@@ -1612,9 +1618,10 @@ def parse_email_with_gpt4(email_text, retry_count=0):
                 }}
             ],
             "total_weight": "[CRITICAL] If GROSS WEIGHT is mentioned, use GROSS weight (it's the total including packaging). If only NET WEIGHT is mentioned, use net weight. Example: '180 kg net weight, 380 kg gross weight' → use '380 kg'. If multiple line weights, sum them all.",
-            "pallet_count": "[CRITICAL] TOTAL number of pallets/skids/cases as integer. Look for phrases like 'on X pallets', 'X skids', 'In X case', 'On 2 pallets... On 2 pallets... On 4 pallets' (add them: 2+2+4=8). Search entire email for skid/pallet/case counts. If multiple mentioned, ADD THEM ALL. Required field - must extract if ANY pallet/skid/case mention exists.",
-            "pallet_dimensions": "[CRITICAL] Pallet/skid/case dimensions. Look for: '48x40', '45×45×40', '48 x 40 x 48', 'pallet dimensions: 48x40x48', 'skid size 48x40', 'In 1 case 27×22×20 inches', etc. Include units if mentioned (inches/cm). Search entire email. Required field - must extract if ANY dimension mention exists.",
-            "packaging_type": "[CRITICAL] Type of packaging: 'case', 'pallet', or 'skid'. Look for phrases like 'In 1 case 27×22×20 inches' → 'case', 'on 2 pallets 48x40' → 'pallet', 'on 3 skids' → 'skid'. If email says 'case' use 'case', if 'pallet' or 'skid' use 'pallet'. Default to 'pallet' if not specified. Required field.",
+            "pallet_count": "[CRITICAL] TOTAL number of pallets/skids/cases as integer. ONLY when email says 'pallets', 'skids', or 'cases'. Look for 'on X pallets', 'X skids', 'In X case'. If email says 'totes' use tote_count instead - NEVER put totes in pallet_count.",
+            "tote_count": "[CRITICAL] When email says 'X totes' (e.g. 'In 6 totes', '6 totes 40x46x48 inches each tote') - extract the number. TOTES are IBCs/bulk containers, NOT pallets. If email says '6 totes' put tote_count=6. Leave null/0 if no totes mentioned.",
+            "pallet_dimensions": "[CRITICAL] Pallet/skid/case/tote dimensions. Look for: '48x40', '45×45×40', 'In 6 totes 40×46×48 inches each', 'pallet dimensions: 48x40x48', etc. Include units if mentioned. Required when ANY dimension exists.",
+            "packaging_type": "[CRITICAL] Type: 'case', 'pallet', 'skid', or 'tote'. If email says 'tote' or 'totes' → 'tote'. If 'case' → 'case'. If 'pallet' or 'skid' → 'pallet'. TOTES and PALLETS are different - read the email carefully.",
             "special_instructions": "any special handling notes",
             "ship_date": "ship date if mentioned",
             "carrier": "carrier/shipping company name (e.g., 'R+L Carriers', 'Day & Ross', 'FedEx')",
@@ -1647,6 +1654,12 @@ def parse_email_with_gpt4(email_text, retry_count=0):
         - "batch number 2023087285" → {{"batch_number": "2023087285"}}
         - "460 kg total net weight" → {{"total_weight": "460 kg"}}
         - "On 1 pallet, 45×45×40 inches" → {{"pallet_count": 1, "pallet_dimensions": "45×45×40 inches"}}
+        
+        TOTE EXTRACTION (CRITICAL - TOTES ARE NOT PALLETS):
+        When email says "totes" use tote_count, NOT pallet_count. Examples:
+        - "6000 litres... In 6 totes 40×46×48 inches each tote" → {{"tote_count": 6, "pallet_count": null, "pallet_dimensions": "40×46×48 inches", "packaging_type": "tote"}}
+        - "In 6 totes" or "6 totes 1000L each" → {{"tote_count": 6, "packaging_type": "tote"}}
+        - Items: "6000 litres of Multi Purpose Maintenance Spray" → quantity is 6000 (liters), tote_count=6 gives piece count for BOL
         
         BATCH NUMBER EXTRACTION (CRITICAL):
         For email: "Line 1: 100 cases CSW-400, batch WH5H01G002\nLine 2: 60 pails CSW-17, batch WH5H01G002\nLine 3: 32 kegs CSW-55, batch WH5H01G002"
@@ -3188,6 +3201,21 @@ def process_multi_so_email(email_content: str, so_numbers: list):
     
     # Parse email to get items grouped by SO
     multi_so_email_data = parse_multi_so_email_with_gpt4(email_content)
+    # Tote count: prefer GPT's total_tote_count; else regex from raw email
+    ct = multi_so_email_data.get('combined_totals', {})
+    gpt_tote = ct.get('total_tote_count') or 0
+    try:
+        gpt_tote = int(gpt_tote) if gpt_tote else 0
+    except (ValueError, TypeError):
+        gpt_tote = 0
+    if gpt_tote > 0:
+        multi_so_email_data['tote_count'] = gpt_tote
+        print(f"[OK] TOTE COUNT (from GPT): {multi_so_email_data['tote_count']}")
+    if not multi_so_email_data.get('tote_count'):
+        tote_m = re.search(r'(?:in\s+)?(\d+)\s+totes?', email_content, re.IGNORECASE)
+        if tote_m:
+            multi_so_email_data['tote_count'] = int(tote_m.group(1))
+            print(f"[OK] TOTE COUNT (regex fallback): {multi_so_email_data['tote_count']}")
     print(f"📧 Multi-SO Email Data: {json.dumps(multi_so_email_data, indent=2, default=str)}")
     
     # CRITICAL DEBUG: Verify items_by_so has entries for ALL SOs
@@ -4077,13 +4105,13 @@ def process_email():
             # (BOL/CI generators need raw_text to detect "cleared by Near North" etc.)
             email_data['raw_text'] = email_content
             
-            # CRITICAL: Count pallets from RAW EMAIL - NEVER trust GPT for counting
-            # Patterns: "On 3 pallets", "On 1 pallet", "on 2 skids", etc.
-            pallet_matches = re.findall(r'[Oo]n\s+(\d+)\s+(?:pallet|skid)', email_content)
+            # CRITICAL: Count pallets from RAW EMAIL - only when email says "pallets" or "skids"
+            # Do NOT use pallet_count when email says "totes" - those are different
+            pallet_matches = re.findall(r'[Oo]n\s+(\d+)\s+(?:pallet|skid)s?', email_content)
             if pallet_matches:
                 correct_pallet_count = sum(int(p) for p in pallet_matches)
                 gpt_pallet_count = email_data.get('pallet_count', 0) or 0
-                print(f"📦 PALLET COUNT FROM EMAIL: {correct_pallet_count} (found: {pallet_matches})")
+                print(f"[OK] PALLET COUNT FROM EMAIL: {correct_pallet_count} (found: {pallet_matches})")
                 print(f"   GPT said: {gpt_pallet_count}")
                 
                 # ALWAYS use the email count, not GPT's count
@@ -4098,6 +4126,15 @@ def process_email():
                     email_data['skid_info'] = f"{correct_pallet_count} {pkg_type}s {pallet_dims} each".strip()
                 print(f"   skid_info: {email_data['skid_info']}")
             
+            # TOTE COUNT: Prefer GPT's tote_count (schema now asks for it); else regex fallback
+            if not email_data.get('tote_count'):
+                tote_match = re.search(r'(?:in\s+)?(\d+)\s+totes?', email_content, re.IGNORECASE)
+                if tote_match:
+                    email_data['tote_count'] = int(tote_match.group(1))
+                    print(f"[OK] TOTE COUNT (regex fallback): {email_data['tote_count']}")
+            elif email_data.get('tote_count'):
+                print(f"[OK] TOTE COUNT (from GPT): {email_data['tote_count']}")
+            
             print(f"\n{'='*80}")
             print(f"EMAIL DATA PARSED:")
             print(f"  SO Number: {email_data.get('so_number')}")
@@ -4106,6 +4143,7 @@ def process_email():
             print(f"  PO Number: {email_data.get('po_number')}")
             print(f"  Total Weight: {email_data.get('total_weight')}")
             print(f"  Pallet Count: {email_data.get('pallet_count')}")
+            print(f"  Tote Count: {email_data.get('tote_count')}")
             print(f"  Pallet Dimensions: {email_data.get('pallet_dimensions')}")
             print(f"  Carrier: {email_data.get('carrier')}")
             print(f"{'='*80}\n")
@@ -4505,15 +4543,25 @@ def process_email():
                                 matched_so_item = so_item
                                 # Store liters from email for BOL description formatting
                                 liters_filled = item_qty if item_qty else ''
+                                # Multi-tote: use tote_count from email when "X totes" (e.g. 6 totes 6000L)
+                                # Do NOT use pallet_count - email says totes, not pallets
+                                tote_pieces = 1
+                                tote_count = email_data.get('tote_count') or 0
+                                try:
+                                    tc = int(tote_count)
+                                    if tc > 0 and liters_filled and abs((float(str(liters_filled).replace(',', '')) / tc) - 1000) < 500:
+                                        tote_pieces = tc
+                                except (ValueError, TypeError):
+                                    pass
                                 match_details = f"TOTE order matched by description: {so_desc}"
                                 if liters_filled:
                                     match_details += f" | Liters filled: {liters_filled}L"
                                     # Update the email item with tote info for BOL generation
                                     email_item['is_tote_order'] = True
                                     email_item['liters_filled'] = liters_filled
-                                    email_item['bol_quantity'] = 1  # 1 tote
+                                    email_item['bol_quantity'] = tote_pieces  # 6 totes = 6 pieces
                                     email_item['bol_description'] = f"{email_item.get('description', '')} ({liters_filled}L filled)"
-                                print(f"   ✅ TOTE MATCH: '{item_desc}' = '{so_desc}' (Liters: {liters_filled})")
+                                print(f"   [OK] TOTE MATCH: '{item_desc}' = '{so_desc}' (Pieces: {tote_pieces}, Liters: {liters_filled})")
                                 break
                             
                             # For non-tote orders, check quantity
@@ -5084,6 +5132,7 @@ def process_email():
                     
                     original_qty = so_item.get('quantity', 0)
                     unit_price = so_item.get('unit_price', 0) or so_item.get('price', 0)
+                    so_unit = (so_item.get('unit') or '').upper()
                     
                     # Parse unit price
                     try:
@@ -5091,20 +5140,39 @@ def process_email():
                     except:
                         unit_price_num = 0
                     
-                    # Update quantity with email value
+                    # TOTE/BLANKET ORDER: When SO has LITER/TOTE and email says "X totes" with Y liters,
+                    # use tote COUNT (pieces) as quantity for BOL/CI, not liters. e.g. 6 totes 6000L -> qty=6
+                    # Use tote_count from email - NOT pallet_count (email says totes, not pallets)
+                    qty_to_use = email_qty
+                    email_text_lower = str(email_data).lower()
+                    tote_count = email_data.get('tote_count') or 0
+                    if so_unit in ('LITER', 'LITRE', 'TOTE', 'IBC') and 'tote' in email_text_lower and tote_count:
+                        try:
+                            tc = int(tote_count)
+                            if tc > 0 and abs((email_qty / tc) - 1000) < 500:  # ~1000L per tote
+                                qty_to_use = tc
+                                so_item['liters_filled'] = email_qty  # Keep for BOL description
+                                print(f"   [OK] TOTE SHIPMENT: Using {tc} pieces (totes), {email_qty}L total")
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Update quantity with email value (or tote piece count)
                     so_item['original_quantity'] = original_qty  # Keep original for reference
-                    so_item['quantity'] = email_qty
+                    so_item['quantity'] = qty_to_use
                     so_item['quantity_source'] = 'email_override'
                     
-                    # Recalculate total if we have unit price
+                    # Recalculate total: use liters * unit_price when SO unit is LITER (unit_price is per liter)
                     if unit_price_num > 0:
-                        new_total = email_qty * unit_price_num
+                        if so_unit in ('LITER', 'LITRE') and so_item.get('liters_filled'):
+                            new_total = float(so_item['liters_filled']) * unit_price_num
+                        else:
+                            new_total = qty_to_use * unit_price_num
                         so_item['original_total'] = so_item.get('total', so_item.get('total_price', 0))
                         so_item['total'] = new_total
                         so_item['total_price'] = new_total
-                        print(f"   ✏️ MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty}, total ${new_total:,.2f}")
+                        print(f"   [OK] MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} -> {qty_to_use}, total ${new_total:,.2f}")
                     else:
-                        print(f"   ✏️ MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} → {email_qty} (no unit price for recalc)")
+                        print(f"   [OK] MATCHED & UPDATED '{so_item.get('description', '')[:40]}...': qty {original_qty} -> {qty_to_use} (no unit price for recalc)")
                 else:
                     print(f"   ⚠️ NO MATCH FOUND for '{email_desc}'")
             

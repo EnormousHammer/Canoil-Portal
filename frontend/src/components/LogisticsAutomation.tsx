@@ -53,6 +53,17 @@ interface GeneratedDocument {
   file_type?: 'pdf' | 'html';  // When 'html', PDF conversion failed - show Convert to PDF button
 }
 
+/** Format SO special instructions: split run-on text into readable bullet lines */
+function formatSpecialInstructions(text: string | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  // Split on ", " to break comma-separated clauses (e.g. blanket order notes)
+  const parts = trimmed.split(/,\s*/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return trimmed;
+  return parts.map((p) => `• ${p}`).join('\n');
+}
+
 const LogisticsAutomation: React.FC = () => {
   // Simplified state - only what we need
   const [emailText, setEmailText] = useState('');
@@ -2094,7 +2105,7 @@ const LogisticsAutomation: React.FC = () => {
                 {result.parsed_info.special_instructions && (
                   <div className="mt-2">
                     <p className="font-semibold">Special Instructions:</p>
-                    <p className="text-gray-600 whitespace-pre-wrap">{result.parsed_info.special_instructions}</p>
+                    <p className="text-gray-600 whitespace-pre-wrap">{formatSpecialInstructions(result.parsed_info.special_instructions)}</p>
                   </div>
                 )}
               </div>
@@ -2998,8 +3009,8 @@ const LogisticsAutomation: React.FC = () => {
                   {result.email_data?.special_instructions && (
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Special Instructions</label>
-                      <div className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border border-yellow-200">
-                        {result.email_data.special_instructions}
+                      <div className="text-sm text-gray-700 bg-yellow-50 p-2 rounded border border-yellow-200 whitespace-pre-wrap">
+                        {formatSpecialInstructions(result.email_data.special_instructions)}
                       </div>
                     </div>
                   )}
@@ -3366,8 +3377,8 @@ const LogisticsAutomation: React.FC = () => {
                       </div>
                   </div>
                   <div className="p-6">
-                  <div className="text-sm text-gray-700 bg-amber-50 p-4 rounded-lg border border-amber-200">
-                    {result.so_data.special_instructions}
+                  <div className="text-sm text-gray-700 bg-amber-50 p-4 rounded-lg border border-amber-200 whitespace-pre-wrap">
+                    {formatSpecialInstructions(result.so_data.special_instructions)}
                     </div>
                         </div>
                       </div>

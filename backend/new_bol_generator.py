@@ -817,13 +817,14 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         if is_tote_item:
             # Find liters from email matching this product
             product_upper = product.upper()
-            liters_filled = None
+            liters_filled = item.get('liters_filled')  # From trust_email when SO item updated
             
-            # Try to match with email items
-            for email_desc, email_qty in email_liters_info.items():
-                if email_desc != '_default_liters' and (email_desc in product_upper or product_upper in email_desc):
-                    liters_filled = email_qty
-                    break
+            if not liters_filled:
+                # Try to match with email items
+                for email_desc, email_qty in email_liters_info.items():
+                    if email_desc != '_default_liters' and (email_desc in product_upper or product_upper in email_desc):
+                        liters_filled = email_qty
+                        break
             
             # Fallback to default liters from email body
             if not liters_filled and '_default_liters' in email_liters_info:
