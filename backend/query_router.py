@@ -8,6 +8,7 @@ on every question.
 Intent → Data Source mapping:
   so_list           → Sage tsalordr (open SOs only)
   so_detail         → SmartSOSearch / RealSalesOrders (handled upstream)
+  customer_item_sales → Sage tsalordr + tsoline + tinvent (customer + item filter)
   inventory         → MiSys Items.json / MIITEM.json + MIILOC.json
   manufacturing     → MiSys ManufacturingOrderHeaders / MIMOH.json
   purchase_orders   → MiSys PurchaseOrders / MIPOH.json
@@ -42,6 +43,31 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
         "keywords": [],
         "data_sources": ["real_sales_orders"],
         "model": "gpt-5.2",
+    },
+    # Customer + item sales history — "How many times did we sell REOL46bdrm to Duke Energy?"
+    "customer_item_sales": {
+        "priority": 9,
+        "patterns": [
+            r"\bhow many times\b.*\bsell\b.*\bto\b",
+            r"\bsell\b.*\bto\b",
+            r"\bsold\b.*\bto\b",
+            r"\bsales\s+of\b.*\bto\b",
+            r"\btimes\s+(we\s+)?sold\b",
+            r"\bproduct\s+.*\bto\s+[A-Za-z]",
+            r"\bitem\s+.*\bto\s+[A-Za-z]",
+        ],
+        "keywords": [
+            "sell to",
+            "sold to",
+            "times sold",
+            "sales to",
+            "how many times did we sell",
+            "product to customer",
+            "item to customer",
+            "sold to customer",
+        ],
+        "data_sources": ["sage_customer_item_sales"],
+        "model": "gpt-5.2-chat-latest",
     },
     # List / summary of sales orders (no specific SO number)
     "so_list": {
@@ -251,7 +277,7 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
 FOCUSED_INTENTS = frozenset(INTENT_DEFINITIONS.keys()) - {"so_detail"}
 
 # Intents that are purely Sage-based (no MiSys raw_data needed)
-SAGE_ONLY_INTENTS = frozenset({"so_list", "ar_aging", "customers"})
+SAGE_ONLY_INTENTS = frozenset({"so_list", "ar_aging", "customers", "customer_item_sales"})
 
 # Intents that need MiSys raw_data (pricing needs inventory for lead-time check)
 MISYS_INTENTS = frozenset({"inventory", "manufacturing", "purchase_orders", "bom", "pricing"})
@@ -298,6 +324,58 @@ def classify_intent(query: str) -> Tuple[str, int]:
             best_intent = intent_name
 
     return best_intent, best_score
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CUSTOMER + ITEM QUERY PARSER
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _parse_customer_item_query(query: str) -> Tuple[str, str]:
+    """
+    Extract customer name and item code from queries like:
+    "How many times did we sell reolube46b (REOL46bdrm) to Duke Energy?"
+    "Sales of REOL46bdrm to Duke York"
+    Returns (customer_search, item_code_search).
+    """
+    q = (query or "").strip()
+    if not q:
+        return "", ""
+
+    cust_search = ""
+    item_search = ""
+
+    # " to X" or " to X?" — customer is after "to"
+    to_match = re.search(r"\bto\s+([A-Za-z0-9\s&'.\-]+?)(?:\?|$|\.|\s+how|\s+what)", q, re.IGNORECASE)
+    if to_match:
+        cust_search = to_match.group(1).strip()
+
+    # Item: part before " to " — e.g. "reolube46b (REOL46bdrm)" or "REOL46bdrm"
+    # "sell X to" or "sold X to" or "sales of X to"
+    parts = re.split(r"\s+to\s+", q, 1, flags=re.IGNORECASE)
+    if len(parts) >= 2:
+        left = parts[0]
+        # Remove leading phrases
+        for prefix in ["how many times did we sell", "how many times did we sold", "sales of", "sold", "sell"]:
+            if left.lower().startswith(prefix):
+                left = left[len(prefix):].strip()
+                break
+        if left:
+            # Prefer parenthesized code (e.g. REOL46bdrm) as exact Sage item code
+            paren = re.search(r"\(([^)]+)\)", left)
+            if paren:
+                item_search = paren.group(1).strip()
+            else:
+                item_search = left.strip()
+
+    if not item_search and cust_search:
+        # Fallback: look for product codes (alphanumeric 4+ chars)
+        codes = re.findall(r"\b([A-Za-z0-9]{4,})\b", q)
+        for c in codes:
+            if c.upper() not in ("HOW", "MANY", "TIMES", "DID", "WE", "SELL", "SOLD", "TO", "SALES", "OF"):
+                item_search = c
+                break
+
+    return cust_search, item_search
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -443,6 +521,26 @@ def fetch_targeted_data(
                 except Exception as exc:
                     context["ar_aging"] = {"error": str(exc)}
 
+        # ── Sage: customer + item sales history ──────────────────────────────
+        elif source == "sage_customer_item_sales":
+            if sage_service and hasattr(sage_service, "get_customer_item_sales"):
+                try:
+                    cust_search, item_search = _parse_customer_item_query(query)
+                    if cust_search and item_search:
+                        result = sage_service.get_customer_item_sales(cust_search, item_search, limit=500)
+                        context["customer_item_sales"] = result
+                    else:
+                        context["customer_item_sales"] = {
+                            "records": [],
+                            "error": "Could not parse customer and item from your question. "
+                            "Please ask like: 'How many times did we sell REOL46bdrm to Duke Energy?' "
+                            "or 'Sales of reolube46b to Duke York'",
+                        }
+                except Exception as exc:
+                    context["customer_item_sales"] = {"records": [], "error": str(exc)}
+            else:
+                context["customer_item_sales"] = {"records": [], "error": "Sage data not available"}
+
         # ── Sage customers ────────────────────────────────────────────────────
         elif source == "sage_customers":
             if sage_service:
@@ -587,6 +685,17 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "Answer using ONLY the Sage 50 customer data in the DATA section.\n"
         "Show: Customer Name, YTD Revenue, Last Year Revenue, Last Sale Date.\n"
         "Rank by YTD revenue unless the user asks otherwise."
+    ),
+    "customer_item_sales": (
+        "You are a business intelligence AI for Canoil Canada Ltd.\n"
+        "Answer using ONLY the customer_item_sales data in the DATA section.\n\n"
+        "The user asked how many times you sold a specific product to a specific customer.\n"
+        "Display a markdown table with columns: SO Number | Quantity | Line Total | Order Date\n"
+        "Sort by Order Date (newest first).\n"
+        "At the end, provide a summary: total number of orders (lines), total quantity sold, total value.\n"
+        "Format all money as $X,XXX.XX. State currency (CAD/USD) if known.\n"
+        "If the data shows no records or an error, say so clearly — do NOT fabricate numbers.\n"
+        "If customer or item was not found, explain what was searched for."
     ),
     "bom": (
         "You are a business intelligence AI for Canoil Canada Ltd.\n"

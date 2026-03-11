@@ -755,6 +755,127 @@ def get_sales_orders(search: str = None, customer_id: int = None,
     return {"sales_orders": result, "total": total, "source": "gdrive"}
 
 
+def get_customer_item_sales(customer_search: str, item_code_search: str, limit: int = 500) -> dict:
+    """
+    Return all sales order lines where customer matches customer_search AND item matches item_code_search.
+    Used for analytics: "How many times did we sell REOL46bdrm to Duke Energy?"
+
+    Returns: {
+        "records": [{"so_number", "customer_name", "item_code", "item_name", "quantity", "line_total", "order_date"}],
+        "total_count": int,
+        "customer_search": str,
+        "item_search": str,
+        "source": "gdrive"
+    }
+    """
+    import re
+    tables = _tables()
+    so_df = tables.get("tsalordr")
+    line_df = tables.get("tsoline")
+    inv_df = tables.get("tinvent")
+    cust_df = tables.get("tcustomr")
+
+    if so_df is None or so_df.empty or line_df is None or line_df.empty:
+        return {"records": [], "total_count": 0, "count": 0, "customer_search": customer_search, "item_search": item_code_search, "source": "gdrive", "error": "tsalordr or tsoline not loaded"}
+    if inv_df is None or inv_df.empty:
+        return {"records": [], "total_count": 0, "count": 0, "customer_search": customer_search, "item_search": item_code_search, "source": "gdrive", "error": "tinvent not loaded"}
+
+    cust_search = (customer_search or "").strip()
+    item_search = (item_code_search or "").strip()
+    if not cust_search or not item_search:
+        return {"records": [], "total_count": 0, "count": 0, "customer_search": cust_search, "item_search": item_search, "source": "gdrive", "error": "customer_search and item_code_search required"}
+
+    cust_lower = cust_search.lower()
+    item_lower = item_search.lower()
+    item_parts = re.sub(r"[^a-z0-9]", "", item_lower)
+    if len(item_parts) < 2:
+        item_parts = item_lower
+
+    cust_name_map = {}
+    if cust_df is not None and not cust_df.empty and "lId" in cust_df.columns:
+        for _, cr in cust_df[["lId", "sName"]].iterrows():
+            cust_name_map[int(cr["lId"] or 0)] = _safe_str(cr["sName"])
+
+    inv_map = {}
+    if "lId" in inv_df.columns and "sPartCode" in inv_df.columns and "sName" in inv_df.columns:
+        for _, ir in inv_df.iterrows():
+            iid = int(ir.get("lId", 0) or 0)
+            part = _safe_str(ir.get("sPartCode")).lower()
+            name = _safe_str(ir.get("sName")).lower()
+            inv_map[iid] = {"sPartCode": _safe_str(ir.get("sPartCode")), "sName": _safe_str(ir.get("sName"))}
+
+    cust_ids = [
+        cid for cid, cname in cust_name_map.items()
+        if cust_lower in cname.lower()
+    ]
+    if not cust_ids:
+        return {"records": [], "total_count": 0, "count": 0, "customer_search": cust_search, "item_search": item_search, "source": "gdrive", "note": f"No customers found matching '{cust_search}'"}
+
+    so_ids = set()
+    if "lCusId" in so_df.columns and "lId" in so_df.columns:
+        for _, r in so_df.iterrows():
+            if int(r.get("lCusId", 0) or 0) in cust_ids:
+                so_ids.add(int(r.get("lId", 0) or 0))
+    so_id_to_header = {}
+    for _, r in so_df.iterrows():
+        sid = int(r.get("lId", 0) or 0)
+        if sid in so_ids:
+            so_id_to_header[sid] = {
+                "sSONum": _safe_str(r.get("sSONum")),
+                "dtSODate": _safe_date(r.get("dtSODate")),
+                "lCusId": int(r.get("lCusId", 0) or 0),
+            }
+
+    line_df = line_df[line_df["lSOId"].fillna(0).astype(int).isin(so_ids)].copy()
+    if line_df.empty:
+        return {"records": [], "total_count": 0, "count": 0, "customer_search": cust_search, "item_search": item_search, "source": "gdrive", "note": f"No sales lines for customers matching '{cust_search}'"}
+
+    line_df["_invId"] = pd.to_numeric(line_df["lInventId"], errors="coerce").fillna(0).astype(int)
+    for qcol in ["dQuantity", "dOrdered", "dQty"]:
+        if qcol in line_df.columns:
+            line_df["_qty"] = pd.to_numeric(line_df[qcol], errors="coerce").fillna(0.0)
+            break
+    else:
+        line_df["_qty"] = 0.0
+    if "dPrice" in line_df.columns:
+        line_df["_price"] = pd.to_numeric(line_df["dPrice"], errors="coerce").fillna(0.0)
+    else:
+        line_df["_price"] = 0.0
+    if "dAmount" in line_df.columns:
+        line_df["_amt"] = pd.to_numeric(line_df["dAmount"], errors="coerce").fillna(0.0)
+    else:
+        line_df["_amt"] = line_df["_qty"] * line_df["_price"]
+    if line_df["_amt"].sum() == 0 and "dPrice" in line_df.columns:
+        line_df["_amt"] = pd.to_numeric(line_df["dPrice"], errors="coerce").fillna(0.0) * line_df["_qty"]
+
+    records = []
+    for _, row in line_df.iterrows():
+        iid = int(row.get("_invId", 0) or 0)
+        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": ""})
+        part = info["sPartCode"].lower()
+        name = info["sName"].lower()
+        part_clean = re.sub(r"[^a-z0-9]", "", part)
+        part_match = item_lower in part or item_lower in name or (len(item_parts) >= 2 and item_parts in part_clean)
+        if not part_match:
+            continue
+        so_id = int(row.get("lSOId", 0) or 0)
+        hdr = so_id_to_header.get(so_id, {})
+        qty = float(row.get("_qty", 0) or 0)
+        amt = float(row.get("_amt", 0) or 0)
+        records.append({
+            "so_number": hdr.get("sSONum", ""),
+            "customer_name": cust_name_map.get(hdr.get("lCusId", 0), ""),
+            "item_code": info["sPartCode"],
+            "item_name": info["sName"],
+            "quantity": round(qty, 2),
+            "line_total": round(amt, 2),
+            "order_date": hdr.get("dtSODate", ""),
+        })
+
+    records = records[:limit]
+    return {"records": records, "total_count": len(records), "count": len(records), "customer_search": cust_search, "item_search": item_search, "source": "gdrive"}
+
+
 # ---------------------------------------------------------------------------
 # Analytics
 # ---------------------------------------------------------------------------
