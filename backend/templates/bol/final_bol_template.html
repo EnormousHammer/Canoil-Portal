@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bill of Lading - Canoil Canada Ltd</title>
     <style>
+        @page {
+            size: Letter;
+            margin: 0.5in;
+        }
         * {
             margin: 0;
             padding: 0;
@@ -145,11 +149,13 @@
             border: 4px solid black;
             border-top: 0;
             border-bottom: 4px solid black;
-            display: flex;
+            width: 100%;
+            border-collapse: collapse;
         }
         
         .left-table {
-            flex: 1;
+            vertical-align: top;
+            width: auto;
         }
         
         .left-table table {
@@ -262,10 +268,7 @@
         .declared-row.cod {
             height: 40px;
             min-height: 40px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            text-align: center;
         }
         
         .declared-row input {
@@ -277,9 +280,7 @@
         }
         
         .checkbox-group {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
+            text-align: center;
             font-size: 7px;
             margin-top: 5px;
         }
@@ -455,59 +456,23 @@
 }
 
 
-/* Snug, centered layout for the Weight column header */
+/* Snug, centered layout for the Weight column header - table-friendly */
 .weight-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    line-height: 1;
     text-align: center;
+    line-height: 1.1;
 }
 .weight-header .weight-title {
     font-weight: bold;
     font-size: 9px;
-}
-.weight-option {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    font-weight: normal;
-    font-size: 9px;
-}
-.cb-mini {
-    width: 10px;
-    height: 10px;
-    margin: 0;
-    vertical-align: middle;
-}
-
-
-/* Inline (left-right) layout for Weight check options */
-.weight-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    line-height: 1.1;
-    text-align: center;
+    display: block;
 }
 .weight-inline {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px; /* space between lb and kg */
+    text-align: center;
+    margin-top: 3px;
 }
 .weight-inline .weight-option {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
+    display: inline-block;
+    margin: 0 6px;
     font-weight: normal;
     font-size: 9px;
 }
@@ -569,16 +534,10 @@
                     <input type="text" value="Georgetown">
                 </td>
                 <td style="border-top: 1px solid black; border-right: 4px solid black;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>
-                            <strong>Prov./State</strong><br>
-                            <input type="text" value="Ontario">
-                        </div>
-                        <div>
-                            <strong>Postal/Zip Code:</strong><br>
-                            <input type="text" value="L7G 4R7">
-                        </div>
-                    </div>
+                    <table style="width:100%; border:none;"><tr>
+                        <td style="width:50%;"><strong>Prov./State</strong><br><input type="text" value="Ontario"></td>
+                        <td style="width:50%;"><strong>Postal/Zip Code:</strong><br><input type="text" value="L7G 4R7"></td>
+                    </tr></table>
                 </td>
             </tr>
             <tr>
@@ -617,8 +576,9 @@
         </div>
         
         <!-- Items Table -->
-        <div class="items-container">
-            <div class="left-table">
+        <table class="items-container" style="width:100%; border-collapse:collapse; border:4px solid black; border-top:0;">
+            <tr>
+                <td class="left-table" style="vertical-align:top; width:1%;">
                 <table>
                     <thead>
                         <tr>
@@ -646,43 +606,43 @@
                         </tr>
                     </tbody>
                 </table>
-            </div>
-            
-            <div class="right-column">
+                </td>
+                <td class="right-column" style="width:140px; vertical-align:top; border-left:1px solid black;">
                 <div class="declared-header">
                     <div class="title">Declared Valuation</div>
                     <div class="liability">Maximum liability of ($2.00 per pound) $4.41 per kg unless declared valuation states otherwise</div>
                 </div>
                 <div class="declared-body">
-                    <div class="declared-row" style="height: 28px; padding: 5px; display: flex; align-items: center; justify-content: center;">
+                    <div class="declared-row" style="height: 28px; padding: 5px; text-align: center;">
                         <span style="font-size: 10px; margin-right: 3px;">$</span>
                         <input type="text" style="border: none; border-bottom: 1px solid black; width: 100px; outline: none; font-size: 11px !important; font-weight: normal;">
                     </div>
                     <div class="declared-row" style="height: 28px; padding: 5px; font-weight: bold; text-align: center;">
                         C.O.D.
                     </div>
-                    <div class="declared-row" style="height: 28px; padding: 5px; display: flex; align-items: center; justify-content: center;">
+                    <div class="declared-row" style="height: 28px; padding: 5px; text-align: center;">
                         <span style="font-size: 10px; margin-right: 3px;">$</span>
                         <input type="text" style="border: none; border-bottom: 1px solid black; width: 100px; outline: none; font-size: 11px !important; font-weight: normal;">
                     </div>
-                    <div class="declared-row" style="height: 40px; padding: 5px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div class="declared-row" style="height: 40px; padding: 5px; text-align: center;">
                         <div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">Amount Funds Type</div>
-                        <div style="display: flex; gap: 8px; font-size: 7px;">
+                        <div style="font-size: 7px;">
                             <label><input type="checkbox"> Cdn</label>
                             <label><input type="checkbox"> U.S</label>
                         </div>
                     </div>
-                    <div class="declared-row" style="height: 40px; padding: 5px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div class="declared-row" style="height: 40px; padding: 5px; text-align: center;">
                         <div style="font-weight: bold; font-size: 8px; margin-bottom: 3px;">C.O.D Collection Fee</div>
-                        <div style="display: flex; gap: 8px; font-size: 7px;">
+                        <div style="font-size: 7px;">
                             <label><input type="checkbox"> Collect</label>
                             <label><input type="checkbox"> Prepaid</label>
                         </div>
                     </div>
                     <div class="total-row" style="height: 22px; background: #f3f4f6;"></div>
                 </div>
-            </div>
-        </div>
+                </td>
+            </tr>
+        </table>
         
         <!-- Notice of Claim -->
         <div class="notice-box">
@@ -701,12 +661,13 @@
                     </div>
                 </td>
                 <td style="width: 34%; border-right: 2px solid black;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px; font-size: 8px;">
-                        <div><strong>Driver's Signature:</strong></div>
-                        <div><strong>Date:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></div>
-                        <div><strong>Trailer No.:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></div>
-                        <div><strong>Count:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></div>
-                    </div>
+                    <table style="width:100%; border:none; font-size: 8px;"><tr>
+                        <td style="width:50%;"><strong>Driver's Signature:</strong></td>
+                        <td style="width:50%;"><strong>Date:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></td>
+                    </tr><tr>
+                        <td><strong>Trailer No.:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></td>
+                        <td><strong>Count:</strong><br><input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;"></td>
+                    </tr></table>
                     <div style="margin-top: 3px; font-size: 8px;">
                         <strong>Seal No.:</strong><br>
                         <input type="text" style="border: none; border-bottom: 1px solid black; width: 100%; outline: none;">

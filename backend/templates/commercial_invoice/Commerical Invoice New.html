@@ -84,19 +84,23 @@
         }
         
         .checkbox-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
+            display: block;
             margin-top: 1px;
         }
         
         .checkbox-group label {
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+            margin-bottom: 2px;
             font-weight: normal;
             font-size: 10px;
+        }
+        
+        .checkbox-group.vertical label {
+            display: block;
+            margin-right: 0;
+            margin-bottom: 3px;
         }
         
         .checkbox-group input[type="radio"],
@@ -335,7 +339,7 @@
             <tr>
                 <td style="width: 25%;">
                     <span class="label" style="font-size: 7px;">Parties to this transaction are</span>
-                    <div class="checkbox-group" style="flex-direction: column; align-items: flex-start; gap: 3px;">
+                    <div class="checkbox-group vertical">
                         <label><input type="radio" name="related" value="related"> RELATED</label>
                         <label><input type="radio" name="related" value="not-related" checked> NOT RELATED</label>
                     </div>
@@ -360,7 +364,7 @@
             <tr>
                 <td style="width: 50%;" rowspan="3">
                     <span class="label" style="font-size: 7px;">Duty / Brokerage for Account of:</span>
-                    <div class="checkbox-group" style="flex-direction: column; align-items: flex-start; gap: 3px;">
+                    <div class="checkbox-group vertical">
                         <label><input type="radio" name="dutyAccount" id="dutyExporter" value="exporter"> EXPORTER</label>
                         <label><input type="radio" name="dutyAccount" id="dutyConsignee" value="consignee"> SHIP TO, CONSIGNEE</label>
                         <label style="width: 100%;"><input type="radio" name="dutyAccount" id="dutyOther" value="other"> OTHER: <input type="text" id="dutyAccountOther" style="width: 120px; border-bottom: 1px solid #000;"></label>
@@ -509,10 +513,12 @@
             </tr>
         </table>
         
-        <div style="display: flex; justify-content: space-between; font-size: 9px; margin: 15px 0 25px 0; padding-top: 10px; color: #999; page-break-inside: avoid;">
-            <span>L 10 EX</span>
-            <span>3/11</span>
-        </div>
+        <table style="width: 100%; font-size: 9px; margin: 15px 0 25px 0; padding-top: 10px; color: #999; page-break-inside: avoid; border: none;">
+            <tr>
+                <td style="border: none; padding: 0; width: 50%; text-align: left;">L 10 EX</td>
+                <td style="border: none; padding: 0; width: 50%; text-align: right;">3/11</td>
+            </tr>
+        </table>
         
         <center style="margin-top: 5px;" class="print-btn">
             <button style="background-color: #2196F3; color: white; padding: 8px 20px; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; font-weight: bold;" onclick="window.print()">Print / Save as PDF</button>
