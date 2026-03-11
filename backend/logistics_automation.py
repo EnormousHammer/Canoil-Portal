@@ -79,6 +79,33 @@ def _packaging_type_for_matching(desc):
     return None
 
 
+# Product aliases: email may use different names than SO for same product.
+# e.g. "Multi Purpose Maintenance Spray" (email) = "TERMIN8R RED TOTES" (SO) - Spectra/TERMIN8R
+_PRODUCT_ALIAS_GROUPS = [
+    frozenset({
+        'TERMIN8R', 'TERMIN8R RED', 'MULTI PURPOSE MAINTENANCE SPRAY', 'MULTIPURPOSE MAINTENANCE SPRAY',
+        'TERMIN8R RED TOTES', 'TERMIN 8R', 'TERMIN8',
+    }),
+]
+
+
+def _products_match_via_alias(email_core, so_core):
+    """
+    Check if email and SO core descriptions refer to the same product via alias groups.
+    Used when SO shows e.g. "TERMIN8R RED TOTES" but email says "Multi Purpose Maintenance Spray".
+    """
+    if not email_core or not so_core:
+        return False
+    e = email_core.upper().strip()
+    s = so_core.upper().strip()
+    for group in _PRODUCT_ALIAS_GROUPS:
+        e_in = any(e == g or (g in e and len(g) >= 5) for g in group)
+        s_in = any(s == g or (g in s and len(g) >= 5) for g in group)
+        if e_in and s_in:
+            return True
+    return False
+
+
 # Packaging equivalence: same family = compatible. Different families = reject.
 # BOX/CASE = boxed product (interchangeable in logistics). TOTE/IBC = same.
 _CASE_FAMILY = frozenset({'BOX', 'CASE'})
@@ -3041,6 +3068,17 @@ def match_batch_numbers_to_so_items(email_items: list, so_items: list) -> dict:
                         matched_count += 1
                         break
         
+        # Method 3.5: Product alias matching (e.g. "Multi Purpose Maintenance Spray" = "TERMIN8R RED TOTES")
+        if not matched:
+            so_core = _core_product_for_matching(so_desc)
+            for email_desc, match_info in email_items_by_desc.items():
+                email_core = _core_product_for_matching(email_desc)
+                if _products_match_via_alias(email_core, so_core):
+                    _apply_match(match_info)
+                    matched = True
+                    matched_count += 1
+                    break
+        
         # Method 4: Item code matching
         if not matched and so_code:
             for email_desc, match_info in email_items_by_desc.items():
@@ -3317,8 +3355,13 @@ def process_multi_so_email(email_content: str, so_numbers: list):
                 common_words = email_words & so_words
                 significant = [w for w in common_words if len(w) > 3]
                 
+                # Product alias match: e.g. "Multi Purpose Maintenance Spray" = "TERMIN8R RED TOTES"
+                email_core = _core_product_for_matching(email_desc)
+                so_core = _core_product_for_matching(so_desc)
+                alias_match = _products_match_via_alias(email_core, so_core)
+                
                 if (email_desc in so_desc or so_desc in email_desc or 
-                    len(significant) >= 2):  # At least 2 significant words match
+                    len(significant) >= 2 or alias_match):  # At least 2 significant words OR alias match
                     matched = True
                     matched_count += 1
                     break
@@ -4386,6 +4429,8 @@ def process_email():
                         so_core = _core_product_for_matching(so_desc)
                         core_match = (email_core and so_core and
                             (email_core in so_core or so_core in email_core or email_core == so_core))
+                        # PRODUCT ALIAS MATCH: e.g. "Multi Purpose Maintenance Spray" (email) = "TERMIN8R RED TOTES" (SO)
+                        alias_match = _products_match_via_alias(email_core, so_core)
                         # Fallback: significant word overlap (handles "No. 2" vs "#2", "and" vs "&" in PDF)
                         email_core_words_set = set((email_core or '').split())
                         so_core_words_set = set((so_core or '').split())
@@ -4423,7 +4468,7 @@ def process_email():
                         fuzzy_match_only = word_match or code_match
                         reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
                         
-                        print(f"      Check 0 (core product): {core_match} | overlap: {core_overlap_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
+                        print(f"      Check 0 (core product): {core_match} | overlap: {core_overlap_match} | alias: {alias_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
                         print(f"      Check 1 (email in SO): {exact_match_1}")
                         print(f"      Check 2 (SO in email): {exact_match_2}")
                         print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
@@ -4442,7 +4487,7 @@ def process_email():
                         if not _packaging_compatible(email_pkg, so_pkg):
                             print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
                             continue
-                        if substr_match or core_match or core_overlap_match or exact_match_1 or exact_match_2 or word_match or code_match:
+                        if substr_match or core_match or core_overlap_match or alias_match or exact_match_1 or exact_match_2 or word_match or code_match:
                             # Check if this is a TOTE order - totes are treated as single units regardless of volume
                             is_tote_order = False
                             email_text_lower = str(email_data).lower()
