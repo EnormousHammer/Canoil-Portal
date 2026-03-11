@@ -831,7 +831,7 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         return {"records": [], "total_count": 0, "count": 0, "customer_search": cust_search, "item_search": item_search, "source": "gdrive", "note": f"No sales lines for customers matching '{cust_search}'"}
 
     line_df["_invId"] = pd.to_numeric(line_df["lInventId"], errors="coerce").fillna(0).astype(int)
-    for qcol in ["dQuantity", "dOrdered", "dQty"]:
+    for qcol in ["dQuantity", "dOrdered", "dQty", "dOrdQty", "dQtyOrd", "nQty"]:
         if qcol in line_df.columns:
             line_df["_qty"] = pd.to_numeric(line_df[qcol], errors="coerce").fillna(0.0)
             break
@@ -847,6 +847,10 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         line_df["_amt"] = line_df["_qty"] * line_df["_price"]
     if line_df["_amt"].sum() == 0 and "dPrice" in line_df.columns:
         line_df["_amt"] = pd.to_numeric(line_df["dPrice"], errors="coerce").fillna(0.0) * line_df["_qty"]
+    # Fix 0.0 quantity when we have valid line total: derive qty from amount/price
+    mask = (line_df["_qty"] == 0) & (line_df["_amt"] > 0) & (line_df["_price"] > 0)
+    if mask.any():
+        line_df.loc[mask, "_qty"] = line_df.loc[mask, "_amt"] / line_df.loc[mask, "_price"]
 
     records = []
     for _, row in line_df.iterrows():
@@ -874,6 +878,94 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
 
     records = records[:limit]
     return {"records": records, "total_count": len(records), "count": len(records), "customer_search": cust_search, "item_search": item_search, "source": "gdrive"}
+
+
+def get_sales_order_by_number(so_number: str) -> dict | None:
+    """
+    Return a single sales order with line items by SO number (sSONum).
+    Used for SO detail modal in AI Command Center.
+    """
+    tables = _tables()
+    so_df = tables.get("tsalordr")
+    line_df = tables.get("tsoline")
+    inv_df = tables.get("tinvent")
+    cust_df = tables.get("tcustomr")
+
+    if so_df is None or so_df.empty or line_df is None or line_df.empty:
+        return None
+
+    so_num = str(so_number or "").strip()
+    if not so_num:
+        return None
+
+    if "sSONum" not in so_df.columns:
+        return None
+    rows = so_df[so_df["sSONum"].fillna("").astype(str).str.strip() == so_num]
+    if rows.empty:
+        return None
+
+    r = rows.iloc[0]
+    so_id = int(r.get("lId", 0) or 0)
+    cid = int(r.get("lCusId", 0) or 0)
+    cust_name = ""
+    if cust_df is not None and not cust_df.empty and "lId" in cust_df.columns:
+        match = cust_df[cust_df["lId"] == cid]
+        if not match.empty:
+            cust_name = _safe_str(match.iloc[0].get("sName"))
+
+    inv_map = {}
+    if inv_df is not None and not inv_df.empty and "lId" in inv_df.columns:
+        for _, ir in inv_df.iterrows():
+            inv_map[int(ir.get("lId", 0) or 0)] = {
+                "sPartCode": _safe_str(ir.get("sPartCode")),
+                "sName": _safe_str(ir.get("sName")),
+                "sSellUnit": _safe_str(ir.get("sSellUnit")),
+            }
+
+    lines_df = line_df[line_df["lSOId"].fillna(0).astype(int) == so_id].copy()
+    for qcol in ["dQuantity", "dOrdered", "dQty", "dOrdQty", "dQtyOrd"]:
+        if qcol in lines_df.columns:
+            lines_df["_qty"] = pd.to_numeric(lines_df[qcol], errors="coerce").fillna(0.0)
+            break
+    else:
+        lines_df["_qty"] = 0.0
+    lines_df["_price"] = pd.to_numeric(lines_df["dPrice"], errors="coerce").fillna(0.0) if "dPrice" in lines_df.columns else 0.0
+    if "dAmount" in lines_df.columns:
+        lines_df["_amt"] = pd.to_numeric(lines_df["dAmount"], errors="coerce").fillna(0.0)
+    else:
+        lines_df["_amt"] = lines_df["_qty"] * lines_df["_price"]
+    mask = (lines_df["_qty"] == 0) & (lines_df["_amt"] > 0) & (lines_df["_price"] > 0)
+    if mask.any():
+        lines_df.loc[mask, "_qty"] = lines_df.loc[mask, "_amt"] / lines_df.loc[mask, "_price"]
+
+    lines = []
+    for _, row in lines_df.iterrows():
+        iid = int(row.get("lInventId", 0) or 0)
+        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
+        qty = float(row.get("_qty", 0) or 0)
+        amt = float(row.get("_amt", 0) or 0)
+        price = float(row.get("_price", 0) or 0)
+        lines.append({
+            "item_code": info["sPartCode"],
+            "item_name": info["sName"],
+            "unit": info["sSellUnit"],
+            "quantity": round(qty, 2),
+            "unit_price": round(price, 2),
+            "line_total": round(amt, 2),
+        })
+
+    cur_id = int(r.get("lCurrncyId", 1) or 1)
+    currency = "USD" if cur_id == 2 else "CAD"
+    return {
+        "so_number": _safe_str(r.get("sSONum")),
+        "customer_name": cust_name,
+        "order_date": _safe_date(r.get("dtSODate")),
+        "ship_date": _safe_date(r.get("dtShipDate")),
+        "total": round(_safe_float(r.get("dTotal")), 2),
+        "currency": currency,
+        "lines": lines,
+        "source": "gdrive",
+    }
 
 
 # ---------------------------------------------------------------------------

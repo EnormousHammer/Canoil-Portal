@@ -355,7 +355,7 @@ def get_sales_order(order_id):
             return None
 
         cursor.execute("""
-            SELECT sl.*, i.sName as sItemName
+            SELECT sl.*, i.sName as sItemName, i.sPartCode as sPartCode
             FROM tsoline sl
             LEFT JOIN tinvent i ON sl.lInventId = i.lId
             WHERE sl.lSOId = %s

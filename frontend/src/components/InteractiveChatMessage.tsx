@@ -164,6 +164,14 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
     const t = cell.trim();
     if (!t || t === "-") return <span className="text-slate-300">â€”</span>;
 
+    if (/^SO\s*(#|number|no\.?)?$/i.test(hdr.trim()) && onSOClick && /^\d{3,6}$/.test(t)) {
+      return (
+        <button type="button" onClick={() => onSOClick(t)} className="text-blue-600 hover:underline font-medium hover:text-blue-700">
+          {t}
+        </button>
+      );
+    }
+
     // Currency code alone
     if (isCurrCode(t)) return <CurrBadge code={t} />;
 

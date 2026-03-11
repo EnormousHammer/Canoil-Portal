@@ -9406,6 +9406,55 @@ def sage_sales_order_detail(order_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/sage/sales-orders/by-number/<so_number>')
+def sage_sales_order_by_number(so_number):
+    """Get single sales order with line items by SO number (for AI Command Center modal)."""
+    try:
+        if SAGE_GDRIVE_AVAILABLE and sage_gdrive_service and hasattr(sage_gdrive_service, 'get_sales_order_by_number'):
+            result = sage_gdrive_service.get_sales_order_by_number(so_number)
+            if result:
+                return jsonify(result)
+        if SAGE_AVAILABLE and sage_service:
+            sos = sage_service.get_sales_orders(search=so_number, limit=5)
+            for o in sos.get('sales_orders', []):
+                if str(o.get('sSONum', '')).strip() == str(so_number).strip():
+                    detail = sage_service.get_sales_order(o['lId'])
+                    if detail:
+                        order = detail.get('order', {})
+                        lines = detail.get('lines', [])
+                        formatted_lines = []
+                        for ln in lines:
+                            qty = float(ln.get('dQuantity') or ln.get('dOrdered') or ln.get('dQty') or 0)
+                            price = float(ln.get('dPrice') or 0)
+                            amt = float(ln.get('dAmount') or 0)
+                            if qty == 0 and amt > 0 and price > 0:
+                                qty = amt / price
+                            if amt == 0 and qty and price:
+                                amt = qty * price
+                            formatted_lines.append({
+                                'item_code': ln.get('sPartCode') or f"ID:{ln.get('lInventId')}",
+                                'item_name': ln.get('sItemName', ''),
+                                'unit': ln.get('sSellUnit', ''),
+                                'quantity': round(qty, 2),
+                                'unit_price': round(price, 2),
+                                'line_total': round(amt, 2),
+                            })
+                        formatted = {
+                            'so_number': order.get('sSONum', ''),
+                            'customer_name': order.get('sCustomerName', ''),
+                            'order_date': str(order.get('dtSODate', ''))[:10],
+                            'ship_date': str(order.get('dtShipDate', ''))[:10],
+                            'total': round(float(order.get('dTotal') or 0), 2),
+                            'currency': 'USD' if order.get('lCurrncyId') == 2 else 'CAD',
+                            'lines': formatted_lines,
+                            'source': 'sage_live',
+                        }
+                        return jsonify(formatted)
+        return jsonify({'error': f'Sales order {so_number} not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/sage/accounts')
 def sage_accounts():
     """List chart of accounts from Sage 50."""
