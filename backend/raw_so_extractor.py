@@ -829,6 +829,7 @@ Extract and organize into this exact JSON structure:
 IMPORTANT RULES:
 1. CLEAN ITEM DESCRIPTIONS - CRITICAL:
    - Item description should ONLY be the product name (e.g., "REOLUBE 46XC DRUM")
+   - PRESERVE product codes in parentheses in description when present (e.g. "(42615)", "(42612)") - these are needed for logistics matching
    - DO NOT include shipping instructions in description (e.g., "Ship Via Manitoulin")
    - DO NOT include handling notes (e.g., "***CHEMRISK LABEL - RED***", "-SDS", "-COA")
    - DO NOT include special instructions (e.g., "IDENTIFICATION OF BATCH/LOT NUMBER")

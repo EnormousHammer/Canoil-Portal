@@ -99,6 +99,9 @@ const LogisticsAutomation: React.FC = () => {
   // International payment warning popup
   const [showInternationalPaymentWarning, setShowInternationalPaymentWarning] = useState(false);
   
+  // Trust email quantities - bypass qty validation when SO data is wrong
+  const [trustEmailQuantities, setTrustEmailQuantities] = useState(false);
+  
   // History state
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -152,9 +155,10 @@ const LogisticsAutomation: React.FC = () => {
     }
   }, []);
   
-  // Save to history after successful processing (server-side, works across devices)
+  // Save to history after any processing attempt (success or validation failure) - so user can load and retry
   useEffect(() => {
-    if (result && result.success && emailText.trim()) {
+    const shouldSave = result && emailText.trim() && (result.success || result.validation_failed);
+    if (shouldSave) {
       const soNumber = result.is_multi_so
         ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_data?.so_number)
         : (result.so_data?.so_number || result.email_data?.so_number);
@@ -227,7 +231,8 @@ const LogisticsAutomation: React.FC = () => {
         },
         body: JSON.stringify({
           email_content: contentToProcess,
-          processing_mode: 'auto'
+          processing_mode: 'auto',
+          trust_email_quantities: trustEmailQuantities
         })
       });
 
@@ -1848,7 +1853,18 @@ const LogisticsAutomation: React.FC = () => {
             </div>
             
             {processingMode === 'auto' && (
-              <span className="text-xs text-gray-500">Auto-detects SO number and partial shipments (uses email quantities when email specifies what's shipping)</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">Auto-detects SO number and partial shipments (uses email quantities when email specifies what's shipping)</span>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={trustEmailQuantities}
+                    onChange={(e) => setTrustEmailQuantities(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-gray-600">Trust email quantities (bypass validation when SO has wrong qty)</span>
+                </label>
+              </div>
             )}
           </div>
           </form>

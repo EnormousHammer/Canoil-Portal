@@ -4592,13 +4592,17 @@ def process_email():
                     item_desc_clean = ' '.join((item_desc or '').replace('-', ' ').replace('/', ' ').split())
                     email_sizes = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean))
                     
-                    # PRIORITY 1: Match by product code when both have it - prevents Laser 2 Cycle (42615) matching Laser 2T (42612)
+                    # PRIORITY 1: Match by product code - prevents Laser 2 Cycle (42615) matching Laser 2T (42612)
                     if email_product_code:
                         for i, so_desc in enumerate(so_item_names):
-                            so_product_code = _extract_product_code(so_desc) or _extract_product_code(so_items_to_check[i].get('item_code') or '')
-                            if so_product_code and so_product_code == email_product_code:
+                            so_item_check = so_items_to_check[i]
+                            so_product_code = _extract_product_code(so_desc) or _extract_product_code(so_item_check.get('item_code') or '')
+                            # Fallback: SO may have "42615" as plain number (no parens) - check as whole-word
+                            so_desc_str = (so_desc or '') + ' ' + (so_item_check.get('item_code') or '')
+                            code_in_so = bool(re.search(r'(?<!\d)' + re.escape(email_product_code) + r'(?!\d)', so_desc_str))
+                            if (so_product_code and so_product_code == email_product_code) or code_in_so:
                                 matched = True
-                                matched_so_item = so_items_to_check[i]
+                                matched_so_item = so_item_check
                                 match_details = f"Matched by product code: {email_product_code}"
                                 print(f"   ✅ PRODUCT CODE MATCH: code {email_product_code}")
                                 break
@@ -4929,7 +4933,9 @@ def process_email():
                             # When we have product code match, ONLY sum SO lines with same product code (prevents cross-matching)
                             if email_product_code:
                                 other_code = _extract_product_code(od) or _extract_product_code(other_item.get('item_code') or '')
-                                if other_code != email_product_code:
+                                other_str = (od or '') + ' ' + (other_item.get('item_code') or '')
+                                code_in_other = bool(re.search(r'(?<!\d)' + re.escape(email_product_code) + r'(?!\d)', other_str))
+                                if (other_code or '') != email_product_code and not code_in_other:
                                     continue
                             other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
                             other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
