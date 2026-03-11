@@ -2754,6 +2754,74 @@ def get_so_data_from_system(so_number):
         print(f"{'='*80}\n")
         return {"status": "Error", "error": str(e), "traceback": error_trace}
 
+# Logistics email history - server-side, works across PCs/browsers
+_LOGISTICS_HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logistics_email_history.json')
+_LOGISTICS_HISTORY_LIMIT = 20
+
+def _load_logistics_email_history():
+    """Load last 20 email history entries from server storage"""
+    try:
+        if os.path.exists(_LOGISTICS_HISTORY_FILE):
+            with open(_LOGISTICS_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[LOGISTICS] Error loading email history: {e}")
+    return []
+
+def _save_logistics_email_history(history):
+    """Save email history (keep last 20)"""
+    try:
+        kept = history[:_LOGISTICS_HISTORY_LIMIT]
+        with open(_LOGISTICS_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(kept, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"[LOGISTICS] Error saving email history: {e}")
+        return False
+
+@logistics_bp.route('/api/logistics/email-history', methods=['GET'])
+def get_logistics_email_history():
+    """Get last 20 logistics email history entries - works across devices"""
+    try:
+        history = _load_logistics_email_history()
+        return jsonify({'history': history, 'count': len(history)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e), 'history': []}), 500
+
+@logistics_bp.route('/api/logistics/email-history', methods=['POST'])
+def add_logistics_email_history():
+    """Add email to history after successful processing"""
+    try:
+        data = request.get_json() or {}
+        email_text = (data.get('emailText') or data.get('email_text') or '').strip()
+        if not email_text:
+            return jsonify({'error': 'emailText required'}), 400
+        entry = {
+            'id': str(datetime.now().timestamp()),
+            'emailText': email_text,
+            'timestamp': datetime.now().isoformat(),
+            'soNumber': data.get('soNumber') or data.get('so_number') or '',
+            'companyName': data.get('companyName') or data.get('company_name') or ''
+        }
+        history = _load_logistics_email_history()
+        history = [e for e in history if e.get('emailText') != email_text]
+        history.insert(0, entry)
+        _save_logistics_email_history(history)
+        return jsonify({'success': True, 'count': len(history)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@logistics_bp.route('/api/logistics/email-history/<entry_id>', methods=['DELETE'])
+def delete_logistics_email_history(entry_id):
+    """Delete one history entry"""
+    try:
+        history = _load_logistics_email_history()
+        history = [e for e in history if e.get('id') != entry_id]
+        _save_logistics_email_history(history)
+        return jsonify({'success': True, 'count': len(history)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Test endpoint to verify blueprint is working
 @logistics_bp.route('/api/logistics/test', methods=['GET'])
 def test_logistics_endpoint():
@@ -3984,9 +4052,6 @@ def process_email():
         print("\n" + "="*80)
         print("EMAIL: === PROCESSING LOGISTICS EMAIL WITH GPT-4o ===")
         print("="*80)
-        print(f"DEBUG: Function called successfully")
-        print(f"DEBUG: Flask request available: {request is not None}")
-        print(f"DEBUG: Flask jsonify available: {jsonify is not None}")
         
         # Check if request object is available
         if request is None:
@@ -4135,6 +4200,27 @@ def process_email():
             elif email_data.get('tote_count'):
                 print(f"[OK] TOTE COUNT (from GPT): {email_data['tote_count']}")
             
+            # Rebuild skid_info for TOTES (when email says totes, not pallets)
+            tote_count = email_data.get('tote_count')
+            pallet_dims = email_data.get('pallet_dimensions', '')
+            if tote_count:
+                email_data['packaging_type'] = 'tote'  # Email says totes, not pallets
+                # Fallback: extract dimensions from "6 totes 40×46×48 inches each" if GPT missed them
+                if not pallet_dims:
+                    dim_m = re.search(r'(?:\d+\s+totes?\s+)?(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)(?:\s*inches?)?', email_content)
+                    if dim_m:
+                        pallet_dims = f"{dim_m.group(1)}×{dim_m.group(2)}×{dim_m.group(3)} inches"
+                        email_data['pallet_dimensions'] = pallet_dims
+                        print(f"   pallet_dimensions (tote fallback): {pallet_dims}")
+            pallet_dims = email_data.get('pallet_dimensions', '')
+            pkg_type = email_data.get('packaging_type', 'pallet')
+            if tote_count and pkg_type == 'tote' and pallet_dims:
+                if tote_count == 1:
+                    email_data['skid_info'] = f"1 tote {pallet_dims}".strip()
+                else:
+                    email_data['skid_info'] = f"{tote_count} totes {pallet_dims} each".strip()
+                print(f"   skid_info (totes): {email_data['skid_info']}")
+            
             print(f"\n{'='*80}")
             print(f"EMAIL DATA PARSED:")
             print(f"  SO Number: {email_data.get('so_number')}")
@@ -4194,6 +4280,40 @@ def process_email():
         if so_data.get('status') == 'Not found':
             print(f"ERROR: LOGISTICS: SO {so_number} not found in system")
             return jsonify({'error': f"SO {so_number} not found in system"}), 404
+        
+        # AUTO: Detect partial shipment - ONLY when email qty is clearly less than SO (blanket order partial).
+        # Conservative: only trigger when email < 50% of SO - avoids affecting full shipments or rounding differences.
+        if not trust_email_quantities and email_data.get('items') and so_data.get('items'):
+            for email_item in email_data.get('items', []):
+                try:
+                    eq = email_item.get('quantity', '')
+                    email_qty = float(str(eq).replace(',', '')) if eq else 0
+                except (ValueError, TypeError):
+                    email_qty = 0
+                if not email_qty:
+                    continue
+                email_desc = (email_item.get('description') or '').upper().strip()
+                email_core = _core_product_for_matching(email_desc)
+                for so_item in so_data.get('items', []):
+                    so_desc = (so_item.get('description') or '').upper().strip()
+                    so_core = _core_product_for_matching(so_desc)
+                    if not _products_match_via_alias(email_core, so_core):
+                        ew = set(email_desc.replace('-', ' ').split()) - {'KG', 'DRUM', 'PAIL', 'CASE', 'EACH'}
+                        sw = set(so_desc.replace('-', ' ').split())
+                        if not (ew & sw):
+                            continue
+                    try:
+                        sq = so_item.get('quantity', 0)
+                        so_qty = float(str(sq).replace(',', '')) if sq else 0
+                    except (ValueError, TypeError):
+                        so_qty = 0
+                    # Only when email is clearly less than half of SO (blanket partial) - NOT full shipments
+                    if so_qty and email_qty < so_qty * 0.5:
+                        trust_email_quantities = True
+                        print(f"   ✏️ AUTO: Partial shipment detected (email {email_qty} < 50% of SO {so_qty}) - using email quantities")
+                        break
+                if trust_email_quantities:
+                    break
         
         # CRITICAL VALIDATION: Verify email matches SO data
         validation_errors = []
@@ -5118,6 +5238,14 @@ def process_email():
                     for kp in key_products:
                         if kp in email_desc and kp in so_desc:
                             score += 5  # Strong bonus for key product match
+                    
+                    # Product alias match: "Multi Purpose Maintenance Spray" = "TERMIN8R RED TOTES"
+                    if score == 0:
+                        email_core = _core_product_for_matching(email_desc)
+                        so_core = _core_product_for_matching(so_desc)
+                        if _products_match_via_alias(email_core, so_core):
+                            score = 3  # Strong match via alias
+                            print(f"      [OK] Alias match: {email_desc[:40]} = {so_desc[:40]}")
                     
                     print(f"      Checking SO item {idx}: '{so_desc[:50]}...' - score: {score}, common: {common_words}")
                     

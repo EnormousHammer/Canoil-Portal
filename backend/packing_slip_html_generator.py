@@ -273,6 +273,16 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
         if not use_net_weight and item.get('source_so') == 'TOTES' and (item.get('net_weight') or item.get('gross_weight')):
             use_net_weight = True
         
+        # Spectra-style totes: when liters_filled is set (partial shipment), show liters not piece count
+        if not use_net_weight and is_tote and item.get('liters_filled'):
+            try:
+                liters_val = float(str(item.get('liters_filled', '')).replace(',', ''))
+                if liters_val > 0:
+                    quantity = int(liters_val) if liters_val == int(liters_val) else liters_val
+                    unit = 'L'
+            except (ValueError, TypeError):
+                pass
+        
         if use_net_weight:
             net_wt = item.get('net_weight') or item.get('gross_weight') or ''
             if not net_wt:

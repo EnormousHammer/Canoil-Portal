@@ -275,10 +275,10 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
     if email_analysis.get('skid_info'):
         skid = email_analysis['skid_info']
         print(f"   DEBUG: Using skid_info from parsing: {skid}")
-        # Try to extract count from string like "2 pallets (48x40x48)" or "1 box 27×22×20 inches"
+        # Try to extract count from string like "2 pallets (48x40x48)" or "6 totes 40×46×48 inches each"
         count = 1
         import re
-        count_match = re.search(r'(\d+)\s*(?:pallet|skid|box|case)', skid, re.IGNORECASE)
+        count_match = re.search(r'(\d+)\s*(?:pallet|skid|box|case|tote)', skid, re.IGNORECASE)
         if count_match:
             count = int(count_match.group(1))
         print(f"   DEBUG: Extracted count from skid_info: {count}")
@@ -310,21 +310,24 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
         pallet_dims = email_analysis.get('pallet_dimensions')
         packaging_type = email_analysis.get('packaging_type', 'pallet')
         pallet_count = email_analysis.get('pallet_count')
+        tote_count = email_analysis.get('tote_count')
         
         if pallet_dims:
             # Use "box" for display if packaging_type is "case" (case = box in shipping)
             display_type = 'box' if packaging_type == 'case' else packaging_type
+            # For totes, use tote_count (not pallet_count) - totes are IBCs, not pallets
+            count = tote_count if packaging_type == 'tote' and tote_count else pallet_count
             
-            if pallet_count and pallet_count > 0:
-                if pallet_count == 1:
+            if count and count > 0:
+                if count == 1:
                     skid_info = f"1 {display_type} {pallet_dims}"
                 else:
-                    skid_info = f"{pallet_count} {display_type}s {pallet_dims} each"
+                    skid_info = f"{count} {display_type}s {pallet_dims} each"
             else:
                 skid_info = f"{display_type} {pallet_dims}"
             
             print(f"   DEBUG: Built skid_info from pallet_dimensions and packaging_type: {skid_info}")
-            return skid_info, pallet_count or 1
+            return skid_info, count or 1
         
         print(f"   DEBUG: No pallet info found in email_analysis. Keys: {list(email_analysis.keys())}")
         print(f"   DEBUG: Checking for skid_info directly: {email_analysis.get('skid_info', 'NOT FOUND')}")
@@ -334,6 +337,19 @@ def extract_skid_info(email_analysis: Dict[str, Any]) -> tuple:
         return "", 0
     
     print(f"   DEBUG: Found pallet info from {source}: {pallet_info}")
+    
+    # When pallet_info is dimensions-only (e.g. "40x46x48 inches") and we have tote_count, use it
+    packaging_type = email_analysis.get('packaging_type', 'pallet')
+    tote_count = email_analysis.get('tote_count')
+    if isinstance(pallet_info, str) and packaging_type == 'tote' and tote_count:
+        # Dimensions string without count - build "6 totes 40x46x48 inches each"
+        pallet_dims = pallet_info.strip()
+        if tote_count == 1:
+            skid_info = f"1 tote {pallet_dims}"
+        else:
+            skid_info = f"{tote_count} totes {pallet_dims} each"
+        print(f"   DEBUG: Built skid_info for totes: {skid_info}")
+        return skid_info, int(tote_count)
     
     # If string format
     if isinstance(pallet_info, str):
@@ -747,6 +763,20 @@ def determine_freight_terms(so_data: Dict[str, Any]) -> str:
         return 'Collect'  # Default
 
 
+def _packaging_label_for_total(skid_info: str, email_analysis: Dict[str, Any] = None) -> str:
+    """Return correct label for 'Total X' row: Tote, Skid, Pallet, Box, or Case."""
+    text = (skid_info or '').lower()
+    if email_analysis and email_analysis.get('packaging_type') == 'tote':
+        return 'Tote'
+    if 'tote' in text:
+        return 'Tote'
+    if 'box' in text or (email_analysis and email_analysis.get('packaging_type') == 'case'):
+        return 'Box'
+    if 'case' in text:
+        return 'Case'
+    return 'Skid'  # pallet/skid default
+
+
 def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str], 
                       skid_info: str, total_weight_kg: float, 
                       po_number: str, so_number: str, total_skids: int = 0,
@@ -903,8 +933,9 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         })
         print(f"   ✅ Added packaging info to BOL: {skid_info}")
     elif total_skids > 0:
-        # No skid info string, but we have total skids count - use that
-        skid_text = f"{total_skids} Total Skid{'s' if total_skids > 1 else ''}"
+        # No skid info string, but we have count - use correct label (totes vs skids)
+        unit_label = _packaging_label_for_total(skid_info, email_analysis)
+        skid_text = f"{total_skids} Total {unit_label}{'s' if total_skids > 1 else ''}"
         rows.append({
             'pieces': '',
             'description': skid_text,
@@ -953,11 +984,12 @@ def generate_bol_rows(items: List[Dict[str, Any]], batch_numbers: List[str],
         'weight': ''
     })
     
-    # Add Total Skids on next available row (if we have both skid_info and total_skids, and total not already shown)
+    # Add Total count on next available row (if we have both skid_info and total_skids, and total not already shown)
     if total_skids > 0 and skid_info and skid_info.strip():
         # Check if skid_info already contains the total count
         if str(total_skids) not in skid_info:
-            skid_text = f"{total_skids} Total Skid{'s' if total_skids > 1 else ''}"
+            unit_label = _packaging_label_for_total(skid_info, email_analysis)
+            skid_text = f"{total_skids} Total {unit_label}{'s' if total_skids > 1 else ''}"
             rows.append({'pieces': '', 'description': skid_text, 'weight': ''})
             print(f"   ✅ Added total skids (additional) to BOL: {skid_text}")
     

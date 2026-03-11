@@ -53,6 +53,7 @@ backend/generated_totes_docs/
 backend/*.db
 backend/instance/
 backend/data/
+backend/logistics_email_history.json
 
 # Google Cloud credentials (NEVER COMMIT THESE!)
 service-account-key.json

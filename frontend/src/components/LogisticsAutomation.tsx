@@ -76,7 +76,7 @@ const LogisticsAutomation: React.FC = () => {
   
   // Auto-detection state
   const [autoDetection, setAutoDetection] = useState<any>(null);
-  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so' | 'trust_email' | 'multi_so'>('auto');
+  const [processingMode, setProcessingMode] = useState<'auto' | 'manual' | 'no_so' | 'multi_so'>('auto');
   
   // Manual text input state - just a simple text field
   const [manualText, setManualText] = useState('');
@@ -110,16 +110,16 @@ const LogisticsAutomation: React.FC = () => {
     companyName?: string;
   }>>([]);
 
-  // Load history from localStorage on mount
+  // Load history from server (works across PCs, browsers)
   useEffect(() => {
-    const storedHistory = localStorage.getItem('logistics_email_history');
-    if (storedHistory) {
-      try {
-        setEmailHistory(JSON.parse(storedHistory));
-      } catch (error) {
-        console.error('Error loading email history:', error);
-      }
-    }
+    fetch(getApiUrl('/api/logistics/email-history'))
+      .then(res => res.json())
+      .then(data => {
+        if (data.history && Array.isArray(data.history)) {
+          setEmailHistory(data.history);
+        }
+      })
+      .catch(err => console.error('Error loading email history:', err));
   }, []);
 
   // Check for email data from EmailAssistant on mount
@@ -152,24 +152,32 @@ const LogisticsAutomation: React.FC = () => {
     }
   }, []);
   
-  // Save to history after successful processing
+  // Save to history after successful processing (server-side, works across devices)
   useEffect(() => {
     if (result && result.success && emailText.trim()) {
-      setEmailHistory(prevHistory => {
-        const historyEntry = {
-          id: Date.now().toString(),
-          emailText: emailText,
-          timestamp: new Date().toISOString(),
-          soNumber: result.is_multi_so 
-            ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_data?.so_number)
-            : (result.so_data?.so_number || result.email_data?.so_number),
-          companyName: result.so_data?.customer_name || result.email_data?.company_name
-        };
-        
-        const updatedHistory = [historyEntry, ...prevHistory.filter(h => h.emailText !== emailText)].slice(0, 50); // Keep last 50
-        localStorage.setItem('logistics_email_history', JSON.stringify(updatedHistory));
-        return updatedHistory;
-      });
+      const soNumber = result.is_multi_so
+        ? (result.so_numbers?.join(' & ') || result.so_data?.so_number || result.email_data?.so_number)
+        : (result.so_data?.so_number || result.email_data?.so_number);
+      const companyName = result.so_data?.customer_name || result.email_data?.company_name;
+      fetch(getApiUrl('/api/logistics/email-history'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailText,
+          soNumber,
+          companyName
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.count !== undefined) {
+            fetch(getApiUrl('/api/logistics/email-history'))
+              .then(r => r.json())
+              .then(d => d.history && setEmailHistory(d.history))
+              .catch(() => {});
+          }
+        })
+        .catch(err => console.error('Error saving to email history:', err));
     }
   }, [result, emailText]);
   
@@ -183,11 +191,16 @@ const LogisticsAutomation: React.FC = () => {
     setAutoDetection(null);
   };
   
-  // Delete from history
+  // Delete from history (server-side)
   const deleteFromHistory = (id: string) => {
-    const updatedHistory = emailHistory.filter(h => h.id !== id);
-    setEmailHistory(updatedHistory);
-    localStorage.setItem('logistics_email_history', JSON.stringify(updatedHistory));
+    fetch(getApiUrl(`/api/logistics/email-history/${id}`), { method: 'DELETE' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setEmailHistory(prev => prev.filter(h => h.id !== id));
+        }
+      })
+      .catch(err => console.error('Error deleting from history:', err));
   };
 
   const processLogisticsAuto = async (overrideEmailContent?: string) => {
@@ -310,82 +323,6 @@ const LogisticsAutomation: React.FC = () => {
           setError(data.error || 'Failed to process logistics');
         }
         if (data.auto_detection) setAutoDetection(data.auto_detection);
-      }
-    } catch (err) {
-      setError('Network error: ' + (err as Error).message);
-    } finally {
-      clearTimeout(slowTimer);
-      setLoading(false);
-      setLoadingSlow(false);
-    }
-  };
-
-  // Process with Trust Email mode - SAME as Auto mode but with trust_email_quantities flag
-  // This tells backend to skip quantity validation and use email quantities
-  const processLogisticsTrustEmail = async () => {
-    if (!emailText.trim()) {
-      setError('Please provide email text');
-      return;
-    }
-    
-    // Clear all previous results before processing new email
-    setResult(null);
-    setDocuments([]);
-    setError('');
-    setAutoDetection(null);
-    setLoading(true);
-    setLoadingSlow(false);
-    const slowTimer = setTimeout(() => setLoadingSlow(true), 3000);
-
-    try {
-      const response = await fetch(getApiUrl('/api/logistics/process-email'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email_content: emailText,
-          trust_email_quantities: true,  // Flag to skip quantity validation and use email quantities
-          processing_mode: 'auto'  // Trust Email = same as Auto, ALWAYS single SO
-        })
-      });
-
-      const data = await response.json();
-
-      // SAME handling as processLogisticsAuto - just with trust_email flag sent
-      if (data.success) {
-        console.log('🔍 TRUST EMAIL MODE - RAW BACKEND RESPONSE:', data);
-        console.log('🔍 SO DATA ITEMS COUNT:', data.so_data?.items?.length);
-        console.log('🔍 Using email quantities as source of truth');
-        setResult(data);
-        setAutoDetection(data.auto_detection);
-        console.log('✅ Trust Email logistics processed successfully:', data);
-      } else {
-        // Handle validation errors - same as Auto mode
-        if (data.validation_errors || data.validation_details) {
-          const errorMessage = data.validation_summary || 
-            `❌ ${data.error}\n\nValidation Issues:\n${data.validation_errors.map((err: string) => `• ${err}`).join('\n')}`;
-          setError(errorMessage);
-          
-          // Still show the data for debugging
-          if (data.email_data || data.so_data) {
-            setResult({
-              email_data: data.email_data,
-              email_analysis: data.email_analysis || data.email_data,
-              so_data: data.so_data,
-              validation_failed: true,
-              validation_errors: data.validation_errors,
-              validation_details: data.validation_details,
-              validation_summary: data.validation_summary
-            });
-          }
-        } else {
-          setError(data.error || 'Failed to process logistics automatically');
-        }
-        
-        if (data.auto_detection) {
-          setAutoDetection(data.auto_detection);
-        }
       }
     } catch (err) {
       setError('Network error: ' + (err as Error).message);
@@ -1816,17 +1753,6 @@ const LogisticsAutomation: React.FC = () => {
                 >
                   📝 No SO Mode
                 </button>
-                <button
-                  onClick={() => setProcessingMode('trust_email')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    processingMode === 'trust_email'
-                      ? 'bg-amber-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Use email quantities - SO will be revised to match"
-                >
-                  ✏️ SO Revision
-                </button>
               </div>
               
               {/* Start New Shipment button */}
@@ -1845,7 +1771,7 @@ const LogisticsAutomation: React.FC = () => {
         </div>
 
         {/* Compact Email Input - Prominently at Top - Hide in no_so mode */}
-        {(processingMode === 'auto' || processingMode === 'manual' || processingMode === 'trust_email' || processingMode === 'multi_so') && (
+        {(processingMode === 'auto' || processingMode === 'manual' || processingMode === 'multi_so') && (
         <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Mail className="w-5 h-5 text-blue-600" />
@@ -1859,7 +1785,6 @@ const LogisticsAutomation: React.FC = () => {
               if (processingMode === 'manual' && !soFile) return;
               if (processingMode === 'auto') processLogisticsAuto();
               else if (processingMode === 'multi_so') processLogisticsMultiSO();
-              else if (processingMode === 'trust_email') processLogisticsTrustEmail();
               else processLogistics();
             }}
             className="relative"
@@ -1888,9 +1813,7 @@ const LogisticsAutomation: React.FC = () => {
                   className={`px-6 py-2.5 min-h-[42px] rounded-lg font-semibold text-sm transition-all flex items-center gap-2 cursor-pointer select-none ${
                     loading || !emailText.trim() || (processingMode === 'manual' && !soFile)
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : processingMode === 'trust_email' 
-                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
-                        : processingMode === 'multi_so'
+                      : processingMode === 'multi_so'
                           ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
                           : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg active:scale-[0.98]'
                   }`}
@@ -1898,12 +1821,12 @@ const LogisticsAutomation: React.FC = () => {
                   {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    {loadingSlow ? 'Waking up backend...' : (processingMode === 'trust_email' ? 'Processing (Trust Email)...' : processingMode === 'multi_so' ? 'Processing (Multi-SO)...' : 'Processing...')}
+                    {loadingSlow ? 'Waking up backend...' : (processingMode === 'multi_so' ? 'Processing (Multi-SO)...' : 'Processing...')}
                   </>
                 ) : (
                   <>
                     <Truck className="w-4 h-4" />
-                    {processingMode === 'auto' ? '🤖 Auto Process' : processingMode === 'multi_so' ? '📦 Process (Multi-SO)' : processingMode === 'trust_email' ? '✏️ Process (SO Revision)' : 'Process'}
+                    {processingMode === 'auto' ? '🤖 Auto Process' : processingMode === 'multi_so' ? '📦 Process (Multi-SO)' : 'Process'}
                   </>
                 )}
               </button>
@@ -1925,10 +1848,7 @@ const LogisticsAutomation: React.FC = () => {
             </div>
             
             {processingMode === 'auto' && (
-              <span className="text-xs text-gray-500">Auto-detects SO number from email</span>
-            )}
-            {processingMode === 'trust_email' && (
-              <span className="text-xs text-amber-600 font-medium">⚠️ Uses email quantities - skips SO quantity validation</span>
+              <span className="text-xs text-gray-500">Auto-detects SO number and partial shipments (uses email quantities when email specifies what's shipping)</span>
             )}
           </div>
           </form>
