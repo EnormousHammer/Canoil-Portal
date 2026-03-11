@@ -1022,6 +1022,32 @@ def extract_core_product_name(description):
     
     return core_name.strip()
 
+def _extract_product_code(text):
+    """Extract 4-5 digit product codes from text. Handles:
+    - (42612) or (42615) in parentheses
+    - Plain 42611, 42612 when SO states it without parens
+    - Whole string being a 4-5 digit number (e.g. item_code='42612')
+    Returns the first match as string, or None."""
+    if not text:
+        return None
+    s = str(text).strip()
+    # 1. In parentheses: (42612) or (42615)
+    m = re.search(r'\((\d{4,5})\)', s)
+    if m:
+        return m.group(1)
+    # 2. Whole string is a 4-5 digit number (SO item_code sometimes is just the product code)
+    if s.isdigit() and 4 <= len(s) <= 5:
+        return s
+    # 3. Standalone 5-digit number in text (42611, 42612, 42615 - product codes; avoids 240, 320 quantities)
+    m = re.search(r'\b(\d{5})\b', s)
+    if m:
+        return m.group(1)
+    # 4. Standalone 4-digit number 4xxx (product codes; avoids 100, 240, 1000, and SO numbers like 5000)
+    m = re.search(r'\b(4\d{3})\b', s)
+    if m:
+        return m.group(1)
+    return None
+
 def determine_final_destination(so_data, email_data):
     """Intelligently determine final destination country from available data"""
     
@@ -1611,6 +1637,7 @@ def parse_email_with_gpt4(email_text, retry_count=0):
             "items": [
                 {{
                     "description": "[CRITICAL] Extract ONLY the product name, stop at first comma or weight/batch keywords. Example: '3 drums of MOV Extra 0, 540 kg total net weight' → extract 'MOV Extra 0' (NOT 'MOV Extra 0, 540 kg...'). Stop at comma, 'kg', 'lbs', 'total', 'batch', etc.",
+                    "item_code": "Extract 4-5 digit product code in parentheses when present. Examples: '(42612)' → '42612', '(42615)' → '42615'. Can appear before or after product name. Leave empty if not in email.",
                     "quantity": "numeric quantity only (e.g. 2)",
                     "unit": "container type only (drum, pail, etc.)",
                     "batch_number": "[CRITICAL] Extract batch number(s) for THIS SPECIFIC ITEM ONLY. If multiple batches with quantities: 'CCL-26035 (1) + CCL-26049 (6)' → use exactly 'CCL-26035 (1) + CCL-26049 (6)'. Single batch: 'WH5B25G049'. Match each item to its batch.",
@@ -4551,284 +4578,300 @@ def process_email():
                     item_qty = email_item.get('quantity', '')
                     item_batch = email_item.get('batch_number', '')
                     item_code = (email_item.get('item_code') or '').upper().strip()
+                    # Extract product code (42612, 42615) from description - most reliable disambiguator for similar products
+                    email_product_code = _extract_product_code(item_desc) or _extract_product_code(item_code) or (item_code if item_code and item_code.isdigit() and len(item_code) >= 4 else None)
                     
                     print(f"\n🔍 MATCHING EMAIL ITEM: '{item_desc}' (qty: {item_qty})")
+                    if email_product_code:
+                        print(f"   📌 Product code: {email_product_code}")
                     print(f"   Available SO items: {so_item_names[:5]}...")  # Show first 5
                     
                     matched = False
                     match_details = None
                     matched_so_item = None  # Initialize to avoid UnboundLocalError
                     item_desc_clean = ' '.join((item_desc or '').replace('-', ' ').replace('/', ' ').split())
-                    email_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean))
+                    email_sizes = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean))
                     
-                    # Try to find matching SO item - SMART MATCHING
-                    for i, so_desc in enumerate(so_item_names):
-                        so_item = so_items_to_check[i]  # Get the actual SO item object
-                        # Debug: Show what we're comparing
-                        print(f"   🔍 COMPARING: Email='{item_desc}' vs SO='{so_desc}'")
+                    # PRIORITY 1: Match by product code when both have it - prevents Laser 2 Cycle (42615) matching Laser 2T (42612)
+                    if email_product_code:
+                        for i, so_desc in enumerate(so_item_names):
+                            so_product_code = _extract_product_code(so_desc) or _extract_product_code(so_items_to_check[i].get('item_code') or '')
+                            if so_product_code and so_product_code == email_product_code:
+                                matched = True
+                                matched_so_item = so_items_to_check[i]
+                                match_details = f"Matched by product code: {email_product_code}"
+                                print(f"   ✅ PRODUCT CODE MATCH: code {email_product_code}")
+                                break
+                    
+                    # Try to find matching SO item - SMART MATCHING (when product code didn't match)
+                    if not matched:
+                        for i, so_desc in enumerate(so_item_names):
+                            so_item = so_items_to_check[i]  # Get the actual SO item object
+                            # Debug: Show what we're comparing
+                            print(f"   🔍 COMPARING: Email='{item_desc}' vs SO='{so_desc}'")
                         
                         # Normalize descriptions for comparison (remove extra spaces, handle variations)
-                        item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
-                        so_desc_normalized = ' '.join(so_desc.split())
-                        item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
-                        so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
+                            item_desc_normalized = ' '.join(item_desc.split())  # Normalize whitespace
+                            so_desc_normalized = ' '.join(so_desc.split())
+                            item_desc_clean = item_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
+                            so_desc_clean = so_desc_normalized.replace('-', ' ').replace('/', ' ').replace('#', ' ').replace('&', ' ')
                         
-                        # SIMPLE SUBSTRING: "Canoil H1 Food & Beverage #2" in "Canoil H1 Food & Beverage #2 pail 17 kg"
-                        # Normalize for comparison: &/and, #/No., strip extra spaces
-                        def _norm(s):
-                            s = (s or '').upper().replace('&', ' AND ').replace('#', ' ')
-                            s = re.sub(r'\bNO\.?\s*(\d+)', r' \1 ', s)
-                            return ' '.join(s.split())
-                        a, b = _norm(item_desc), _norm(so_desc)
-                        substr_match = (a in b or b in a)
+                            # SIMPLE SUBSTRING: "Canoil H1 Food & Beverage #2" in "Canoil H1 Food & Beverage #2 pail 17 kg"
+                            # Normalize for comparison: &/and, #/No., strip extra spaces
+                            def _norm(s):
+                                s = (s or '').upper().replace('&', ' AND ').replace('#', ' ')
+                                s = re.sub(r'\bNO\.?\s*(\d+)', r' \1 ', s)
+                                return ' '.join(s.split())
+                            a, b = _norm(item_desc), _norm(so_desc)
+                            substr_match = (a in b or b in a)
                         
-                        # CORE PRODUCT MATCH (primary, most robust): strip packaging/size/weight, match on product identity
-                        email_core = _core_product_for_matching(item_desc)
-                        so_core = _core_product_for_matching(so_desc)
-                        core_match = (email_core and so_core and
-                            (email_core in so_core or so_core in email_core or email_core == so_core))
-                        # PRODUCT ALIAS MATCH: e.g. "Multi Purpose Maintenance Spray" (email) = "TERMIN8R RED TOTES" (SO)
-                        alias_match = _products_match_via_alias(email_core, so_core)
-                        # Fallback: significant word overlap (handles "No. 2" vs "#2", "and" vs "&" in PDF)
-                        email_core_words_set = set((email_core or '').split())
-                        so_core_words_set = set((so_core or '').split())
-                        overlap = email_core_words_set & so_core_words_set
-                        min_words = min(len(email_core_words_set), len(so_core_words_set)) or 1
-                        core_overlap_match = (len(overlap) >= 3 and len(overlap) >= min_words * 0.6)
+                            # CORE PRODUCT MATCH (primary, most robust): strip packaging/size/weight, match on product identity
+                            email_core = _core_product_for_matching(item_desc)
+                            so_core = _core_product_for_matching(so_desc)
+                            core_match = (email_core and so_core and
+                                (email_core in so_core or so_core in email_core or email_core == so_core))
+                            # PRODUCT ALIAS MATCH: e.g. "Multi Purpose Maintenance Spray" (email) = "TERMIN8R RED TOTES" (SO)
+                            alias_match = _products_match_via_alias(email_core, so_core)
+                            # Fallback: significant word overlap (handles "No. 2" vs "#2", "and" vs "&" in PDF)
+                            email_core_words_set = set((email_core or '').split())
+                            so_core_words_set = set((so_core or '').split())
+                            overlap = email_core_words_set & so_core_words_set
+                            min_words = min(len(email_core_words_set), len(so_core_words_set)) or 1
+                            core_overlap_match = (len(overlap) >= 3 and len(overlap) >= min_words * 0.6)
                         
-                        # Exact match check (with and without special chars)
-                        exact_match_1 = item_desc_normalized in so_desc_normalized or item_desc_clean in so_desc_clean
-                        exact_match_2 = so_desc_normalized in item_desc_normalized or so_desc_clean in item_desc_clean
+                            # Exact match check (with and without special chars)
+                            exact_match_1 = item_desc_normalized in so_desc_normalized or item_desc_clean in so_desc_clean
+                            exact_match_2 = so_desc_normalized in item_desc_normalized or so_desc_clean in item_desc_clean
                         
-                        # Also check if all words from email item appear in SO description
-                        email_words = set(item_desc_clean.split())
-                        so_words = set(so_desc_clean.split())
-                        # Remove common packaging words for comparison
-                        packaging_words = {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
-                        email_core_words = email_words - packaging_words
-                        so_core_words = so_words - packaging_words
-                        word_match = email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(so_words)
+                            # Also check if all words from email item appear in SO description
+                            email_words = set(item_desc_clean.split())
+                            so_words = set(so_desc_clean.split())
+                            # Remove common packaging words for comparison
+                            packaging_words = {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
+                            email_core_words = email_words - packaging_words
+                            so_core_words = so_words - packaging_words
+                            word_match = email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(so_words)
                         
-                        # Additional check: if key product identifiers match (like "CC LOW TEMP EP-0")
-                        # Extract alphanumeric product codes
-                        import re
-                        email_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', item_desc_normalized))
-                        so_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', so_desc_normalized))
-                        code_match = bool(email_codes & so_codes) if email_codes else False
-                        
-                        # For FUZZY matches only: packaging sizes must match (4X4L != 12x1L)
-                        # For exact/substring matches we trust the match - don't reject
-                        size_pattern = r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]'
-                        email_sizes = set(re.findall(size_pattern, item_desc_normalized))
-                        so_sizes = set(re.findall(size_pattern, so_desc_normalized))
-                        size_mismatch = email_sizes and so_sizes and not (email_sizes & so_sizes)
-                        # Only reject on size when using fuzzy match - exact/substring is trustworthy
-                        fuzzy_match_only = word_match or code_match
-                        reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
-                        
-                        print(f"      Check 0 (core product): {core_match} | overlap: {core_overlap_match} | alias: {alias_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
-                        print(f"      Check 1 (email in SO): {exact_match_1}")
-                        print(f"      Check 2 (SO in email): {exact_match_2}")
-                        print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
-                        print(f"      Check 4 (code match): {code_match} (codes: {email_codes & so_codes if email_codes else 'none'})")
-                        print(f"      Check 5 (reject size): {reject_size} (size_mismatch={size_mismatch}, fuzzy_only)")
-                        
-                        if reject_size:
-                            continue  # 4X4L vs 12x1L via fuzzy match - different products, skip
-                        # Core match: when BOTH have size, they must match (4X4L != 12x1L)
-                        if core_match and email_sizes and so_sizes:
-                            if not (email_sizes & so_sizes):
-                                continue  # Same product name but different packaging size - skip
-                        # Packaging must be compatible: drum != pail, but box = case, tote = IBC
-                        email_pkg = _packaging_type_for_matching(item_desc)
-                        so_pkg = _packaging_type_for_matching(so_desc)
-                        if not _packaging_compatible(email_pkg, so_pkg):
-                            print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
-                            continue
-                        if substr_match or core_match or core_overlap_match or alias_match or exact_match_1 or exact_match_2 or word_match or code_match:
-                            # Check if this is a TOTE order - totes are treated as single units regardless of volume
-                            is_tote_order = False
-                            email_text_lower = str(email_data).lower()
-                            so_unit = (so_item.get('unit') or '').upper()
-                            
-                            # Detect tote orders: email mentions "tote" OR SO unit is TOTE/LITER with qty 1
-                            if 'tote' in email_text_lower or (so_unit in ['TOTE', 'LITER', 'IBC'] and so_item.get('quantity', 0) == 1):
-                                is_tote_order = True
-                                print(f"      📦 TOTE ORDER DETECTED - matching on description only")
-                            
-                            # For tote orders, match on description only (skip qty check)
-                            # Store the liters info from email for BOL formatting: "Product Name (XXX L filled)"
-                            if is_tote_order:
-                                matched = True
-                                matched_so_item = so_item
-                                # Store liters from email for BOL description formatting
-                                liters_filled = item_qty if item_qty else ''
-                                # Multi-tote: use tote_count from email when "X totes" (e.g. 6 totes 6000L)
-                                # Do NOT use pallet_count - email says totes, not pallets
-                                tote_pieces = 1
-                                tote_count = email_data.get('tote_count') or 0
-                                try:
-                                    tc = int(tote_count)
-                                    if tc > 0 and liters_filled and abs((float(str(liters_filled).replace(',', '')) / tc) - 1000) < 500:
-                                        tote_pieces = tc
-                                except (ValueError, TypeError):
-                                    pass
-                                match_details = f"TOTE order matched by description: {so_desc}"
-                                if liters_filled:
-                                    match_details += f" | Liters filled: {liters_filled}L"
-                                    # Update the email item with tote info for BOL generation
-                                    email_item['is_tote_order'] = True
-                                    email_item['liters_filled'] = liters_filled
-                                    email_item['bol_quantity'] = tote_pieces  # 6 totes = 6 pieces
-                                    email_item['bol_description'] = f"{email_item.get('description', '')} ({liters_filled}L filled)"
-                                print(f"   [OK] TOTE MATCH: '{item_desc}' = '{so_desc}' (Pieces: {tote_pieces}, Liters: {liters_filled})")
-                                break
-                            
-                            # For non-tote orders, check quantity
-                            # CRITICAL: Same product can appear on multiple SO lines (e.g. different MOs) - SUM quantities
-                            if item_qty:
-                                try:
-                                    email_qty_num = float(str(item_qty).replace(',', '')) if item_qty else 0
-                                    total_so_qty = 0.0
-                                    for j, other_desc in enumerate(so_item_names):
-                                        other_item = so_items_to_check[j]
-                                        other_clean = ' '.join((other_desc or '').replace('-', ' ').replace('/', ' ').split())
-                                        other_words = set(other_clean.split()) - packaging_words
-                                        # Same product match: email in SO, SO in email, or word subset
-                                        desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
-                                                      (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
-                                        # Packaging sizes must match - 4X4L != 12x1L (case-insensitive)
-                                        other_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
-                                        email_sizes_norm = {s.upper() for s in email_sizes}
-                                        other_sizes_norm = {s.upper() for s in other_sizes}
-                                        sum_size_mismatch = email_sizes and other_sizes and not (email_sizes_norm & other_sizes_norm)
-                                        if desc_match and not sum_size_mismatch:
-                                            other_qty = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
-                                            if isinstance(other_qty, str):
-                                                om = re.search(r'(\d+\.?\d*)', str(other_qty).replace(',', ''))
-                                                total_so_qty += float(om.group(1)) if om else 0
-                                            else:
-                                                total_so_qty += float(other_qty)
-                                    
-                                    # Allow email qty <= total SO qty (partial shipments normal; multi-line same product)
-                                    if email_qty_num > total_so_qty + 0.01:
-                                        print(f"      ⏭️  DESCRIPTION MATCHES but EMAIL QTY EXCEEDS SO: Email={email_qty_num}, SO total={total_so_qty} - skipping")
-                                        continue
-                                    else:
-                                        print(f"      ✅ DESCRIPTION MATCH: Email={email_qty_num}, SO total={total_so_qty} (partial shipment OK)")
-                                except Exception as qty_err:
-                                    print(f"      ⚠️  QTY CHECK ERROR: {qty_err} - proceeding with description match only")
-                            
-                            # Only accept match if we got here (either qty matches or qty check failed/not available)
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"Matched with SO item: {so_desc}"
-                            print(f"   ✅ EXACT MATCH: '{item_desc}' = '{so_desc}'")
-                            break
-                        
-                        # MOV product matching - handle all MOV variants:
-                        # - "MOV Extra 0" vs "MOVEXT0DRM" or "MOV Extra 0 - Drums"
-                        # - "MOV LONG LIFE 0" vs "MOV LONG LIFE 0 55kg KEG"
-                        # CRITICAL: Check this BEFORE smart matching to avoid matching "MOV Extra 1" with "MOV Extra 0"
-                        if 'MOV' in item_desc and 'MOV' in so_desc:
+                            # Additional check: if key product identifiers match (like "CC LOW TEMP EP-0")
+                            # Extract alphanumeric product codes
                             import re
-                            # First check: Does email description appear in SO description? (handles "MOV LONG LIFE 0" in "MOV LONG LIFE 0 55kg KEG")
-                            if item_desc in so_desc:
-                                matched = True
-                                matched_so_item = so_item
-                                match_details = f"MOV product exact match: {item_desc} found in {so_desc}"
-                                print(f"   ✅ MOV EXACT MATCH: '{item_desc}' found in '{so_desc}'")
-                                break
+                            email_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', item_desc_normalized))
+                            so_codes = set(re.findall(r'[A-Z]+\d+|EP\d+|[A-Z]{2,}\s+[A-Z]+\s+[A-Z]+', so_desc_normalized))
+                            code_match = bool(email_codes & so_codes) if email_codes else False
+                        
+                            # For FUZZY matches only: packaging sizes must match (4X4L != 12x1L)
+                            # For exact/substring matches we trust the match - don't reject
+                            size_pattern = r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]'
+                            email_sizes = set(re.findall(size_pattern, item_desc_normalized))
+                            so_sizes = set(re.findall(size_pattern, so_desc_normalized))
+                            size_mismatch = email_sizes and so_sizes and not (email_sizes & so_sizes)
+                            # Only reject on size when using fuzzy match - exact/substring is trustworthy
+                            fuzzy_match_only = word_match or code_match
+                            reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
+                        
+                            print(f"      Check 0 (core product): {core_match} | overlap: {core_overlap_match} | alias: {alias_match} (email_core='{(email_core or '')[:50]}' so_core='{(so_core or '')[:50]}')")
+                            print(f"      Check 1 (email in SO): {exact_match_1}")
+                            print(f"      Check 2 (SO in email): {exact_match_2}")
+                            print(f"      Check 3 (word match): {word_match} (email words: {email_core_words})")
+                            print(f"      Check 4 (code match): {code_match} (codes: {email_codes & so_codes if email_codes else 'none'})")
+                            print(f"      Check 5 (reject size): {reject_size} (size_mismatch={size_mismatch}, fuzzy_only)")
+                        
+                            if reject_size:
+                                continue  # 4X4L vs 12x1L via fuzzy match - different products, skip
+                            # Core match: when BOTH have size, they must match (4X4L != 12x1L)
+                            if core_match and email_sizes and so_sizes:
+                                if not (email_sizes & so_sizes):
+                                    continue  # Same product name but different packaging size - skip
+                            # Packaging must be compatible: drum != pail, but box = case, tote = IBC
+                            email_pkg = _packaging_type_for_matching(item_desc)
+                            so_pkg = _packaging_type_for_matching(so_desc)
+                            if not _packaging_compatible(email_pkg, so_pkg):
+                                print(f"      Check 6 (reject packaging): email={email_pkg} vs SO={so_pkg} - skip")
+                                continue
+                            if substr_match or core_match or core_overlap_match or alias_match or exact_match_1 or exact_match_2 or word_match or code_match:
+                                # Check if this is a TOTE order - totes are treated as single units regardless of volume
+                                is_tote_order = False
+                                email_text_lower = str(email_data).lower()
+                                so_unit = (so_item.get('unit') or '').upper()
                             
-                            # Second check: Extract numbers and match by product number
-                            email_nums = re.findall(r'\d+', item_desc)
-                            so_nums = re.findall(r'\d+', so_desc)
-                            # If both have MOV and share a number, it's a match
-                            if email_nums and so_nums and any(e_num in so_desc for e_num in email_nums):
-                                # Additional check: Make sure the product type matches (LONG LIFE vs Extra)
-                                email_type = 'LONG LIFE' if 'LONG LIFE' in item_desc else ('EXTRA' if 'EXTRA' in item_desc else 'MOV')
-                                so_type = 'LONG LIFE' if 'LONG LIFE' in so_desc else ('EXTRA' if 'EXTRA' in so_desc else 'MOV')
-                                if email_type == so_type or email_type == 'MOV' or so_type == 'MOV':
+                                # Detect tote orders: email mentions "tote" OR SO unit is TOTE/LITER with qty 1
+                                if 'tote' in email_text_lower or (so_unit in ['TOTE', 'LITER', 'IBC'] and so_item.get('quantity', 0) == 1):
+                                    is_tote_order = True
+                                    print(f"      📦 TOTE ORDER DETECTED - matching on description only")
+                            
+                                # For tote orders, match on description only (skip qty check)
+                                # Store the liters info from email for BOL formatting: "Product Name (XXX L filled)"
+                                if is_tote_order:
                                     matched = True
                                     matched_so_item = so_item
-                                    match_details = f"MOV product matched by number: {item_desc} = {so_desc}"
-                                    print(f"   ✅ MOV MATCH: '{item_desc}' = '{so_desc}' (shared number: {[n for n in email_nums if n in so_desc][0]})")
+                                    # Store liters from email for BOL description formatting
+                                    liters_filled = item_qty if item_qty else ''
+                                    # Multi-tote: use tote_count from email when "X totes" (e.g. 6 totes 6000L)
+                                    # Do NOT use pallet_count - email says totes, not pallets
+                                    tote_pieces = 1
+                                    tote_count = email_data.get('tote_count') or 0
+                                    try:
+                                        tc = int(tote_count)
+                                        if tc > 0 and liters_filled and abs((float(str(liters_filled).replace(',', '')) / tc) - 1000) < 500:
+                                            tote_pieces = tc
+                                    except (ValueError, TypeError):
+                                        pass
+                                    match_details = f"TOTE order matched by description: {so_desc}"
+                                    if liters_filled:
+                                        match_details += f" | Liters filled: {liters_filled}L"
+                                        # Update the email item with tote info for BOL generation
+                                        email_item['is_tote_order'] = True
+                                        email_item['liters_filled'] = liters_filled
+                                        email_item['bol_quantity'] = tote_pieces  # 6 totes = 6 pieces
+                                        email_item['bol_description'] = f"{email_item.get('description', '')} ({liters_filled}L filled)"
+                                    print(f"   [OK] TOTE MATCH: '{item_desc}' = '{so_desc}' (Pieces: {tote_pieces}, Liters: {liters_filled})")
                                     break
-                        
-                        # Direct VSG fix - if email has VSG and SO has VSG, it's a match
-                        if 'VSG' in item_desc and 'VSG' in so_desc:
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"VSG product matched: {item_desc} = {so_desc}"
-                            break
-                        
-                        # Smart matching for similar products
-                        # Extract key product identifiers
-                        email_words = set(re.findall(r'\b[A-Z]{2,}\b', item_desc))  # Get abbreviations like VSG, MOV
-                        so_words = set(re.findall(r'\b[A-Z]{2,}\b', so_desc))
-                        
-                        # If they share key abbreviations, consider it a match
-                        # BUT: For MOV products, DO NOT use smart matching - only use exact match or MOV-specific matching
-                        # This prevents "MOV Extra 1" from matching "MOV Extra 0" through shared words
-                        if email_words & so_words:  # Intersection of sets
-                            # CRITICAL: Skip smart matching entirely for MOV products - they need number matching
-                            if 'MOV' in item_desc and 'MOV' in so_desc:
-                                continue  # Skip smart matching for MOV - use exact match or MOV-specific matching only
-                            # CRITICAL: Don't match 4X4L to 12x1L - packaging sizes must match (case-insensitive)
-                            if email_sizes and so_sizes:
-                                email_sizes_norm = {s.upper() for s in email_sizes}
-                                so_sizes_norm = {s.upper() for s in so_sizes}
-                                if not (email_sizes_norm & so_sizes_norm):
-                                    continue  # Different packaging (4X4L vs 12x1L) - skip, find correct SO line
                             
-                            matched = True
-                            matched_so_item = so_item  # Store the matched item
-                            match_details = f"Smart matched with SO item: {so_desc} (shared: {email_words & so_words})"
-                            break
+                                # For non-tote orders, check quantity
+                                # CRITICAL: Same product can appear on multiple SO lines (e.g. different MOs) - SUM quantities
+                                if item_qty:
+                                    try:
+                                        email_qty_num = float(str(item_qty).replace(',', '')) if item_qty else 0
+                                        total_so_qty = 0.0
+                                        for j, other_desc in enumerate(so_item_names):
+                                            other_item = so_items_to_check[j]
+                                            other_clean = ' '.join((other_desc or '').replace('-', ' ').replace('/', ' ').split())
+                                            other_words = set(other_clean.split()) - packaging_words
+                                            # Same product match: email in SO, SO in email, or word subset
+                                            desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
+                                                          (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
+                                            # Packaging sizes must match - 4X4L != 12x1L (case-insensitive)
+                                            other_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
+                                            email_sizes_norm = {s.upper() for s in email_sizes}
+                                            other_sizes_norm = {s.upper() for s in other_sizes}
+                                            sum_size_mismatch = email_sizes and other_sizes and not (email_sizes_norm & other_sizes_norm)
+                                            if desc_match and not sum_size_mismatch:
+                                                other_qty = other_item.get('quantity') or other_item.get('ordered') or other_item.get('Ordered') or other_item.get('Ordered Qty') or 0
+                                                if isinstance(other_qty, str):
+                                                    om = re.search(r'(\d+\.?\d*)', str(other_qty).replace(',', ''))
+                                                    total_so_qty += float(om.group(1)) if om else 0
+                                                else:
+                                                    total_so_qty += float(other_qty)
+                                    
+                                        # Allow email qty <= total SO qty (partial shipments normal; multi-line same product)
+                                        if email_qty_num > total_so_qty + 0.01:
+                                            print(f"      ⏭️  DESCRIPTION MATCHES but EMAIL QTY EXCEEDS SO: Email={email_qty_num}, SO total={total_so_qty} - skipping")
+                                            continue
+                                        else:
+                                            print(f"      ✅ DESCRIPTION MATCH: Email={email_qty_num}, SO total={total_so_qty} (partial shipment OK)")
+                                    except Exception as qty_err:
+                                        print(f"      ⚠️  QTY CHECK ERROR: {qty_err} - proceeding with description match only")
+                            
+                                # Only accept match if we got here (either qty matches or qty check failed/not available)
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"Matched with SO item: {so_desc}"
+                                print(f"   ✅ EXACT MATCH: '{item_desc}' = '{so_desc}'")
+                                break
                         
-                        # Check for product base name matches (ignore packaging format)
-                        # If they share key product abbreviations, consider it a match even if packaging differs
-                        if email_words & so_words:
-                            # Additional check: if the base product matches, accept different packaging
-                            base_products = ['VSG', 'MOV', 'GREASE', 'OIL', 'FLUID']
-                            shared_products = email_words & so_words & set(base_products)
-                            if shared_products:
-                                # For MOV, still require number match
-                                if 'MOV' in shared_products:
-                                    email_nums = re.findall(r'\d+', item_desc)
-                                    so_nums = re.findall(r'\d+', so_desc)
-                                    if email_nums and so_nums and not any(e_num in so_desc for e_num in email_nums):
-                                        continue  # Skip - MOV numbers must match
-                                # CRITICAL: Don't match 4X4L to 12x1L - when BOTH have packaging sizes, they must match
+                            # MOV product matching - handle all MOV variants:
+                            # - "MOV Extra 0" vs "MOVEXT0DRM" or "MOV Extra 0 - Drums"
+                            # - "MOV LONG LIFE 0" vs "MOV LONG LIFE 0 55kg KEG"
+                            # CRITICAL: Check this BEFORE smart matching to avoid matching "MOV Extra 1" with "MOV Extra 0"
+                            if 'MOV' in item_desc and 'MOV' in so_desc:
+                                import re
+                                # First check: Does email description appear in SO description? (handles "MOV LONG LIFE 0" in "MOV LONG LIFE 0 55kg KEG")
+                                if item_desc in so_desc:
+                                    matched = True
+                                    matched_so_item = so_item
+                                    match_details = f"MOV product exact match: {item_desc} found in {so_desc}"
+                                    print(f"   ✅ MOV EXACT MATCH: '{item_desc}' found in '{so_desc}'")
+                                    break
+                            
+                                # Second check: Extract numbers and match by product number
+                                email_nums = re.findall(r'\d+', item_desc)
+                                so_nums = re.findall(r'\d+', so_desc)
+                                # If both have MOV and share a number, it's a match
+                                if email_nums and so_nums and any(e_num in so_desc for e_num in email_nums):
+                                    # Additional check: Make sure the product type matches (LONG LIFE vs Extra)
+                                    email_type = 'LONG LIFE' if 'LONG LIFE' in item_desc else ('EXTRA' if 'EXTRA' in item_desc else 'MOV')
+                                    so_type = 'LONG LIFE' if 'LONG LIFE' in so_desc else ('EXTRA' if 'EXTRA' in so_desc else 'MOV')
+                                    if email_type == so_type or email_type == 'MOV' or so_type == 'MOV':
+                                        matched = True
+                                        matched_so_item = so_item
+                                        match_details = f"MOV product matched by number: {item_desc} = {so_desc}"
+                                        print(f"   ✅ MOV MATCH: '{item_desc}' = '{so_desc}' (shared number: {[n for n in email_nums if n in so_desc][0]})")
+                                        break
+                        
+                            # Direct VSG fix - if email has VSG and SO has VSG, it's a match
+                            if 'VSG' in item_desc and 'VSG' in so_desc:
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"VSG product matched: {item_desc} = {so_desc}"
+                                break
+                        
+                            # Smart matching for similar products
+                            # Extract key product identifiers
+                            email_words = set(re.findall(r'\b[A-Z]{2,}\b', item_desc))  # Get abbreviations like VSG, MOV
+                            so_words = set(re.findall(r'\b[A-Z]{2,}\b', so_desc))
+                        
+                            # If they share key abbreviations, consider it a match
+                            # BUT: For MOV products, DO NOT use smart matching - only use exact match or MOV-specific matching
+                            # This prevents "MOV Extra 1" from matching "MOV Extra 0" through shared words
+                            if email_words & so_words:  # Intersection of sets
+                                # CRITICAL: Skip smart matching entirely for MOV products - they need number matching
+                                if 'MOV' in item_desc and 'MOV' in so_desc:
+                                    continue  # Skip smart matching for MOV - use exact match or MOV-specific matching only
+                                # CRITICAL: Don't match 4X4L to 12x1L - packaging sizes must match (case-insensitive)
                                 if email_sizes and so_sizes:
                                     email_sizes_norm = {s.upper() for s in email_sizes}
                                     so_sizes_norm = {s.upper() for s in so_sizes}
                                     if not (email_sizes_norm & so_sizes_norm):
-                                        continue  # Different packaging (4X4L vs 12x1L) - skip
+                                        continue  # Different packaging (4X4L vs 12x1L) - skip, find correct SO line
+                            
+                                matched = True
+                                matched_so_item = so_item  # Store the matched item
+                                match_details = f"Smart matched with SO item: {so_desc} (shared: {email_words & so_words})"
+                                break
+                        
+                            # Check for product base name matches (ignore packaging format)
+                            # If they share key product abbreviations, consider it a match even if packaging differs
+                            if email_words & so_words:
+                                # Additional check: if the base product matches, accept different packaging
+                                base_products = ['VSG', 'MOV', 'GREASE', 'OIL', 'FLUID']
+                                shared_products = email_words & so_words & set(base_products)
+                                if shared_products:
+                                    # For MOV, still require number match
+                                    if 'MOV' in shared_products:
+                                        email_nums = re.findall(r'\d+', item_desc)
+                                        so_nums = re.findall(r'\d+', so_desc)
+                                        if email_nums and so_nums and not any(e_num in so_desc for e_num in email_nums):
+                                            continue  # Skip - MOV numbers must match
+                                    # CRITICAL: Don't match 4X4L to 12x1L - when BOTH have packaging sizes, they must match
+                                    if email_sizes and so_sizes:
+                                        email_sizes_norm = {s.upper() for s in email_sizes}
+                                        so_sizes_norm = {s.upper() for s in so_sizes}
+                                        if not (email_sizes_norm & so_sizes_norm):
+                                            continue  # Different packaging (4X4L vs 12x1L) - skip
                                 
-                                matched = True
-                                matched_so_item = so_item  # Store the matched item
-                                match_details = f"Product match (packaging may differ): {shared_products}"
+                                    matched = True
+                                    matched_so_item = so_item  # Store the matched item
+                                    match_details = f"Product match (packaging may differ): {shared_products}"
+                                    break
+                        
+                            # Check for common product variations
+                            variations = [
+                                ('VANE SPINDLE GREASE', 'VSG'),
+                                ('MOV EXTRA', 'MOV'),
+                                ('DRUMS', 'DRUM'),
+                                ('PAILS', 'PAIL')
+                            ]
+                        
+                            for long_form, short_form in variations:
+                                if ((long_form in item_desc and short_form in so_desc) or 
+                                    (short_form in item_desc and long_form in so_desc)):
+                                    matched = True
+                                    matched_so_item = so_item  # Store the matched item
+                                    match_details = f"Variation matched: {long_form} = {short_form}"
+                                    break
+                        
+                            if matched:
                                 break
-                        
-                        # Check for common product variations
-                        variations = [
-                            ('VANE SPINDLE GREASE', 'VSG'),
-                            ('MOV EXTRA', 'MOV'),
-                            ('DRUMS', 'DRUM'),
-                            ('PAILS', 'PAIL')
-                        ]
-                        
-                        for long_form, short_form in variations:
-                            if ((long_form in item_desc and short_form in so_desc) or 
-                                (short_form in item_desc and long_form in so_desc)):
-                                matched = True
-                                matched_so_item = so_item  # Store the matched item
-                                match_details = f"Variation matched: {long_form} = {short_form}"
-                                break
-                        
-                        if matched:
-                            break
                     
                     # Fallback: match by size identifier when both have same size (4X4L, 12x120g, etc.)
                     if not matched and email_sizes:
@@ -4883,6 +4926,11 @@ def process_email():
                         so_qty_num = 0.0
                         for j, od in enumerate(so_item_names):
                             other_item = so_items_to_check[j]
+                            # When we have product code match, ONLY sum SO lines with same product code (prevents cross-matching)
+                            if email_product_code:
+                                other_code = _extract_product_code(od) or _extract_product_code(other_item.get('item_code') or '')
+                                if other_code != email_product_code:
+                                    continue
                             other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
                             other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
                             other_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
