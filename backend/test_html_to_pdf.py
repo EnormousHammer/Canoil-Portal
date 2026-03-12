@@ -47,10 +47,10 @@ def main():
         f.write(BOL_HTML)
     print(f"[OK] HTML saved: {html_path}")
 
-    # 2. Convert to PDF (same flow as _convert_html_to_pdf)
+    # 2. Convert to PDF (pass html_filepath for Playwright file:// loading)
     from playwright_pdf_converter import html_to_pdf_sync
 
-    success = html_to_pdf_sync(BOL_HTML, pdf_path)
+    success = html_to_pdf_sync(BOL_HTML, pdf_path, html_filepath=html_path)
 
     if success:
         print(f"[OK] PDF saved: {pdf_path}")

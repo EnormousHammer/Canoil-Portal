@@ -1246,10 +1246,10 @@ const SageAnalyticsSection: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Header — show API-returned year to verify data matches selection */}
+      {/* All KPIs, tables, charts below are filtered by selected fiscal year (Apr–Mar) */}
       {kpis && (
         <div className="mb-2 text-xs text-slate-500">
-          Data for FY{kpis.year ?? selectedYear} {kpis.is_ytd ? '(YTD from Sage)' : '(from titrec)'}
+          All data filtered by FY{kpis.year ?? selectedYear} {kpis.is_ytd ? '(Sage YTD)' : '(titrec)'}
         </div>
       )}
       {kpis && (
