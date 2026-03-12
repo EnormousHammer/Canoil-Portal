@@ -1266,11 +1266,10 @@ def _item_stats_from_titrline(fiscal_year: int) -> dict:
 def get_top_customers(limit: int = 25, year: int = None) -> dict:
     """
     Rank customers by YTD sales. Uses Sage fiscal year (Apr 1 - Mar 31).
-    - current fiscal year (or None): uses dAmtYtd / dLastYrAmt from tcustomr (Sage's own fields)
-    - any other fiscal year: aggregates from titrec transaction journal
+    ALWAYS aggregates from titrec (Apr-Mar). dAmtYtd/dLastYrAmt are not used for analytics.
     """
     current_fy = _current_fiscal_year()
-    use_sage_fields = (year is None or year == current_fy)
+    resolved_year = year or current_fy
 
     df = _tables().get("tcustomr")
     if df is None or df.empty:
@@ -1278,23 +1277,15 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
 
     rows = df[df["bInactive"].fillna(0) == 0].copy() if "bInactive" in df.columns else df.copy()
 
-    # For non-current years, pull revenue from transaction journal
-    txn_rev: dict = {}
-    if not use_sage_fields:
-        txn_rev = _customer_revenue_from_titrec(year)
+    txn_rev = _customer_revenue_from_titrec(resolved_year)
+    prev_txn = _customer_revenue_from_titrec(resolved_year - 1)
 
     result = []
     for _, r in rows.iterrows():
         cid = int(r.get("lId", 0) or 0)
         credit = _safe_float(r.get("dCrLimit"))
-        if use_sage_fields:
-            ytd = _safe_float(r.get("dAmtYtd"))
-            ly = _safe_float(r.get("dLastYrAmt"))
-        else:
-            ytd = txn_rev.get(cid, 0.0)
-            # prior fiscal year for YoY
-            prev_txn = _customer_revenue_from_titrec(year - 1) if year else {}
-            ly = prev_txn.get(cid, 0.0)
+        ytd = txn_rev.get(cid, 0.0)
+        ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
             continue
         result.append({
@@ -1314,25 +1305,23 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
         })
 
     result.sort(key=lambda x: x["dAmtYtd"], reverse=True)
-    out = {"customers": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
-    if not result and not use_sage_fields and not txn_rev:
-        out["_empty_reason"] = f"No invoiced transactions in titrec for FY{year} (Apr {year-1}–Mar {year}). Check titrec.CSV has dates in that range."
+    out = {"customers": result[:limit], "total": len(result), "year": resolved_year, "fiscal_year": True}
+    if not result and not txn_rev:
+        out["_empty_reason"] = f"No invoiced transactions in titrec for FY{resolved_year} (Apr {resolved_year-1}–Mar {resolved_year}). Check titrec.CSV has dates in that range."
     return out
 
 
 def get_best_movers(limit: int = 25, year: int = None) -> dict:
     """
     Rank inventory items by units sold. Uses Sage fiscal year (Apr 1 - Mar 31).
-    - current fiscal year (or None): uses dYTDUntSld from tinvext (Sage's own fields)
-    - any other fiscal year: aggregates from titrline transaction lines
+    ALWAYS aggregates from titrline (Apr-Mar). tinvext pre-calc fields not used for analytics.
     """
     current_fy = _current_fiscal_year()
-    use_sage_fields = (year is None or year == current_fy)
+    resolved_year = year or current_fy
 
     tables = _tables()
     inv = tables.get("tinvent")
 
-    # Build item name map
     name_map: dict[int, dict] = {}
     if inv is not None and not inv.empty:
         for _, r in inv.iterrows():
@@ -1343,70 +1332,38 @@ def get_best_movers(limit: int = 25, year: int = None) -> dict:
                 "sSellUnit": _safe_str(r.get("sSellUnit")),
             }
 
-    if use_sage_fields:
-        ext = tables.get("tinvext")
-        if ext is None or ext.empty:
-            return {"items": [], "error": "tinvext not loaded"}
-        result = []
-        for _, r in ext.iterrows():
-            iid = int(r.get("lInventId", 0) or 0)
-            ytd_units = _safe_float(r.get("dYTDUntSld"))
-            ytd_rev = _safe_float(r.get("dYTDAmtSld"))
-            ly_units = _safe_float(r.get("dPrUntSld"))
-            ly_rev = _safe_float(r.get("dPrAmtSld"))
-            ytd_cogs = _safe_float(r.get("dYTDCOGS"))
-            if ytd_units <= 0 and ly_units <= 0:
-                continue
-            item_info = name_map.get(iid, {})
-            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
-            result.append({
-                "lInventId": iid,
-                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
-                "sName": item_info.get("sName", ""),
-                "sSellUnit": item_info.get("sSellUnit", ""),
-                "dYTDUntSld": round(ytd_units, 2),
-                "dPrUntSld": round(ly_units, 2),
-                "dYTDAmtSld": round(ytd_rev, 2),
-                "dPrAmtSld": round(ly_rev, 2),
-                "dYTDCOGS": round(ytd_cogs, 2),
-                "estimated_margin_pct": margin,
-                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
-                "dtLastSold": _safe_date(r.get("dtLastSold")),
-            })
-    else:
-        # Use transaction lines
-        stats = _item_stats_from_titrline(year)
-        prev_stats = _item_stats_from_titrline(year - 1)
-        result = []
-        for iid, s in stats.items():
-            if s["total_revenue"] <= 0:
-                continue
-            item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
-            py = prev_stats.get(iid, {})
-            ytd_rev = s["total_revenue"]
-            ytd_cogs = s["total_cogs"]
-            ly_units = py.get("total_qty", 0.0)
-            ytd_units = s["total_qty"]
-            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
-            result.append({
-                "lInventId": iid,
-                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
-                "sName": item_info.get("sName", ""),
-                "sSellUnit": item_info.get("sSellUnit", ""),
-                "dYTDUntSld": round(ytd_units, 2),
-                "dPrUntSld": round(ly_units, 2),
-                "dYTDAmtSld": round(ytd_rev, 2),
-                "dPrAmtSld": round(py.get("total_revenue", 0.0), 2),
-                "dYTDCOGS": round(ytd_cogs, 2),
-                "estimated_margin_pct": margin,
-                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
-                "dtLastSold": None,
-            })
+    stats = _item_stats_from_titrline(resolved_year)
+    prev_stats = _item_stats_from_titrline(resolved_year - 1)
+    result = []
+    for iid, s in stats.items():
+        if s["total_revenue"] <= 0:
+            continue
+        item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
+        py = prev_stats.get(iid, {})
+        ytd_rev = s["total_revenue"]
+        ytd_cogs = s["total_cogs"]
+        ly_units = py.get("total_qty", 0.0)
+        ytd_units = s["total_qty"]
+        margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
+        result.append({
+            "lInventId": iid,
+            "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
+            "sName": item_info.get("sName", ""),
+            "sSellUnit": item_info.get("sSellUnit", ""),
+            "dYTDUntSld": round(ytd_units, 2),
+            "dPrUntSld": round(ly_units, 2),
+            "dYTDAmtSld": round(ytd_rev, 2),
+            "dPrAmtSld": round(py.get("total_revenue", 0.0), 2),
+            "dYTDCOGS": round(ytd_cogs, 2),
+            "estimated_margin_pct": margin,
+            "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
+            "dtLastSold": None,
+        })
 
     result.sort(key=lambda x: x["dYTDUntSld"], reverse=True)
-    out = {"items": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
-    if not result and not use_sage_fields:
-        out["_empty_reason"] = f"No transaction lines in titrline for FY{year} (Apr {year-1}–Mar {year}). Check titrec/titrline have dates in that range."
+    out = {"items": result[:limit], "total": len(result), "year": resolved_year, "fiscal_year": True}
+    if not result and not stats:
+        out["_empty_reason"] = f"No transaction lines in titrline for FY{resolved_year} (Apr {resolved_year-1}–Mar {resolved_year}). Check titrec/titrline have dates in that range."
     return out
 
 
@@ -1737,16 +1694,14 @@ def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
 def get_dashboard_kpis(year: int = None) -> dict:
     """Return summary KPIs for the Sage Analytics dashboard header.
     Uses Sage fiscal year (Apr 1 - Mar 31).
-    - year=None or current fiscal year → uses Sage's own dAmtYtd / dLastYrAmt fields (fast, accurate)
-    - any other fiscal year → aggregates from titrec transaction journal
+    ALWAYS aggregates from titrec (Apr-Mar). dAmtYtd/dLastYrAmt not used for analytics.
     """
     current_fy = _current_fiscal_year()
-    use_sage_fields = (year is None or year == current_fy)
     resolved_year = year or current_fy
 
     tables = _tables()
 
-    # Customer totals
+    # Customer totals — always from titrec (Apr-Mar)
     cust = tables.get("tcustomr")
     total_ytd = 0.0
     total_ly = 0.0
@@ -1754,14 +1709,10 @@ def get_dashboard_kpis(year: int = None) -> dict:
     if cust is not None and not cust.empty:
         active = cust[cust["bInactive"].fillna(0) == 0] if "bInactive" in cust.columns else cust
         active_customers = len(active)
-        if use_sage_fields:
-            total_ytd = float(pd.to_numeric(active["dAmtYtd"], errors="coerce").fillna(0).sum())
-            total_ly = float(pd.to_numeric(active["dLastYrAmt"], errors="coerce").fillna(0).sum())
-        else:
-            rev_map = _customer_revenue_from_titrec(resolved_year)
-            prev_map = _customer_revenue_from_titrec(resolved_year - 1)
-            total_ytd = sum(rev_map.values())
-            total_ly = sum(prev_map.values())
+        rev_map = _customer_revenue_from_titrec(resolved_year)
+        prev_map = _customer_revenue_from_titrec(resolved_year - 1)
+        total_ytd = sum(rev_map.values())
+        total_ly = sum(prev_map.values())
 
     # Open SOs — always current (not year-filtered)
     so = tables.get("tsalordr")
@@ -1793,11 +1744,11 @@ def get_dashboard_kpis(year: int = None) -> dict:
         "data_folder": _cache_folder,
         "source": "gdrive",
         "year": resolved_year,
-        "is_ytd": use_sage_fields and resolved_year == current_fy,
+        "is_ytd": resolved_year == current_fy,
         "fiscal_year": True,
         "fiscal_year_end": "March 31",
     }
-    if total_ytd == 0 and total_ly == 0 and not use_sage_fields:
+    if total_ytd == 0 and total_ly == 0:
         out["_empty_reason"] = f"No invoiced revenue in titrec for FY{resolved_year}. Check titrec.CSV has dates in Apr {resolved_year-1}–Mar {resolved_year}."
     return out
 
