@@ -362,6 +362,8 @@ def _safe_float(val, default=0.0) -> float:
     try:
         if val is None or (isinstance(val, float) and pd.isna(val)):
             return default
+        if isinstance(val, str):
+            val = val.replace("$", "").replace(",", "").strip()
         return float(val)
     except Exception:
         return default
@@ -853,10 +855,11 @@ def get_sales_orders(search: str = None, customer_id: int = None,
 def get_customer_item_sales(customer_search: str, item_code_search: str, limit: int = 500) -> dict:
     """
     Return all sales order lines where customer matches customer_search AND item matches item_code_search.
-    Used for analytics: "How many times did we sell REOL46bdrm to Duke Energy?"
+    Used for analytics: "How many times did we sell REOL46bdrm to Duke Energy?" / "All orders for REOLUBE46B to Duke Energy with pricing cost margins"
 
     Returns: {
-        "records": [{"so_number", "customer_name", "item_code", "item_name", "quantity", "line_total", "order_date"}],
+        "records": [{"so_number", "customer_name", "item_code", "item_name", "quantity", "unit_price",
+                    "line_total", "cost", "total_cost", "margin_pct", "order_date"}],
         "total_count": int,
         "customer_search": str,
         "item_search": str,
@@ -909,12 +912,23 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
             cust_name_map[int(cr["lId"] or 0)] = _safe_str(cr["sName"])
 
     inv_map = {}
+    cost_cols = ["cLast", "cStd", "cAvg", "itemCost", "Recent Cost", "Standard Cost"]
     if "lId" in inv_df.columns and "sPartCode" in inv_df.columns and "sName" in inv_df.columns:
         for _, ir in inv_df.iterrows():
             iid = int(ir.get("lId", 0) or 0)
             part = _safe_str(ir.get("sPartCode")).lower()
             name = _safe_str(ir.get("sName")).lower()
-            inv_map[iid] = {"sPartCode": _safe_str(ir.get("sPartCode")), "sName": _safe_str(ir.get("sName"))}
+            cost = 0.0
+            for col in cost_cols:
+                if col in inv_df.columns:
+                    cost = _safe_float(ir.get(col))
+                    if cost > 0:
+                        break
+            inv_map[iid] = {
+                "sPartCode": _safe_str(ir.get("sPartCode")),
+                "sName": _safe_str(ir.get("sName")),
+                "unit_cost": cost,
+            }
 
     cust_ids = [
         cid for cid, cname in cust_name_map.items()
@@ -967,7 +981,7 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
     records = []
     for _, row in line_df.iterrows():
         iid = int(row.get("_invId", 0) or 0)
-        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": ""})
+        info = inv_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "unit_cost": 0})
         part = info["sPartCode"].lower()
         name = info["sName"].lower()
         part_clean = re.sub(r"[^a-z0-9]", "", part)
@@ -989,13 +1003,23 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         hdr = so_id_to_header.get(so_id, {})
         qty = float(row.get("_qty", 0) or 0)
         amt = float(row.get("_amt", 0) or 0)
+        unit_price = float(row.get("_price", 0) or 0)
+        if unit_price == 0 and qty > 0 and amt > 0:
+            unit_price = amt / qty
+        cost = info.get("unit_cost", 0) or 0
+        total_cost = round(cost * qty, 2) if cost > 0 else 0
+        margin_pct = round((amt - total_cost) / amt * 100, 1) if amt > 0 and total_cost > 0 else (None if amt > 0 else 0)
         records.append({
             "so_number": hdr.get("sSONum", ""),
             "customer_name": cust_name_map.get(hdr.get("lCusId", 0), ""),
             "item_code": info["sPartCode"],
             "item_name": info["sName"],
             "quantity": round(qty, 2),
+            "unit_price": round(unit_price, 2),
             "line_total": round(amt, 2),
+            "cost": round(cost, 2) if cost > 0 else None,
+            "total_cost": total_cost if total_cost > 0 else None,
+            "margin_pct": margin_pct,
             "order_date": hdr.get("dtSODate", ""),
         })
 

@@ -44,7 +44,7 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
         "data_sources": ["real_sales_orders"],
         "model": "gpt-5.2",
     },
-    # Customer + item sales history — "How many times did we sell REOL46bdrm to Duke Energy?"
+    # Customer + item sales history — "How many times did we sell REOL46bdrm to Duke Energy?" / "All orders for REOLUBE46B to Duke Energy"
     "customer_item_sales": {
         "priority": 9,
         "patterns": [
@@ -55,6 +55,12 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             r"\btimes\s+(we\s+)?sold\b",
             r"\bproduct\s+.*\bto\s+[A-Za-z]",
             r"\bitem\s+.*\bto\s+[A-Za-z]",
+            r"\borders?\s+for\b.*\bto\b",
+            r"\ball\s+orders\b.*\bto\b",
+            r"\bmargin\b.*\b(for|on)\b",
+            r"\b(for|on)\b.*\b(margin|revenue|cost)\b",
+            r"\bduke\s+energy\b.*\b(reolube|reol46)\b",
+            r"\b(reolube|reol46)\b.*\bduke\s+energy\b",
         ],
         "keywords": [
             "sell to",
@@ -65,6 +71,14 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             "product to customer",
             "item to customer",
             "sold to customer",
+            "orders for",
+            "orders to",
+            "duke energy",
+            "reolube46b",
+            "reolube 46b",
+            "reol46b",
+            "margin on",
+            "for duke",
         ],
         "data_sources": ["sage_customer_item_sales"],
         "model": "gpt-5.2-chat-latest",
@@ -323,6 +337,15 @@ def classify_intent(query: str) -> Tuple[str, int]:
             best_score = score
             best_intent = intent_name
 
+    # When nothing matched, check if it's a straightforward product+customer question
+    if best_intent == "general" and best_score == 0:
+        ql = query_lower
+        has_topic = any(w in ql for w in ["order", "sold", "margin", "revenue", "cost", "pricing", "sales"])
+        has_product_or_customer = any(w in ql for w in ["reolube", "reol46", "duke", "energy", "anderol", "mov"])
+        if has_topic and has_product_or_customer:
+            best_intent = "customer_item_sales"
+            best_score = 5
+
     return best_intent, best_score
 
 
@@ -335,6 +358,8 @@ def _parse_customer_item_query(query: str) -> Tuple[str, str]:
     Extract customer name and item code from queries like:
     "How many times did we sell reolube46b (REOL46bdrm) to Duke Energy?"
     "Sales of REOL46bdrm to Duke York"
+    "REOLUBE46B for Duke Energy" / "Duke Energy REOLUBE46B"
+    "margin on Duke Energy for REOLUBE46B"
     Returns (customer_search, item_code_search).
     """
     q = (query or "").strip()
@@ -343,35 +368,92 @@ def _parse_customer_item_query(query: str) -> Tuple[str, str]:
 
     cust_search = ""
     item_search = ""
+    q_lower = q.lower()
 
-    # " to X" or " to X?" — customer is after "to"
-    to_match = re.search(r"\bto\s+([A-Za-z0-9\s&'.\-]+?)(?:\?|$|\.|\s+how|\s+what)", q, re.IGNORECASE)
+    # Helper: product codes are compact (REOL46B, REOLUBE46B); customer names have spaces
+    def _looks_like_product(s: str) -> bool:
+        s = (s or "").strip()
+        if len(s) < 3:
+            return False
+        # Product codes: alphanumeric, maybe hyphen, no spaces (or 1-2 words like "MOV Long Life")
+        return bool(re.match(r"^[A-Za-z0-9\-]+$", s)) or (len(s) <= 25 and " " in s)
+
+    def _looks_like_customer(s: str) -> bool:
+        s = (s or "").strip()
+        if len(s) < 3:
+            return False
+        # Customer names: usually have spaces, &, or multi-word (Duke Energy, Duke Energy Progress Inc)
+        return " " in s or "&" in s or "'" in s
+
+    # Pattern 1: "X to Y" — item X, customer Y
+    to_match = re.search(r"\bto\s+([A-Za-z0-9\s&'.\-]+?)(?:\?|$|\.|\s+how|\s+what|\s+with)", q_lower)
     if to_match:
         cust_search = to_match.group(1).strip()
-
-    # Item: part before " to " — e.g. "reolube46b (REOL46bdrm)" or "REOL46bdrm"
-    # "sell X to" or "sold X to" or "sales of X to"
-    parts = re.split(r"\s+to\s+", q, 1, flags=re.IGNORECASE)
-    if len(parts) >= 2:
-        left = parts[0]
-        # Remove leading phrases
-        for prefix in ["how many times did we sell", "how many times did we sold", "sales of", "sold", "sell"]:
+    parts_to = re.split(r"\s+to\s+", q, 1, flags=re.IGNORECASE)
+    if len(parts_to) >= 2 and cust_search:
+        left = parts_to[0]
+        for prefix in ["how many times did we sell", "how many times did we sold", "sales of", "sold", "sell",
+                       "all orders for", "orders for", "list orders for", "show orders for", "margin on", "margins on"]:
             if left.lower().startswith(prefix):
                 left = left[len(prefix):].strip()
                 break
         if left:
-            # Prefer parenthesized code (e.g. REOL46bdrm) as exact Sage item code
             paren = re.search(r"\(([^)]+)\)", left)
-            if paren:
-                item_search = paren.group(1).strip()
-            else:
-                item_search = left.strip()
+            item_search = paren.group(1).strip() if paren else left.strip()
+
+    # Pattern 2: "X for Y" or "Y for X" — figure out which is customer vs product
+    if (not cust_search or not item_search) and " for " in q_lower:
+        parts_for = re.split(r"\s+for\s+", q, 1, flags=re.IGNORECASE)
+        if len(parts_for) >= 2:
+            left, right = parts_for[0].strip(), parts_for[1].strip()
+            for prefix in ["margin on", "margins on", "orders for", "all orders for", "sales of"]:
+                if left.lower().startswith(prefix):
+                    left = left[len(prefix):].strip()
+                    break
+            if left and right:
+                if _looks_like_customer(left) and _looks_like_product(right):
+                    cust_search = cust_search or left
+                    item_search = item_search or right
+                elif _looks_like_product(left) and _looks_like_customer(right):
+                    cust_search = cust_search or right
+                    item_search = item_search or left
+                else:
+                    # Heuristic: "REOLUBE46B for Duke Energy" — product first (no spaces), customer second (spaces)
+                    if " " in right and " " not in left:
+                        cust_search = cust_search or right
+                        item_search = item_search or left
+                    elif " " in left and " " not in right:
+                        cust_search = cust_search or left
+                        item_search = item_search or right
+
+    # Pattern 3: "Duke Energy REOLUBE46B" or "REOLUBE46B Duke Energy" — both appear, extract
+    if (not cust_search or not item_search):
+        # Known product patterns (case-insensitive)
+        product_patterns = [r"reolube\s*46\s*b", r"reol46b", r"reol46bdrm", r"reol46bdrn"]
+        # Find customer-like tokens (multi-word)
+        cust_candidates = re.findall(r"\b([A-Za-z][A-Za-z0-9\s&'.\-]{2,40})\b", q)
+        item_candidates = re.findall(r"\b([A-Za-z0-9]{4,})\b", q)
+        for cc in cust_candidates:
+            c = cc.strip()
+            if c and " " in c and c.upper() not in ("HOW MANY", "SALES OF"):
+                if "duke" in c.lower() or "energy" in c.lower():
+                    cust_search = cust_search or c
+                    break
+        for ic in item_candidates:
+            if ic.upper() not in ("HOW", "MANY", "TIMES", "DID", "WE", "SELL", "SOLD", "TO", "SALES", "OF", "FOR", "DUKE", "ENERGY"):
+                if any(re.search(p, ic, re.I) for p in product_patterns) or "reol" in ic.lower():
+                    item_search = item_search or ic
+                    break
+        if not item_search and item_candidates:
+            for ic in item_candidates:
+                if ic.upper() not in ("HOW", "MANY", "TIMES", "DID", "WE", "SELL", "SOLD", "TO", "SALES", "OF", "FOR", "DUKE", "ENERGY", "PROGRESS", "INC"):
+                    item_search = ic
+                    break
 
     if not item_search and cust_search:
-        # Fallback: look for product codes (alphanumeric 4+ chars)
         codes = re.findall(r"\b([A-Za-z0-9]{4,})\b", q)
         for c in codes:
-            if c.upper() not in ("HOW", "MANY", "TIMES", "DID", "WE", "SELL", "SOLD", "TO", "SALES", "OF"):
+            if c.upper() not in ("HOW", "MANY", "TIMES", "DID", "WE", "SELL", "SOLD", "TO", "SALES", "OF", "FOR", "DUKE", "ENERGY"):
                 item_search = c
                 break
 
@@ -382,11 +464,52 @@ def _parse_customer_item_query(query: str) -> Tuple[str, str]:
 # TARGETED DATA FETCHER
 # ──────────────────────────────────────────────────────────────────────────────
 
+def ai_extract_product_customer(query: str, client) -> Tuple[str, str]:
+    """
+    Use GPT to understand a straightforward question and extract product + customer.
+    Used when regex parser fails — lets the AI understand natural language.
+    Returns (customer_search, item_code_search).
+    """
+    if not client or not (query or "").strip():
+        return "", ""
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You extract product and customer from business questions. Reply ONLY with JSON: {\"product\": \"...\", \"customer\": \"...\"}. "
+                    "Product = item code or name (e.g. REOLUBE46B, REOL46BDRM). Customer = company name (e.g. Duke Energy). "
+                    "If unclear, use empty string. No other text."
+                },
+                {"role": "user", "content": (query or "").strip()[:500]}
+            ],
+            max_tokens=80,
+            temperature=0,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        # Parse JSON (may be wrapped in markdown)
+        for raw in [text, text.replace("`", "").strip()]:
+            if raw.startswith("{"):
+                try:
+                    obj = json.loads(raw.split("\n")[0])
+                    prod = (obj.get("product") or "").strip()
+                    cust = (obj.get("customer") or "").strip()
+                    if prod and cust:
+                        return cust, prod
+                except json.JSONDecodeError:
+                    pass
+    except Exception:
+        pass
+    return "", ""
+
+
 def fetch_targeted_data(
     intent: str,
     raw_data: Dict[str, Any],
     sage_service=None,
     query: str = "",
+    openai_client=None,
 ) -> Dict[str, Any]:
     """
     Fetch ONLY the data sources relevant to the given intent.
@@ -526,15 +649,17 @@ def fetch_targeted_data(
             if sage_service and hasattr(sage_service, "get_customer_item_sales"):
                 try:
                     cust_search, item_search = _parse_customer_item_query(query)
+                    # If regex parser failed, use AI to understand the straightforward question
+                    if (not cust_search or not item_search) and openai_client:
+                        cust_search, item_search = ai_extract_product_customer(query, openai_client)
                     if cust_search and item_search:
                         result = sage_service.get_customer_item_sales(cust_search, item_search, limit=500)
                         context["customer_item_sales"] = result
                     else:
                         context["customer_item_sales"] = {
                             "records": [],
-                            "error": "Could not parse customer and item from your question. "
-                            "Please ask like: 'How many times did we sell REOL46bdrm to Duke Energy?' "
-                            "or 'Sales of reolube46b to Duke York'",
+                            "error": "Could not identify the product and customer from your question. "
+                            "Try: 'All orders for REOLUBE46B to Duke Energy' or 'REOLUBE46B sold to Duke Energy'",
                         }
                 except Exception as exc:
                     context["customer_item_sales"] = {"records": [], "error": str(exc)}
@@ -689,10 +814,11 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
     "customer_item_sales": (
         "You are a business intelligence AI for Canoil Canada Ltd.\n"
         "Answer using ONLY the customer_item_sales data in the DATA section.\n\n"
-        "The user asked how many times you sold a specific product to a specific customer.\n"
-        "Display a markdown table with columns: SO Number | Quantity | Line Total | Order Date\n"
+        "The user asked about sales of a specific product to a specific customer (orders, pricing, cost, margins).\n"
+        "Display a markdown table with columns: SO Number | Qty | Unit Price | Line Total | Cost | Total Cost | Margin % | Order Date\n"
+        "Include all columns that have data. If cost/margin are null, show '-' or omit that column.\n"
         "Sort by Order Date (newest first).\n"
-        "At the end, provide a summary: total number of orders (lines), total quantity sold, total value.\n"
+        "At the end, provide a summary: total orders, total quantity sold, total revenue, total cost (if available), overall margin % (if available).\n"
         "Format all money as $X,XXX.XX. State currency (CAD/USD) if known.\n"
         "If the data shows no records or an error, say so clearly — do NOT fabricate numbers.\n"
         "If customer or item was not found, explain what was searched for."

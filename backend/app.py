@@ -7578,7 +7578,10 @@ def chat_query():
                         raise ValueError(f"No MiSys data for intent {_intent}")
 
                 _sage_svc = sage_gdrive_service if SAGE_GDRIVE_AVAILABLE else None
-                _targeted = _fetch_targeted_data(_intent, _raw_for_router, _sage_svc, query=user_query)
+                _targeted = _fetch_targeted_data(
+                    _intent, _raw_for_router, _sage_svc, query=user_query,
+                    openai_client=client if openai_available and client else None,
+                )
 
                 if _targeted:
                     _focused_sys_prompt = _build_focused_prompt(_intent, _targeted, date_context)
