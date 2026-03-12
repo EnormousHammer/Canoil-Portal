@@ -1129,10 +1129,11 @@ const SageAnalyticsSection: React.FC = () => {
     setError(null);
     // For KPIs and top customers, "All Time" (y=0) defaults to current fiscal year Sage fields
     const ky = y > 0 ? y : currentFiscalYear;
+    const cacheBust = `&_=${Date.now()}`; // Prevent browser from returning cached response when year changes
     try {
       const [kpisRes, custRes] = await Promise.all([
-        apiGet(`/api/sage/gdrive/analytics/kpis?year=${ky}`),
-        apiGet(`/api/sage/gdrive/analytics/top-customers?limit=25&year=${ky}`),
+        apiGet(`/api/sage/gdrive/analytics/kpis?year=${ky}${cacheBust}`),
+        apiGet(`/api/sage/gdrive/analytics/top-customers?limit=25&year=${ky}${cacheBust}`),
       ]);
       if (kpisRes.data?.error) { setError(kpisRes.data.error); setLoading(false); return; }
       setKpis(kpisRes.data);
@@ -1153,19 +1154,19 @@ const SageAnalyticsSection: React.FC = () => {
   }, [selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadTab = useCallback(async (tab: string, y: number) => {
+    const ky = y > 0 ? y : currentFiscalYear;
+    const cacheBust = `&_=${Date.now()}`;
     if (tab === 'movers') {
-      const ky = y > 0 ? y : currentFiscalYear;
-      const r = await apiGet(`/api/sage/gdrive/analytics/best-movers?limit=25&year=${ky}`);
+      const r = await apiGet(`/api/sage/gdrive/analytics/best-movers?limit=25&year=${ky}${cacheBust}`);
       setBestMovers(r.data?.items || []);
     }
     if (tab === 'revenue') {
-      const ky = y > 0 ? y : currentFiscalYear;
-      const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${ky}`);
+      const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${ky}${cacheBust}`);
       setMonthlyRevenue(r.data);
     }
     if (tab === 'products') {
       const qs = yearQS(y);
-      const r = await apiGet(`/api/sage/gdrive/analytics/sales-by-product?limit=25${qs ? `&${qs}` : ''}`);
+      const r = await apiGet(`/api/sage/gdrive/analytics/sales-by-product?limit=25${qs ? `&${qs}` : ''}${cacheBust}`);
       setSalesByProduct(r.data?.products || []);
     }
   }, [currentFiscalYear]);
@@ -1245,7 +1246,12 @@ const SageAnalyticsSection: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Header */}
+      {/* KPI Header — show API-returned year to verify data matches selection */}
+      {kpis && (
+        <div className="mb-2 text-xs text-slate-500">
+          Data for FY{kpis.year ?? selectedYear} {kpis.is_ytd ? '(YTD from Sage)' : '(from titrec)'}
+        </div>
+      )}
       {kpis && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-4 rounded-xl text-white">
