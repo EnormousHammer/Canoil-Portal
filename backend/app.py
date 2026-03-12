@@ -7624,25 +7624,22 @@ def chat_query():
                                 "active_orders": 0,
                             },
                         }
-                        # For customer_item_sales + export/file request: add download URL
+                        # For customer_item_sales: add download URL when we have both customer and item
                         if _intent == "customer_item_sales":
-                            _q_lower = (user_query or "").lower()
-                            _wants_file = any(w in _q_lower for w in ["export", "file", "download", "excel", "xlsx", "give me a"])
-                            if _wants_file:
-                                _cis = _targeted.get("customer_item_sales") or {}
-                                _cust = _cis.get("customer_search", "").strip()
-                                _item = _cis.get("item_search", "").strip()
-                                if (not _cust or not _item) and hasattr(query_router, "_parse_customer_item_query"):
-                                    _cust, _item = query_router._parse_customer_item_query(user_query)
-                                if _cust and _item:
-                                    from urllib.parse import quote
-                                    _resp_payload["download_url"] = (
-                                        f"/api/sage/gdrive/export/customer-item-orders"
-                                        f"?customer={quote(_cust)}&item={quote(_item)}"
-                                    )
-                                    _resp_payload["download_filename"] = f"{_item.replace(' ', '_')}_{_cust.replace(' ', '_')}_Orders.xlsx"[:80]
-                                    if _ai_response and "download" not in _ai_response.lower() and "excel" not in _ai_response.lower():
-                                        _resp_payload["response"] = _ai_response.rstrip() + "\n\n📥 **Download Excel** — Click the button below to get the full report with pricing, cost, and profit."
+                            _cis = _targeted.get("customer_item_sales") or {}
+                            _cust = _cis.get("customer_search", "").strip()
+                            _item = _cis.get("item_search", "").strip()
+                            if (not _cust or not _item) and hasattr(query_router, "_parse_customer_item_query"):
+                                _cust, _item = query_router._parse_customer_item_query(user_query)
+                            if _cust and _item:
+                                from urllib.parse import quote
+                                _resp_payload["download_url"] = (
+                                    f"/api/sage/gdrive/export/customer-item-orders"
+                                    f"?customer={quote(_cust)}&item={quote(_item)}"
+                                )
+                                _resp_payload["download_filename"] = f"{_item.replace(' ', '_')}_{_cust.replace(' ', '_')}_Orders.xlsx"[:80]
+                                if _ai_response and "download" not in _ai_response.lower() and "excel" not in _ai_response.lower():
+                                    _resp_payload["response"] = _ai_response.rstrip() + "\n\n📥 **Download Excel** — Click the button below to get the full report with pricing, cost, and profit."
                         return jsonify(_resp_payload)
                     except Exception as _gpt_err:
                         print(f"⚠️ Focused GPT call failed, falling through: {_gpt_err}")

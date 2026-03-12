@@ -137,6 +137,8 @@ interface ChatMessage {
   action_file?: string;
   action_filename?: string;
   action_result?: { type: string; item_no?: string; description?: string; quantity?: number; filename?: string };
+  download_url?: string;
+  download_filename?: string;
 }
 
 interface AIInsight {
@@ -893,7 +895,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         sources: result.sources || [],
         action_file: result.action_file,
         action_filename: result.action_filename,
-        action_result: result.action_result
+        action_result: result.action_result,
+        download_url: result.download_url,
+        download_filename: result.download_filename
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -990,6 +994,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       icon: ShoppingCart,
       action: "Create a PR for 2 cases of MOV Long Life 0 Kegs",
       category: "procurement"
+    },
+    { 
+      title: "Product Sale History", 
+      description: "Sales of item to company → Excel",
+      icon: BarChart3,
+      action: "I need product sale history for a company — please give me an Excel export. Ask me: (1) What item/product? (2) What company/customer? Then I'll provide the Excel file.",
+      category: "sales"
     }
   ];
 
@@ -1171,7 +1182,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               sources: result.sources || [],
                               action_file: result.action_file,
                               action_filename: result.action_filename,
-                              action_result: result.action_result
+                              action_result: result.action_result,
+                              download_url: result.download_url,
+                              download_filename: result.download_filename
                             };
                             
                             setMessages(prev => [...prev, assistantMessage]);
