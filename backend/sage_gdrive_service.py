@@ -220,7 +220,7 @@ def _load_csv_from_api(gds, folder_id, drive_id, table_name):
             content = gds.download_file(files[0]["id"], filename)
             if content is None:
                 continue
-            for encoding in ["utf-8", "latin-1", "cp1252"]:
+            for encoding in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
                 try:
                     df = pd.read_csv(BytesIO(content), encoding=encoding, low_memory=False)
                     return df
@@ -245,26 +245,32 @@ def _load_via_api():
     print(f"[sage_gdrive] Loading {len(REQUIRED_TABLES)} Sage tables via API from: {folder_name}")
     t0 = time.time()
     tables = {}
+    # Prefer latest date subfolder first (local structure: March 11, 2026_06-18 PM with CSVs inside)
+    sub_id, sub_name = _find_sage_subfolder_api(gds, drive_id, folder_id)
+    load_folder_id = sub_id if sub_id else folder_id
+    load_folder_name = sub_name if sub_id else "(base)"
+    if sub_id:
+        print(f"[sage_gdrive] Using latest subfolder: {sub_name}")
     for tbl in REQUIRED_TABLES:
-        df = _load_csv_from_api(gds, folder_id, drive_id, tbl)
+        df = _load_csv_from_api(gds, load_folder_id, drive_id, tbl)
         if df is not None:
             tables[tbl] = df
             print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
         else:
             print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
-    # If parent had no CSVs, try latest subfolder (date folders like 2024-11-15)
-    if not tables:
-        sub_id, sub_name = _find_sage_subfolder_api(gds, drive_id, folder_id)
-        if sub_id:
-            print(f"[sage_gdrive] No CSVs in base; trying subfolder: {sub_name}")
-            for tbl in REQUIRED_TABLES:
-                df = _load_csv_from_api(gds, sub_id, drive_id, tbl)
-                if df is not None:
-                    tables[tbl] = df
-                    print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
-                else:
-                    print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
-            folder_name = sub_name
+    # Fallback: if subfolder had no CSVs, try base folder
+    if not tables and sub_id:
+        print(f"[sage_gdrive] No CSVs in subfolder; trying base folder")
+        load_folder_id = folder_id
+        load_folder_name = "(base)"
+        for tbl in REQUIRED_TABLES:
+            df = _load_csv_from_api(gds, folder_id, drive_id, tbl)
+            if df is not None:
+                tables[tbl] = df
+                print(f"[sage_gdrive]   {tbl}: {len(df)} rows (API)")
+            else:
+                print(f"[sage_gdrive]   {tbl}: NOT FOUND (API)")
+    folder_name = load_folder_name
 
     print(f"[sage_gdrive] API load complete: {len(tables)} tables in {time.time() - t0:.1f}s")
     if not tables:
@@ -336,7 +342,8 @@ def _load_csv(folder_path: str, table_name: str) -> pd.DataFrame | None:
         fp = os.path.join(folder_path, candidate)
         if os.path.isfile(fp):
             try:
-                df = pd.read_csv(fp, encoding="utf-8", low_memory=False)
+                # utf-8-sig strips BOM so first column (e.g. lId, lITRecId) matches correctly
+                df = pd.read_csv(fp, encoding="utf-8-sig", low_memory=False)
                 return df
             except UnicodeDecodeError:
                 try:
@@ -1218,7 +1225,7 @@ def _item_stats_from_titrline(fiscal_year: int) -> dict:
         year_ids = set(
             pd.to_numeric(trec_copy.loc[mask, trec_id_col], errors="coerce").fillna(0).astype(int).tolist()
         )
-        line_trans_col = _find_col(lines, ["lTransId", "lRecId", "lTitRecId", "lTransID"])
+        line_trans_col = _find_col(lines, ["lITRecId", "lTransId", "lRecId", "lTitRecId", "lTransID"])
         if line_trans_col and year_ids:
             lines = lines[
                 pd.to_numeric(lines[line_trans_col], errors="coerce").fillna(0).astype(int).isin(year_ids)

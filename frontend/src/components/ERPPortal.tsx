@@ -1859,6 +1859,12 @@ const SAGE_ENDPOINTS: Record<SageTab, string> = {
   orders: '/api/sage/sales-orders',
   receipts: '/api/sage/receipts',
 };
+// G Drive fallback when live Sage 50 MySQL (192.168.1.11) is unreachable (e.g. on Render/Vercel)
+const SAGE_GDRIVE_FALLBACK: Partial<Record<SageTab, string>> = {
+  customers: '/api/sage/gdrive/customers',
+  inventory: '/api/sage/gdrive/inventory',
+  orders: '/api/sage/gdrive/sales-orders',
+};
 
 const SAGE_COLUMNS: Record<SageTab, string[]> = {
   customers: ['name', 'sName', 'city', 'phone', 'ytd_sales', 'dAmtYtd', 'credit_limit', 'dCrLimit'],
@@ -1891,6 +1897,7 @@ const SAGE_TAB_COUNTS: Record<SageTab, string> = {
 const SAGE_COLUMN_ALIASES: Record<string, string> = {
   sName: 'name', sPartCode: 'part_code', sDesc: 'description', sSONum: 'order_no',
   sOrderNum: 'order_no', sAcctNum: 'number', sCntcName: 'contact',
+  sCustomerName: 'customer',
   dAmtYtd: 'ytd_sales', dCrLimit: 'credit_limit', dInStock: 'in_stock',
   dLastCost: 'last_cost', dTotal: 'total', dtOrderDate: 'date', dtSODate: 'date',
   nAcctType: 'type', dYts: 'balance', nType: 'type', dAmount: 'amount', dtDate: 'date',
@@ -1903,36 +1910,52 @@ const SageBrowserSection: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usingGDriveFallback, setUsingGDriveFallback] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setSelectedRow(null);
     setSearch('');
     setError(null);
-    apiGet(SAGE_ENDPOINTS[tab]).then(r => {
-      if (!r.ok || r.data?.error) {
-        setError(r.data?.error || 'Sage 50 not available');
+    setUsingGDriveFallback(false);
+    const tryFetch = (url: string, isFallback = false) => {
+      apiGet(url).then(r => {
+        if (!r.ok || r.data?.error) {
+          const fallbackUrl = !isFallback && SAGE_GDRIVE_FALLBACK[tab];
+          if (fallbackUrl) {
+            tryFetch(fallbackUrl, true);
+            return;
+          }
+          setError(r.data?.error || 'Sage 50 not available');
+          setRawData([]);
+          setLoading(false);
+          return;
+        }
+        const d = r.data;
+        const arr = Array.isArray(d) ? d : d?.data || d?.items || d?.customers || d?.vendors || d?.inventory || d?.accounts || d?.orders || d?.sales_orders || d?.receipts || [];
+        const normalized = Array.isArray(arr) ? arr.map((row: any) => {
+          const out: any = { ...row };
+          for (const [from, to] of Object.entries(SAGE_COLUMN_ALIASES)) {
+            if (row[from] !== undefined && out[to] === undefined) out[to] = row[from];
+          }
+          return out;
+        }) : [];
+        setRawData(normalized);
+        setError(null);
+        setUsingGDriveFallback(isFallback);
+        setLoading(false);
+      }).catch(() => {
+        const fallbackUrl = !isFallback && SAGE_GDRIVE_FALLBACK[tab];
+        if (fallbackUrl) {
+          tryFetch(fallbackUrl, true);
+          return;
+        }
+        setError('Could not connect to Sage 50 — check network and credentials');
         setRawData([]);
         setLoading(false);
-        return;
-      }
-      const d = r.data;
-      const arr = Array.isArray(d) ? d : d?.data || d?.items || d?.customers || d?.vendors || d?.inventory || d?.accounts || d?.orders || d?.receipts || [];
-      // Normalize keys for display (sName -> name, etc.)
-      const normalized = Array.isArray(arr) ? arr.map((row: any) => {
-        const out: any = { ...row };
-        for (const [from, to] of Object.entries(SAGE_COLUMN_ALIASES)) {
-          if (row[from] !== undefined && out[to] === undefined) out[to] = row[from];
-        }
-        return out;
-      }) : [];
-      setRawData(normalized);
-      setLoading(false);
-    }).catch(() => {
-      setError('Could not connect to Sage 50 — check network and credentials');
-      setRawData([]);
-      setLoading(false);
-    });
+      });
+    };
+    tryFetch(SAGE_ENDPOINTS[tab]);
   }, [tab]);
 
   const filtered = search.trim()
@@ -1949,8 +1972,12 @@ const SageBrowserSection: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold text-slate-800 mb-1">Sage 50 Browser</h2>
       <p className="text-xs font-medium mb-4">
-        <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300 font-semibold">Live Sage 50</span>
-        {' '}READ-ONLY — Direct MySQL (192.168.1.11) · Real-time, not G Drive snapshot
+        {usingGDriveFallback ? (
+          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-semibold">G Drive CSV</span>
+        ) : (
+          <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300 font-semibold">Live Sage 50</span>
+        )}
+        {' '}READ-ONLY — {usingGDriveFallback ? 'G Drive snapshot (live MySQL unavailable)' : 'Direct MySQL (192.168.1.11) · Real-time'}
       </p>
 
       {/* Sub-tabs with record counts */}
