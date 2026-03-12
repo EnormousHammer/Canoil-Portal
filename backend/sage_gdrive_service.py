@@ -1182,12 +1182,13 @@ def get_available_years_with_meta() -> dict:
 
 
 def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
-    """Aggregate per-customer revenue from titrec for a given Sage fiscal year (Apr-Mar)."""
+    """Aggregate per-customer revenue from titrec for a given Sage fiscal year (Apr-Mar).
+    titrec uses lVenCusId (vendor/customer ID); for AR invoices this is customer. Filter dInvAmt>0 for revenue."""
     df = _tables().get("titrec")
     if df is None or df.empty:
         return {}
     date_col = _find_col(df, ["dtASDate", "dtDate"])
-    cid_col = _find_col(df, ["lCusId", "lCustomerId", "lCustId"])
+    cid_col = _find_col(df, ["lVenCusId", "lCusId", "lCustomerId", "lCustId"])
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
     if not date_col or not cid_col or not amt_col:
         return {}
@@ -1196,9 +1197,10 @@ def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
     rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
     rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
+    rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
+    rows = rows[rows["_amt"] > 0]
     if rows.empty:
         return {}
-    rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
     rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
     grouped = rows.groupby("_cid")["_amt"].sum()
     return {int(cid): float(v) for cid, v in grouped.items() if int(cid) != 0}
@@ -1265,8 +1267,8 @@ def _item_stats_from_titrline(fiscal_year: int) -> dict:
 
 def get_top_customers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank customers by YTD sales.
-    Prefer titrec aggregation (Apr-Mar fiscal year). Fall back to dAmtYtd/dLastYrAmt from tcustomr when titrec returns empty.
+    Rank customers by YTD sales. Always from titrec (Apr-Mar fiscal year).
+    titrec uses lVenCusId for customer; dInvAmt>0 for invoiced revenue.
     """
     current_fy = _current_fiscal_year()
     resolved_year = year or current_fy
@@ -1280,19 +1282,12 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
     txn_rev = _customer_revenue_from_titrec(resolved_year)
     prev_txn = _customer_revenue_from_titrec(resolved_year - 1)
 
-    # Fallback: when titrec aggregation returns empty, use Sage's dAmtYtd/dLastYrAmt from tcustomr
-    use_fallback = not txn_rev and not prev_txn
-
     result = []
     for _, r in rows.iterrows():
         cid = int(r.get("lId", 0) or 0)
         credit = _safe_float(r.get("dCrLimit"))
-        if use_fallback:
-            ytd = _safe_float(r.get("dAmtYtd"))
-            ly = _safe_float(r.get("dLastYrAmt"))
-        else:
-            ytd = txn_rev.get(cid, 0.0)
-            ly = prev_txn.get(cid, 0.0)
+        ytd = txn_rev.get(cid, 0.0)
+        ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
             continue
         result.append({
@@ -1313,17 +1308,15 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
 
     result.sort(key=lambda x: x["dAmtYtd"], reverse=True)
     out = {"customers": result[:limit], "total": len(result), "year": resolved_year, "fiscal_year": True}
-    if use_fallback:
-        out["_source"] = "tcustomr (dAmtYtd/dLastYrAmt)"
-    if not result and not txn_rev and not use_fallback:
-        out["_empty_reason"] = f"No invoiced transactions in titrec for FY{resolved_year}. Check titrec.CSV."
+    if not result and not txn_rev:
+        out["_empty_reason"] = f"No invoiced transactions in titrec for FY{resolved_year} (Apr {resolved_year-1}–Mar {resolved_year}). Check titrec.CSV has dtASDate, lVenCusId, dInvAmt."
     return out
 
 
 def get_best_movers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank inventory items by units sold.
-    Prefer titrline aggregation (Apr-Mar). Fall back to tinvext (dYTDUntSld, dYTDAmtSld) when titrline returns empty.
+    Rank inventory items by units sold. Always from titrline (Apr-Mar fiscal year).
+    titrline joins to titrec via lITRecId for fiscal year filter.
     """
     current_fy = _current_fiscal_year()
     resolved_year = year or current_fy
@@ -1344,67 +1337,36 @@ def get_best_movers(limit: int = 25, year: int = None) -> dict:
     stats = _item_stats_from_titrline(resolved_year)
     prev_stats = _item_stats_from_titrline(resolved_year - 1)
 
-    # Fallback: when titrline returns empty, use tinvext (Sage's pre-calc YTD fields)
-    ext = tables.get("tinvext")
-    use_fallback = not stats and ext is not None and not ext.empty and "lInventId" in ext.columns
-
     result = []
-    if use_fallback:
-        for _, r in ext.iterrows():
-            iid = int(r.get("lInventId", 0) or 0)
-            ytd_units = _safe_float(r.get("dYTDUntSld"))
-            ytd_rev = _safe_float(r.get("dYTDAmtSld"))
-            ly_units = _safe_float(r.get("dPrUntSld"))
-            ly_rev = _safe_float(r.get("dPrAmtSld"))
-            ytd_cogs = _safe_float(r.get("dYTDCOGS"))
-            if ytd_units <= 0 and ly_units <= 0:
-                continue
-            item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
-            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
-            result.append({
-                "lInventId": iid,
-                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
-                "sName": item_info.get("sName", ""),
-                "sSellUnit": item_info.get("sSellUnit", ""),
-                "dYTDUntSld": round(ytd_units, 2),
-                "dPrUntSld": round(ly_units, 2),
-                "dYTDAmtSld": round(ytd_rev, 2),
-                "dPrAmtSld": round(ly_rev, 2),
-                "dYTDCOGS": round(ytd_cogs, 2),
-                "estimated_margin_pct": margin,
-                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
-                "dtLastSold": _safe_date(r.get("dtLastSold")),
-            })
-    else:
-        for iid, s in stats.items():
-            if s["total_revenue"] <= 0:
-                continue
-            item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
-            py = prev_stats.get(iid, {})
-            ytd_rev = s["total_revenue"]
-            ytd_cogs = s["total_cogs"]
-            ly_units = py.get("total_qty", 0.0)
-            ytd_units = s["total_qty"]
-            margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
-            result.append({
-                "lInventId": iid,
-                "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
-                "sName": item_info.get("sName", ""),
-                "sSellUnit": item_info.get("sSellUnit", ""),
-                "dYTDUntSld": round(ytd_units, 2),
-                "dPrUntSld": round(ly_units, 2),
-                "dYTDAmtSld": round(ytd_rev, 2),
-                "dPrAmtSld": round(py.get("total_revenue", 0.0), 2),
-                "dYTDCOGS": round(ytd_cogs, 2),
-                "estimated_margin_pct": margin,
-                "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
-                "dtLastSold": None,
-            })
+    for iid, s in stats.items():
+        if s["total_revenue"] <= 0:
+            continue
+        item_info = name_map.get(iid, {"sPartCode": f"ID:{iid}", "sName": "", "sSellUnit": ""})
+        py = prev_stats.get(iid, {})
+        ytd_rev = s["total_revenue"]
+        ytd_cogs = s["total_cogs"]
+        ly_units = py.get("total_qty", 0.0)
+        ytd_units = s["total_qty"]
+        margin = round((ytd_rev - ytd_cogs) / ytd_rev * 100, 1) if ytd_rev > 0 else None
+        result.append({
+            "lInventId": iid,
+            "sPartCode": item_info.get("sPartCode", f"ID:{iid}"),
+            "sName": item_info.get("sName", ""),
+            "sSellUnit": item_info.get("sSellUnit", ""),
+            "dYTDUntSld": round(ytd_units, 2),
+            "dPrUntSld": round(ly_units, 2),
+            "dYTDAmtSld": round(ytd_rev, 2),
+            "dPrAmtSld": round(py.get("total_revenue", 0.0), 2),
+            "dYTDCOGS": round(ytd_cogs, 2),
+            "estimated_margin_pct": margin,
+            "units_yoy_pct": round((ytd_units - ly_units) / ly_units * 100, 1) if ly_units > 0 else None,
+            "dtLastSold": None,
+        })
 
     result.sort(key=lambda x: x["dYTDUntSld"], reverse=True)
     out = {"items": result[:limit], "total": len(result), "year": resolved_year, "fiscal_year": True}
-    if use_fallback:
-        out["_source"] = "tinvext (dYTDUntSld/dYTDAmtSld)"
+    if not result and not stats:
+        out["_empty_reason"] = f"No transaction lines in titrline for FY{resolved_year} (Apr {resolved_year-1}–Mar {resolved_year}). Check titrec/titrline."
     return out
 
 
@@ -1430,6 +1392,11 @@ def get_monthly_revenue(year: int = None) -> dict:
     rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
     rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
+    if amt_col:
+        rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
+    else:
+        rows["_amt"] = 0.0
+    rows = rows[rows["_amt"] > 0]
 
     if rows.empty:
         return {
@@ -1437,7 +1404,7 @@ def get_monthly_revenue(year: int = None) -> dict:
             "months": [_fiscal_month_entry(m) for m in range(1, 13)],
             "total_revenue": 0.0,
             "fiscal_year": True,
-            "_empty_reason": f"No invoices in titrec for FY{year} (Apr {year-1}–Mar {year}). Check titrec.CSV has dates in that range.",
+            "_empty_reason": f"No invoices in titrec for FY{year} (Apr {year-1}–Mar {year}). Check titrec.CSV has dtASDate, dInvAmt>0.",
         }
 
     # Fiscal month: Apr=1, May=2, ..., Mar=12. Calendar month 4->1, 5->2, ..., 3->12
@@ -1446,11 +1413,6 @@ def get_monthly_revenue(year: int = None) -> dict:
 
     rows["_cal_month"] = pd.to_numeric(rows["_dt"].str[5:7], errors="coerce").fillna(0).astype(int)
     rows["_fiscal_month"] = rows["_cal_month"].apply(_cal_to_fiscal)
-
-    if amt_col:
-        rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
-    else:
-        rows["_amt"] = 0.0
 
     monthly = rows.groupby("_fiscal_month").agg(revenue=("_amt", "sum"), order_count=("_amt", "count")).reset_index()
 
@@ -1502,7 +1464,7 @@ def get_recent_invoices(limit: int = 100) -> dict:
 
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt", "dTotal"])
     date_col = _find_col(df, ["dtASDate", "dtDate"])
-    cus_col = _find_col(df, ["lCusId", "lCustomerId", "lCustId"])
+    cus_col = _find_col(df, ["lVenCusId", "lCusId", "lCustomerId", "lCustId"])
     id_col = _find_col(df, ["lId", "lid"])
     src_col = _find_col(df, ["sSource", "ssource"])
 
@@ -1621,7 +1583,7 @@ def get_ar_aging() -> dict:
             paid_col = _find_col(titrec_df, ["dAmtPaid", "dApplied", "dPaid", "dPayAmt"])
             bal_due_col = _find_col(titrec_df, ["dBalDue", "dBalance", "dAmtDue", "dOutstanding"])
             due_col = _find_col(titrec_df, ["dtDueDate", "dtDate", "dtASDate"])
-            cid_col = _find_col(titrec_df, ["lCusId", "lCustomerId", "lCustId"])
+            cid_col = _find_col(titrec_df, ["lVenCusId", "lCusId", "lCustomerId", "lCustId"])
             print(f"[ar_aging] titrec columns: inv={inv_col}, paid={paid_col}, bal={bal_due_col}, due={due_col}, cid={cid_col}")
 
             if inv_col and cid_col and (bal_due_col or paid_col):
@@ -1679,20 +1641,6 @@ def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
 
     if year is not None:
         stats = _item_stats_from_titrline(year)
-        # Fallback: when titrline returns empty, use tinvext
-        if not stats:
-            ext = _tables().get("tinvext")
-            if ext is not None and not ext.empty and "lInventId" in ext.columns:
-                stats = {
-                    int(r.get("lInventId", 0) or 0): {
-                        "total_revenue": _safe_float(r.get("dYTDAmtSld")),
-                        "total_qty": _safe_float(r.get("dYTDUntSld")),
-                        "total_cogs": _safe_float(r.get("dYTDCOGS")),
-                        "txn_count": 1,
-                    }
-                    for _, r in ext.iterrows()
-                    if int(r.get("lInventId", 0) or 0) != 0 and _safe_float(r.get("dYTDAmtSld")) > 0
-                }
     else:
         # All-time: use full titrline without year filter
         tables = _tables()
@@ -1748,7 +1696,7 @@ def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
 
 def get_dashboard_kpis(year: int = None) -> dict:
     """Return summary KPIs for the Sage Analytics dashboard header.
-    Prefer titrec aggregation (Apr-Mar). Fall back to dAmtYtd/dLastYrAmt from tcustomr when titrec returns empty.
+    Always from titrec (Apr-Mar fiscal year). titrec uses lVenCusId, dInvAmt>0.
     """
     current_fy = _current_fiscal_year()
     resolved_year = year or current_fy
@@ -1766,10 +1714,6 @@ def get_dashboard_kpis(year: int = None) -> dict:
         prev_map = _customer_revenue_from_titrec(resolved_year - 1)
         total_ytd = sum(rev_map.values())
         total_ly = sum(prev_map.values())
-        # Fallback: when titrec returns empty, use dAmtYtd/dLastYrAmt from tcustomr
-        if total_ytd == 0 and total_ly == 0:
-            total_ytd = float(pd.to_numeric(active.get("dAmtYtd", pd.Series()), errors="coerce").fillna(0).sum())
-            total_ly = float(pd.to_numeric(active.get("dLastYrAmt", pd.Series()), errors="coerce").fillna(0).sum())
 
     # Open SOs — always current (not year-filtered)
     so = tables.get("tsalordr")
@@ -1805,6 +1749,8 @@ def get_dashboard_kpis(year: int = None) -> dict:
         "fiscal_year": True,
         "fiscal_year_end": "March 31",
     }
+    if total_ytd == 0 and total_ly == 0:
+        out["_empty_reason"] = f"No invoiced revenue in titrec for FY{resolved_year}. Check titrec.CSV has dtASDate, lVenCusId, dInvAmt>0."
     return out
 
 
