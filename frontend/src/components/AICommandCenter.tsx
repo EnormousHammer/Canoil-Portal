@@ -1528,7 +1528,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                   <h2 className="text-xl font-bold text-slate-900">Financial Analytics</h2>
-                  <p className="text-sm text-slate-500 mt-0.5">Sage 50 — invoiced revenue, AR aging, customers</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    <span className="font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Sage G Drive</span>
+                    {' '}Invoiced revenue (titrec/titrline) · AR aging · Fiscal year (Apr–Mar)
+                  </p>
                   </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {availableYears.map(y => (
@@ -1803,7 +1806,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 <div className="border-t border-slate-200 pt-6 space-y-4">
                           <div>
                     <h2 className="text-xl font-bold text-slate-900">Operations Dashboard</h2>
-                    <p className="text-sm text-slate-500 mt-0.5">MiSys ERP — manufacturing, procurement & inventory</p>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      <span className="font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded border border-violet-200">MiSys</span>
+                      {' '}Manufacturing, procurement & inventory — not Sage invoiced data
+                    </p>
                           </div>
 
                   {/* Operations KPI Cards */}
