@@ -9798,6 +9798,19 @@ def sage_gdrive_debug_columns():
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
+@app.route('/api/sage/gdrive/debug/fiscal-years')
+def sage_gdrive_debug_fiscal_years():
+    """Diagnostic: titrec date format, row counts per FY, available years. Use to debug no-data for FY2025 etc."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_available_years_with_meta())
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
+
 @app.route('/api/sage/gdrive/analytics/sales-by-product')
 def sage_gdrive_sales_by_product():
     """Top products by invoiced revenue from transaction lines.
@@ -9809,6 +9822,8 @@ def sage_gdrive_sales_by_product():
         limit = int(request.args.get('limit', 25))
         year_str = request.args.get('year')
         year = int(year_str) if year_str else None
+        if year is not None and year <= 0:
+            year = None  # 0 or negative = all-time
         return jsonify(s.get_sales_by_product(limit=limit, year=year))
     except Exception as e:
         return jsonify({"error": str(e)}), 500

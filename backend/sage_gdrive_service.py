@@ -378,6 +378,37 @@ def _safe_date(val) -> str | None:
     return s
 
 
+def _normalize_date_to_iso(dt_str: str) -> str | None:
+    """Convert date string to YYYY-MM-DD for comparison. Handles Sage/MiSys CSV formats.
+    Supports: YYYY-MM-DD, YYYY/MM/DD, MM/DD/YYYY, DD/MM/YYYY, and timestamps (date part only)."""
+    if not dt_str or len(str(dt_str).strip()) < 8:
+        return None
+    s = str(dt_str).strip()
+    # Strip time if present (e.g. "2024-03-15 00:00:00" or "04/15/2024 12:00")
+    if " " in s:
+        s = s.split(" ")[0]
+    s = s.replace("/", "-")
+    if len(s) < 8:
+        return None
+    parts = [p for p in s.split("-") if p]
+    if len(parts) < 3:
+        return None
+    try:
+        a, b, c = int(parts[0]), int(parts[1]), int(parts[2])
+        # YYYY-MM-DD or YYYY/MM/DD (year first)
+        if 1900 <= a <= 2100 and 1 <= b <= 12 and 1 <= c <= 31:
+            return f"{a:04d}-{b:02d}-{c:02d}"
+        # MM-DD-YYYY (month first, North America)
+        if 1 <= a <= 12 and 1 <= b <= 31 and 1900 <= c <= 2100:
+            return f"{c:04d}-{a:02d}-{b:02d}"
+        # DD-MM-YYYY (day first)
+        if 1 <= a <= 31 and 1 <= b <= 12 and 1900 <= c <= 2100:
+            return f"{c:04d}-{b:02d}-{a:02d}"
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
 def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
     """Find first matching column (case-insensitive). Returns actual column name or None."""
     if df is None or df.empty:
@@ -1075,7 +1106,8 @@ def get_available_years() -> list:
         return [_current_fiscal_year()]
 
     rows = df.copy()
-    rows["_dt"] = rows[date_col].dropna().astype(str)
+    rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+    rows = rows[rows["_dt"].notna()]
 
     # Only include years that have positive invoice amounts (real revenue)
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
@@ -1086,7 +1118,7 @@ def get_available_years() -> list:
     dates = rows["_dt"].astype(str)
     fiscal_years = set()
     for d in dates:
-        fy = _date_to_fiscal_year(d)
+        fy = _date_to_fiscal_year(d)  # d is already YYYY-MM-DD from _normalize_date_to_iso
         if fy is not None:
             fiscal_years.add(fy)
     years = sorted(fiscal_years, reverse=True)
@@ -1103,17 +1135,15 @@ def get_available_years_with_meta() -> dict:
         return {"years": [_current_fiscal_year()], "date_range": None, "row_count": len(df), "note": "dtASDate/dtDate column missing", "fiscal_year_end": "March 31"}
 
     rows = df.copy()
-    rows["_dt"] = rows[date_col].dropna().astype(str)
-    valid_dates = [d for d in rows["_dt"].astype(str) if len(d) >= 8 and d[:4].isdigit() and d[4:6].isdigit()]
+    rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+    rows = rows[rows["_dt"].notna()]
 
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
     if amt_col:
         rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0)
         rows = rows[rows["_amt"] > 0]
-        dates = rows["_dt"].astype(str)
-    else:
-        dates = rows["_dt"].astype(str)
 
+    dates = rows["_dt"].astype(str)
     fiscal_years = set()
     for d in dates:
         fy = _date_to_fiscal_year(d)
@@ -1123,13 +1153,22 @@ def get_available_years_with_meta() -> dict:
     years = years if years else [_current_fiscal_year()]
 
     date_range = None
+    valid_dates = [d for d in dates if d and len(d) >= 10]
     if valid_dates:
         date_range = {"min": min(valid_dates)[:10], "max": max(valid_dates)[:10]}
+
+    # Sample raw date values from titrec (for debugging date format)
+    raw_samples = []
+    if date_col:
+        raw_vals = df[date_col].dropna().head(5).tolist()
+        raw_samples = [str(v) for v in raw_vals if v]
 
     return {
         "years": years,
         "date_range": date_range,
         "row_count": len(df),
+        "date_column": date_col,
+        "sample_raw_dates": raw_samples,
         "note": "Sage fiscal year = Apr 1 - Mar 31. Year-to-year data depends on titrec.CSV having historical dates." if len(years) <= 1 else None,
         "fiscal_year_end": "March 31",
     }
@@ -1147,7 +1186,8 @@ def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
         return {}
     start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
     rows = df.copy()
-    rows["_dt"] = rows[date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+    rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+    rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
     if rows.empty:
         return {}
@@ -1172,20 +1212,22 @@ def _item_stats_from_titrline(fiscal_year: int) -> dict:
     trec_date_col = _find_col(trec, ["dtASDate", "dtDate"]) if trec is not None and not trec.empty else None
     trec_id_col = _find_col(trec, ["lId", "lid"]) if trec is not None and not trec.empty else None
     if trec is not None and not trec.empty and trec_date_col and trec_id_col:
-        trec_dates = trec[trec_date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
-        mask = (trec_dates >= start_dt) & (trec_dates <= end_dt)
+        trec_copy = trec.copy()
+        trec_copy["_dt"] = trec_copy[trec_date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+        mask = trec_copy["_dt"].notna() & (trec_copy["_dt"] >= start_dt) & (trec_copy["_dt"] <= end_dt)
         year_ids = set(
-            pd.to_numeric(trec.loc[mask, trec_id_col], errors="coerce").fillna(0).astype(int).tolist()
+            pd.to_numeric(trec_copy.loc[mask, trec_id_col], errors="coerce").fillna(0).astype(int).tolist()
         )
-        if "lTransId" in lines.columns:
+        line_trans_col = _find_col(lines, ["lTransId", "lRecId", "lTitRecId", "lTransID"])
+        if line_trans_col and year_ids:
             lines = lines[
-                pd.to_numeric(lines["lTransId"], errors="coerce").fillna(0).astype(int).isin(year_ids)
+                pd.to_numeric(lines[line_trans_col], errors="coerce").fillna(0).astype(int).isin(year_ids)
             ]
     else:
         line_date_col = _find_col(lines, ["dtASDate", "dtDate"])
         if line_date_col:
-            line_dates = lines[line_date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
-            lines = lines[(line_dates >= start_dt) & (line_dates <= end_dt)]
+            lines["_dt"] = lines[line_date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+            lines = lines[lines["_dt"].notna() & (lines["_dt"] >= start_dt) & (lines["_dt"] <= end_dt)]
 
     if lines.empty:
         return {}
@@ -1265,7 +1307,10 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
         })
 
     result.sort(key=lambda x: x["dAmtYtd"], reverse=True)
-    return {"customers": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
+    out = {"customers": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
+    if not result and not use_sage_fields and not txn_rev:
+        out["_empty_reason"] = f"No invoiced transactions in titrec for FY{year} (Apr {year-1}–Mar {year}). Check titrec.CSV has dates in that range."
+    return out
 
 
 def get_best_movers(limit: int = 25, year: int = None) -> dict:
@@ -1352,7 +1397,10 @@ def get_best_movers(limit: int = 25, year: int = None) -> dict:
             })
 
     result.sort(key=lambda x: x["dYTDUntSld"], reverse=True)
-    return {"items": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
+    out = {"items": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
+    if not result and not use_sage_fields:
+        out["_empty_reason"] = f"No transaction lines in titrline for FY{year} (Apr {year-1}–Mar {year}). Check titrec/titrline have dates in that range."
+    return out
 
 
 def get_monthly_revenue(year: int = None) -> dict:
@@ -1374,11 +1422,18 @@ def get_monthly_revenue(year: int = None) -> dict:
 
     start_dt, end_dt = _fiscal_year_date_range(year)
     rows = df.copy()
-    rows["_dt"] = rows[date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+    rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+    rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
 
     if rows.empty:
-        return {"year": year, "months": [_fiscal_month_entry(m) for m in range(1, 13)], "total_revenue": 0.0, "fiscal_year": True}
+        return {
+            "year": year,
+            "months": [_fiscal_month_entry(m) for m in range(1, 13)],
+            "total_revenue": 0.0,
+            "fiscal_year": True,
+            "_empty_reason": f"No invoices in titrec for FY{year} (Apr {year-1}–Mar {year}). Check titrec.CSV has dates in that range.",
+        }
 
     # Fiscal month: Apr=1, May=2, ..., Mar=12. Calendar month 4->1, 5->2, ..., 3->12
     def _cal_to_fiscal(cal_m: int) -> int:
@@ -1666,7 +1721,10 @@ def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
         })
 
     result.sort(key=lambda x: x["total_revenue"], reverse=True)
-    return {"products": result[:limit], "total": len(result), "year": year, "all_time": year is None, "fiscal_year": year is not None}
+    out = {"products": result[:limit], "total": len(result), "year": year, "all_time": year is None, "fiscal_year": year is not None}
+    if not result and year is not None:
+        out["_empty_reason"] = f"No transaction lines in titrline for FY{year} (Apr {year-1}–Mar {year}). Check titrec/titrline have dates in that range."
+    return out
 
 
 def get_dashboard_kpis(year: int = None) -> dict:
@@ -1717,7 +1775,7 @@ def get_dashboard_kpis(year: int = None) -> dict:
 
     yoy_pct = round((total_ytd - total_ly) / total_ly * 100, 1) if total_ly > 0 else None
 
-    return {
+    out = {
         "total_ytd_revenue": round(total_ytd, 2),
         "total_ly_revenue": round(total_ly, 2),
         "yoy_revenue_pct": yoy_pct,
@@ -1732,6 +1790,9 @@ def get_dashboard_kpis(year: int = None) -> dict:
         "fiscal_year": True,
         "fiscal_year_end": "March 31",
     }
+    if total_ytd == 0 and total_ly == 0 and not use_sage_fields:
+        out["_empty_reason"] = f"No invoiced revenue in titrec for FY{resolved_year}. Check titrec.CSV has dates in Apr {resolved_year-1}–Mar {resolved_year}."
+    return out
 
 
 # ---------------------------------------------------------------------------
