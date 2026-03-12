@@ -7377,6 +7377,7 @@ _MISYS_INTENT_FILES = {
     "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json"],
     "bom":             ["BillsOfMaterial.json", "BillOfMaterialDetails.json"],
     "pricing":         ["Items.json", "MIILOC.json"],
+    "customer_item_sales": ["Items.json", "MIITEM.json"],  # For Recent Cost / Standard Cost lookup
 }
 
 
@@ -7569,13 +7570,15 @@ def chat_query():
             if _intent in _FOCUSED_INTENTS and _confidence >= 5:
 
                 # For MiSys-based intents load directly from G: Drive / Drive API.
-                # We no longer rely on the frontend request body (removed to fix OOM).
+                # customer_item_sales needs Items.json for Recent Cost from MiSys.
                 _raw_for_router: dict = {}
                 if _intent in _MISYS_INTENTS:
                     _raw_for_router = _load_misys_files_for_intent(_intent)
                     if not _raw_for_router:
                         print(f"⚠️ No MiSys data available for intent '{_intent}' — skipping focused path")
                         raise ValueError(f"No MiSys data for intent {_intent}")
+                elif _intent == "customer_item_sales":
+                    _raw_for_router = _load_misys_files_for_intent("customer_item_sales")
 
                 _sage_svc = sage_gdrive_service if SAGE_GDRIVE_AVAILABLE else None
                 _targeted = _fetch_targeted_data(
@@ -7611,7 +7614,7 @@ def chat_query():
                         )
                         _ai_response = _focused_resp.choices[0].message.content
                         print(f"✅ Focused response: {len(_ai_response)} chars")
-                        return jsonify({
+                        _resp_payload = {
                             "query": user_query,
                             "response": _ai_response,
                             "intent": _intent,
@@ -7620,7 +7623,27 @@ def chat_query():
                                 "total_items": _record_count,
                                 "active_orders": 0,
                             },
-                        })
+                        }
+                        # For customer_item_sales + export/file request: add download URL
+                        if _intent == "customer_item_sales":
+                            _q_lower = (user_query or "").lower()
+                            _wants_file = any(w in _q_lower for w in ["export", "file", "download", "excel", "xlsx", "give me a"])
+                            if _wants_file:
+                                _cis = _targeted.get("customer_item_sales") or {}
+                                _cust = _cis.get("customer_search", "").strip()
+                                _item = _cis.get("item_search", "").strip()
+                                if (not _cust or not _item) and hasattr(query_router, "_parse_customer_item_query"):
+                                    _cust, _item = query_router._parse_customer_item_query(user_query)
+                                if _cust and _item:
+                                    from urllib.parse import quote
+                                    _resp_payload["download_url"] = (
+                                        f"/api/sage/gdrive/export/customer-item-orders"
+                                        f"?customer={quote(_cust)}&item={quote(_item)}"
+                                    )
+                                    _resp_payload["download_filename"] = f"{_item.replace(' ', '_')}_{_cust.replace(' ', '_')}_Orders.xlsx"[:80]
+                                    if _ai_response and "download" not in _ai_response.lower() and "excel" not in _ai_response.lower():
+                                        _resp_payload["response"] = _ai_response.rstrip() + "\n\n📥 **Download Excel** — Click the button below to get the full report with pricing, cost, and profit."
+                        return jsonify(_resp_payload)
                     except Exception as _gpt_err:
                         print(f"⚠️ Focused GPT call failed, falling through: {_gpt_err}")
                         # Fall through to the full-data path below
@@ -9560,6 +9583,39 @@ def sage_gdrive_customers():
         offset = int(request.args.get('offset', 0))
         return jsonify(s.get_customers(search=search, inactive=inactive, limit=limit, offset=offset))
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sage/gdrive/export/customer-item-orders')
+def sage_gdrive_export_customer_item_orders():
+    """
+    Export orders for any product to any customer to Excel (pricing, cost, profit).
+    Uses Bank of Canada historical USD/CAD rates for FX conversion.
+    Query params: customer, item (product code or name).
+    Used by AI Command when user requests export/download for customer+item sales.
+    """
+    customer = request.args.get('customer', '').strip()
+    item = request.args.get('item', '').strip()
+    if not customer or not item:
+        return jsonify({"error": "Query params 'customer' and 'item' are required"}), 400
+    try:
+        from customer_item_export import export_customer_item_orders
+        out_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+        file_path, err = export_customer_item_orders(customer, item, out_dir)
+        if err:
+            return jsonify({"error": err}), 400
+        filename = os.path.basename(file_path)
+        return send_file(
+            file_path,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename,
+        )
+    except ImportError as e:
+        return jsonify({"error": f"Export module not available: {e}"}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
