@@ -2860,6 +2860,20 @@ def test_logistics_endpoint():
     }), 200
 
 
+@logistics_bp.route('/api/logistics/clear-so-cache/<so_number>', methods=['POST'])
+def clear_so_cache(so_number):
+    """Clear cached SO data for a specific SO - use when SO PDF was updated and cache has stale data."""
+    global _so_data_cache, _so_cache_timestamps
+    try:
+        if so_number in _so_data_cache:
+            del _so_data_cache[so_number]
+        if so_number in _so_cache_timestamps:
+            del _so_cache_timestamps[so_number]
+        return jsonify({'ok': True, 'message': f'SO {so_number} cache cleared. Next request will re-parse the PDF.'}), 200
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @logistics_bp.route('/api/logistics/debug-so/<so_number>', methods=['GET'])
 def debug_so_data(so_number):
     """Return exact SO data as the system gets it - no guessing. Hit this on Render to see what items exist."""
@@ -4665,10 +4679,13 @@ def process_email():
                         
                             # For FUZZY matches only: packaging sizes must match (4X4L != 12x1L)
                             # For exact/substring matches we trust the match - don't reject
-                            size_pattern = r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]'
+                            # Include Unicode × (U+00D7) - email often has "6×946" not "6x946"
+                            size_pattern = r'\d+[xX×]\d+[A-Za-z]*|\d+[xX×]\d+[gG]'
                             email_sizes = set(re.findall(size_pattern, item_desc_normalized))
                             so_sizes = set(re.findall(size_pattern, so_desc_normalized))
-                            size_mismatch = email_sizes and so_sizes and not (email_sizes & so_sizes)
+                            # Normalize × to x so "6×946" matches "6x946"
+                            _norm_sz = lambda s: s.replace('\u00d7', 'x').upper()
+                            size_mismatch = email_sizes and so_sizes and not ({_norm_sz(s) for s in email_sizes} & {_norm_sz(s) for s in so_sizes})
                             # Only reject on size when using fuzzy match - exact/substring is trustworthy
                             fuzzy_match_only = word_match or code_match
                             reject_size = size_mismatch and fuzzy_match_only and not (exact_match_1 or exact_match_2)
@@ -4684,7 +4701,7 @@ def process_email():
                                 continue  # 4X4L vs 12x1L via fuzzy match - different products, skip
                             # Core match: when BOTH have size, they must match (4X4L != 12x1L)
                             if core_match and email_sizes and so_sizes:
-                                if not (email_sizes & so_sizes):
+                                if not ({_norm_sz(s) for s in email_sizes} & {_norm_sz(s) for s in so_sizes}):
                                     continue  # Same product name but different packaging size - skip
                             # Packaging must be compatible: drum != pail, but box = case, tote = IBC
                             email_pkg = _packaging_type_for_matching(item_desc)
@@ -4745,7 +4762,7 @@ def process_email():
                                             desc_match = (item_desc_clean in other_clean or other_clean in item_desc_clean or
                                                           (email_core_words and len(email_core_words) >= 2 and email_core_words.issubset(other_words)))
                                             # Packaging sizes must match - 4X4L != 12x1L (case-insensitive)
-                                            other_sizes = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
+                                            other_sizes = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX×]\d+[gG]', other_clean))
                                             email_sizes_norm = {s.upper() for s in email_sizes}
                                             other_sizes_norm = {s.upper() for s in other_sizes}
                                             sum_size_mismatch = email_sizes and other_sizes and not (email_sizes_norm & other_sizes_norm)
@@ -4883,7 +4900,7 @@ def process_email():
                             so_item = so_items_to_check[i]
                             if not _packaging_compatible(_packaging_type_for_matching(item_desc), _packaging_type_for_matching(so_desc)):
                                 continue
-                            so_sizes_fb = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', so_desc))
+                            so_sizes_fb = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX×]\d+[gG]', so_desc))
                             if email_sizes & so_sizes_fb:
                                 so_clean_fb = ' '.join((so_desc or '').replace('-', ' ').replace('/', ' ').split())
                                 base_words = (set(item_desc_clean.split()) & set(so_clean_fb.split())) - packaging_words
@@ -4926,7 +4943,7 @@ def process_email():
                         item_desc_check = (email_item.get('description') or '').upper().strip()
                         item_desc_clean_check = ' '.join(item_desc_check.replace('-', ' ').replace('/', ' ').split())
                         email_core_check = set(item_desc_clean_check.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
-                        email_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', item_desc_clean_check))
+                        email_sizes_check = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX×]\d+[gG]', item_desc_clean_check))
                         so_qty_num = 0.0
                         for j, od in enumerate(so_item_names):
                             other_item = so_items_to_check[j]
@@ -4939,10 +4956,11 @@ def process_email():
                                     continue
                             other_clean = ' '.join((od or '').replace('-', ' ').replace('/', ' ').split())
                             other_words = set(other_clean.split()) - {'KG', 'KEG', 'DRUM', 'PAIL', 'DRUMS', 'PAILS', 'KEGS', '55KG', '247KG', '18KG', '20L', 'TOTE', 'IBC', 'CALCIUM', 'SULFONATE', 'GREASE'}
-                            other_sizes_check = set(re.findall(r'\d+[xX]\d+[A-Za-z]*|\d+[xX]\d+[gG]', other_clean))
-                            # Case-insensitive size comparison (4X4L matches 4x4l from PDF)
-                            email_sizes_norm = {s.upper() for s in email_sizes_check}
-                            other_sizes_norm = {s.upper() for s in other_sizes_check}
+                            other_sizes_check = set(re.findall(r'\d+[xX×]\d+[A-Za-z]*|\d+[xX×]\d+[gG]', other_clean))
+                            # Case-insensitive size comparison; normalize × to x so "6×946" matches "6x946"
+                            _ns = lambda s: s.replace('\u00d7', 'x').upper()
+                            email_sizes_norm = {_ns(s) for s in email_sizes_check}
+                            other_sizes_norm = {_ns(s) for s in other_sizes_check}
                             size_ok = not (email_sizes_check and other_sizes_check) or (email_sizes_norm & other_sizes_norm)
                             if size_ok and (item_desc_clean_check in other_clean or other_clean in item_desc_clean_check or
                                 (email_core_check and len(email_core_check) >= 2 and email_core_check.issubset(other_words))):

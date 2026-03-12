@@ -68,6 +68,50 @@ def test_product_code_matching_logic():
         assert matches[0].get('quantity') == int(email_item.get('quantity')), f"Qty mismatch: {matches[0].get('quantity')} vs {email_item.get('quantity')}"
 
 
+def test_so_3151_laser_sales_exact_structure():
+    """
+    SO 3151 structure from actual document - both lines must match and pass quantity validation.
+    Email: 240 cases (42612), 320 cases (42615). SO: Line1=240, Line2=320.
+    """
+    from logistics_automation import _extract_product_code
+    import re
+
+    # Exact SO structure from SO 3151 document (Laser Sales PO 022356)
+    so_items = [
+        {'description': '(42612) Laser 2T Semi-Synthetic Blue 24x3.4oz (100ml) Case', 'item_code': 'LZ 2T SEMI-SYN BL 24x3.4oz', 'quantity': 240, 'unit': 'Case'},
+        {'description': 'Laser 2 Cycle Premium Smokeless Oil - 6x946 ml case (42615)', 'item_code': 'LZ 2T SEMI-SYN BL 6X946', 'quantity': 320, 'unit': 'Case'},
+    ]
+    email_items = [
+        {'description': 'Laser 2T Semi-Synthetic Blue 24x3.4oz (100ml) Case', 'item_code': '42612', 'quantity': '240'},
+        {'description': 'Laser 2 Cycle Premium Smokeless Oil - 6×946 ml case', 'item_code': '42615', 'quantity': '320'},  # Unicode × in email
+    ]
+
+    so_item_names = [i.get('description', '').upper() for i in so_items]
+    so_items_to_check = so_items
+
+    for email_item in email_items:
+        item_desc = (email_item.get('description') or '').upper().strip()
+        item_qty = email_item.get('quantity', '')
+        email_product_code = _extract_product_code(item_desc) or _extract_product_code(email_item.get('item_code') or '')
+
+        matched = False
+        matched_so_item = None
+        for i, so_desc in enumerate(so_item_names):
+            so_item_check = so_items_to_check[i]
+            so_product_code = _extract_product_code(so_desc) or _extract_product_code(so_item_check.get('item_code') or '')
+            so_desc_str = (so_desc or '') + ' ' + (so_item_check.get('item_code') or '')
+            code_in_so = bool(re.search(r'(?<!\d)' + re.escape(email_product_code or '') + r'(?!\d)', so_desc_str)) if email_product_code else False
+            if (so_product_code and so_product_code == email_product_code) or code_in_so:
+                matched = True
+                matched_so_item = so_item_check
+                break
+
+        assert matched, f"Email item '{email_item.get('description')}' must match an SO line"
+        so_qty = matched_so_item.get('quantity') or matched_so_item.get('ordered') or 0
+        expected_qty = int(item_qty)
+        assert so_qty == expected_qty, f"Qty mismatch: SO has {so_qty}, email says {expected_qty} for '{email_item.get('description')}'"
+
+
 def test_api_laser_sales_integration():
     """Integration test: process Laser Sales email with trust_email_quantities. Requires server on localhost:5002."""
     try:
@@ -110,6 +154,7 @@ def run_tests():
         test_extract_product_code_in_text,
         test_extract_product_code_no_match,
         test_product_code_matching_logic,
+        test_so_3151_laser_sales_exact_structure,
         test_api_laser_sales_integration,
     ]
     failed = []
