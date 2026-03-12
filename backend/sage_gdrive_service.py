@@ -66,6 +66,52 @@ PRICE_LIST_NAMES = {1: "Regular", 2: "Preferred", 3: "Web Price", 4: "Master"}
 # Currency IDs from tcurrncyId field
 CURRENCY_NAMES = {1: "CAD", 2: "USD"}
 
+# Sage 50 Fiscal Year: April 1 - March 31 (per SAGE_50_INTEGRATION.md)
+SAGE_FISCAL_YEAR_END_MONTH = 3  # March
+SAGE_FISCAL_YEAR_START_MONTH = 4  # April
+
+
+def _date_to_fiscal_year(dt_str: str) -> int | None:
+    """Convert date string (YYYY-MM-DD or YYYY/MM/DD) to Sage fiscal year.
+    FY2026 = Apr 1 2025 - Mar 31 2026."""
+    if not dt_str or len(str(dt_str).strip()) < 7:
+        return None
+    s = str(dt_str).strip()
+    try:
+        # Handle YYYY-MM-DD or YYYY/MM/DD
+        parts = s.replace("/", "-").split("-")[:2]
+        if len(parts) < 2:
+            return None
+        y, m = int(parts[0]), int(parts[1])
+        return y + 1 if m >= SAGE_FISCAL_YEAR_START_MONTH else y
+    except (ValueError, IndexError):
+        return None
+
+
+def _current_fiscal_year() -> int:
+    """Return the current Sage fiscal year (e.g. FY2026 = Apr 2025 - Mar 2026)."""
+    today = date.today()
+    return today.year + 1 if today.month >= SAGE_FISCAL_YEAR_START_MONTH else today.year
+
+
+def _fiscal_year_date_range(fy: int) -> tuple[str, str]:
+    """Return (start_date, end_date) for fiscal year FY. FY2026 = Apr 1 2025 - Mar 31 2026."""
+    start = f"{fy - 1}-04-01"
+    end = f"{fy}-03-31"
+    return start, end
+
+
+def _date_in_fiscal_year(dt_str: str, fy: int) -> bool:
+    """Return True if date falls within fiscal year FY."""
+    if not dt_str or len(str(dt_str).strip()) < 10:
+        return False
+    s = str(dt_str).strip()[:10].replace("/", "-")
+    try:
+        start, end = _fiscal_year_date_range(fy)
+        return start <= s <= end
+    except Exception:
+        return False
+
 # Tables we actually need (subset of all 636 files)
 REQUIRED_TABLES = [
     "tcustomr", "tvendor", "tinvent", "tinvbyln", "tinvext",
@@ -330,6 +376,17 @@ def _safe_date(val) -> str | None:
     if len(s) >= 10 and s[4] == "-":
         return s[:10]
     return s
+
+
+def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    """Find first matching column (case-insensitive). Returns actual column name or None."""
+    if df is None or df.empty:
+        return None
+    col_map = {c.lower(): c for c in df.columns}
+    for cand in candidates:
+        if cand.lower() in col_map:
+            return col_map[cand.lower()]
+    return None
 
 
 def load_data(force: bool = False):
@@ -1011,51 +1068,59 @@ def get_sales_order_by_number(so_number: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def get_available_years() -> list:
-    """Return only years that have actual invoiced revenue in titrec (dInvAmt > 0)."""
+    """Return fiscal years that have actual invoiced revenue in titrec (Sage fiscal year = Apr-Mar)."""
     df = _tables().get("titrec")
-    if df is None or df.empty or "dtASDate" not in df.columns:
-        return [datetime.now().year]
+    date_col = _find_col(df, ["dtASDate", "dtDate"]) if df is not None and not df.empty else None
+    if df is None or df.empty or not date_col:
+        return [_current_fiscal_year()]
 
     rows = df.copy()
-    rows["dtASDate"] = rows["dtASDate"].dropna().astype(str)
+    rows["_dt"] = rows[date_col].dropna().astype(str)
 
     # Only include years that have positive invoice amounts (real revenue)
-    if "dInvAmt" in rows.columns:
-        rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    if amt_col:
+        rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0)
         rows = rows[rows["_amt"] > 0]
 
-    dates = rows["dtASDate"].astype(str)
-    years = sorted(
-        set(int(d[:4]) for d in dates if len(d) >= 4 and d[:4].isdigit()),
-        reverse=True,
-    )
-    return years if years else [datetime.now().year]
+    dates = rows["_dt"].astype(str)
+    fiscal_years = set()
+    for d in dates:
+        fy = _date_to_fiscal_year(d)
+        if fy is not None:
+            fiscal_years.add(fy)
+    years = sorted(fiscal_years, reverse=True)
+    return years if years else [_current_fiscal_year()]
 
 
 def get_available_years_with_meta() -> dict:
-    """Return years plus date range info for debugging year-to-year data availability."""
+    """Return fiscal years plus date range info. Sage fiscal year = Apr 1 - Mar 31."""
     df = _tables().get("titrec")
     if df is None or df.empty:
-        return {"years": [datetime.now().year], "date_range": None, "row_count": 0, "note": "titrec not loaded"}
-    if "dtASDate" not in df.columns:
-        return {"years": [datetime.now().year], "date_range": None, "row_count": len(df), "note": "dtASDate column missing"}
+        return {"years": [_current_fiscal_year()], "date_range": None, "row_count": 0, "note": "titrec not loaded", "fiscal_year_end": "March 31"}
+    date_col = _find_col(df, ["dtASDate", "dtDate"])
+    if not date_col:
+        return {"years": [_current_fiscal_year()], "date_range": None, "row_count": len(df), "note": "dtASDate/dtDate column missing", "fiscal_year_end": "March 31"}
 
     rows = df.copy()
-    rows["dtASDate"] = rows["dtASDate"].dropna().astype(str)
-    valid_dates = [d for d in rows["dtASDate"].astype(str) if len(d) >= 8 and d[:4].isdigit() and d[4:6].isdigit()]
+    rows["_dt"] = rows[date_col].dropna().astype(str)
+    valid_dates = [d for d in rows["_dt"].astype(str) if len(d) >= 8 and d[:4].isdigit() and d[4:6].isdigit()]
 
-    if "dInvAmt" in rows.columns:
-        rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    if amt_col:
+        rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0)
         rows = rows[rows["_amt"] > 0]
-        dates = rows["dtASDate"].astype(str)
+        dates = rows["_dt"].astype(str)
     else:
-        dates = rows["dtASDate"].astype(str)
+        dates = rows["_dt"].astype(str)
 
-    years = sorted(
-        set(int(d[:4]) for d in dates if len(d) >= 4 and d[:4].isdigit()),
-        reverse=True,
-    )
-    years = years if years else [datetime.now().year]
+    fiscal_years = set()
+    for d in dates:
+        fy = _date_to_fiscal_year(d)
+        if fy is not None:
+            fiscal_years.add(fy)
+    years = sorted(fiscal_years, reverse=True)
+    years = years if years else [_current_fiscal_year()]
 
     date_range = None
     if valid_dates:
@@ -1065,26 +1130,35 @@ def get_available_years_with_meta() -> dict:
         "years": years,
         "date_range": date_range,
         "row_count": len(df),
-        "note": "Year-to-year data depends on titrec.CSV having historical dates. Ensure G Drive export includes full history." if len(years) <= 1 else None,
+        "note": "Sage fiscal year = Apr 1 - Mar 31. Year-to-year data depends on titrec.CSV having historical dates." if len(years) <= 1 else None,
+        "fiscal_year_end": "March 31",
     }
 
 
-def _customer_revenue_from_titrec(year: int) -> dict:
-    """Aggregate per-customer revenue from titrec for a given year."""
+def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
+    """Aggregate per-customer revenue from titrec for a given Sage fiscal year (Apr-Mar)."""
     df = _tables().get("titrec")
     if df is None or df.empty:
         return {}
-    rows = df[df["dtASDate"].fillna("").astype(str).str.startswith(str(year))].copy()
-    if rows.empty or "lCusId" not in rows.columns or "dInvAmt" not in rows.columns:
+    date_col = _find_col(df, ["dtASDate", "dtDate"])
+    cid_col = _find_col(df, ["lCusId", "lCustomerId", "lCustId"])
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    if not date_col or not cid_col or not amt_col:
         return {}
-    rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0.0)
-    rows["_cid"] = pd.to_numeric(rows["lCusId"], errors="coerce").fillna(0).astype(int)
+    start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
+    rows = df.copy()
+    rows["_dt"] = rows[date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+    rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
+    if rows.empty:
+        return {}
+    rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
+    rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
     grouped = rows.groupby("_cid")["_amt"].sum()
     return {int(cid): float(v) for cid, v in grouped.items() if int(cid) != 0}
 
 
-def _item_stats_from_titrline(year: int) -> dict:
-    """Aggregate per-item revenue/qty/cogs from titrline for a given year via titrec join."""
+def _item_stats_from_titrline(fiscal_year: int) -> dict:
+    """Aggregate per-item revenue/qty/cogs from titrline for a given Sage fiscal year (Apr-Mar)."""
     tables = _tables()
     lines = tables.get("titrline")
     if lines is None or lines.empty or "lInventId" not in lines.columns:
@@ -1092,21 +1166,26 @@ def _item_stats_from_titrline(year: int) -> dict:
 
     trec = tables.get("titrec")
     lines = lines.copy()
+    start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
 
-    # Filter by year — join via lTransId → titrec.lId if possible, else use dtASDate on lines
-    if trec is not None and not trec.empty and "dtASDate" in trec.columns and "lId" in trec.columns:
+    # Filter by fiscal year — join via lTransId → titrec.lId if possible, else use dtASDate on lines
+    trec_date_col = _find_col(trec, ["dtASDate", "dtDate"]) if trec is not None and not trec.empty else None
+    trec_id_col = _find_col(trec, ["lId", "lid"]) if trec is not None and not trec.empty else None
+    if trec is not None and not trec.empty and trec_date_col and trec_id_col:
+        trec_dates = trec[trec_date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+        mask = (trec_dates >= start_dt) & (trec_dates <= end_dt)
         year_ids = set(
-            pd.to_numeric(
-                trec[trec["dtASDate"].fillna("").astype(str).str.startswith(str(year))]["lId"],
-                errors="coerce",
-            ).fillna(0).astype(int).tolist()
+            pd.to_numeric(trec.loc[mask, trec_id_col], errors="coerce").fillna(0).astype(int).tolist()
         )
         if "lTransId" in lines.columns:
             lines = lines[
                 pd.to_numeric(lines["lTransId"], errors="coerce").fillna(0).astype(int).isin(year_ids)
             ]
-    elif "dtASDate" in lines.columns:
-        lines = lines[lines["dtASDate"].fillna("").astype(str).str.startswith(str(year))]
+    else:
+        line_date_col = _find_col(lines, ["dtASDate", "dtDate"])
+        if line_date_col:
+            line_dates = lines[line_date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+            lines = lines[(line_dates >= start_dt) & (line_dates <= end_dt)]
 
     if lines.empty:
         return {}
@@ -1137,12 +1216,12 @@ def _item_stats_from_titrline(year: int) -> dict:
 
 def get_top_customers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank customers by YTD sales.
-    - current year (or None): uses dAmtYtd / dLastYrAmt from tcustomr (Sage's own fields)
-    - any other year: aggregates from titrec transaction journal
+    Rank customers by YTD sales. Uses Sage fiscal year (Apr 1 - Mar 31).
+    - current fiscal year (or None): uses dAmtYtd / dLastYrAmt from tcustomr (Sage's own fields)
+    - any other fiscal year: aggregates from titrec transaction journal
     """
-    current_year = datetime.now().year
-    use_sage_fields = (year is None or year == current_year)
+    current_fy = _current_fiscal_year()
+    use_sage_fields = (year is None or year == current_fy)
 
     df = _tables().get("tcustomr")
     if df is None or df.empty:
@@ -1164,7 +1243,7 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
             ly = _safe_float(r.get("dLastYrAmt"))
         else:
             ytd = txn_rev.get(cid, 0.0)
-            # prior year for YoY
+            # prior fiscal year for YoY
             prev_txn = _customer_revenue_from_titrec(year - 1) if year else {}
             ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
@@ -1186,17 +1265,17 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
         })
 
     result.sort(key=lambda x: x["dAmtYtd"], reverse=True)
-    return {"customers": result[:limit], "total": len(result), "year": year or current_year}
+    return {"customers": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
 
 
 def get_best_movers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank inventory items by units sold.
-    - current year (or None): uses dYTDUntSld from tinvext (Sage's own fields)
-    - any other year: aggregates from titrline transaction lines
+    Rank inventory items by units sold. Uses Sage fiscal year (Apr 1 - Mar 31).
+    - current fiscal year (or None): uses dYTDUntSld from tinvext (Sage's own fields)
+    - any other fiscal year: aggregates from titrline transaction lines
     """
-    current_year = datetime.now().year
-    use_sage_fields = (year is None or year == current_year)
+    current_fy = _current_fiscal_year()
+    use_sage_fields = (year is None or year == current_fy)
 
     tables = _tables()
     inv = tables.get("tinvent")
@@ -1273,61 +1352,57 @@ def get_best_movers(limit: int = 25, year: int = None) -> dict:
             })
 
     result.sort(key=lambda x: x["dYTDUntSld"], reverse=True)
-    return {"items": result[:limit], "total": len(result), "year": year or current_year}
+    return {"items": result[:limit], "total": len(result), "year": year or current_fy, "fiscal_year": True}
 
 
 def get_monthly_revenue(year: int = None) -> dict:
     """
-    Compute monthly invoiced revenue from titrec (journal type 1 = AR invoices).
-    Returns 12 months of data for the requested year (defaults to current year).
+    Compute monthly invoiced revenue from titrec. Uses Sage fiscal year (Apr 1 - Mar 31).
+    Returns 12 months: Apr(1), May(2), ..., Mar(12).
     """
     if year is None:
-        year = datetime.now().year
+        year = _current_fiscal_year()
 
     df = _tables().get("titrec")
     if df is None or df.empty:
-        return {"year": year, "months": [], "error": "titrec not loaded"}
+        return {"year": year, "months": [], "error": "titrec not loaded", "fiscal_year": True}
 
-    if "dtASDate" not in df.columns:
-        return {"year": year, "months": [], "error": "dtASDate column missing"}
+    date_col = _find_col(df, ["dtASDate", "dtDate"])
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    if not date_col:
+        return {"year": year, "months": [], "error": "dtASDate/dtDate column missing", "fiscal_year": True}
 
-    # Filter to sales-side journals (nJournal == 1 or 7 = sales journal, 11 = invoice)
-    # Use all positive dInvAmt transactions to approximate revenue
+    start_dt, end_dt = _fiscal_year_date_range(year)
     rows = df.copy()
-    rows["dtASDate"] = rows["dtASDate"].fillna("").astype(str)
-    year_str = str(year)
+    rows["_dt"] = rows[date_col].fillna("").astype(str).str[:10].str.replace("/", "-")
+    rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
 
-    # Filter to requested year
-    rows = rows[rows["dtASDate"].str.startswith(year_str)]
     if rows.empty:
-        return {"year": year, "months": [{"month": m, "month_name": _month_name(m), "revenue": 0.0, "order_count": 0} for m in range(1, 13)]}
+        return {"year": year, "months": [_fiscal_month_entry(m) for m in range(1, 13)], "total_revenue": 0.0, "fiscal_year": True}
 
-    # Extract month
-    rows["_month"] = rows["dtASDate"].str[5:7].str.lstrip("0")
+    # Fiscal month: Apr=1, May=2, ..., Mar=12. Calendar month 4->1, 5->2, ..., 3->12
+    def _cal_to_fiscal(cal_m: int) -> int:
+        return ((cal_m - 4) % 12) + 1
 
-    # Use dInvAmt as the invoice amount (positive = revenue)
-    if "dInvAmt" in rows.columns:
-        rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0.0)
+    rows["_cal_month"] = pd.to_numeric(rows["_dt"].str[5:7], errors="coerce").fillna(0).astype(int)
+    rows["_fiscal_month"] = rows["_cal_month"].apply(_cal_to_fiscal)
+
+    if amt_col:
+        rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
     else:
         rows["_amt"] = 0.0
 
-    monthly = rows.groupby("_month").agg(revenue=("_amt", "sum"), order_count=("_amt", "count")).reset_index()
-    monthly["month_num"] = monthly["_month"].apply(lambda m: int(m) if m.isdigit() else 0)
+    monthly = rows.groupby("_fiscal_month").agg(revenue=("_amt", "sum"), order_count=("_amt", "count")).reset_index()
 
     months_result = []
     for m in range(1, 13):
-        row = monthly[monthly["month_num"] == m]
+        row = monthly[monthly["_fiscal_month"] == m]
         rev = float(row["revenue"].iloc[0]) if len(row) > 0 else 0.0
         cnt = int(row["order_count"].iloc[0]) if len(row) > 0 else 0
-        months_result.append({
-            "month": m,
-            "month_name": _month_name(m),
-            "revenue": round(rev, 2),
-            "order_count": cnt,
-        })
+        months_result.append(_fiscal_month_entry(m, rev, cnt))
 
     total_rev = sum(m["revenue"] for m in months_result)
-    return {"year": year, "months": months_result, "total_revenue": round(total_rev, 2)}
+    return {"year": year, "months": months_result, "total_revenue": round(total_rev, 2), "fiscal_year": True}
 
 
 def _month_name(m: int) -> str:
@@ -1336,10 +1411,20 @@ def _month_name(m: int) -> str:
     return names[m] if 1 <= m <= 12 else str(m)
 
 
+def _fiscal_month_name(fiscal_m: int) -> str:
+    """Fiscal month 1=Apr, 2=May, ..., 12=Mar."""
+    names = ["", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"]
+    return names[fiscal_m] if 1 <= fiscal_m <= 12 else str(fiscal_m)
+
+
+def _fiscal_month_entry(fiscal_m: int, revenue: float = 0.0, order_count: int = 0) -> dict:
+    return {"month": fiscal_m, "month_name": _fiscal_month_name(fiscal_m), "revenue": round(revenue, 2), "order_count": order_count}
+
+
 def get_recent_invoices(limit: int = 100) -> dict:
     """
     List recent invoice transactions from titrec (AR invoices, dInvAmt > 0).
-    Joins with tcustomr for customer name.
+    Joins with tcustomr for customer name. Uses case-insensitive column matching.
     """
     tables = _tables()
     df = tables.get("titrec")
@@ -1348,46 +1433,59 @@ def get_recent_invoices(limit: int = 100) -> dict:
         return {"invoices": [], "error": "titrec not loaded"}
 
     cust_name_map: dict[int, str] = {}
-    if cname_df is not None and not cname_df.empty and "lId" in cname_df.columns:
-        for _, r in cname_df[["lId", "sName"]].iterrows():
-            cust_name_map[int(r["lId"] or 0)] = _safe_str(r["sName"])
+    if cname_df is not None and not cname_df.empty:
+        id_col = _find_col(cname_df, ["lId", "lid"])
+        name_col = _find_col(cname_df, ["sName", "sname"])
+        if id_col and name_col:
+            for _, r in cname_df[[id_col, name_col]].iterrows():
+                cust_name_map[int(r[id_col] or 0)] = _safe_str(r[name_col])
+
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt", "dTotal"])
+    date_col = _find_col(df, ["dtASDate", "dtDate"])
+    cus_col = _find_col(df, ["lCusId", "lCustomerId", "lCustId"])
+    id_col = _find_col(df, ["lId", "lid"])
+    src_col = _find_col(df, ["sSource", "ssource"])
+
+    if not amt_col or not date_col:
+        return {"invoices": [], "error": "titrec missing dInvAmt/dAmt or dtASDate/dtDate columns"}
 
     rows = df.copy()
-    if "dInvAmt" not in rows.columns or "dtASDate" not in rows.columns:
-        return {"invoices": [], "error": "titrec missing dInvAmt or dtASDate"}
-    rows["_amt"] = pd.to_numeric(rows["dInvAmt"], errors="coerce").fillna(0)
+    rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0)
     rows = rows[rows["_amt"] > 0]
-    rows = rows.sort_values("dtASDate", ascending=False).head(limit)
+    rows = rows.sort_values(date_col, ascending=False).head(limit)
 
     invoices = []
     for _, r in rows.iterrows():
-        cus_id = int(r.get("lCusId", 0) or 0)
+        cus_id = int(r.get(cus_col, 0) or 0) if cus_col else 0
         invoices.append({
-            "lId": int(r.get("lId", 0) or 0),
-            "dtASDate": _safe_str(r.get("dtASDate")),
+            "lId": int(r.get(id_col, 0) or 0) if id_col else 0,
+            "dtASDate": _safe_str(r.get(date_col)),
             "dInvAmt": round(float(r["_amt"]), 2),
             "lCusId": cus_id,
             "sName": cust_name_map.get(cus_id, ""),
-            "sSource": _safe_str(r.get("sSource")),
+            "sSource": _safe_str(r.get(src_col)) if src_col else "",
         })
     return {"invoices": invoices, "total": len(invoices)}
 
 
 def get_ar_aging() -> dict:
     """
-    Compute AR aging from tcustr (customer transaction journal).
+    Compute AR aging from tcustr (customer transaction journal) or titrec (invoice headers).
     Groups outstanding balances into 0-30, 31-60, 61-90, 90+ day buckets.
-    Falls back to titrec (invoice header table) if tcustr yields $0.
+    Uses case-insensitive column matching for Sage 50 CSV export variations.
     """
     tables = _tables()
     cust_df = tables.get("tcustr")
     cname_df = tables.get("tcustomr")
 
-    # Build customer name map
+    # Build customer name map (case-insensitive lId/sName lookup)
     cust_name_map: dict[int, str] = {}
-    if cname_df is not None and not cname_df.empty and "lId" in cname_df.columns:
-        for _, r in cname_df[["lId", "sName"]].iterrows():
-            cust_name_map[int(r["lId"] or 0)] = _safe_str(r["sName"])
+    if cname_df is not None and not cname_df.empty:
+        id_col = _find_col(cname_df, ["lId", "lid"])
+        name_col = _find_col(cname_df, ["sName", "sname"])
+        if id_col and name_col:
+            for _, r in cname_df[[id_col, name_col]].iterrows():
+                cust_name_map[int(r[id_col] or 0)] = _safe_str(r[name_col])
 
     # ── Diagnostic logging ─────────────────────────────────────────────────────
     if cust_df is not None and not cust_df.empty:
@@ -1405,7 +1503,7 @@ def get_ar_aging() -> dict:
         age = 999
         if dt_str and len(dt_str) >= 10:
             try:
-                age = (today - date.fromisoformat(dt_str[:10])).days
+                age = (today - date.fromisoformat(dt_str[:10].replace("/", "-"))).days
             except Exception:
                 pass
         if cid not in buckets:
@@ -1423,39 +1521,27 @@ def get_ar_aging() -> dict:
         else:
             buckets[cid]["d90plus"] += amt
 
-    # ── Primary: tcustr ────────────────────────────────────────────────────────
+    # ── Primary: tcustr (case-insensitive column lookup) ─────────────────────
     if cust_df is not None and not cust_df.empty:
-        cols = set(cust_df.columns)
-        # Try several possible column names for outstanding balance
-        bal_col = next((c for c in ["dBalance", "dCurrntBal", "dAmtDue", "dAmtOwing",
-                                     "dOutstanding", "dBal", "dOpenBal"] if c in cols), None)
-        # Try possible column names for due/transaction date
-        date_col = next((c for c in ["dtDueDate", "dtDate", "dtInvDate", "dtTxDate"] if c in cols), None)
-        # Customer ID column
-        cid_col = next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in cols), None)
+        bal_col = _find_col(cust_df, ["dBalance", "dCurrntBal", "dAmtDue", "dAmtOwing", "dOutstanding", "dBal", "dOpenBal"])
+        date_col = _find_col(cust_df, ["dtDueDate", "dtDate", "dtInvDate", "dtTxDate"])
+        cid_col = _find_col(cust_df, ["lCusId", "lCustomerId", "lCustId", "lcusid"])
 
         print(f"[ar_aging] tcustr columns detected → balance:{bal_col}, date:{date_col}, cid:{cid_col}")
 
         if bal_col and cid_col:
             for _, r in cust_df.iterrows():
                 cid = int(r.get(cid_col, 0) or 0)
-                # Some Sage exports store invoice amount in one col and applied in another
-                if bal_col in cols:
-                    amt = _safe_float(r.get(bal_col, 0))
-                else:
-                    # Compute outstanding = dAmt - dApplied
-                    raw_amt = _safe_float(r.get("dAmt", 0) or r.get("dInvAmt", 0))
-                    applied = _safe_float(r.get("dApplied", 0) or r.get("dPaid", 0))
-                    amt = raw_amt - applied
+                amt = _safe_float(r.get(bal_col, 0))
                 dt_str = _safe_date(r.get(date_col) if date_col else None)
                 _add_to_bucket(cid, amt, dt_str or "")
         else:
-            # No balance column found — try dAmt - dApplied
-            print("[ar_aging] No balance column found in tcustr — trying dAmt-dApplied")
-            amt_col = next((c for c in ["dAmt", "dInvAmt"] if c in cols), None)
-            applied_col = next((c for c in ["dApplied", "dPaid", "dAmtPaid"] if c in cols), None)
-            cid_col = cid_col or next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in cols), None)
-            date_col = date_col or next((c for c in ["dtDueDate", "dtDate"] if c in cols), None)
+            # No balance column — try dAmt - dApplied
+            print("[ar_aging] No balance column in tcustr — trying dAmt-dApplied")
+            amt_col = _find_col(cust_df, ["dAmt", "dInvAmt"])
+            applied_col = _find_col(cust_df, ["dApplied", "dPaid", "dAmtPaid"])
+            cid_col = cid_col or _find_col(cust_df, ["lCusId", "lCustomerId", "lCustId"])
+            date_col = date_col or _find_col(cust_df, ["dtDueDate", "dtDate"])
             if amt_col and cid_col:
                 for _, r in cust_df.iterrows():
                     cid = int(r.get(cid_col, 0) or 0)
@@ -1465,34 +1551,29 @@ def get_ar_aging() -> dict:
                     dt_str = _safe_date(r.get(date_col) if date_col else None)
                     _add_to_bucket(cid, amt, dt_str or "")
 
-    # ── Fallback: titrec (invoice transaction headers) ─────────────────────────
-    # If tcustr gave $0, try computing AR from open invoices in titrec
+    # ── Fallback: titrec (invoice headers, case-insensitive) ───────────────────
     grand_total_check = sum(b["total"] for b in buckets.values())
     if grand_total_check == 0:
         print("[ar_aging] tcustr gave $0 — falling back to titrec for open invoices")
         titrec_df = tables.get("titrec")
         if titrec_df is not None and not titrec_df.empty:
-            t_cols = set(titrec_df.columns)
-            print(f"[ar_aging] titrec columns: {list(t_cols)[:25]}")
-            # Look for invoice amount and balance due columns
-            inv_col = next((c for c in ["dInvAmt", "dAmt", "dTotalAmt"] if c in t_cols), None)
-            paid_col = next((c for c in ["dAmtPaid", "dApplied", "dPaid", "dPayAmt"] if c in t_cols), None)
-            bal_due_col = next((c for c in ["dBalDue", "dBalance", "dAmtDue"] if c in t_cols), None)
-            due_col = next((c for c in ["dtDueDate", "dtDate", "dtASDate"] if c in t_cols), None)
-            cid_col = next((c for c in ["lCusId", "lCustomerId", "lCustId"] if c in t_cols), None)
-            # Only look at invoice-type transactions (positive amounts)
-            if inv_col and cid_col:
+            inv_col = _find_col(titrec_df, ["dInvAmt", "dAmt", "dTotalAmt", "dTotal"])
+            paid_col = _find_col(titrec_df, ["dAmtPaid", "dApplied", "dPaid", "dPayAmt"])
+            bal_due_col = _find_col(titrec_df, ["dBalDue", "dBalance", "dAmtDue", "dOutstanding"])
+            due_col = _find_col(titrec_df, ["dtDueDate", "dtDate", "dtASDate"])
+            cid_col = _find_col(titrec_df, ["lCusId", "lCustomerId", "lCustId"])
+            print(f"[ar_aging] titrec columns: inv={inv_col}, paid={paid_col}, bal={bal_due_col}, due={due_col}, cid={cid_col}")
+
+            if inv_col and cid_col and (bal_due_col or paid_col):
                 rows = titrec_df.copy()
                 rows["_inv"] = pd.to_numeric(rows[inv_col], errors="coerce").fillna(0)
                 rows = rows[rows["_inv"] > 0]  # invoices only (not payments)
-                if bal_due_col and bal_due_col in t_cols:
+                if bal_due_col:
                     rows["_bal"] = pd.to_numeric(rows[bal_due_col], errors="coerce").fillna(0)
-                elif paid_col and paid_col in t_cols:
+                else:
                     rows["_paid"] = pd.to_numeric(rows[paid_col], errors="coerce").fillna(0)
                     rows["_bal"] = rows["_inv"] - rows["_paid"]
-                else:
-                    rows["_bal"] = rows["_inv"]  # assume all unpaid if no payment column
-                rows = rows[rows["_bal"] > 0]  # only open/partially-open invoices
+                rows = rows[rows["_bal"] > 0]  # only open/partially-open
                 print(f"[ar_aging] titrec: {len(rows)} open invoices found")
                 for _, r in rows.iterrows():
                     cid = int(r.get(cid_col, 0) or 0)
@@ -1507,16 +1588,27 @@ def get_ar_aging() -> dict:
 
     grand_total = sum(r["total"] for r in result)
     print(f"[ar_aging] Final AR aging: {len(result)} customers, total_ar=${grand_total:,.2f}")
-    return {"aging": result[:50], "total_ar": round(grand_total, 2), "total_customers": len(result)}
+
+    # Include diagnostic hint when empty (for debugging)
+    diag = None
+    if grand_total == 0:
+        tcustr_loaded = cust_df is not None and not cust_df.empty
+        titrec_loaded = tables.get("titrec") is not None and not tables.get("titrec").empty
+        diag = f"tcustr={'loaded' if tcustr_loaded else 'missing'}, titrec={'loaded' if titrec_loaded else 'missing'}. Ensure G Drive export includes tcustr.CSV and titrec.CSV with balance columns."
+
+    out = {"aging": result[:50], "total_ar": round(grand_total, 2), "total_customers": len(result)}
+    if diag:
+        out["_diagnostic"] = diag
+    return out
 
 
 def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
     """
     Aggregate titrline by lInventId to compute revenue per product.
     - year=None → all-time (all transaction lines)
-    - year=YYYY → filter to that year via titrec join
+    - year=YYYY → filter to that Sage fiscal year (Apr-Mar) via titrec join
     """
-    current_year = datetime.now().year
+    current_fy = _current_fiscal_year()
     inv = _tables().get("tinvent")
 
     name_map: dict[int, dict] = {}
@@ -1574,17 +1666,18 @@ def get_sales_by_product(limit: int = 25, year: int = None) -> dict:
         })
 
     result.sort(key=lambda x: x["total_revenue"], reverse=True)
-    return {"products": result[:limit], "total": len(result), "year": year, "all_time": year is None}
+    return {"products": result[:limit], "total": len(result), "year": year, "all_time": year is None, "fiscal_year": year is not None}
 
 
 def get_dashboard_kpis(year: int = None) -> dict:
     """Return summary KPIs for the Sage Analytics dashboard header.
-    - year=None or current year → uses Sage's own dAmtYtd / dLastYrAmt fields (fast, accurate)
-    - any other year → aggregates from titrec transaction journal
+    Uses Sage fiscal year (Apr 1 - Mar 31).
+    - year=None or current fiscal year → uses Sage's own dAmtYtd / dLastYrAmt fields (fast, accurate)
+    - any other fiscal year → aggregates from titrec transaction journal
     """
-    current_year = datetime.now().year
-    use_sage_fields = (year is None or year == current_year)
-    resolved_year = year or current_year
+    current_fy = _current_fiscal_year()
+    use_sage_fields = (year is None or year == current_fy)
+    resolved_year = year or current_fy
 
     tables = _tables()
 
@@ -1635,7 +1728,9 @@ def get_dashboard_kpis(year: int = None) -> dict:
         "data_folder": _cache_folder,
         "source": "gdrive",
         "year": resolved_year,
-        "is_ytd": use_sage_fields and resolved_year == current_year,
+        "is_ytd": use_sage_fields and resolved_year == current_fy,
+        "fiscal_year": True,
+        "fiscal_year_end": "March 31",
     }
 
 

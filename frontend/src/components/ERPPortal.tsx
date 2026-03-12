@@ -726,7 +726,7 @@ const InvoiceSection: React.FC = () => {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-1 rounded">
-          Read-only · Sage G Drive
+          Read-only · Sage G Drive · Real data
         </span>
         <div className="flex gap-1">
           <button onClick={() => setTab('ar')} className={`px-2 py-1 text-xs font-semibold rounded ${tab === 'ar' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>AR Aging</button>
@@ -810,7 +810,12 @@ const InvoiceSection: React.FC = () => {
                 ))}
               </tbody>
             </table>
-            {!(arAging.aging?.length) && <div className="text-center py-12 text-slate-400 text-sm">No AR data found</div>}
+            {!(arAging.aging?.length) && (
+              <div className="text-center py-12 text-slate-500 text-sm">
+                <p>No AR data found</p>
+                {arAging._diagnostic && <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto">{arAging._diagnostic}</p>}
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -857,7 +862,7 @@ const FinancialSection: React.FC = () => {
 
 
 // ============================================================
-// MARGIN ANALYSIS (from Sage titrline — real COGS vs Revenue)
+// MARGIN ANALYSIS (from Sage titrline — real COGS vs Revenue, fiscal year)
 // ============================================================
 const MarginAnalysisSection: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
@@ -1085,12 +1090,18 @@ const fmtFull = (n: number | null | undefined, currency = 'CAD') =>
 const fmtPct = (n: number | null | undefined) =>
   n != null ? `${n > 0 ? '+' : ''}${n.toFixed(1)}%` : '—';
 
+// Sage fiscal year: Apr 1 - Mar 31. FY2026 = Apr 2025 - Mar 2026.
+const getCurrentFiscalYear = () => {
+  const d = new Date();
+  return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear(); // Apr=3 (0-indexed) → next FY
+};
+
 const SageAnalyticsSection: React.FC = () => {
-  const currentYear = new Date().getFullYear();
+  const currentFiscalYear = getCurrentFiscalYear();
   const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'movers' | 'revenue' | 'products'>('overview');
-  const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
-  // selectedYear: number = specific year; 0 = "All Time" (only applies to products/revenue tabs)
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [availableYears, setAvailableYears] = useState<number[]>([currentFiscalYear]);
+  // selectedYear: number = fiscal year; 0 = "All Time" (only applies to products/revenue tabs)
+  const [selectedYear, setSelectedYear] = useState<number>(currentFiscalYear);
   const [kpis, setKpis] = useState<any>(null);
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [bestMovers, setBestMovers] = useState<any[]>([]);
@@ -1099,25 +1110,25 @@ const SageAnalyticsSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isCurrentYear = selectedYear === currentYear;
-  // year param for API: omit for "all time" (0), otherwise pass the year
+  const isCurrentFiscalYear = selectedYear === currentFiscalYear;
+  // year param for API: omit for "all time" (0), otherwise pass the fiscal year
   const yearQS = (y: number) => y > 0 ? `year=${y}` : '';
 
-  // Fetch available years once on mount (includes date_range for year-to-year debugging)
-  const [yearsMeta, setYearsMeta] = useState<{ date_range?: { min: string; max: string }; note?: string } | null>(null);
+  // Fetch available fiscal years once on mount (Sage year end = Mar 31)
+  const [yearsMeta, setYearsMeta] = useState<{ date_range?: { min: string; max: string }; note?: string; fiscal_year_end?: string } | null>(null);
   useEffect(() => {
     apiGet('/api/sage/gdrive/analytics/available-years').then(r => {
-      const years: number[] = r.data?.years || [currentYear];
+      const years: number[] = r.data?.years || [currentFiscalYear];
       setAvailableYears(years);
-      setYearsMeta(r.data?.date_range || r.data?.note ? { date_range: r.data.date_range, note: r.data.note } : null);
+      setYearsMeta(r.data?.date_range || r.data?.note || r.data?.fiscal_year_end ? { date_range: r.data.date_range, note: r.data.note, fiscal_year_end: r.data.fiscal_year_end } : null);
     }).catch(() => {});
   }, []);
 
   const load = useCallback(async (y: number) => {
     setLoading(true);
     setError(null);
-    // For KPIs and top customers, "All Time" (y=0) defaults to current-year Sage fields
-    const ky = y > 0 ? y : currentYear;
+    // For KPIs and top customers, "All Time" (y=0) defaults to current fiscal year Sage fields
+    const ky = y > 0 ? y : currentFiscalYear;
     try {
       const [kpisRes, custRes] = await Promise.all([
         apiGet(`/api/sage/gdrive/analytics/kpis?year=${ky}`),
@@ -1131,7 +1142,7 @@ const SageAnalyticsSection: React.FC = () => {
       setError(String(e));
       setLoading(false);
     }
-  }, [currentYear]);
+  }, [currentFiscalYear]);
 
   // When year changes: clear cached tab data and reload KPIs + customers
   useEffect(() => {
@@ -1143,12 +1154,12 @@ const SageAnalyticsSection: React.FC = () => {
 
   const loadTab = useCallback(async (tab: string, y: number) => {
     if (tab === 'movers') {
-      const ky = y > 0 ? y : currentYear;
+      const ky = y > 0 ? y : currentFiscalYear;
       const r = await apiGet(`/api/sage/gdrive/analytics/best-movers?limit=25&year=${ky}`);
       setBestMovers(r.data?.items || []);
     }
     if (tab === 'revenue') {
-      const ky = y > 0 ? y : currentYear;
+      const ky = y > 0 ? y : currentFiscalYear;
       const r = await apiGet(`/api/sage/gdrive/analytics/monthly-revenue?year=${ky}`);
       setMonthlyRevenue(r.data);
     }
@@ -1157,7 +1168,7 @@ const SageAnalyticsSection: React.FC = () => {
       const r = await apiGet(`/api/sage/gdrive/analytics/sales-by-product?limit=25${qs ? `&${qs}` : ''}`);
       setSalesByProduct(r.data?.products || []);
     }
-  }, [currentYear]);
+  }, [currentFiscalYear]);
 
   useEffect(() => { loadTab(activeTab, selectedYear); }, [activeTab, selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1190,9 +1201,9 @@ const SageAnalyticsSection: React.FC = () => {
     { id: 'products', label: 'Sales by Product' },
   ] as const;
 
-  // Dynamic column header labels based on selected year
-  const ytdLabel = isCurrentYear ? `${currentYear} YTD` : `${selectedYear > 0 ? selectedYear : currentYear} Total`;
-  const priorLabel = isCurrentYear ? `${currentYear - 1} Total` : `${(selectedYear > 0 ? selectedYear : currentYear) - 1} Total`;
+  // Dynamic labels: Sage fiscal year (Apr 1 - Mar 31)
+  const ytdLabel = isCurrentFiscalYear ? `FY${currentFiscalYear} YTD` : `FY${selectedYear > 0 ? selectedYear : currentFiscalYear} Total`;
+  const priorLabel = isCurrentFiscalYear ? `FY${currentFiscalYear - 1} Total` : `FY${(selectedYear > 0 ? selectedYear : currentFiscalYear) - 1} Total`;
 
   return (
     <div>
@@ -1200,7 +1211,7 @@ const SageAnalyticsSection: React.FC = () => {
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <h2 className="text-2xl font-bold text-slate-800">Sage Analytics</h2>
         <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-          READ-ONLY · G Drive CSV{kpis?.data_folder ? ` · ${kpis.data_folder}` : ''}
+          READ-ONLY · G Drive CSV · Fiscal Year (Apr–Mar){kpis?.data_folder ? ` · ${kpis.data_folder}` : ''}
         </span>
         {yearsMeta?.date_range && (
           <span className="text-xs text-slate-500" title={yearsMeta.note || 'Data date range in titrec'}>
@@ -1218,7 +1229,7 @@ const SageAnalyticsSection: React.FC = () => {
                   : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
               }`}
             >
-              {y === currentYear ? `${y} YTD` : String(y)}
+              {y === currentFiscalYear ? `FY${y} YTD` : `FY${y}`}
             </button>
           ))}
           <button
@@ -1347,14 +1358,14 @@ const SageAnalyticsSection: React.FC = () => {
         <div>
           <div className="flex items-center gap-3 mb-4">
             <h3 className="text-base font-bold text-slate-700">
-              Monthly Revenue — {selectedYear > 0 ? selectedYear : currentYear}
-              {isCurrentYear && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">YTD</span>}
+              Monthly Revenue — FY{selectedYear > 0 ? selectedYear : currentFiscalYear} (Apr–Mar)
+              {isCurrentFiscalYear && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">YTD</span>}
             </h3>
           </div>
           {!monthlyRevenue ? <p className="text-slate-400 text-sm py-4">Loading…</p> : (
             <div>
               <div className="mb-4 text-sm text-slate-600">
-                Total {monthlyRevenue.year}: <span className="font-bold text-emerald-700">{fmtFull(monthlyRevenue.total_revenue)}</span>
+                Total FY{monthlyRevenue.year} (Apr–Mar): <span className="font-bold text-emerald-700">{fmtFull(monthlyRevenue.total_revenue)}</span>
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
                 <div className="flex items-end gap-1.5 h-48">
@@ -1362,7 +1373,9 @@ const SageAnalyticsSection: React.FC = () => {
                     const maxRev = Math.max(...(monthlyRevenue.months || []).map((m: any) => m.revenue || 0), 1);
                     return (monthlyRevenue.months || []).map((m: any) => {
                       const pct = maxRev > 0 ? (m.revenue / maxRev) * 100 : 0;
-                      const isCurrentMonth = m.month === new Date().getMonth() + 1 && monthlyRevenue.year === currentYear;
+                      const calMonth = new Date().getMonth() + 1;
+                      const currentFiscalMonth = ((calMonth - 4 + 12) % 12) + 1; // Apr=1, May=2, ..., Mar=12
+                      const isCurrentMonth = m.month === currentFiscalMonth && monthlyRevenue.year === currentFiscalYear;
                       return (
                         <div key={m.month} className="flex-1 flex flex-col items-center gap-1 group relative min-w-0">
                           <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap z-10 pointer-events-none">

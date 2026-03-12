@@ -174,10 +174,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const [enterpriseAnalytics, setEnterpriseAnalytics] = useState<EnterpriseAnalytics | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
 
-  // Year-by-year Sage analytics
-  const currentYear = new Date().getFullYear();
-  const [analyticsYear, setAnalyticsYear] = useState<number>(currentYear);
-  const [availableYears, setAvailableYears] = useState<number[]>([currentYear]);
+  // Year-by-year Sage analytics (Sage fiscal year = Apr 1 - Mar 31)
+  const getCurrentFiscalYear = () => {
+    const d = new Date();
+    return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
+  };
+  const currentFiscalYear = getCurrentFiscalYear();
+  const [analyticsYear, setAnalyticsYear] = useState<number>(currentFiscalYear);
+  const [availableYears, setAvailableYears] = useState<number[]>([currentFiscalYear]);
   const [sageKpis, setSageKpis] = useState<any>(null);
   const [sageMonthly, setSageMonthly] = useState<any[]>([]);
   const [sageMonthlyMeta, setSageMonthlyMeta] = useState<{ year?: number; total_revenue?: number } | null>(null);
@@ -248,7 +252,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const loadSageAnalytics = async (year: number) => {
     setIsLoadingSageAnalytics(true);
     setSageAnalyticsError(null);
-    const yearParam = year > 0 ? year : currentYear; // All Time (0) uses current year
+    const yearParam = year > 0 ? year : currentFiscalYear; // All Time (0) uses current fiscal year
     try {
       const [yearsRes, kpisRes, monthlyRes, customersRes, moversRes, arRes] = await Promise.all([
         fetch(getApiUrl('/api/sage/gdrive/analytics/available-years')),
@@ -1534,7 +1538,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
                           : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400 hover:text-amber-700'
                       }`}>
-                      {y === currentYear ? `${y} YTD` : String(y)}
+                      {y === currentFiscalYear ? `FY${y} YTD` : `FY${y}`}
                     </button>
                   ))}
                   <button onClick={() => setAnalyticsYear(0)}
@@ -1559,7 +1563,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               {isLoadingSageAnalytics && !sageKpis ? (
                 <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span className="text-sm font-medium">Loading {analyticsYear > 0 ? analyticsYear : 'All Time'} data…</span>
+                  <span className="text-sm font-medium">Loading {analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'} data…</span>
               </div>
               ) : sageKpis ? (
                 <>
@@ -1567,7 +1571,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                        {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear > 0 ? analyticsYear : 'All Time'} Revenue`}
+                        {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'} Revenue`}
                       </p>
                       <p className="text-2xl font-bold text-slate-900">
                         ${(sageKpis.total_ytd_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -1605,9 +1609,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   {/* Monthly Revenue Chart */}
                   {sageMonthly.length > 0 && (
                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-bold text-slate-800 mb-1">Monthly Revenue — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
+                      <h3 className="text-sm font-bold text-slate-800 mb-1">Monthly Revenue — {analyticsYear > 0 ? `FY${analyticsYear} (Apr–Mar)` : 'All Time'}</h3>
                       <div className="mb-4 text-sm text-slate-600">
-                        Total {(sageMonthlyMeta?.year ?? (analyticsYear || currentYear))}: <span className="font-bold text-emerald-700">${(sageMonthlyMeta?.total_revenue ?? sageMonthly.reduce((s, m) => s + (m.revenue || 0), 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        Total FY{(sageMonthlyMeta?.year ?? (analyticsYear || currentFiscalYear))}: <span className="font-bold text-emerald-700">${(sageMonthlyMeta?.total_revenue ?? sageMonthly.reduce((s, m) => s + (m.revenue || 0), 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                       <div className="space-y-2">
                         {(() => {
@@ -1678,7 +1682,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {sageTopCustomers.length > 0 && (
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Customers — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Customers — {analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'}</h3>
                         <div className="space-y-2">
                           {sageTopCustomers.slice(0, 10).map((c, i) => {
                             const maxRev = sageTopCustomers[0]?.dAmtYtd || 1;
@@ -1710,7 +1714,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
                     {sageBestMovers.length > 0 && (
                       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Products — {analyticsYear > 0 ? analyticsYear : 'All Time'}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 mb-4">Top Products — {analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'}</h3>
                         <div className="space-y-2">
                           {sageBestMovers.slice(0, 10).map((item, i) => {
                             const maxRev = sageBestMovers[0]?.revenue || sageBestMovers[0]?.dAmtYtd || 1;
@@ -1740,7 +1744,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
               ) : (
                 <div className="text-center py-10 text-slate-400">
                   <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">No Sage data available for {analyticsYear > 0 ? analyticsYear : 'All Time'}. Try a different year.</p>
+                  <p className="text-sm">No Sage data available for {analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'}. Try a different year.</p>
                     </div>
                   )}
                 </div>
