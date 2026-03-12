@@ -1215,12 +1215,14 @@ def parse_merged_table_items(raw_tables):
                              and not any(s in p.upper() for s in skip_desc)
                              and re.search(r'[A-Z]{2,}|[0-9]', p)]
             desc_parts = []
-            size_pattern = re.compile(r'^\d+\s*[xX×]\s*\d+(?:\s*[A-Za-z]*)?$')  # e.g. "30 x 400g", "4X4L"
+            # Match lines that START with size - merge with previous product (packaging/size line)
+            # e.g. "24x3.4oz (100ml) Case", "6×946 ml case (42615)" - these belong to prev product
+            size_start_pattern = re.compile(r'^\d+\s*[xX×]\s*\d+')
             for line in raw_desc_lines:
                 if desc_parts and len(line) < 10 and line.upper() in ('CASE', 'CASES', 'DRUM', 'PAIL', 'KEG'):
                     desc_parts[-1] = desc_parts[-1] + ' ' + line
-                elif desc_parts and size_pattern.match(line.strip()):
-                    # Size format (e.g. "30 x 400g") - merge with previous product, not a separate item
+                elif desc_parts and size_start_pattern.search(line.strip()):
+                    # Size/packaging line (e.g. "24x3.4oz (100ml) Case", "6×946 ml case (42615)") - merge with previous
                     desc_parts[-1] = desc_parts[-1] + ' ' + line
                 elif len(line) > 5:
                     desc_parts.append(line)

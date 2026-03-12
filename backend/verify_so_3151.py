@@ -28,7 +28,12 @@ def run_mock():
 def run_fetch():
     """Fetch actual SO 3151 from system (PDF parse)."""
     try:
-        from logistics_automation import get_so_data_from_system
+        import logistics_automation as la
+        if hasattr(la, '_so_data_cache') and '3151' in la._so_data_cache:
+            del la._so_data_cache['3151']
+        if hasattr(la, '_so_cache_timestamps') and '3151' in la._so_cache_timestamps:
+            del la._so_cache_timestamps['3151']
+        get_so_data_from_system = la.get_so_data_from_system
     except ImportError:
         print("Could not import logistics_automation")
         return False
