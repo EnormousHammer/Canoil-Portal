@@ -1151,6 +1151,54 @@ def get_sales_order_by_number(so_number: str) -> dict | None:
 # Analytics
 # ---------------------------------------------------------------------------
 
+def get_sage_data_flow_diagnostic() -> dict:
+    """Diagnostic: compare tcustomr (Sage built-in) vs titrec (our aggregation). Use to verify we're not excluding data."""
+    tables = _tables()
+    current_fy = _current_fiscal_year()
+    out = {
+        "folder": _cache_folder,
+        "tables_loaded": list(tables.keys()),
+        "row_counts": {t: len(df) for t, df in tables.items() if df is not None and not df.empty},
+        "current_fy": current_fy,
+        "data_source": {},
+    }
+    # titrec columns
+    titrec = tables.get("titrec")
+    if titrec is not None and not titrec.empty:
+        out["titrec_columns"] = list(titrec.columns)
+        out["titrec_total_rows"] = len(titrec)
+        rev_col = _find_col(titrec, ["bReversal"])
+        rev2_col = _find_col(titrec, ["bReversed"])
+        amt_col = _find_col(titrec, ["dInvAmt", "dAmt"])
+        if amt_col:
+            pos = titrec[amt_col].apply(lambda x: _safe_float(x) > 0).sum()
+            out["titrec_rows_dInvAmt_gt_0"] = int(pos)
+        if rev_col:
+            out["titrec_bReversal_1_count"] = int((pd.to_numeric(titrec[rev_col], errors="coerce").fillna(0) == 1).sum())
+        if rev2_col:
+            out["titrec_bReversed_1_count"] = int((pd.to_numeric(titrec[rev2_col], errors="coerce").fillna(0) == 1).sum())
+    # tcustomr vs titrec totals (current FY)
+    cust = tables.get("tcustomr")
+    if cust is not None and not cust.empty:
+        active = cust[cust["bInactive"].fillna(0) == 0] if "bInactive" in cust.columns else cust
+        ytd_col = _find_col(active, ["dAmtYtd"])
+        ly_col = _find_col(active, ["dLastYrAmt"])
+        sage_ytd = float(active[ytd_col].apply(_safe_float).sum()) if ytd_col else 0
+        sage_ly = float(active[ly_col].apply(_safe_float).sum()) if ly_col else 0
+        txn_rev = _customer_revenue_from_titrec(current_fy)
+        txn_prev = _customer_revenue_from_titrec(current_fy - 1)
+        titrec_ytd = sum(txn_rev.values())
+        titrec_ly = sum(txn_prev.values())
+        out["data_source"]["current_fy"] = "tcustomr (Sage built-in)"
+        out["tcustomr_fy_ytd_total"] = round(sage_ytd, 2)
+        out["tcustomr_fy_prior_total"] = round(sage_ly, 2)
+        out["titrec_fy_ytd_total"] = round(titrec_ytd, 2)
+        out["titrec_fy_prior_total"] = round(titrec_ly, 2)
+        out["difference_ytd"] = round(abs(sage_ytd - titrec_ytd), 2)
+        out["difference_prior"] = round(abs(sage_ly - titrec_ly), 2)
+    return out
+
+
 def get_available_years() -> list:
     """Return fiscal years that have actual invoiced revenue in titrec (Sage fiscal year = Apr-Mar)."""
     df = _tables().get("titrec")
@@ -1229,8 +1277,11 @@ def get_available_years_with_meta() -> dict:
 
 def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
     """Aggregate per-customer revenue from titrec for a given Sage fiscal year (Apr-Mar).
-    titrec uses lVenCusId (vendor/customer ID); for AR invoices this is customer. Filter dInvAmt>0 for revenue."""
-    df = _tables().get("titrec")
+    titrec contains both AR (customer) and AP (vendor) transactions; lVenCusId can be either.
+    - Exclude reversals (bReversal, bReversed) to avoid double-counting
+    - Only include lVenCusId that exist in tcustomr (excludes vendor IDs from PO transactions)"""
+    tables = _tables()
+    df = tables.get("titrec")
     if df is None or df.empty:
         return {}
     date_col = _find_col(df, ["dtASDate", "dtDate"])
@@ -1238,8 +1289,21 @@ def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
     if not date_col or not cid_col or not amt_col:
         return {}
+    # Build set of valid customer IDs from tcustomr (excludes vendor IDs that might appear in titrec)
+    valid_cids = set()
+    cust_df = tables.get("tcustomr")
+    if cust_df is not None and not cust_df.empty:
+        id_col = _find_col(cust_df, ["lId", "lid"])
+        if id_col:
+            valid_cids = set(pd.to_numeric(cust_df[id_col], errors="coerce").fillna(0).astype(int).tolist())
+            valid_cids.discard(0)
     start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
     rows = df.copy()
+    # Exclude reversals (bReversal=1 or bReversed=1) — reversed transactions skew revenue
+    for rev_col_name in ["bReversal", "bReversed"]:
+        rev_col = _find_col(df, [rev_col_name])
+        if rev_col:
+            rows = rows[pd.to_numeric(rows[rev_col], errors="coerce").fillna(0) == 0]
     rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
     rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
@@ -1248,14 +1312,20 @@ def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
     if rows.empty:
         return {}
     rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
+    # Only include rows where lVenCusId is a valid customer (excludes vendor IDs from PO transactions)
+    if valid_cids:
+        rows = rows[rows["_cid"].isin(valid_cids)]
+    if rows.empty:
+        return {}
     grouped = rows.groupby("_cid")["_amt"].sum()
     return {int(cid): float(v) for cid, v in grouped.items() if int(cid) != 0}
 
 
 def _customer_last_sale_from_titrec(fiscal_year: int) -> dict:
     """Per-customer last sale date within the given fiscal year, from titrec (transaction data).
-    Returns {cid: "YYYY-MM-DD"}. Use this instead of tcustomr.dtLastSal for FY-filtered Top Customers."""
-    df = _tables().get("titrec")
+    Returns {cid: "YYYY-MM-DD"}. Excludes reversals and vendor IDs (only valid tcustomr customers)."""
+    tables = _tables()
+    df = tables.get("titrec")
     if df is None or df.empty:
         return {}
     date_col = _find_col(df, ["dtASDate", "dtDate"])
@@ -1263,8 +1333,19 @@ def _customer_last_sale_from_titrec(fiscal_year: int) -> dict:
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
     if not date_col or not cid_col or not amt_col:
         return {}
+    valid_cids = set()
+    cust_df = tables.get("tcustomr")
+    if cust_df is not None and not cust_df.empty:
+        id_col = _find_col(cust_df, ["lId", "lid"])
+        if id_col:
+            valid_cids = set(pd.to_numeric(cust_df[id_col], errors="coerce").fillna(0).astype(int).tolist())
+            valid_cids.discard(0)
     start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
     rows = df.copy()
+    for rev_col_name in ["bReversal", "bReversed"]:
+        rev_col = _find_col(df, [rev_col_name])
+        if rev_col:
+            rows = rows[pd.to_numeric(rows[rev_col], errors="coerce").fillna(0) == 0]
     rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
     rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
@@ -1274,6 +1355,10 @@ def _customer_last_sale_from_titrec(fiscal_year: int) -> dict:
         return {}
     rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
     rows = rows[rows["_cid"] != 0]
+    if valid_cids:
+        rows = rows[rows["_cid"].isin(valid_cids)]
+    if rows.empty:
+        return {}
     last_sale = rows.groupby("_cid")["_dt"].max()
     return {int(cid): str(d)[:10] for cid, d in last_sale.items()}
 
@@ -1339,8 +1424,9 @@ def _item_stats_from_titrline(fiscal_year: int) -> dict:
 
 def get_top_customers(limit: int = 25, year: int = None) -> dict:
     """
-    Rank customers by YTD sales. Always from titrec (Apr-Mar fiscal year).
-    titrec uses lVenCusId for customer; dInvAmt>0 for invoiced revenue.
+    Rank customers by YTD sales.
+    - Current FY: Uses tcustomr (Sage built-in dAmtYtd, dLastYrAmt) — Sage's own calculation, matches month-end report.
+    - Historical FYs: Uses titrec aggregated by fiscal year (Apr-Mar).
     """
     current_fy = _current_fiscal_year()
     resolved_year = year or current_fy
@@ -1351,21 +1437,42 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
 
     rows = df[df["bInactive"].fillna(0) == 0].copy() if "bInactive" in df.columns else df.copy()
 
-    txn_rev = _customer_revenue_from_titrec(resolved_year)
-    prev_txn = _customer_revenue_from_titrec(resolved_year - 1)
-    last_sale_in_fy = _customer_last_sale_from_titrec(resolved_year)
-    last_sale_prev_fy = _customer_last_sale_from_titrec(resolved_year - 1)
+    # Current FY: use Sage built-in (tcustomr) — same as month-end report, no filtering needed
+    use_sage_builtin = resolved_year == current_fy
+    if use_sage_builtin:
+        txn_rev = {}
+        prev_txn = {}
+        last_sale_in_fy = {}
+        last_sale_prev_fy = {}
+    else:
+        txn_rev = _customer_revenue_from_titrec(resolved_year)
+        prev_txn = _customer_revenue_from_titrec(resolved_year - 1)
+        last_sale_in_fy = _customer_last_sale_from_titrec(resolved_year)
+        last_sale_prev_fy = _customer_last_sale_from_titrec(resolved_year - 1)
 
     result = []
     for _, r in rows.iterrows():
         cid = int(r.get("lId", 0) or 0)
         credit = _safe_float(r.get("dCrLimit"))
-        ytd = txn_rev.get(cid, 0.0)
-        ly = prev_txn.get(cid, 0.0)
+        if use_sage_builtin:
+            ytd = _safe_float(r.get("dAmtYtd"))
+            ly = _safe_float(r.get("dLastYrAmt"))
+        else:
+            ytd = txn_rev.get(cid, 0.0)
+            ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
             continue
-        # Use last sale from titrec (transaction data) — not tcustomr.dtLastSal which can be stale
+        # Use last sale from titrec (transaction data) when available; else tcustomr.dtLastSal
         last_sale = last_sale_in_fy.get(cid) or last_sale_prev_fy.get(cid) or _safe_date(r.get("dtLastSal"))
+        # Exclude customers whose last sale was >2 fiscal years ago (stale — only when using titrec)
+        if not use_sage_builtin and last_sale:
+            try:
+                last_dt = date.fromisoformat(str(last_sale)[:10])
+                cutoff = date(resolved_year - 2, 4, 1)  # Start of FY-2 (e.g. Apr 1 2024 for FY2026)
+                if last_dt < cutoff:
+                    continue  # Last sale before FY-2 — skip
+            except Exception:
+                pass
         result.append({
             "lId": cid,
             "sName": _safe_str(r.get("sName")),
@@ -1450,24 +1557,42 @@ def get_monthly_revenue(year: int = None) -> dict:
     """
     Compute monthly invoiced revenue from titrec. Uses Sage fiscal year (Apr 1 - Mar 31).
     Returns 12 months: Apr(1), May(2), ..., Mar(12).
+    Excludes reversals and vendor transactions (only AR customer invoices).
     """
     if year is None:
         year = _current_fiscal_year()
 
-    df = _tables().get("titrec")
+    tables = _tables()
+    df = tables.get("titrec")
     if df is None or df.empty:
         return {"year": year, "months": [], "error": "titrec not loaded", "fiscal_year": True}
 
     date_col = _find_col(df, ["dtASDate", "dtDate"])
     amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    cid_col = _find_col(df, ["lVenCusId", "lCusId", "lCustomerId", "lCustId"])
     if not date_col:
         return {"year": year, "months": [], "error": "dtASDate/dtDate column missing", "fiscal_year": True}
 
+    valid_cids = set()
+    cust_df = tables.get("tcustomr")
+    if cust_df is not None and not cust_df.empty and cid_col:
+        id_col = _find_col(cust_df, ["lId", "lid"])
+        if id_col:
+            valid_cids = set(pd.to_numeric(cust_df[id_col], errors="coerce").fillna(0).astype(int).tolist())
+            valid_cids.discard(0)
+
     start_dt, end_dt = _fiscal_year_date_range(year)
     rows = df.copy()
+    for rev_col_name in ["bReversal", "bReversed"]:
+        rev_col = _find_col(df, [rev_col_name])
+        if rev_col:
+            rows = rows[pd.to_numeric(rows[rev_col], errors="coerce").fillna(0) == 0]
     rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
     rows = rows[rows["_dt"].notna()]
     rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
+    if valid_cids and cid_col:
+        rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
+        rows = rows[rows["_cid"].isin(valid_cids)]
     if amt_col:
         rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
     else:
@@ -1786,10 +1911,17 @@ def get_dashboard_kpis(year: int = None) -> dict:
     if cust is not None and not cust.empty:
         active = cust[cust["bInactive"].fillna(0) == 0] if "bInactive" in cust.columns else cust
         active_customers = len(active)
-        rev_map = _customer_revenue_from_titrec(resolved_year)
-        prev_map = _customer_revenue_from_titrec(resolved_year - 1)
-        total_ytd = sum(rev_map.values())
-        total_ly = sum(prev_map.values())
+        if resolved_year == current_fy:
+            # Current FY: use Sage built-in (tcustomr) — matches Sage exactly
+            ytd_col = _find_col(active, ["dAmtYtd", "dAmtYTd"])
+            ly_col = _find_col(active, ["dLastYrAmt", "dLastYRAmt"])
+            total_ytd = float(active[ytd_col].apply(_safe_float).sum()) if ytd_col else 0.0
+            total_ly = float(active[ly_col].apply(_safe_float).sum()) if ly_col else 0.0
+        else:
+            rev_map = _customer_revenue_from_titrec(resolved_year)
+            prev_map = _customer_revenue_from_titrec(resolved_year - 1)
+            total_ytd = sum(rev_map.values())
+            total_ly = sum(prev_map.values())
 
     # Open SOs — always current (not year-filtered)
     so = tables.get("tsalordr")

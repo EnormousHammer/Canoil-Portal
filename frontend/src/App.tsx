@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 // Vercel rebuild trigger - 2026-01-30 v5.0
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { NavigationHeader } from './components/NavigationHeader';
@@ -22,6 +22,22 @@ function App() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingStatus, setLoadingStatus] = useState('Initializing Canoil Portal...');
+  const loadingCycleIndexRef = useRef(0);
+  
+  // Live status messages - matches backend load order (essential → optional → Sales Orders)
+  const LOADING_CYCLE_MESSAGES = [
+    'Loading Items & Master Data...',
+    'Loading Inventory Locations...',
+    'Loading Sales Order Headers & Details...',
+    'Loading Manufacturing Orders...',
+    'Loading Bills of Material...',
+    'Loading Purchase Orders...',
+    'Loading Manufacturing Routings...',
+    'Loading Work Orders & Job Details...',
+    'Loading Purchase Order Extensions...',
+    'Loading Sales Orders from PDF scanning...',
+    'Finalizing data...'
+  ];
   
   // Start with empty data structure - EXACT G: Drive .json file names
   const [data, setData] = useState<any>({
@@ -143,34 +159,44 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array = run immediately on mount
 
-  // Premium 20-second loading screen with progress
+  // Loading screen progress - fills slowly over 5 min (never hides from time; only dataLoaded hides it)
   useEffect(() => {
     if (showLoadingScreen) {
       const startTime = Date.now();
-      const duration = 20000; // 20 seconds
+      const duration = 300000; // 5 minutes max - progress bar fills slowly
       
       const interval = setInterval(() => {
         const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / duration) * 100, 100);
+        const progress = Math.min((elapsed / duration) * 95, 95); // Cap at 95% until data loads
         setLoadingProgress(progress);
-        
-        if (progress >= 100) {
-          clearInterval(interval);
-          // Hide loading screen after 20 seconds (or when data is loaded, whichever comes first)
-          setTimeout(() => {
-            setShowLoadingScreen(false);
-          }, 500);
-        }
-      }, 50); // Update every 50ms for smooth animation
+      }, 100);
       
       return () => clearInterval(interval);
     }
   }, [showLoadingScreen]);
 
-  // Hide loading screen when data is loaded (if before 20 seconds)
+  // Live cycling status - show what we're loading during long backend fetch
+  useEffect(() => {
+    if (!showLoadingScreen || dataLoaded) return;
+    const interval = setInterval(() => {
+      setLoadingStatus(prev => {
+        const isWaitingPhase = prev === 'Loading data from backend...' || LOADING_CYCLE_MESSAGES.includes(prev);
+        if (isWaitingPhase) {
+          const msg = LOADING_CYCLE_MESSAGES[loadingCycleIndexRef.current % LOADING_CYCLE_MESSAGES.length];
+          loadingCycleIndexRef.current += 1;
+          return msg;
+        }
+        return prev; // Don't override "Connecting...", "Finalizing...", etc.
+      });
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [showLoadingScreen, dataLoaded]);
+
+  // Hide loading screen when data is loaded - show 100% then transition
   useEffect(() => {
     if (dataLoaded && showLoadingScreen) {
-      // Wait a moment to ensure smooth transition
+      setLoadingProgress(100);
+      setLoadingStatus('✅ All data loaded successfully!');
       setTimeout(() => {
         setShowLoadingScreen(false);
       }, 500);
@@ -524,7 +550,7 @@ function App() {
     }
   };
 
-  // Premium 20-second loading screen with real-time status
+  // Loading screen - stays until data is loaded, with live status
   if (showLoadingScreen) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 relative overflow-hidden">

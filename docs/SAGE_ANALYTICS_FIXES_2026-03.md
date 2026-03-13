@@ -118,9 +118,25 @@ Vendors, accounts, receipts still require live Sage (no G Drive API for those).
 
 ---
 
+### 5. Top Customers — Wrong/False Data (March 12, 2026)
+
+**Bug:** Top Customers showed companies "we haven't sold to in years" with incorrect revenue. Root causes:
+- **titrec** contains both AR (customer) and AP (vendor) transactions; `lVenCusId` can be customer OR vendor ID
+- Reversals (`bReversal`, `bReversed`) were not excluded — could double-count or skew amounts
+- Vendor IDs from PO transactions were being matched to customer IDs, inflating/incorrecting revenue
+
+**Fix:** In `_customer_revenue_from_titrec`, `_customer_last_sale_from_titrec`, and `get_monthly_revenue`:
+1. Exclude reversals: filter `bReversal=0` and `bReversed=0`
+2. Only include rows where `lVenCusId` exists in `tcustomr` (customer IDs only — excludes vendor IDs from PO transactions)
+3. In `get_top_customers`: exclude customers whose last sale was >2 fiscal years ago (stale/inactive)
+
+**Impact:** Top Customers, KPIs, Monthly Revenue, and Best Movers now show only AR customer invoices with correct revenue. Inactive customers are filtered out.
+
+---
+
 ## Files Changed
 
 | File | Changes |
 |------|---------|
-| `backend/sage_gdrive_service.py` | lITRecId join, subfolder-first API load, utf-8-sig for BOM |
+| `backend/sage_gdrive_service.py` | lITRecId join, subfolder-first API load, utf-8-sig for BOM; reversal exclusion; valid-customer filter; recency filter |
 | `frontend/src/components/ERPPortal.tsx` | Sage Browser G Drive fallback, sCustomerName alias, sales_orders extraction |

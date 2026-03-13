@@ -9890,6 +9890,19 @@ def sage_gdrive_debug_columns():
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
+@app.route('/api/sage/gdrive/debug/data-flow')
+def sage_gdrive_debug_data_flow():
+    """Diagnostic: compare tcustomr (Sage built-in) vs titrec. Verify we're not excluding data."""
+    s = _sgds()
+    if not s:
+        return jsonify({"error": "Sage G Drive service not loaded"}), 503
+    try:
+        return jsonify(s.get_sage_data_flow_diagnostic())
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
+
+
 @app.route('/api/sage/gdrive/debug/fiscal-years')
 def sage_gdrive_debug_fiscal_years():
     """Diagnostic: titrec date format, row counts per FY, available years. Use to debug no-data for FY2025 etc."""
