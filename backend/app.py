@@ -8307,10 +8307,47 @@ For time-sensitive queries like "sales orders made today", filter data by the cu
             if analytics_data and not analytics_data.get('error'):
                 print(f"✅ Analytics calculated: {analytics_data['summary']}")
         
-        # SMART DATA FILTERING - Send only relevant data to save tokens and money
+        # APP KNOWLEDGE FIRST — Use pre-computed summaries (Sage KPIs, top customers, etc.)
+        # Only send raw JSON when user explicitly needs record-level detail (e.g. "show me SO 2968")
+        _needs_record_detail = any(p in user_query.lower() for p in [
+            "show me", "details of", "what's in", "list the", "items in", "components of",
+            "so #", "so number", "mo #", "mo number", "po #", "po number",
+            "sales order #", "manufacturing order #", "purchase order #",
+        ]) or bool(re.search(r'\b(so|mo|po)\s*#?\s*\d{3,}\b', user_query.lower()))
         actual_data_sample = {}
+        if _needs_record_detail:
+            # User asked for specific record — include targeted raw data
+            _NEEDS_TO_KEYS = {
+                "inventory": ["Items.json", "MIITEM.json", "MIILOC.json"],
+                "sales_orders": ["RealSalesOrders", "SalesOrdersByStatus", "ParsedSalesOrders.json"],
+                "manufacturing": ["ManufacturingOrderHeaders.json", "ManufacturingOrderDetails.json", "MIMOH.json", "MIMOMD.json"],
+                "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json", "MIPOH.json", "MIPOD.json"],
+                "bom": ["BillsOfMaterial.json", "BillOfMaterialDetails.json", "MIBOMH.json", "MIBOMD.json"],
+                "pricing": ["Items.json", "MIITEM.json"],
+            }
+            _allowed_keys = set()
+            for need in (_data_needs or set()):
+                _allowed_keys.update(_NEEDS_TO_KEYS.get(need, []))
+            if not _allowed_keys:
+                _allowed_keys = None
+            _sample_size = 5
+            for file_name, file_data in raw_data.items():
+                if _allowed_keys and file_name not in _allowed_keys:
+                    continue
+                if isinstance(file_data, list) and len(file_data) > 0:
+                    actual_data_sample[file_name] = {
+                        'total_records': len(file_data),
+                        'sample_records': file_data[:_sample_size],
+                        'fields': list(file_data[0].keys()) if isinstance(file_data[0], dict) else []
+                    }
+                elif isinstance(file_data, dict):
+                    actual_data_sample[file_name] = {'total_records': 1, 'sample_records': [file_data], 'fields': list(file_data.keys())}
+            print(f"📊 Record detail requested — including {len(actual_data_sample)} data sources")
+        else:
+            # Default: use app knowledge only — pre-computed summaries in data_context_info below
+            print(f"📋 Using app knowledge (pre-computed summaries) — no raw JSON needed")
         
-        # Add analytics data to the sample if available
+        # Add analytics data when it's an analytics query
         if analytics_data and not analytics_data.get('error'):
             actual_data_sample['ProductAnalytics'] = {
                 'total_records': 1,
@@ -8319,27 +8356,9 @@ For time-sensitive queries like "sales orders made today", filter data by the cu
                 'note': 'Complete product analytics including sales, costs, profits, and restocking needs'
             }
             print(f"📊 Added Product Analytics to AI context")
-        # Give AI access to ALL MiSys data files - no restrictions
-        for file_name, file_data in raw_data.items():
-            if isinstance(file_data, list) and len(file_data) > 0:
-                # Send more records for better analysis - include ALL MiSys data
-                sample_size = 15  # Reasonable sample size for all data types
-                actual_data_sample[file_name] = {
-                    'total_records': len(file_data),
-                    'sample_records': file_data[:sample_size],
-                    'fields': list(file_data[0].keys()) if isinstance(file_data[0], dict) else []
-                }
-                print(f"📊 AI Access: {file_name} - {len(file_data)} records (showing {min(sample_size, len(file_data))} samples)")
-            elif isinstance(file_data, dict):
-                actual_data_sample[file_name] = {
-                    'total_records': 1,
-                    'sample_records': [file_data],
-                    'fields': list(file_data.keys())
-                }
-                print(f"📊 AI Access: {file_name} - 1 record")
         
         # Add the actual data to the system prompt - WITH DETAILED SIZE LOGGING
-        data_summary_text = json.dumps(actual_data_sample, indent=2, default=str)
+        data_summary_text = json.dumps(actual_data_sample, indent=2, default=str) if actual_data_sample else ""
         
         # Add comprehensive data context for better analysis
         # Calculate comprehensive Sales Order totals across ALL sources
@@ -8356,6 +8375,8 @@ For time-sensitive queries like "sales orders made today", filter data by the cu
                 print(f"⚠️ SalesOrdersByStatus iteration error: {_e}")
         
         data_context_info = f"""
+**📌 APP KNOWLEDGE — Use these pre-computed summaries for general questions (how many, top customers, AR, etc.):**
+
 **🚨 CRITICAL: SALES ORDERS ARE PDF FILES IN GOOGLE DRIVE - NOT JSON:**
 
 **REAL SALES ORDER LOCATION:**
@@ -8555,8 +8576,11 @@ The AI MUST be smart enough to match Sales Order queries in ANY format the user 
         else:
             print(f"SUCCESS: Data size OK: {original_size} chars (no truncation needed)")
         
-        system_prompt += f"\n\nDATA SUMMARY:\n{data_summary_text}"
+        if data_summary_text:
+            system_prompt += f"\n\nDATA SUMMARY (raw records for detail queries):\n{data_summary_text}"
         system_prompt += f"\n\n{data_context_info}"
+        if not data_summary_text:
+            system_prompt += "\n\n**USE APP KNOWLEDGE ABOVE** — Answer from the pre-computed summaries (Sage customers, open SOs, AR aging, totals). Do not invent numbers."
         
         # Add date context to the data
         if date_context:

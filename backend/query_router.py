@@ -311,7 +311,7 @@ PRICE_LIST_INTENTS = frozenset({"pricing"})
 _DATA_NEEDS_TRIGGERS: Dict[str, list] = {
     "inventory": ["stock", "inventory", "on hand", "qty", "quantity", "item", "reorder", "warehouse", "available", "low stock", "out of stock", "fulfill", "have we got"],
     "customers": ["customer", "revenue", "ytd", "who are our", "top customer", "best customer", "biggest customer"],
-    "sales_orders": ["so ", "sales order", "order #", "pending order", "open order", "fulfill", "ship", "delivery", "real sales"],
+    "sales_orders": ["so ", "sales order", "order #", "pending order", "open order", "fulfill", "ship", "delivery", "real sales", "how many so", "how many order"],
     "ar_aging": ["ar ", "receivable", "overdue", "owe", "outstanding", "past due", "balance", "aged"],
     "manufacturing": ["mo ", "manufacturing", "production", "wip", "work in progress", "build order"],
     "purchase_orders": ["po ", "purchase order", "vendor", "supplier", "procurement"],
