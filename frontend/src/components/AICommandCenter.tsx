@@ -1211,7 +1211,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
               {/* Large Chat Interface */}
               <div className="lg:col-span-4">
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-soft h-[calc(100vh-260px)] min-h-[500px] flex flex-col overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-soft h-[calc(100vh-200px)] min-h-[560px] flex flex-col overflow-hidden">
                   {/* Chat Header */}
                   <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
@@ -1378,8 +1378,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   </div>
 
                   {/* Input */}
-                  <div className="p-4 border-t border-slate-100 bg-white">
-                    <div className="flex gap-3">
+                  <div className="p-3 border-t border-slate-100 bg-white shrink-0">
+                    <div className="flex gap-2">
                       <div className="flex-1 relative">
                         <textarea
                           ref={textareaRef}
@@ -1389,11 +1389,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           onBlur={() => setTimeout(() => setShowSmartSuggestions(false), 180)}
                           onKeyDown={handleKeyDown}
                           placeholder="Ask anything... e.g. What's our price for [Customer] for [Product]? I need a quote email. (Shift+Enter for new line)"
-                          rows={2}
-                          className="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-slate-50/50 text-slate-800 placeholder-slate-400 transition-all resize-y min-h-[44px] max-h-[120px]"
+                          rows={1}
+                          className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-slate-50/50 text-slate-800 placeholder-slate-400 transition-all resize-y min-h-[40px] max-h-[100px] text-sm"
                           disabled={isProcessing}
                         />
-                        <Search className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <Search className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                         {showSmartSuggestions && smartSuggestions.length > 0 && (
                           <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-soft-lg py-1">
                             {smartSuggestions.map((s, i) => (
@@ -1414,7 +1414,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       <button
                         onClick={handleSendMessage}
                         disabled={!inputMessage.trim() || isProcessing}
-                        className="px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-semibold shadow-md shadow-violet-500/25 transition-all flex items-center justify-center shrink-0"
+                        className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-semibold shadow-md shadow-violet-500/25 transition-all flex items-center justify-center shrink-0"
                       >
                         {isProcessing ? (
                           <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1424,7 +1424,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       </button>
                     </div>
                     {/* Quick Suggestions — one-click send */}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {[
                         { label: "Active MOs by customer & build item", query: "How many active manufacturing orders do we have? List them by customer name and build item." },
                         { label: "Items below reorder level", query: "Which items are below reorder level? Give me the list with stock and reorder quantities." },
@@ -1478,7 +1478,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                             }).finally(() => setIsProcessing(false));
                           }}
                           disabled={isProcessing}
-                          className="px-3 py-2 bg-white/80 border border-slate-200 hover:border-violet-300 hover:bg-violet-50/80 text-slate-600 hover:text-violet-700 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-2.5 py-1.5 bg-white/80 border border-slate-200 hover:border-violet-300 hover:bg-violet-50/80 text-slate-600 hover:text-violet-700 rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {suggestion.label}
                         </button>
