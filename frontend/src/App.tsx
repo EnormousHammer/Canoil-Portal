@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 // Vercel rebuild trigger - 2026-01-30 v5.0
 import { RevolutionaryCanoilHub } from './components/RevolutionaryCanoilHub';
 import { NavigationHeader } from './components/NavigationHeader';
@@ -542,21 +542,30 @@ function App() {
     }
   };
 
+  // Stable particle positions - computed once so background doesn't jump on progress updates
+  const loadingParticles = useMemo(() =>
+    Array.from({ length: 20 }, (_, i) => ({
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      delay: Math.random() * 2,
+      duration: 2 + Math.random() * 2
+    })), []);
+
   // Loading screen - stays until data is loaded, with live status
   if (showLoadingScreen) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 relative overflow-hidden">
-        {/* Animated background particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          {Array.from({ length: 20 }).map((_, i) => (
+        {/* Animated background particles - stable positions, independent of progress */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {loadingParticles.map((p, i) => (
             <div
               key={i}
               className="absolute w-2 h-2 bg-white/20 rounded-full animate-pulse"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                animationDuration: `${2 + Math.random() * 2}s`
+                left: `${p.left}%`,
+                top: `${p.top}%`,
+                animationDelay: `${p.delay}s`,
+                animationDuration: `${p.duration}s`
               }}
             />
           ))}
