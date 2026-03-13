@@ -1064,69 +1064,71 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
 
   return (
-    <div className="bg-slate-50 rounded-xl">
+    <div className="rounded-2xl overflow-hidden shadow-soft-lg border border-slate-200/80 bg-slate-50/50">
 
-      {/* Header — matches app style, no internal back button */}
-      <div className="bg-white rounded-t-xl border border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
-              <Brain className="w-5 h-5 text-white" />
-                </div>
-                <div>
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight">AI Command Center</h2>
-              <p className="text-xs text-slate-500">Ask anything about your business data — MiSys + Sage 50</p>
-                </div>
-              </div>
+      {/* Header — modern gradient, refined typography */}
+      <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-5 overflow-hidden">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        <div className="relative flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 rounded-2xl shadow-lg shadow-purple-500/25 ring-1 ring-white/10">
+              <Brain className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight">AI Command Center</h2>
+              <p className="text-sm text-slate-400 mt-0.5">Ask anything about your business data — MiSys + Sage 50</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">
-                <Wifi className="w-3 h-3" />
+            <div className="flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               <span>Live</span>
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex gap-1">
-            {[
-              { id: 'chat', label: 'AI Chat', icon: MessageCircle },
-              { id: 'insights', label: 'Insights', icon: Lightbulb },
-              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-                }`}
-              >
-              <tab.icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
+        {/* Navigation Tabs — pill style */}
+        <nav className="relative flex gap-1 p-1 bg-white/5 rounded-xl w-fit backdrop-blur-sm">
+          {[
+            { id: 'chat', label: 'AI Chat', icon: MessageCircle },
+            { id: 'insights', label: 'Insights', icon: Lightbulb },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
               {tab.id === 'insights' && insights.length > 0 && (
-                <span className="ml-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                <span className="ml-0.5 min-w-[18px] h-[18px] bg-amber-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center px-1">
                   {insights.length}
                 </span>
               )}
-              </button>
-            ))}
-          </nav>
+            </button>
+          ))}
+        </nav>
       </div>
 
       {/* Main Content */}
-      <div className="p-4 border-x border-b border-slate-200 rounded-b-xl bg-white">
+      <div className="p-5 bg-gradient-to-b from-white to-slate-50/80">
         {activeTab === 'chat' && (
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
               {/* Compact Quick Actions Sidebar */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-                    <Zap className="w-3 h-3 mr-1 text-purple-500" />
+                <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-soft border border-slate-200/80 p-3">
+                  <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-violet-500" />
                     Quick Actions
                   </h3>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {quickActions.map((action, index) => (
                       <button
                         key={index}
@@ -1191,12 +1193,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           }
                         }}
                         disabled={isProcessing}
-                        className="w-full text-left p-2 rounded border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full text-left p-2.5 rounded-lg border border-slate-200/80 hover:border-violet-300 hover:bg-violet-50/70 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-start space-x-2">
-                          <action.icon className="w-3 h-3 text-purple-500 mt-0.5 group-hover:text-purple-600" />
-                          <div>
-                            <div className="font-medium text-gray-900 group-hover:text-purple-900 text-xs">
+                          <action.icon className="w-3.5 h-3.5 text-violet-500 mt-0.5 group-hover:text-violet-600 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="font-medium text-slate-800 group-hover:text-violet-800 text-xs">
                               {action.title}
                             </div>
                           </div>
@@ -1209,18 +1211,18 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
 
               {/* Large Chat Interface */}
               <div className="lg:col-span-4">
-                <div className="bg-slate-50/30 rounded-xl border border-slate-200 h-[calc(100vh-260px)] min-h-[500px] flex flex-col shadow-sm overflow-hidden">
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-soft h-[calc(100vh-260px)] min-h-[500px] flex flex-col overflow-hidden">
                   {/* Chat Header */}
-                  <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center shadow-sm">
-                        <Brain className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                        <h3 className="text-sm font-semibold text-slate-800">AI Assistant</h3>
-                        <p className="text-[10px] text-slate-500">Connected to your data</p>
-                        </div>
+                  <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-violet-500/20">
+                        <Brain className="w-5 h-5 text-white" />
                       </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800">AI Assistant</h3>
+                        <p className="text-xs text-slate-500">Connected to your MiSys & Sage data</p>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-3">
                         <button
                           onClick={() => {
@@ -1244,23 +1246,23 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+                  <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-0 bg-slate-50/30">
                     {messages.length === 0 ? (
-                      <div className="text-center py-8">
-                        <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Brain className="w-8 h-8 text-white" />
+                      <div className="text-center py-10">
+                        <div className="w-20 h-20 bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-purple-500/20">
+                          <Brain className="w-10 h-10 text-white" />
                         </div>
-                        <h4 className="text-lg font-bold text-slate-900 mb-2">
-                          AI Command Center
+                        <h4 className="text-xl font-bold text-slate-900 mb-2 tracking-tight">
+                          What would you like to know?
                         </h4>
-                        <p className="text-slate-600 mb-4 max-w-md mx-auto text-sm">
+                        <p className="text-slate-600 mb-6 max-w-md mx-auto text-sm leading-relaxed">
                           Ask questions about your real data — inventory, MOs, POs, customers. 
                           I only report what&apos;s in your MiSys and Sage data, no made-up analysis.
                         </p>
                         
                         {/* Data Summary Display */}
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 max-w-2xl mx-auto mb-4 border border-blue-200">
-                          <div className="text-sm font-semibold text-gray-800 mb-3">📊 Available Data Sources:</div>
+                        <div className="bg-white rounded-xl p-5 max-w-2xl mx-auto mb-5 border border-slate-200/80 shadow-soft">
+                          <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Available Data Sources</div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                             {(() => {
                               // Collect all sales orders from ALL sources
@@ -1300,21 +1302,21 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                               
                               return (
                                 <>
-                                  <div className="bg-white rounded p-2 text-center border border-blue-200">
-                                    <div className="font-bold text-blue-600">{salesOrdersCount.toLocaleString()}</div>
-                                    <div className="text-gray-600">Sales Orders</div>
+                                  <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200/80">
+                                    <div className="font-bold text-blue-600 text-lg">{salesOrdersCount.toLocaleString()}</div>
+                                    <div className="text-slate-500 text-[11px] mt-0.5">Sales Orders</div>
                                   </div>
-                                  <div className="bg-white rounded p-2 text-center border border-green-200">
-                                    <div className="font-bold text-green-600">{(data['Items.json'] || data['MIITEM.json'] || []).length.toLocaleString()}</div>
-                                    <div className="text-gray-600">Inventory Items</div>
+                                  <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200/80">
+                                    <div className="font-bold text-emerald-600 text-lg">{(data['Items.json'] || data['MIITEM.json'] || []).length.toLocaleString()}</div>
+                                    <div className="text-slate-500 text-[11px] mt-0.5">Inventory Items</div>
                                   </div>
-                                  <div className="bg-white rounded p-2 text-center border border-purple-200">
-                                    <div className="font-bold text-purple-600">{(data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []).filter((mo: any) => String(mo.Status ?? '2') !== '2').length.toLocaleString()}</div>
-                                    <div className="text-gray-600">Active MOs</div>
+                                  <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200/80">
+                                    <div className="font-bold text-violet-600 text-lg">{(data['ManufacturingOrderHeaders.json'] || data['MIMOH.json'] || []).filter((mo: any) => String(mo.Status ?? '2') !== '2').length.toLocaleString()}</div>
+                                    <div className="text-slate-500 text-[11px] mt-0.5">Active MOs</div>
                                   </div>
-                                  <div className="bg-white rounded p-2 text-center border border-orange-200">
-                                    <div className="font-bold text-orange-600">{(data['PurchaseOrders.json'] || data['MIPOH.json'] || []).length.toLocaleString()}</div>
-                                    <div className="text-gray-600">Purchase Orders</div>
+                                  <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200/80">
+                                    <div className="font-bold text-amber-600 text-lg">{(data['PurchaseOrders.json'] || data['MIPOH.json'] || []).length.toLocaleString()}</div>
+                                    <div className="text-slate-500 text-[11px] mt-0.5">Purchase Orders</div>
                                   </div>
                                 </>
                               );
@@ -1322,11 +1324,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           </div>
                         </div>
                         
-                        <div className="bg-slate-100 rounded-lg p-4 max-w-md mx-auto">
-                          <div className="text-sm text-slate-600 mb-2">Ask about real data:</div>
-                          <div className="text-slate-800 font-medium text-sm">"How many active manufacturing orders?"</div>
-                          <div className="text-slate-800 font-medium text-sm">"Which items are below reorder level?"</div>
-                          <div className="text-slate-800 font-medium text-sm">"Top customers by revenue this year"</div>
+                        <div className="bg-white rounded-xl p-4 max-w-md mx-auto border border-slate-200/80 shadow-soft">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Try asking</div>
+                          <div className="space-y-2 text-sm">
+                            <div className="text-slate-700 font-medium">"How many active manufacturing orders?"</div>
+                            <div className="text-slate-700 font-medium">"Which items are below reorder level?"</div>
+                            <div className="text-slate-700 font-medium">"Top customers by revenue this year"</div>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -1355,16 +1359,16 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                     )}
                     {isProcessing && (
                       <div className="flex items-start gap-3 mb-4">
-                        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-slate-700 shadow-sm">
-                          <Brain className="w-4 h-4 text-white" />
+                        <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-violet-500 to-indigo-600 shadow-md shadow-violet-500/20">
+                          <Brain className="w-5 h-5 text-white" />
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3 shadow-sm">
+                        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-soft">
                           <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <span>Thinking</span>
+                            <span className="font-medium">Thinking</span>
                             <div className="flex gap-1">
-                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                           </div>
                         </div>
@@ -1374,7 +1378,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                   </div>
 
                   {/* Input */}
-                  <div className="p-4 border-t border-slate-200 bg-slate-50/50">
+                  <div className="p-4 border-t border-slate-100 bg-white">
                     <div className="flex gap-3">
                       <div className="flex-1 relative">
                         <textarea
@@ -1386,12 +1390,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                           onKeyDown={handleKeyDown}
                           placeholder="Ask anything... e.g. What's our price for [Customer] for [Product]? I need a quote email. (Shift+Enter for new line)"
                           rows={2}
-                          className="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-white text-slate-800 placeholder-slate-400 transition-shadow resize-y min-h-[44px] max-h-[120px]"
+                          className="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl focus:ring-2 focus:ring-violet-400 focus:border-violet-400 bg-slate-50/50 text-slate-800 placeholder-slate-400 transition-all resize-y min-h-[44px] max-h-[120px]"
                           disabled={isProcessing}
                         />
                         <Search className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
                         {showSmartSuggestions && smartSuggestions.length > 0 && (
-                          <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-soft-lg py-1">
                             {smartSuggestions.map((s, i) => (
                               <button
                                 key={`${s.type}-${i}-${s.value.slice(0, 20)}`}
@@ -1410,7 +1414,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                       <button
                         onClick={handleSendMessage}
                         disabled={!inputMessage.trim() || isProcessing}
-                        className="px-5 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors flex items-center justify-center shrink-0"
+                        className="px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-semibold shadow-md shadow-violet-500/25 transition-all flex items-center justify-center shrink-0"
                       >
                         {isProcessing ? (
                           <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1474,7 +1478,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                             }).finally(() => setIsProcessing(false));
                           }}
                           disabled={isProcessing}
-                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-600 hover:text-violet-700 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-3 py-2 bg-white/80 border border-slate-200 hover:border-violet-300 hover:bg-violet-50/80 text-slate-600 hover:text-violet-700 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {suggestion.label}
                         </button>
@@ -1490,46 +1494,48 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         {activeTab === 'insights' && (
           <div className="max-w-6xl mx-auto">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Insights</h2>
-              <p className="text-slate-600">From your real MiSys and Sage data</p>
+              <h2 className="text-2xl font-bold text-slate-900 mb-1 tracking-tight">Insights</h2>
+              <p className="text-slate-500 text-sm">From your real MiSys and Sage data</p>
             </div>
 
             {insights.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
-                <Lightbulb className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">No insights yet</h3>
-                <p className="text-slate-500 max-w-md mx-auto text-sm">
+              <div className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/80 shadow-soft">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Lightbulb className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">No insights yet</h3>
+                <p className="text-slate-500 max-w-md mx-auto text-sm leading-relaxed">
                   Insights appear when you have data loaded — low stock items, active MOs, open POs, sales orders.
                   Check that data is loaded in the portal.
                 </p>
               </div>
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {insights.map((insight) => (
                 <div
                   key={insight.id}
-                    className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow"
+                  className="bg-white rounded-2xl shadow-soft border border-slate-200/80 p-5 hover:shadow-soft-lg hover:border-violet-200/60 transition-all duration-200"
                 >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
                       {getInsightIcon(insight.type)}
-                        <span className="text-xs font-medium text-slate-500 flex items-center gap-1 capitalize">
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 capitalize">
                         {getCategoryIcon(insight.category)}
-                          {insight.category}
+                        {insight.category}
                       </span>
                     </div>
-                      <span className="text-xs text-slate-400">{Math.round(insight.confidence * 100)}%</span>
+                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{Math.round(insight.confidence * 100)}%</span>
                   </div>
 
-                    <h3 className="text-base font-semibold text-slate-900 mb-2">{insight.title}</h3>
-                    <p className="text-sm text-slate-600 mb-4">{insight.description}</p>
+                  <h3 className="text-base font-bold text-slate-900 mb-2">{insight.title}</h3>
+                  <p className="text-sm text-slate-600 mb-4 leading-relaxed">{insight.description}</p>
 
-                    {insight.query && (
-                      <button
-                        onClick={() => handleInsightAction(insight)}
-                        className="w-full px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm font-medium"
-                      >
-                        {insight.action || 'Get answer'}
+                  {insight.query && (
+                    <button
+                      onClick={() => handleInsightAction(insight)}
+                      className="w-full px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl font-semibold text-sm shadow-md shadow-violet-500/20 transition-all"
+                    >
+                      {insight.action || 'Get answer'}
                     </button>
                   )}
                 </div>
@@ -1546,13 +1552,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
             <div className="space-y-4">
               {/* Header + Year Filter */}
               <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                  <h2 className="text-xl font-bold text-slate-900">Financial Analytics</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Financial Analytics</h2>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    <span className="font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Sage G Drive</span>
+                    <span className="font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/80">Sage G Drive</span>
                     {' '}Invoiced revenue (titrec/titrline) · AR aging · Fiscal year (Apr–Mar)
                   </p>
-                  </div>
+                </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {availableYears.map(y => (
                     <button key={y} onClick={() => setAnalyticsYear(y)}
@@ -1592,7 +1598,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 <>
                   {/* KPI Cards row */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
                         {sageKpis.is_ytd ? 'Revenue YTD' : `${analyticsYear > 0 ? `FY${analyticsYear}` : 'All Time'} Revenue`}
                       </p>
@@ -1605,20 +1611,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         </p>
                       )}
                       </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Prior Year Revenue</p>
                       <p className="text-2xl font-bold text-slate-900">
                         ${(sageKpis.total_ly_revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Open Sales Orders</p>
                       <p className="text-2xl font-bold text-slate-900">{sageKpis.open_sales_orders || 0}</p>
                       <p className="text-xs text-slate-500 mt-1">
                         ${(sageKpis.open_so_value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} value
                         </p>
                       </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Active Customers</p>
                       <p className="text-2xl font-bold text-slate-900">{sageKpis.active_customers || 0}</p>
                       {sageArAging && (
@@ -1822,38 +1828,38 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                 })
                 .slice(0, 10);
 
-              return (
+                return (
                 <div className="border-t border-slate-200 pt-6 space-y-4">
-                          <div>
-                    <h2 className="text-xl font-bold text-slate-900">Operations Dashboard</h2>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">Operations Dashboard</h2>
                     <p className="text-sm text-slate-500 mt-0.5">
-                      <span className="font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded border border-violet-200">MiSys</span>
+                      <span className="font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-lg border border-violet-200/80">MiSys</span>
                       {' '}Manufacturing, procurement & inventory — not Sage invoiced data
                     </p>
                           </div>
 
                   {/* Operations KPI Cards */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white border border-violet-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-violet-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-1">Active MOs</p>
                       <p className="text-2xl font-bold text-slate-900">{activeMOs.length}</p>
                       <p className="text-xs text-slate-500 mt-1">
                         {activeMOs.filter((mo: any) => String(mo.Status) === '1').length} released, {activeMOs.filter((mo: any) => String(mo.Status) === '0').length} open
                       </p>
                             </div>
-                    <div className="bg-white border border-blue-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-blue-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Open POs</p>
                       <p className="text-2xl font-bold text-slate-900">{openPOs.length}</p>
                       <p className="text-xs text-slate-500 mt-1">{topSuppliers.length} suppliers</p>
                           </div>
-                    <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-emerald-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Inventory Value</p>
                       <p className="text-2xl font-bold text-slate-900">
                         ${(inventoryValue / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })}K
                       </p>
                       <p className="text-xs text-slate-500 mt-1">{itemsWithStock.length} items in stock</p>
                           </div>
-                    <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-red-200/80 rounded-xl p-4 shadow-soft hover:shadow-soft-lg transition-shadow">
                       <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-1">Low Stock Alerts</p>
                       <p className="text-2xl font-bold text-red-600">{belowReorder.length}</p>
                       <p className="text-xs text-slate-500 mt-1">below reorder level</p>
