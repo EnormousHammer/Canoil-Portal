@@ -388,7 +388,7 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
               </button>
             )}
           </div>
-        )}
+        ) : null}
 
         {message.sources && message.sources.length > 0 && (
           <div className={`mt-3 pt-2 border-t ${isUser ? "border-white/20" : "border-slate-100"}`}>

@@ -175,20 +175,20 @@ function App() {
     }
   }, [showLoadingScreen]);
 
-  // Live cycling status - show what we're loading during long backend fetch
+  // Live cycling status - show what we're loading during long backend fetch (cycle every 1.5s)
   useEffect(() => {
     if (!showLoadingScreen || dataLoaded) return;
     const interval = setInterval(() => {
       setLoadingStatus(prev => {
-        const isWaitingPhase = prev === 'Loading data from backend...' || LOADING_CYCLE_MESSAGES.includes(prev);
+        const isWaitingPhase = prev === 'Connecting to backend...' || prev === 'Loading data from backend...' || LOADING_CYCLE_MESSAGES.includes(prev);
         if (isWaitingPhase) {
           const msg = LOADING_CYCLE_MESSAGES[loadingCycleIndexRef.current % LOADING_CYCLE_MESSAGES.length];
           loadingCycleIndexRef.current += 1;
           return msg;
         }
-        return prev; // Don't override "Connecting...", "Finalizing...", etc.
+        return prev; // Don't override "Finalizing...", "✅ All data loaded", etc.
       });
-    }, 2500);
+    }, 1500);
     return () => clearInterval(interval);
   }, [showLoadingScreen, dataLoaded]);
 
@@ -404,7 +404,8 @@ function App() {
       // Non-blocking G: Drive check (runs in parallel with backend connection)
       const gdriveCheckPromise = gdriveLoader.checkGDriveAccessAsync();
       
-      setLoadingStatus('Loading data from backend...');
+      setLoadingStatus('Loading Items & Master Data...');
+      loadingCycleIndexRef.current = 1; // Cycle will show next message in 1.5s
       // Load actual data from G: Drive (this now loads Sales Orders in parallel internally)
       let result;
       try {
@@ -597,7 +598,7 @@ function App() {
                   style={{ width: `${loadingProgress}%` }}
                 />
               </div>
-              <p className="text-white/80 text-sm mt-3 font-medium">
+              <p className="text-white font-semibold mt-3 text-base">
                 {Math.round(loadingProgress)}% • {loadingStatus}
               </p>
             </div>
