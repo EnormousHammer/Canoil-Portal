@@ -73,11 +73,11 @@ function parseDate(dateStr: string): Date | null {
 
 function getStatusBadge(status: string) {
   const s = status.toLowerCase();
-  if (s.includes('shortage')) return { classes: 'bg-red-50 text-red-700 border border-red-200', icon: true };
-  if (s.includes('released') || s.includes('production') || s.includes('progress')) return { classes: 'bg-blue-50 text-blue-700 border border-blue-200', icon: false };
-  if (s.includes('complete') || s.includes('done') || s.includes('shipped')) return { classes: 'bg-green-50 text-green-700 border border-green-200', icon: false };
-  if (s.includes('hold') || s.includes('wait')) return { classes: 'bg-yellow-50 text-yellow-700 border border-yellow-200', icon: false };
-  return { classes: 'bg-gray-50 text-gray-600 border border-gray-200', icon: false };
+  if (s.includes('shortage')) return { classes: 'bg-red-100 text-red-800', icon: true };
+  if (s.includes('released') || s.includes('production') || s.includes('progress')) return { classes: 'bg-slate-100 text-slate-700', icon: false };
+  if (s.includes('complete') || s.includes('done') || s.includes('shipped')) return { classes: 'bg-emerald-100 text-emerald-800', icon: false };
+  if (s.includes('hold') || s.includes('wait')) return { classes: 'bg-amber-100 text-amber-800', icon: false };
+  return { classes: 'bg-slate-100 text-slate-600', icon: false };
 }
 
 function getProgressColor(pct: number) {
@@ -555,7 +555,7 @@ export function ProductionScheduleMPS() {
       {/* ── Customer legend — scrollable filter chips ──────────── */}
       <div className="bg-white border-b border-slate-200/80 px-6 py-2.5 flex-shrink-0">
         <div className="flex items-center gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+          <span className="text-slate-500 text-xs font-medium uppercase tracking-wider whitespace-nowrap flex-shrink-0">
             Customers
           </span>
           {customerLegend.map(([name, { bg, count }]) => (
@@ -627,22 +627,22 @@ export function ProductionScheduleMPS() {
                       <span className="bg-slate-900 text-white px-2.5 py-1 rounded-md text-xs font-semibold tracking-wider min-w-[44px] text-center">
                         {wc}
                       </span>
-                      <span className="text-slate-700 font-semibold text-sm">
+                      <span className="text-slate-600 text-sm font-medium">
                         {wcOrders.length} order{wcOrders.length !== 1 ? 's' : ''}
                       </span>
                       {wcComplete > 0 && (
-                        <span className="text-xs text-emerald-600 font-medium bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                        <span className="text-xs font-medium text-emerald-700 bg-emerald-100 rounded-md px-2 py-0.5">
                           {wcComplete} done
                         </span>
                       )}
                       {wcShortages > 0 && (
-                        <span className="flex items-center gap-1 text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                        <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 rounded-md px-2 py-0.5">
                           <AlertTriangle className="w-3 h-3" />
                           {wcShortages} shortage{wcShortages !== 1 ? 's' : ''}
                         </span>
                       )}
                       {wcAtRisk > 0 && wcAtRisk !== wcShortages && (
-                        <span className="flex items-center gap-1 text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 rounded-md px-2 py-0.5">
                           <Clock className="w-3 h-3" />
                           {wcAtRisk} at risk
                         </span>
@@ -655,7 +655,7 @@ export function ProductionScheduleMPS() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] text-slate-500 uppercase tracking-wider font-medium">
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[11px] text-slate-500 uppercase tracking-wider font-medium">
                             <th className="pl-4 pr-2 py-3 text-left w-14"></th>
                             <th className="px-3 py-3 text-left w-24">SO</th>
                             <th className="px-3 py-3 text-left w-20">MO</th>
@@ -683,17 +683,17 @@ export function ProductionScheduleMPS() {
                               <tr
                                 key={`${order.so_number}-${idx}`}
                                 onClick={() => setSelectedOrder(order)}
-                                className={`cursor-pointer transition-all duration-200 border-l-4 group ${
+                                className={`cursor-pointer transition-colors border-l-4 group ${
                                   isShortage
-                                    ? 'border-l-red-500 bg-red-50/30 hover:bg-red-50/60'
+                                    ? 'border-l-red-400 bg-red-50/50 hover:bg-red-50'
                                     : atRisk
-                                    ? 'border-l-amber-400 bg-amber-50/30 hover:bg-amber-50/60'
-                                    : 'border-l-transparent hover:bg-blue-50/50 hover:border-l-blue-300'
+                                    ? 'border-l-amber-400 bg-amber-50/50 hover:bg-amber-50'
+                                    : 'border-l-transparent hover:bg-slate-50'
                                 }`}
                               >
                                 {/* Line # + indicator */}
                                 <td className="pl-4 pr-2 py-3 w-14">
-                                  <span className="text-slate-400 text-xs font-mono">{order.line_number || '—'}</span>
+                                  <span className="text-slate-500 text-xs font-mono">{order.line_number || '—'}</span>
                                 </td>
                                 {/* SO */}
                                 <td className="px-3 py-3">
@@ -705,7 +705,7 @@ export function ProductionScheduleMPS() {
                                 </td>
                                 {/* Status */}
                                 <td className="px-3 py-3">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${badge.classes}`}>
+                                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${badge.classes}`}>
                                     {badge.icon && <AlertTriangle className="w-3 h-3 flex-shrink-0" />}
                                     {order.status}
                                   </span>
@@ -720,7 +720,7 @@ export function ProductionScheduleMPS() {
                                 <td className="px-3 py-3 min-w-[180px]">
                                   <div className="flex items-center gap-2">
                                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getCustomerColor(order.product).bg}`} />
-                                    <span className="text-slate-700 text-sm truncate max-w-[200px]" title={custName}>
+                                    <span className="text-slate-600 text-sm truncate max-w-[200px]" title={custName}>
                                       {custName || '—'}
                                     </span>
                                   </div>
@@ -731,40 +731,40 @@ export function ProductionScheduleMPS() {
                                 </td>
                                 {/* Ready */}
                                 <td className="px-3 py-3 text-right">
-                                  <span className={`font-semibold tabular-nums text-sm ${(order.ready || 0) > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                  <span className={`font-medium tabular-nums text-sm ${(order.ready || 0) > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
                                     {(order.ready || 0).toLocaleString()}
                                   </span>
                                 </td>
                                 {/* Progress */}
                                 <td className="px-3 py-3">
                                   <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-slate-100 rounded-full h-2.5 min-w-[72px] overflow-hidden">
+                                    <div className="flex-1 bg-slate-100 rounded-full h-2 min-w-[72px] overflow-hidden">
                                       <div
-                                        className={`h-2.5 rounded-full transition-all duration-300 ${getProgressColor(actualPct)}`}
+                                        className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(actualPct)}`}
                                         style={{ width: `${Math.min(actualPct, 100)}%` }}
                                       />
                                     </div>
-                                    <span className={`text-xs font-semibold w-9 text-right tabular-nums ${
-                                      actualPct >= 100 ? 'text-emerald-600' : actualPct > 0 ? 'text-slate-600' : 'text-slate-300'
+                                    <span className={`text-xs font-medium w-9 text-right tabular-nums ${
+                                      actualPct >= 100 ? 'text-emerald-700' : actualPct > 0 ? 'text-slate-600' : 'text-slate-400'
                                     }`}>
                                       {Math.round(actualPct)}%
                                     </span>
                                   </div>
                                 </td>
                                 {/* Dates */}
-                                <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap tabular-nums">{order.start_date || '—'}</td>
-                                <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap tabular-nums">{order.end_date || '—'}</td>
+                                <td className="px-3 py-3 text-slate-600 text-xs whitespace-nowrap tabular-nums">{order.start_date || '—'}</td>
+                                <td className="px-3 py-3 text-slate-600 text-xs whitespace-nowrap tabular-nums">{order.end_date || '—'}</td>
                                 <td className="px-3 py-3 whitespace-nowrap">
-                                  <span className={`text-xs font-medium tabular-nums ${order.promised_date ? 'text-amber-600' : 'text-slate-300'}`}>
+                                  <span className={`text-xs font-medium tabular-nums ${order.promised_date ? 'text-amber-700' : 'text-slate-400'}`}>
                                     {order.promised_date || '—'}
                                   </span>
                                 </td>
                                 {/* DTC */}
                                 <td className="px-3 py-3 text-center">
                                   {order.dtc > 0 ? (
-                                    <span className={`text-xs font-bold tabular-nums ${getDtcStyle(order.dtc)}`}>{order.dtc}d</span>
+                                    <span className={`text-xs font-semibold tabular-nums ${getDtcStyle(order.dtc)}`}>{order.dtc}d</span>
                                   ) : (
-                                    <span className="text-slate-300 text-xs">—</span>
+                                    <span className="text-slate-400 text-xs">—</span>
                                   )}
                                 </td>
                               </tr>
