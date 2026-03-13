@@ -398,13 +398,27 @@ def search_price(query: str, customer: Optional[str] = None, limit: int = 50) ->
 
     matched = [r for _, r in scored[:limit]]
 
+    # When customer specified, filter to only rows matching that customer (partial match ok)
+    if customer and matched:
+        cust_lower = customer.lower()
+        matched = [
+            r for r in matched
+            if cust_lower in (r.get("customer") or "").lower()
+            or (r.get("customer") or "").lower() in cust_lower
+        ]
+
+    # Summarize which currencies exist in the matched rows (for transparency: no conversion)
+    currencies_in_data = sorted(set((r.get("currency") or "").strip().upper() for r in matched if (r.get("currency") or "").strip()))
+    currencies_in_data = [c for c in currencies_in_data if c]
+
     return {
-        "matched_rows":  matched,
-        "total_matched": len(scored),
-        "query":         query,
-        "customer":      customer,
-        "source_file":   data.get("file_name", PRICE_LIST_FILE_NAME),
-        "sheet_names":   data.get("sheet_names", []),
+        "matched_rows":       matched,
+        "total_matched":     len(matched),
+        "query":             query,
+        "customer":          customer,
+        "currencies_available": currencies_in_data,
+        "source_file":       data.get("file_name", PRICE_LIST_FILE_NAME),
+        "sheet_names":       data.get("sheet_names", []),
     }
 
 

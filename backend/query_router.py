@@ -79,6 +79,13 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             "reol46b",
             "margin on",
             "for duke",
+            "export",
+            "export to",
+            "give me a file",
+            "download",
+            "as a file",
+            "as excel",
+            "as xlsx",
         ],
         "data_sources": ["sage_customer_item_sales"],
         "model": "gpt-5.2-chat-latest",
@@ -282,7 +289,7 @@ INTENT_DEFINITIONS: Dict[str, Any] = {
             "quote for",
             "email quote",
         ],
-        "data_sources": ["price_list", "misys_inventory"],
+        "data_sources": ["price_list"],  # Price list only — no inventory (lead time uses fallback)
         "model": "gpt-5.2-chat-latest",
     },
 }
@@ -293,11 +300,72 @@ FOCUSED_INTENTS = frozenset(INTENT_DEFINITIONS.keys()) - {"so_detail"}
 # Intents that are purely Sage-based (no MiSys raw_data needed)
 SAGE_ONLY_INTENTS = frozenset({"so_list", "ar_aging", "customers", "customer_item_sales"})
 
-# Intents that need MiSys raw_data (pricing needs inventory for lead-time check)
-MISYS_INTENTS = frozenset({"inventory", "manufacturing", "purchase_orders", "bom", "pricing"})
+# Intents that need MiSys raw_data (pricing uses price list only — no MiSys load)
+MISYS_INTENTS = frozenset({"inventory", "manufacturing", "purchase_orders", "bom"})
 
 # Intents that use the Google Drive price list
 PRICE_LIST_INTENTS = frozenset({"pricing"})
+
+# Query → data needs (for fallback path: load only what the query suggests)
+# Each key = trigger words (any match); value = data category
+_DATA_NEEDS_TRIGGERS: Dict[str, list] = {
+    "inventory": ["stock", "inventory", "on hand", "qty", "quantity", "item", "reorder", "warehouse", "available", "low stock", "out of stock", "fulfill", "have we got"],
+    "customers": ["customer", "revenue", "ytd", "who are our", "top customer", "best customer", "biggest customer"],
+    "sales_orders": ["so ", "sales order", "order #", "pending order", "open order", "fulfill", "ship", "delivery", "real sales"],
+    "ar_aging": ["ar ", "receivable", "overdue", "owe", "outstanding", "past due", "balance", "aged"],
+    "manufacturing": ["mo ", "manufacturing", "production", "wip", "work in progress", "build order"],
+    "purchase_orders": ["po ", "purchase order", "vendor", "supplier", "procurement"],
+    "bom": ["bom", "bill of material", "component", "ingredient", "what goes into", "made from", "recipe"],
+    "pricing": ["price", "pricing", "quote", "cost per", "rate for", "how much"],
+}
+
+# Data need → JSON file names to load (when loading from G Drive)
+DATA_NEEDS_TO_FILES: Dict[str, list] = {
+    "inventory": ["Items.json", "MIITEM.json", "MIILOC.json"],
+    "sales_orders": ["SalesOrderHeaders.json", "SalesOrderDetails.json"],
+    "manufacturing": ["ManufacturingOrderHeaders.json", "ManufacturingOrderDetails.json", "MIMOH.json", "MIMOMD.json"],
+    "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json", "MIPOH.json", "MIPOD.json"],
+    "bom": ["BillsOfMaterial.json", "BillOfMaterialDetails.json", "MIBOMH.json", "MIBOMD.json"],
+}
+
+
+def infer_data_needs(query: str) -> set:
+    """
+    Infer which data categories the user's query likely needs.
+    Used by the fallback path to load ONLY relevant data instead of everything.
+    Returns empty set = load everything (conservative).
+    """
+    q = (query or "").lower().strip()
+    if len(q) < 3:
+        return set()
+    needs = set()
+    for category, triggers in _DATA_NEEDS_TRIGGERS.items():
+        if any(t in q for t in triggers):
+            needs.add(category)
+    return needs
+
+
+def get_files_to_load_for_needs(needs: set) -> list:
+    """Return list of JSON file names to load given inferred data needs."""
+    if not needs:
+        return []  # Caller interprets empty as "load all"
+    files = set()
+    for need in needs:
+        files.update(DATA_NEEDS_TO_FILES.get(need, []))
+    return list(files)
+
+
+# Soft intent keywords: when no pattern/keyword matches, try these for a second pass
+_SOFT_INTENT_KEYWORDS: Dict[str, list] = {
+    "inventory": ["stock", "inventory", "item", "qty", "reorder", "warehouse"],
+    "customers": ["customer", "revenue", "top customer", "who are our"],
+    "so_list": ["sales order", "open order", "pending order", "how many order"],
+    "ar_aging": ["ar ", "receivable", "overdue", "owe", "outstanding"],
+    "manufacturing": ["mo ", "manufacturing", "production", "wip"],
+    "purchase_orders": ["po ", "purchase order", "vendor", "supplier"],
+    "bom": ["bom", "component", "ingredient", "what goes into"],
+    "pricing": ["price", "quote", "how much", "cost per"],
+}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -346,7 +414,99 @@ def classify_intent(query: str) -> Tuple[str, int]:
             best_intent = "customer_item_sales"
             best_score = 5
 
+    # Soft pass: when still general, try broader keywords to infer intent (score 3 = use focused path)
+    if best_intent == "general" and best_score == 0:
+        for intent_name, keywords in _SOFT_INTENT_KEYWORDS.items():
+            if any(kw in query_lower for kw in keywords):
+                best_intent = intent_name
+                best_score = 3
+                break
+
     return best_intent, best_score
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PRICING QUERY PARSER (customer + product from natural reply)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _parse_pricing_query(query: str) -> Tuple[str, str]:
+    """
+    Extract customer and product from pricing follow-up replies like:
+    "duke energy reolube46b all sizes and both cad and usd"
+    "Motion Industries ANDEROL food grade cases"
+    Returns (customer_search, product_search).
+    """
+    q = (query or "").strip()
+    if not q:
+        return "", ""
+    q_lower = q.lower()
+
+    # Strip common modifiers (sizes, currency) so we can parse customer + product
+    for mod in [
+        r"\ball\s+sizes?\b", r"\bboth\s+cad\s+and\s+usd\b", r"\bcad\s+and\s+usd\b",
+        r"\busd\s+and\s+cad\b", r"\bevery\s+size\b", r"\ball\s+size\b",
+        r"\b(and\s+)?both\b", r"\bcad\b", r"\busd\b", r"\band\b",
+    ]:
+        q_lower = re.sub(mod, " ", q_lower, flags=re.IGNORECASE)
+    q_lower = re.sub(r"\s+", " ", q_lower).strip()
+
+    # Known product patterns (order matters: more specific first)
+    product_patterns = [
+        (r"reolube\s*46\s*b", "reolube46b"),
+        (r"reol46b\w*", "reol46b"),
+        (r"reol46b", "reol46b"),
+        (r"anderol\s*fgcs", "anderol fgcs"),
+        (r"anderol\s*food\s*grade", "anderol food grade"),
+        (r"mov\s*long\s*life", "mov long life"),
+        (r"mov\s*extra", "mov extra"),
+        (r"reolube\s*32", "reolube 32"),
+        (r"reolube\s*46\s*xc", "reolube 46xc"),
+        (r"\bvsg\b", "vsg"),
+        (r"\bmov\b", "mov"),
+        (r"\banderol\b", "anderol"),
+        (r"\breolube\b", "reolube"),
+    ]
+
+    product_search = ""
+    for pat, canonical in product_patterns:
+        m = re.search(pat, q_lower, re.I)
+        if m:
+            product_search = canonical
+            # Remove the product from the string to get customer
+            q_lower = re.sub(pat, " ", q_lower, flags=re.IGNORECASE)
+            break
+
+    # If no pattern matched, try to find a product-like token (compact alphanumeric)
+    if not product_search:
+        tokens = re.findall(r"\b([A-Za-z0-9]{4,})\b", q_lower)
+        skip = {"duke", "energy", "progress", "carolinas", "industries", "motion", "inc", "ltd", "corp"}
+        for t in tokens:
+            if t not in skip and ("reol" in t or "mov" in t or "anderol" in t or "vsg" in t):
+                product_search = t
+                q_lower = q_lower.replace(t, " ")
+                break
+
+    q_lower = re.sub(r"\s+", " ", q_lower).strip()
+
+    # Customer = what remains, or known names
+    customer_search = ""
+    # Known customer substrings (partial match for price list)
+    known_customers = [
+        ("duke energy", "Duke Energy"),
+        ("motion industries", "Motion Industries"),
+        ("lanxess", "LANXESS"),
+        ("spectra", "Spectra"),
+    ]
+    for key, name in known_customers:
+        if key in q_lower:
+            customer_search = name
+            break
+
+    if not customer_search and q_lower:
+        # Use remaining text as customer (e.g. "duke energy" or "motion industries")
+        customer_search = q_lower.title()
+
+    return customer_search, product_search
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -653,7 +813,10 @@ def fetch_targeted_data(
                     if (not cust_search or not item_search) and openai_client:
                         cust_search, item_search = ai_extract_product_customer(query, openai_client)
                     if cust_search and item_search:
-                        result = sage_service.get_customer_item_sales(cust_search, item_search, limit=500)
+                        misys_items = raw_data.get("Items.json") or raw_data.get("MIITEM.json") or []
+                        result = sage_service.get_customer_item_sales(
+                            cust_search, item_search, limit=500, misys_items=misys_items
+                        )
                         context["customer_item_sales"] = result
                     else:
                         context["customer_item_sales"] = {
@@ -720,8 +883,9 @@ def fetch_targeted_data(
                 import re as _re
                 q = raw_data.get("_query", "")
                 customer = None
+                product_query = q
                 # "for [CustomerName]" at end
-                cust_match = _re.search(r"\bfor\s+([A-Z][A-Za-z\s&'.\-]+)$", q)
+                cust_match = _re.search(r"\bfor\s+([A-Z][A-Za-z\s&'.\-]+)$", q, _re.I)
                 if cust_match:
                     customer = cust_match.group(1).strip()
                 # "Customer, Product, Size" format (e.g. "Motion industries, ANDEROL food grade, cases")
@@ -729,9 +893,17 @@ def fetch_targeted_data(
                     parts = [p.strip() for p in q.split(",", 2)]
                     if len(parts) >= 2:
                         customer = parts[0]
-                        q = q  # full query for product/size matching
+                        product_query = q
+                else:
+                    # Smart parse: "duke energy reolube46b all sizes and both cad and usd" → customer="Duke Energy", product="reolube 46b"
+                    _cust, _prod = _parse_pricing_query(q)
+                    if _cust:
+                        customer = _cust
+                    if _prod:
+                        # Add space for "reolube46b" → "reolube 46b" so price list match works
+                        product_query = _prod.replace("reolube46b", "reolube 46b").replace("reol46b", "reolube 46b")
                 result = search_price(
-                    query=q,
+                    query=product_query,
                     customer=customer,
                     limit=60,
                 )
@@ -739,11 +911,12 @@ def fetch_targeted_data(
                     context["price_list"] = {"error": result["error"]}
                 else:
                     context["price_list"] = {
-                        "source_file":   result["source_file"],
-                        "sheet_names":   result["sheet_names"],
-                        "total_matched": result["total_matched"],
-                        "customer_filter": result["customer"],
-                        "matched_rows":  result["matched_rows"],
+                        "source_file":         result["source_file"],
+                        "sheet_names":         result["sheet_names"],
+                        "total_matched":       result["total_matched"],
+                        "customer_filter":     result["customer"],
+                        "currencies_available": result.get("currencies_available", []),
+                        "matched_rows":        result["matched_rows"],
                     }
             except Exception as exc:
                 context["price_list"] = {"error": str(exc)}
@@ -815,7 +988,7 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "You are a business intelligence AI for Canoil Canada Ltd.\n"
         "Answer using ONLY the customer_item_sales data in the DATA section.\n\n"
         "The user asked about sales of a specific product to a specific customer (orders, pricing, cost, margins).\n"
-        "Display a markdown table with columns: SO Number | Qty | Unit Price | Line Total | Cost | Total Cost | Margin % | Order Date\n"
+        "Display a markdown table with columns: SO Number | Currency | Qty | Unit Price | Line Total | Cost | Total Cost | Margin % | Order Date\n"
         "Include all columns that have data. If cost/margin are null, show '-' or omit that column.\n"
         "Sort by Order Date (newest first).\n"
         "At the end, provide a summary: total orders, total quantity sold, total revenue, total cost (if available), overall margin % (if available).\n"
@@ -868,18 +1041,21 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "- In the email body, ALWAYS show BOTH: (1) unit price for 1x, and (2) line total for the quantity requested.\n"
         "  Example: \"Unit price (1 case): $XXX.XX | Quantity: 2 cases | Total: $X,XXX.XX\"\n"
         "- If customer/product not specified, ask for them before showing prices.\n\n"
+        "CURRENCY — CRITICAL (no conversion, use only what exists):\n"
+        "- NEVER convert between CAD and USD. Use ONLY the prices from the master price list.\n"
+        "- The DATA includes 'currencies_available' — the list of currencies that actually exist for this customer/product.\n"
+        "- If the user asks for 'both CAD and USD' but only one exists: clearly state it. "
+        "Example: \"No USD pricing for Duke Energy in the master price list, but here is the CAD pricing:\" then show the CAD rows.\n"
+        "- If only CAD exists: say \"CAD only\" and show the data. If only USD exists: say \"USD only\" and show the data.\n"
+        "- If both exist: show both. Never fabricate or convert — only display what is in the data.\n\n"
         "LEAD TIME (when drafting a quote email):\n"
-        "- Use the inventory_items / inventory_by_location data in DATA to check stock for the quoted product.\n"
-        "- Match the product by Item No. or Description (e.g. Anderol FGCS-2, 61203671-58).\n"
-        "- If stock (On Hand, qStk, Stock, or Quantity on Hand) >= quantity requested: "
-        "\"Lead Time: 5-7 days\"\n"
-        "- If stock < quantity requested or item not found: "
-        "\"Lead Time: To be confirmed (subject to availability)\" or similar.\n"
+        "- Use: \"Lead time: To be confirmed (subject to availability)\". "
+        "Stock levels are not available in this response — user can check inventory separately.\n"
         "- Include the Lead Time line in the quote email body.\n\n"
-        "CAD vs USD (when company has both):\n"
-        "- If the DATA shows the same company/customer with BOTH CAD and USD rows (different currency), "
-        "you MUST ask: \"Is this for [Company Name] CAD or USD?\" before showing prices or drafting the quote.\n"
-        "- Do not assume — always clarify which location/currency the user needs."
+        "CAD vs USD (when user asks for both but data has both):\n"
+        "- If the DATA shows BOTH CAD and USD rows, show both.\n"
+        "- If the user did not specify and data has both, you may ask: \"Is this for CAD or USD?\" "
+        "or show both with clear currency labels."
     ),
 }
 

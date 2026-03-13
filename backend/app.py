@@ -7376,7 +7376,6 @@ _MISYS_INTENT_FILES = {
     "inventory":       ["Items.json", "MIILOC.json"],
     "purchase_orders": ["PurchaseOrders.json", "PurchaseOrderDetails.json"],
     "bom":             ["BillsOfMaterial.json", "BillOfMaterialDetails.json"],
-    "pricing":         ["Items.json", "MIILOC.json"],
     "customer_item_sales": ["Items.json", "MIITEM.json"],  # For Recent Cost / Standard Cost lookup
 }
 
@@ -7567,7 +7566,7 @@ def chat_query():
 
             # Only use focused path when we have a clear, recognisable intent
             # (so_detail is excluded — it is already handled by SmartSOSearch above)
-            if _intent in _FOCUSED_INTENTS and _confidence >= 5:
+            if _intent in _FOCUSED_INTENTS and _confidence >= 3:
 
                 # For MiSys-based intents load directly from G: Drive / Drive API.
                 # customer_item_sales needs Items.json for Recent Cost from MiSys.
@@ -7652,6 +7651,17 @@ def chat_query():
             print(f"⚠️ Query router error: {_router_err}, falling through to standard path")
         # ── END SMART QUERY ROUTER ────────────────────────────────────────────
 
+        # Infer what data this query needs (for fallback: load only relevant data)
+        try:
+            from query_router import infer_data_needs as _infer_data_needs, get_files_to_load_for_needs as _get_files_to_load
+            _data_needs = _infer_data_needs(user_query)
+            _files_to_load = _get_files_to_load(_data_needs)
+            if _data_needs:
+                print(f"📋 Inferred data needs: {_data_needs} → load {len(_files_to_load)} file types")
+        except ImportError:
+            _data_needs = set()
+            _files_to_load = []
+
         # Use frontend-provided data when available (same data user sees in main app)
         raw_data = {}
         frontend_data = data.get('data')
@@ -7692,15 +7702,26 @@ def chat_query():
                 return jsonify({"error": f"Cannot access data: {error}"}), 500
             
             folder_path = os.path.join(GDRIVE_BASE, latest_folder)
-            json_files = glob.glob(os.path.join(folder_path, "*.json"))
-            
-            for json_file in json_files:
-                file_name = os.path.basename(json_file)
-                file_data = load_json_file(json_file)
-                raw_data[file_name] = file_data
-            print(f"📂 Chat loaded from folder: {folder_path} ({len(raw_data)} files)")
+            all_json_files = glob.glob(os.path.join(folder_path, "*.json"))
+            # Smart load: only load files matching inferred needs (or all if needs empty)
+            if _files_to_load:
+                for json_file in all_json_files:
+                    file_name = os.path.basename(json_file)
+                    if file_name in _files_to_load:
+                        file_data = load_json_file(json_file)
+                        if file_data:
+                            raw_data[file_name] = file_data
+                print(f"📂 Chat loaded from folder: {folder_path} ({len(raw_data)} files, targeted)")
+            else:
+                for json_file in all_json_files:
+                    file_name = os.path.basename(json_file)
+                    file_data = load_json_file(json_file)
+                    if file_data:
+                        raw_data[file_name] = file_data
+                print(f"📂 Chat loaded from folder: {folder_path} ({len(raw_data)} files)")
         
-        # Sales Orders: use frontend data when provided, else load from backend
+        # Sales Orders: use frontend data when provided, else load from backend (only if query needs it)
+        _need_sales = not _data_needs or "sales_orders" in _data_needs
         using_frontend_data = bool(frontend_data and raw_data)
         has_frontend_sales = bool(
             (frontend_data or {}).get('RealSalesOrders') or
@@ -7709,7 +7730,7 @@ def chat_query():
         )
         if using_frontend_data and has_frontend_sales:
             print("✅ Using sales order data from frontend (RealSalesOrders / ParsedSalesOrders / SalesOrdersByStatus)")
-        else:
+        elif _need_sales:
             print("RETRY: Loading Sales Orders for ChatGPT analysis...")
             sales_orders_data = load_sales_orders()
             if sales_orders_data:
@@ -7727,6 +7748,8 @@ def chat_query():
                 else:
                     raw_data['SalesOrders.json'] = raw_data.get('SalesOrders.json', [])
                     raw_data['TotalOrders'] = raw_data.get('TotalOrders', 0)
+        else:
+            print("⏭️ Skipping sales order load (query does not need it)")
         
         # Load Sage G Drive data (customers, open SOs, AR aging) for complete business context
         # Cache the computed context for 15 minutes to avoid re-processing on every request
@@ -7739,88 +7762,101 @@ def chat_query():
             _sage_chat_context_cache = {}
             _sage_chat_context_ts = 0.0
 
+        _need_customers = not _data_needs or "customers" in _data_needs
+        _need_ar = not _data_needs or "ar_aging" in _data_needs
+        _need_sage_sos = not _data_needs or "sales_orders" in _data_needs
+
         if _sage_chat_context_cache and (current_sage_time - _sage_chat_context_ts) < sage_cache_ttl:
             sage_context = _sage_chat_context_cache
             print(f"⚡ Using cached Sage chat context ({int(current_sage_time - _sage_chat_context_ts)}s old)")
         elif SAGE_GDRIVE_AVAILABLE and sage_gdrive_service:
-            try:
-                # Top customers by YTD revenue
-                cust_result = sage_gdrive_service.get_customers(inactive=False, limit=500)
-                customers = cust_result.get('customers', [])
-                if customers:
-                    top_customers = sorted(customers, key=lambda c: c.get('dAmtYtd') or 0, reverse=True)[:20]
-                    sage_context['sage_customers'] = {
-                        'total_active': cust_result.get('total', 0),
-                        'top_20_by_ytd_revenue': [
-                            {
-                                'name': c['sName'],
-                                'city': c.get('sCity', ''),
-                                'province': c.get('sProvState', ''),
-                                'ytd_revenue': c.get('dAmtYtd') or 0,
-                                'last_year_revenue': c.get('dLastYrAmt') or 0,
-                                'credit_limit': c.get('dCrLimit') or 0,
-                                'last_sale_date': c.get('dtLastSal', ''),
-                                'terms_days': c.get('nNetDay') or 0,
-                                'currency': 'USD' if c.get('lCurrncyId') == 2 else 'CAD',
-                            }
-                            for c in top_customers
-                        ],
-                        'total_ytd_revenue': sum(c.get('dAmtYtd') or 0 for c in customers),
-                    }
-                    print(f"✅ Sage: {cust_result.get('total', 0)} customers loaded")
-            except Exception as e:
-                print(f"⚠️ Sage customers load failed: {e}")
+            if _need_customers:
+                try:
+                    # Top customers by YTD revenue
+                    cust_result = sage_gdrive_service.get_customers(inactive=False, limit=500)
+                    customers = cust_result.get('customers', [])
+                    if customers:
+                        top_customers = sorted(customers, key=lambda c: c.get('dAmtYtd') or 0, reverse=True)[:20]
+                        sage_context['sage_customers'] = {
+                            'total_active': cust_result.get('total', 0),
+                            'top_20_by_ytd_revenue': [
+                                {
+                                    'name': c['sName'],
+                                    'city': c.get('sCity', ''),
+                                    'province': c.get('sProvState', ''),
+                                    'ytd_revenue': c.get('dAmtYtd') or 0,
+                                    'last_year_revenue': c.get('dLastYrAmt') or 0,
+                                    'credit_limit': c.get('dCrLimit') or 0,
+                                    'last_sale_date': c.get('dtLastSal', ''),
+                                    'terms_days': c.get('nNetDay') or 0,
+                                    'currency': 'USD' if c.get('lCurrncyId') == 2 else 'CAD',
+                                }
+                                for c in top_customers
+                            ],
+                            'total_ytd_revenue': sum(c.get('dAmtYtd') or 0 for c in customers),
+                        }
+                        print(f"✅ Sage: {cust_result.get('total', 0)} customers loaded")
+                except Exception as e:
+                    print(f"⚠️ Sage customers load failed: {e}")
+            else:
+                print("⏭️ Skipping Sage customers (query does not need it)")
 
-            try:
-                # Sage sales orders (open/active)
-                so_result = sage_gdrive_service.get_sales_orders(limit=200)
-                sage_sos = so_result.get('sales_orders', [])
-                if sage_sos:
-                    open_sos = [o for o in sage_sos if not o.get('bCleared') and not o.get('bQuote')]
-                    sage_context['sage_sales_orders'] = {
-                        'total': so_result.get('total', 0),
-                        'open_count': len(open_sos),
-                        'open_value': sum(o.get('dTotal') or 0 for o in open_sos),
-                        'sample_open': [
-                            {
-                                'so_number': o.get('sSONum', ''),
-                                'customer': o.get('sCustomerName') or o.get('sName', ''),
-                                'total': o.get('dTotal') or 0,
-                                'order_date': str(o.get('dtSODate', ''))[:10],
-                                'ship_date': str(o.get('dtShipDate', ''))[:10],
-                                'status': 'Filled' if o.get('nFilled') == 2 else 'Partial' if o.get('nFilled') == 1 else 'Open',
-                            }
-                            for o in open_sos[:25]
-                        ],
-                    }
-                    print(f"✅ Sage: {len(sage_sos)} sales orders loaded")
-            except Exception as e:
-                print(f"⚠️ Sage sales orders load failed: {e}")
+            if _need_sage_sos:
+                try:
+                    # Sage sales orders (open/active)
+                    so_result = sage_gdrive_service.get_sales_orders(limit=200)
+                    sage_sos = so_result.get('sales_orders', [])
+                    if sage_sos:
+                        open_sos = [o for o in sage_sos if not o.get('bCleared') and not o.get('bQuote')]
+                        sage_context['sage_sales_orders'] = {
+                            'total': so_result.get('total', 0),
+                            'open_count': len(open_sos),
+                            'open_value': sum(o.get('dTotal') or 0 for o in open_sos),
+                            'sample_open': [
+                                {
+                                    'so_number': o.get('sSONum', ''),
+                                    'customer': o.get('sCustomerName') or o.get('sName', ''),
+                                    'total': o.get('dTotal') or 0,
+                                    'order_date': str(o.get('dtSODate', ''))[:10],
+                                    'ship_date': str(o.get('dtShipDate', ''))[:10],
+                                    'status': 'Filled' if o.get('nFilled') == 2 else 'Partial' if o.get('nFilled') == 1 else 'Open',
+                                }
+                                for o in open_sos[:25]
+                            ],
+                        }
+                        print(f"✅ Sage: {len(sage_sos)} sales orders loaded")
+                except Exception as e:
+                    print(f"⚠️ Sage sales orders load failed: {e}")
+            else:
+                print("⏭️ Skipping Sage sales orders (query does not need it)")
 
-            try:
-                # AR aging summary
-                ar_result = sage_gdrive_service.get_ar_aging()
-                aging = ar_result.get('aging', [])
-                if aging:
-                    sage_context['sage_ar_aging'] = {
-                        'total_ar': ar_result.get('total_ar', 0),
-                        'total_customers': ar_result.get('total_customers', 0),
-                        'top_balances': [
-                            {
-                                'customer': r.get('sName', ''),
-                                'current': r.get('current') or 0,
-                                'd30': r.get('d30') or 0,
-                                'd60': r.get('d60') or 0,
-                                'd90': r.get('d90') or 0,
-                                'd90plus': r.get('d90plus') or 0,
-                                'total': r.get('total') or 0,
-                            }
-                            for r in aging[:20]
-                        ],
-                    }
-                    print(f"✅ Sage: AR aging loaded — total AR ${ar_result.get('total_ar', 0):,.0f}")
-            except Exception as e:
-                print(f"⚠️ Sage AR aging load failed: {e}")
+            if _need_ar:
+                try:
+                    # AR aging summary
+                    ar_result = sage_gdrive_service.get_ar_aging()
+                    aging = ar_result.get('aging', [])
+                    if aging:
+                        sage_context['sage_ar_aging'] = {
+                            'total_ar': ar_result.get('total_ar', 0),
+                            'total_customers': ar_result.get('total_customers', 0),
+                            'top_balances': [
+                                {
+                                    'customer': r.get('sName', ''),
+                                    'current': r.get('current') or 0,
+                                    'd30': r.get('d30') or 0,
+                                    'd60': r.get('d60') or 0,
+                                    'd90': r.get('d90') or 0,
+                                    'd90plus': r.get('d90plus') or 0,
+                                    'total': r.get('total') or 0,
+                                }
+                                for r in aging[:20]
+                            ],
+                        }
+                        print(f"✅ Sage: AR aging loaded — total AR ${ar_result.get('total_ar', 0):,.0f}")
+                except Exception as e:
+                    print(f"⚠️ Sage AR aging load failed: {e}")
+            else:
+                print("⏭️ Skipping Sage AR aging (query does not need it)")
 
             # Cache the computed context if we got any data
             if sage_context:
