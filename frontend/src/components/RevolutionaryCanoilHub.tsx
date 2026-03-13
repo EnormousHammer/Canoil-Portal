@@ -322,9 +322,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
     }
   }, [activeSection]);
 
-  const [poSortField, setPoSortField] = useState<string>('PO No.');
+  const [poSortField, setPoSortField] = useState<string>('Order Date');
   const [poSortDirection, setPoSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [moSortField, setMoSortField] = useState<string>('Mfg. Order No.');
+  const [moSortField, setMoSortField] = useState<string>('Order Date');
   const [moSortDirection, setMoSortDirection] = useState<'asc' | 'desc'>('desc');
   const [moStatusFilter, setMoStatusFilter] = useState<string>('all');
   const [moCustomerFilter, setMoCustomerFilter] = useState<string>('all');
@@ -1015,6 +1015,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           return direction === 'asc' ? aNum - bNum : bNum - aNum;
         }
       }
+      // Order Date fallbacks (MO: Order Date/Created Date; PO: Order Date/ordDt)
+      if (field === 'Order Date') {
+        aVal = aVal ?? a['ordDt'] ?? a['Created Date'];
+        bVal = bVal ?? b['ordDt'] ?? b['Created Date'];
+      }
       // Handle dates with proper MISys conversion
       if (field.includes('Date') && (aVal || bVal)) {
         const aDate = parseMISysDate(aVal);
@@ -1286,7 +1291,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   const [expandedFormulas, setExpandedFormulas] = useState<Set<string>>(new Set());
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
   const [componentUsage, setComponentUsage] = useState<any[]>([]);
-  const [sortBy, setSortBy] = useState<'name' | 'name-desc' | 'description' | 'description-desc' | 'quantity' | 'quantity-asc' | 'status'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'name-desc' | 'description' | 'description-desc' | 'quantity' | 'quantity-asc' | 'status'>('status');
   const [filterStatus, setFilterStatus] = useState<'all' | 'ready' | 'short'>('all');
 
   // Reset current page when filters change
@@ -7153,30 +7158,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
           {/* Inventory */}
           {activeSection === 'inventory' && (
             <div className="space-y-4">
-              {/* STREAMLINED INVENTORY HEADER - Light Theme (BOM + Shortage in same section) */}
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-                {/* Header Bar */}
-                <div className="bg-gradient-to-r from-emerald-50/80 via-green-50/80 to-teal-50/80 border-b border-slate-100 px-6 py-4">
-                  <div className="flex items-center justify-between">
+              {/* Modern Inventory Header */}
+              <div className="rounded-2xl overflow-hidden shadow-soft-lg border border-slate-200/80 bg-white">
+                {/* Header Bar - Dark gradient */}
+                <div className="relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 px-6 py-5 overflow-hidden">
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                  <div className="relative flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center ring-1 ring-white/20">
+                        <svg className="w-6 h-6 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-slate-900">Inventory & BOM</h2>
-                        <p className="text-slate-500 text-sm">{filteredInventory.length.toLocaleString()} items • Real-time MiSys data</p>
+                        <h2 className="text-xl font-bold text-white tracking-tight">Inventory & BOM</h2>
+                        <p className="text-emerald-200/90 text-sm mt-0.5">{filteredInventory.length.toLocaleString()} items • Real-time MiSys data</p>
                       </div>
                     </div>
-                    
-                    {/* MiSys Capabilities toggle */}
                     <button
                       onClick={() => setShowMISysCapabilities(!showMISysCapabilities)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                         showMISysCapabilities 
-                          ? 'bg-slate-700 text-white shadow-md' 
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white/20 text-white' 
+                          : 'bg-white/10 text-emerald-100 hover:bg-white/15 border border-white/20'
                       }`}
                       title="What MiSys Manufacturing can do"
                     >
@@ -7186,68 +7190,59 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       {showMISysCapabilities ? 'Hide' : 'What MiSys Can Do'}
                     </button>
                   </div>
-                  
-                  {/* Quick Stats - Compact pills */}
-                  <div className="flex flex-wrap items-center gap-2 mt-4">
-                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wider mr-1">Filter:</span>
-                      <button 
-                        onClick={() => setInventoryFilter('all')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'all' 
-                            ? 'bg-blue-600 text-white shadow-md' 
-                            : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-                        }`}
-                      >
-                        All: {(data['Items.json'] || []).length.toLocaleString()}
-                      </button>
-                      <button 
-                        onClick={() => setInventoryFilter('low-stock')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'low-stock' 
-                            ? 'bg-amber-500 text-white shadow-md' 
-                            : 'bg-white text-amber-600 hover:bg-amber-50 border border-amber-200'
-                        }`}
-                      >
-                        Low: {inventoryMetrics.lowStockCount.toLocaleString()}
-                      </button>
-                      <button 
-                        onClick={() => setInventoryFilter('out-of-stock')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'out-of-stock' 
-                            ? 'bg-red-500 text-white shadow-md' 
-                            : 'bg-white text-red-600 hover:bg-red-50 border border-red-200'
-                        }`}
-                      >
-                        Out: {inventoryMetrics.outOfStock.toLocaleString()}
-                      </button>
-                      <button 
-                        onClick={() => setInventoryFilter('raw')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'raw' ? 'bg-slate-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-                        }`}
-                        title="Raw / purchased (Item Type 0)"
-                      >
-                        Raw: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
-                      </button>
-                      <button 
-                        onClick={() => setInventoryFilter('assembled')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'assembled' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200'
-                        }`}
-                        title="Assembled (Item Type 1)"
-                      >
-                        Assembled: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
-                      </button>
-                      <button 
-                        onClick={() => setInventoryFilter('formula')}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                          inventoryFilter === 'formula' ? 'bg-teal-600 text-white shadow-md' : 'bg-white text-teal-600 hover:bg-teal-50 border border-teal-200'
-                        }`}
-                        title="Formula / blend (Item Type 2)"
-                      >
-                        Formula: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
-                      </button>
-                    </div>
+                  {/* Filter pills - glass style */}
+                  <div className="relative flex flex-wrap items-center gap-2 mt-4 p-1 bg-white/5 rounded-xl w-fit backdrop-blur-sm">
+                    <button 
+                      onClick={() => setInventoryFilter('all')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'all' ? 'bg-white/20 text-white shadow-sm' : 'text-emerald-200/90 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      All: {(data['Items.json'] || []).length.toLocaleString()}
+                    </button>
+                    <button 
+                      onClick={() => setInventoryFilter('low-stock')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'low-stock' ? 'bg-amber-500/90 text-white shadow-sm' : 'text-amber-200/90 hover:bg-amber-500/20 hover:text-white'
+                      }`}
+                    >
+                      Low: {inventoryMetrics.lowStockCount.toLocaleString()}
+                    </button>
+                    <button 
+                      onClick={() => setInventoryFilter('out-of-stock')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'out-of-stock' ? 'bg-red-500/90 text-white shadow-sm' : 'text-red-200/90 hover:bg-red-500/20 hover:text-white'
+                      }`}
+                    >
+                      Out: {inventoryMetrics.outOfStock.toLocaleString()}
+                    </button>
+                    <button 
+                      onClick={() => setInventoryFilter('raw')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'raw' ? 'bg-white/20 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title="Raw / purchased (Item Type 0)"
+                    >
+                      Raw: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
+                    </button>
+                    <button 
+                      onClick={() => setInventoryFilter('assembled')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'assembled' ? 'bg-indigo-500/90 text-white shadow-sm' : 'text-indigo-200/90 hover:bg-indigo-500/20 hover:text-white'
+                      }`}
+                      title="Assembled (Item Type 1)"
+                    >
+                      Assembled: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
+                    </button>
+                    <button 
+                      onClick={() => setInventoryFilter('formula')}
+                      className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        inventoryFilter === 'formula' ? 'bg-teal-500/90 text-white shadow-sm' : 'text-teal-200/90 hover:bg-teal-500/20 hover:text-white'
+                      }`}
+                      title="Formula / blend (Item Type 2)"
+                    >
+                      Formula: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
+                    </button>
                   </div>
                 </div>
                 
@@ -8854,27 +8849,27 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
               ) : (
               <>
                 {/* Search & Controls Bar */}
-                <div className="mb-6 space-y-3">
+                <div className="mb-6 p-4 bg-slate-50/50 rounded-xl border border-slate-200/80">
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative flex-1 min-w-[200px]">
+                    <div className="relative flex-1 min-w-[220px]">
                       <input
                         type="text"
                         value={inventorySearchQuery}
                         onChange={(e) => setInventorySearchQuery(e.target.value)}
-                        placeholder="🔍 Smart search: 'tx case', 'bottle 1l', 'semi synthetic'... (finds partial matches!)"
-                        className="w-full px-6 py-3.5 text-base rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
+                        placeholder="Search items... 'tx case', 'bottle 1l', 'semi synthetic'"
+                        className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 placeholder-slate-400 transition-all"
                       />
                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-emerald-500">
-                        <span className="text-lg">⚡</span>
-                        <span className="text-[10px] font-semibold uppercase">Smart</span>
+                        <span className="text-sm">⚡</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider">Smart</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <label className="text-sm text-slate-600 font-medium">Sort:</label>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sort</label>
                       <select
                         value={sortBy}
                         onChange={(e) => { setSortBy(e.target.value as any); setCurrentPage(1); }}
-                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 font-medium"
                       >
                         <option value="name">Item No. A–Z</option>
                         <option value="name-desc">Item No. Z–A</option>
@@ -8883,11 +8878,11 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         <option value="quantity-asc">Stock Low→High</option>
                         <option value="status">Status (Out first)</option>
                       </select>
-                      <label className="text-sm text-slate-600 font-medium ml-2">Show:</label>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Show</label>
                       <select
                         value={itemsPerPage}
                         onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
+                        className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 font-medium"
                       >
                         <option value={12}>12</option>
                         <option value={20}>20</option>
@@ -8915,7 +8910,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {(() => {
                   const startIndex = (currentPage - 1) * itemsPerPage;
                   const endIndex = itemsPerPage === 999999 ? filteredInventory.length : startIndex + itemsPerPage;
@@ -8978,29 +8973,29 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         setShowItemModal(true);
                         setShowAnalytics(false);
                       }}
-                      className={`group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 ${
+                      className={`group relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 border ${
                         stock <= 0 
-                          ? 'bg-gradient-to-br from-red-50 via-white to-rose-50 shadow-lg shadow-red-100/50 hover:shadow-xl hover:shadow-red-200/60 ring-1 ring-red-200/60' 
+                          ? 'bg-white shadow-soft hover:shadow-soft-lg border-red-200/60 hover:border-red-300/80' 
                           : stock <= reorderLevel && reorderLevel > 0
-                            ? 'bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-lg shadow-amber-100/50 hover:shadow-xl hover:shadow-amber-200/60 ring-1 ring-amber-200/60'
-                            : 'bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:shadow-emerald-200/40 ring-1 ring-slate-200/60'
+                            ? 'bg-white shadow-soft hover:shadow-soft-lg border-amber-200/60 hover:border-amber-300/80'
+                            : 'bg-white shadow-soft hover:shadow-soft-lg border-slate-200/80 hover:border-emerald-300/60'
                       }`}
                     >
                       {/* Decorative corner accent */}
-                      <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-20 ${
-                        stock <= 0 ? 'bg-red-400' : stock <= reorderLevel && reorderLevel > 0 ? 'bg-amber-400' : 'bg-emerald-400'
+                      <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-10 ${
+                        stock <= 0 ? 'bg-red-500' : stock <= reorderLevel && reorderLevel > 0 ? 'bg-amber-500' : 'bg-emerald-500'
                       }`} />
                       
                       {/* Header: Item + Badge */}
                       <div className="relative flex items-start justify-between gap-2 px-4 pt-4 pb-2">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-black text-gray-900 tracking-tight truncate">{item["Item No."]}</h3>
-                          <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">{item["Description"]}</p>
+                          <h3 className="text-sm font-bold text-slate-900 tracking-tight truncate">{item["Item No."]}</h3>
+                          <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{item["Description"]}</p>
                         </div>
-                        <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
+                        <span className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg ${
                           isAssembled 
-                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-200' 
-                            : 'bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-sky-200'
+                            ? 'bg-orange-500/90 text-white' 
+                            : 'bg-sky-500/90 text-white'
                         }`}>
                           {isAssembled ? 'ASM' : 'RAW'}
                         </span>
@@ -9010,19 +9005,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       <div className="flex gap-2 mx-3 mb-3">
                         <div className={`flex-1 py-3 px-3 rounded-xl relative ${
                           canoilStock <= 0 
-                            ? hasCustomerStock ? 'bg-gradient-to-br from-purple-100 to-purple-50' : 'bg-gradient-to-br from-red-100 to-red-50'
+                            ? hasCustomerStock ? 'bg-purple-50' : 'bg-red-50'
                             : canoilStock <= reorderLevel && reorderLevel > 0
-                              ? 'bg-gradient-to-br from-amber-100 to-amber-50'
-                              : 'bg-gradient-to-br from-emerald-100/80 to-emerald-50/50'
+                              ? 'bg-amber-50'
+                              : 'bg-emerald-50/80'
                         }`}>
-                          <div className={`text-2xl font-black tracking-tight ${
+                          <div className={`text-xl font-bold tracking-tight ${
                             canoilStock <= 0 
                               ? hasCustomerStock ? 'text-purple-600' : 'text-red-600'
                               : canoilStock <= reorderLevel && reorderLevel > 0 
                                 ? 'text-amber-600' 
                                 : 'text-emerald-600'
                           }`}>{canoilStock.toLocaleString()}</div>
-                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
+                          <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
                             {hasCustomerStock ? 'Our Stock' : 'Stock'}
                           </div>
                           {/* Customer stock indicator - show owner name */}
@@ -9032,15 +9027,15 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                             </div>
                           )}
                         </div>
-                        <div className="flex-1 py-3 px-3 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50">
-                          <div className="text-2xl font-black text-slate-700 tracking-tight">{wip.toLocaleString()}</div>
-                          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">WIP</div>
+                        <div className="flex-1 py-3 px-3 rounded-xl bg-slate-50">
+                          <div className="text-xl font-bold text-slate-700 tracking-tight">{wip.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">WIP</div>
                         </div>
                       </div>
 
-                      {/* Stock Health Bar */}
-                      <div className="mx-3 mb-3">
-                        <div className="h-1.5 bg-gray-200/80 rounded-full overflow-hidden">
+                      {/* Stock Health Bar - stock vs reorder level */}
+                      <div className="mx-3 mb-3" title={reorderLevel > 0 ? `Stock: ${stock.toLocaleString()} / Reorder at: ${reorderLevel.toLocaleString()}` : (stock > 0 ? 'In stock' : 'Out of stock')}>
+                        <div className="h-1.5 bg-slate-200/80 rounded-full overflow-hidden">
                           <div 
                             className={`h-full ${stockHealthColor} transition-all duration-500 rounded-full`}
                             style={{ width: `${stockHealthPercent}%` }}
@@ -9049,15 +9044,19 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       </div>
 
                       {/* Footer: On Order + Cost + Add to Cart */}
-                      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50/80 to-transparent border-t border-gray-100/80">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                          <span className="text-xs text-gray-500">
-                            <span className="font-bold text-gray-700">{onOrder.toLocaleString()}</span> on order
-                          </span>
+                      <div className="flex items-center justify-between px-4 py-3 bg-slate-50/60 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {onOrder > 0 ? (
+                            <>
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
+                              <span className="text-xs text-slate-500">
+                                <span className="font-semibold text-slate-700">{onOrder.toLocaleString()}</span> on order
+                              </span>
+                            </>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-black text-gray-800">{formatCAD(cost)}</div>
+                          <div className="text-sm font-bold text-slate-800">{formatCAD(cost)}</div>
                           {/* Add to Cart Button */}
                           <button
                             onClick={(e) => {
@@ -9066,7 +9065,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               setQuickAddQty(1);
                               setShowQuickAddPopup(true);
                             }}
-                            className="p-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-md hover:shadow-lg"
+                            className="p-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-sm hover:shadow-md"
                             title="Add to PR Cart"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -9080,13 +9079,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                 })}
                     </div>
 
-                    {/* Bottom Alphabet & Number Filter - Same as Top */}
+                    {/* Pagination Bar */}
                     {filteredInventory.length > 0 && (
-                      <div className="mt-6 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-4">
+                      <div className="mt-6 p-4 bg-slate-50/50 rounded-xl border border-slate-200/80">
                         {/* Pagination Controls */}
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-600">
-                            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredInventory.length)} to {Math.min(currentPage * itemsPerPage, filteredInventory.length)} of {filteredInventory.length} items
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                          <div className="text-sm text-slate-600 font-medium">
+                            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredInventory.length)}–{Math.min(currentPage * itemsPerPage, filteredInventory.length)} of {filteredInventory.length}
                           </div>
                           
                           <div className="flex items-center gap-2">
@@ -9096,8 +9095,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               disabled={currentPage === 1}
                               className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                                 currentPage === 1
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
                               }`}
                             >
                               ← Previous
@@ -9123,13 +9122,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                     <button
                                       key={1}
                                       onClick={() => setCurrentPage(1)}
-                                      className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                      className="px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                                     >
                                       1
                                     </button>
                                   );
                                   if (startPage > 2) {
-                                    pages.push(<span key="ellipsis1" className="px-2 text-gray-400">...</span>);
+                                    pages.push(<span key="ellipsis1" className="px-2 text-slate-400">...</span>);
                                   }
                                 }
                                 
@@ -9141,8 +9140,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                       onClick={() => setCurrentPage(i)}
                                       className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                                         i === currentPage
-                                          ? 'bg-blue-500 text-white shadow-md'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                          ? 'bg-emerald-500 text-white shadow-sm'
+                                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                                       }`}
                                     >
                                       {i}
@@ -9153,13 +9152,13 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                                 // Last page
                                 if (endPage < totalPages) {
                                   if (endPage < totalPages - 1) {
-                                    pages.push(<span key="ellipsis2" className="px-2 text-gray-400">...</span>);
+                                    pages.push(<span key="ellipsis2" className="px-2 text-slate-400">...</span>);
                                   }
                                   pages.push(
                                     <button
                                       key={totalPages}
                                       onClick={() => setCurrentPage(totalPages)}
-                                      className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                      className="px-3 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                                     >
                                       {totalPages}
                                     </button>
@@ -9176,8 +9175,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                               disabled={currentPage >= Math.ceil(filteredInventory.length / itemsPerPage)}
                               className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                                 currentPage >= Math.ceil(filteredInventory.length / itemsPerPage)
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
                               }`}
                             >
                               Next →
