@@ -12,22 +12,22 @@ type SortDir = 'asc' | 'desc';
 
 function getStatusBadge(status: string) {
   const s = status.toLowerCase();
-  if (s.includes('shipped') && s.includes('invoiced')) return 'bg-green-50 text-green-700 border border-green-200';
-  if (s.includes('shipped')) return 'bg-blue-50 text-blue-700 border border-blue-200';
-  if (s.includes('ready')) return 'bg-cyan-50 text-cyan-700 border border-cyan-200';
-  if (s.includes('very late')) return 'bg-red-50 text-red-700 border border-red-200';
-  if (s.includes('late')) return 'bg-amber-50 text-amber-700 border border-amber-200';
-  if (s.includes('on schedule')) return 'bg-blue-50 text-blue-700 border border-blue-200';
-  if (s.includes('unscheduled')) return 'bg-gray-50 text-gray-600 border border-gray-200';
-  return 'bg-gray-50 text-gray-600 border border-gray-200';
+  if (s.includes('shipped') && s.includes('invoiced')) return 'bg-emerald-100 text-emerald-800';
+  if (s.includes('shipped')) return 'bg-blue-100 text-blue-800';
+  if (s.includes('ready')) return 'bg-cyan-100 text-cyan-800';
+  if (s.includes('very late')) return 'bg-red-100 text-red-800';
+  if (s.includes('late')) return 'bg-amber-100 text-amber-800';
+  if (s.includes('on schedule')) return 'bg-blue-100 text-blue-800';
+  if (s.includes('unscheduled')) return 'bg-slate-100 text-slate-600';
+  return 'bg-slate-100 text-slate-600';
 }
 
 function getDestBadge(dest: string) {
   const d = dest.toLowerCase();
-  if (d.includes('domestic')) return 'bg-sky-50 text-sky-700 border border-sky-200';
-  if (d.includes('transborder')) return 'bg-orange-50 text-orange-700 border border-orange-200';
-  if (d.includes('international')) return 'bg-violet-50 text-violet-700 border border-violet-200';
-  return 'bg-gray-50 text-gray-600 border border-gray-200';
+  if (d.includes('domestic')) return 'bg-sky-100 text-sky-800';
+  if (d.includes('transborder')) return 'bg-orange-100 text-orange-800';
+  if (d.includes('international')) return 'bg-violet-100 text-violet-800';
+  return 'bg-slate-100 text-slate-600';
 }
 
 export const ShipmentsPage: React.FC = () => {
@@ -202,10 +202,12 @@ export const ShipmentsPage: React.FC = () => {
 
   if (loading && !shipments.length) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/50 font-sans antialiased">
         <div className="text-center">
-          <Truck className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-700 text-xl font-medium">Loading {activeTab.year} Shipments...</p>
+          <div className="inline-flex p-4 rounded-2xl bg-white shadow-lg border border-slate-200/60 mb-4">
+            <Truck className="w-16 h-16 text-blue-500 animate-pulse" />
+          </div>
+          <p className="text-slate-700 text-xl font-semibold">Loading {activeTab.year} Shipments...</p>
           <p className="text-slate-400 text-sm mt-2">Fetching live data from Canoil Central</p>
         </div>
       </div>
@@ -213,27 +215,29 @@ export const ShipmentsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50/50 font-sans antialiased">
 
       {/* ── Header ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 shadow-sm">
+      <div className="bg-white px-6 py-5 flex-shrink-0 border-b border-slate-200/80">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Truck className="w-8 h-8 text-blue-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900 text-white">
+              <Truck className="w-5 h-5" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Shipments</h1>
-              <div className="flex items-center gap-3 text-sm">
+              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Shipments</h1>
+              <div className="flex items-center gap-3 text-sm mt-0.5">
                 <span className="text-slate-500">
                   {filtered.length === shipments.length
-                    ? <><span className="text-slate-800 font-semibold">{shipments.length}</span> shipments in {activeTab.year}</>
-                    : <><span className="text-slate-800 font-semibold">{filtered.length}</span> of {shipments.length} shipments</>}
+                    ? <><span className="text-slate-900 font-semibold">{shipments.length}</span> shipments in {activeTab.year}</>
+                    : <><span className="text-slate-900 font-semibold">{filtered.length}</span> of {shipments.length} shipments</>}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
-                  <span className="text-green-600 text-xs font-medium">LIVE</span>
+                  <span className="text-emerald-600 text-xs font-medium">LIVE</span>
                   <span className="text-slate-400 text-xs">
                     {loading ? 'Syncing...' : secondsSince < 3 ? 'Just updated' : `${secondsSince}s ago`}
                   </span>
@@ -244,26 +248,26 @@ export const ShipmentsPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             {/* Year Tabs */}
-            <div className="flex bg-gray-100 rounded-lg border border-gray-200 p-0.5">
+            <div className="flex bg-slate-100 rounded-lg p-0.5">
               {YEAR_TABS.map(tab => (
                 <button
                   key={tab.year}
                   onClick={() => switchTab(tab)}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                     activeTab.year === tab.year
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   {tab.year}
                 </button>
               ))}
             </div>
-            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors">
               <Download className="w-4 h-4" />
               Export
             </button>
-            <button onClick={() => loadData()} disabled={loading} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg" title="Refresh now">
+            <button onClick={() => loadData()} disabled={loading} className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50 transition-colors" title="Refresh now">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
@@ -271,7 +275,7 @@ export const ShipmentsPage: React.FC = () => {
       </div>
 
       {/* ── Overview Cards ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+      <div className="bg-white border-b border-slate-200/80 px-6 py-4 flex-shrink-0">
         <div className="grid grid-cols-7 gap-3">
           <StatCard label="Total" value={shipments.length} icon={<Package className="w-4 h-4" />} color="text-slate-700" />
           <StatCard label="Shipped & Invoiced" value={statusBreakdown.shipped} icon={<CheckCircle className="w-4 h-4" />} color="text-green-600" />
@@ -292,7 +296,7 @@ export const ShipmentsPage: React.FC = () => {
       {/* ── Pending/Active Section (only if there are pending items) ─── */}
       {pendingShipments.length > 0 && !hasFilters && (
         <div className="px-6 pt-5 pb-2">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -321,7 +325,7 @@ export const ShipmentsPage: React.FC = () => {
                 <tbody className="divide-y divide-amber-100">
                   {pendingShipments.slice(0, 10).map((s, i) => (
                     <tr key={`pending-${i}`} className="hover:bg-amber-100/50 cursor-pointer" onClick={() => selectShipment(s)}>
-                      <td className="px-3 py-2 text-sm font-mono font-semibold text-blue-600">{s.so_number}</td>
+                      <td className="px-3 py-2 text-sm font-mono font-medium text-slate-900">{s.so_number}</td>
                       <td className="px-3 py-2 text-sm text-slate-800 truncate max-w-[200px]">{s.customer}</td>
                       <td className="px-3 py-2"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
                       <td className="px-3 py-2"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getDestBadge(s.destination)}`}>{s.destination}</span></td>
@@ -345,15 +349,15 @@ export const ShipmentsPage: React.FC = () => {
       )}
 
       {/* ── Quick Status Filters ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
+      <div className="bg-white border-b border-slate-200/80 px-6 py-2.5 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-2">
           {[
-            { value: '', label: 'All', color: 'bg-gray-100 text-slate-700 border-gray-300' },
-            { value: 'Late', label: 'Late / Overdue', color: 'bg-red-50 text-red-700 border-red-200' },
-            { value: 'Unscheduled', label: 'Unscheduled', color: 'bg-orange-50 text-orange-700 border-orange-200' },
-            { value: 'Ready', label: 'Ready to Ship', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-            { value: 'On Schedule', label: 'On Schedule', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { value: 'Shipped', label: 'Shipped / Invoiced', color: 'bg-slate-50 text-slate-600 border-slate-200' },
+            { value: '', label: 'All', color: 'bg-slate-100 text-slate-700' },
+            { value: 'Late', label: 'Late / Overdue', color: 'bg-red-100 text-red-800' },
+            { value: 'Unscheduled', label: 'Unscheduled', color: 'bg-amber-100 text-amber-800' },
+            { value: 'Ready', label: 'Ready to Ship', color: 'bg-blue-100 text-blue-800' },
+            { value: 'On Schedule', label: 'On Schedule', color: 'bg-emerald-100 text-emerald-800' },
+            { value: 'Shipped', label: 'Shipped / Invoiced', color: 'bg-slate-100 text-slate-600' },
           ].map(btn => {
             const isActive = statusFilter.toLowerCase().includes(btn.value.toLowerCase()) || (btn.value === '' && !statusFilter);
             const count = btn.value === ''
@@ -363,14 +367,12 @@ export const ShipmentsPage: React.FC = () => {
               <button
                 key={btn.value}
                 onClick={() => setStatusFilter(btn.value)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  isActive
-                    ? btn.color + ' ring-2 ring-offset-1 ring-blue-400'
-                    : 'bg-white text-slate-500 border-gray-200 hover:border-gray-300 hover:text-slate-700'
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  isActive ? btn.color : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                 }`}
               >
                 {btn.label}
-                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white/60' : 'bg-gray-100'}`}>{count}</span>
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${isActive ? 'bg-white/50' : 'bg-slate-200/50'}`}>{count}</span>
               </button>
             );
           })}
@@ -378,16 +380,16 @@ export const ShipmentsPage: React.FC = () => {
       </div>
 
       {/* ── Filters ─── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
+      <div className="bg-white border-b border-slate-200/80 px-6 py-2.5 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search SO, customer, invoice..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="bg-white border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-slate-800 text-sm w-64 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-slate-900 text-sm w-64 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -397,15 +399,15 @@ export const ShipmentsPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-400" />
-            <select value={destFilter} onChange={e => setDestFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
+            <select value={destFilter} onChange={e => setDestFilter(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300">
               <option value="">All destinations</option>
               {uniqueDests.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select value={termsFilter} onChange={e => setTermsFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm">
+            <select value={termsFilter} onChange={e => setTermsFilter(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300">
               <option value="">All terms</option>
               {uniqueTerms.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <select value={custFilter} onChange={e => setCustFilter(e.target.value)} className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm max-w-[180px]">
+            <select value={custFilter} onChange={e => setCustFilter(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 text-sm max-w-[180px] focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300">
               <option value="">All customers</option>
               {uniqueCustomers.map(c => <option key={c} value={c}>{c.length > 22 ? c.slice(0, 22) + '\u2026' : c}</option>)}
             </select>
@@ -417,7 +419,7 @@ export const ShipmentsPage: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200/80 rounded-xl text-red-700 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />{error}
         </div>
       )}
@@ -425,18 +427,20 @@ export const ShipmentsPage: React.FC = () => {
       {/* ── Main Table ─── */}
       <div className="flex-1 overflow-auto p-6">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Filter className="w-12 h-12 mb-3 opacity-50" />
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="p-4 rounded-2xl bg-white shadow-lg border border-slate-200/60 mb-4">
+              <Filter className="w-12 h-12 opacity-50" />
+            </div>
             <p className="text-lg font-medium text-slate-700">No shipments match</p>
             <p className="text-sm mt-1">Try changing your filters or search query.</p>
-            {hasFilters && <button onClick={clearFilters} className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg text-sm">Clear filters</button>}
+            {hasFilters && <button onClick={clearFilters} className="mt-4 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-colors">Clear filters</button>}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
+                  <tr className="bg-slate-50 border-b border-slate-200">
                     <TH field="so_number" label="SO #" cur={sortField} dir={sortDir} onSort={toggleSort} />
                     <TH field="customer" label="Customer" cur={sortField} dir={sortDir} onSort={toggleSort} />
                     <TH field="status" label="Status" cur={sortField} dir={sortDir} onSort={toggleSort} />
@@ -458,7 +462,7 @@ export const ShipmentsPage: React.FC = () => {
                     return (
                       <React.Fragment key={`${s.so_number}-${i}`}>
                         {showGroupHeader && (
-                          <tr className="bg-gray-50 border-y border-gray-200">
+                          <tr className="bg-slate-50 border-y border-slate-200">
                             <td colSpan={11} className="px-4 py-2.5">
                               <div className="flex items-center gap-2">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span>
@@ -467,8 +471,8 @@ export const ShipmentsPage: React.FC = () => {
                             </td>
                           </tr>
                         )}
-                        <tr onClick={() => selectShipment(s)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group border-b border-gray-100">
-                          <td className="px-4 py-3"><span className="text-sm font-semibold text-blue-600 font-mono">{s.so_number}</span></td>
+                        <tr onClick={() => selectShipment(s)} className="hover:bg-slate-50 transition-colors cursor-pointer group border-b border-slate-100">
+                          <td className="px-4 py-3"><span className="text-sm font-medium text-slate-900 font-mono">{s.so_number}</span></td>
                           <td className="px-4 py-3"><span className="text-sm text-slate-800 block truncate max-w-[220px]" title={s.customer}>{s.customer || <span className="text-slate-400 italic">--</span>}</span></td>
                           <td className="px-4 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${getStatusBadge(s.status)}`}>{s.status}</span></td>
                           <td className="px-4 py-3"><span className="text-sm text-slate-600">{s.shipping_terms}</span></td>
@@ -483,7 +487,7 @@ export const ShipmentsPage: React.FC = () => {
                             ) : <span className="text-sm text-slate-400">--</span>}
                           </td>
                           <td className="px-3 py-3">
-                            <button onClick={e => { e.stopPropagation(); selectShipment(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100">
+                            <button onClick={e => { e.stopPropagation(); selectShipment(s); }} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors opacity-0 group-hover:opacity-100">
                               <Eye className="w-4 h-4" />
                             </button>
                           </td>
@@ -501,12 +505,12 @@ export const ShipmentsPage: React.FC = () => {
       {/* ── Detail Side Panel ─── */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/20" onClick={() => selectShipment(null)} />
-          <div className="relative w-full max-w-lg bg-white shadow-2xl h-full overflow-y-auto border-l border-gray-200 animate-slide-in">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => selectShipment(null)} />
+          <div className="relative w-full max-w-lg bg-white shadow-2xl h-full overflow-y-auto border-l border-slate-200 animate-slide-in">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-4 flex items-center justify-between z-10">
+            <div className="sticky top-0 bg-white border-b border-slate-200/80 px-5 py-4 flex items-center justify-between z-10">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center flex-shrink-0">
                   <FileText className="w-5 h-5 text-white" />
                 </div>
                 <div className="min-w-0">
@@ -517,13 +521,13 @@ export const ShipmentsPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => openSOPdf(selected.so_number)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium transition-colors"
                   title="View Sales Order PDF"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   View SO
                 </button>
-                <button onClick={() => selectShipment(null)} className="p-2 rounded-lg hover:bg-gray-100 text-slate-400 hover:text-slate-700 transition-colors">
+                <button onClick={() => selectShipment(null)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -544,6 +548,9 @@ export const ShipmentsPage: React.FC = () => {
                 <Field label="Freight Rate" value={selected.freight_rate} />
                 <Field label="Customs Duty" value={selected.customs_duty} />
                 <Field label="Invoice #" value={selected.invoice_number} mono />
+                {soDetail?.currency && (
+                  <Field label="Currency" value={soDetail.currency} />
+                )}
               </div>
 
               <hr className="border-gray-200" />
@@ -564,31 +571,35 @@ export const ShipmentsPage: React.FC = () => {
                   </div>
                 ) : soDetail && soDetail.items.length > 0 ? (
                   <div className="space-y-2">
-                    {soDetail.items.filter(it => !it.is_charge).map((item, idx) => (
-                      <div key={idx} className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-slate-800 leading-snug">{item.description || item.item_code}</p>
-                            {item.item_code && item.description && (
-                              <p className="text-xs text-slate-400 font-mono mt-0.5">{item.item_code}</p>
+                    {soDetail.items.filter(it => !it.is_charge).map((item, idx) => {
+                      const cur = soDetail.currency || 'CAD';
+                      const fmt = (n: number) => n.toLocaleString('en-CA', { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      return (
+                        <div key={idx} className="bg-slate-50 rounded-lg border border-slate-200/80 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-slate-800 leading-snug">{item.description || item.item_code}</p>
+                              {item.item_code && item.description && (
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">{item.item_code}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 mt-2 text-xs">
+                            <span className="text-slate-500">
+                              <span className="font-semibold text-slate-700">{item.quantity.toLocaleString()}</span> {item.unit}
+                            </span>
+                            {item.unit_price > 0 && (
+                              <span className="text-slate-500">
+                                @ <span className="font-medium text-slate-600">{fmt(item.unit_price)}</span>
+                              </span>
+                            )}
+                            {item.amount > 0 && (
+                              <span className="ml-auto font-semibold text-slate-700">{fmt(item.amount)}</span>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 mt-2 text-xs">
-                          <span className="text-slate-500">
-                            <span className="font-semibold text-slate-700">{item.quantity.toLocaleString()}</span> {item.unit}
-                          </span>
-                          {item.unit_price > 0 && (
-                            <span className="text-slate-500">
-                              @ <span className="font-medium text-slate-600">${item.unit_price.toFixed(2)}</span>
-                            </span>
-                          )}
-                          {item.amount > 0 && (
-                            <span className="ml-auto font-semibold text-slate-700">${item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : !soLoading && (
                   <p className="text-sm text-slate-400 italic py-2">No item details available for this SO.</p>
@@ -605,20 +616,24 @@ export const ShipmentsPage: React.FC = () => {
                       Charges
                     </h3>
                     <div className="space-y-2">
-                      {soDetail.items.filter(it => it.is_charge).map((charge, idx) => (
-                        <div key={idx} className="flex items-center justify-between px-3 py-2.5 bg-amber-50 rounded-lg border border-amber-200">
-                          <div className="flex items-center gap-2">
-                            <Box className="w-4 h-4 text-amber-600" />
-                            <div>
-                              <span className="text-sm font-medium text-amber-800">{charge.item_code || charge.description}</span>
-                              {charge.quantity > 0 && (
-                                <span className="text-xs text-amber-600 ml-2">×{charge.quantity}</span>
-                              )}
+                      {soDetail.items.filter(it => it.is_charge).map((charge, idx) => {
+                        const cur = soDetail.currency || 'CAD';
+                        const fmt = (n: number) => n.toLocaleString('en-CA', { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        return (
+                          <div key={idx} className="flex items-center justify-between px-3 py-2.5 bg-amber-50 rounded-lg border border-amber-200/80">
+                            <div className="flex items-center gap-2">
+                              <Box className="w-4 h-4 text-amber-600" />
+                              <div>
+                                <span className="text-sm font-medium text-amber-800">{charge.item_code || charge.description}</span>
+                                {charge.quantity > 0 && (
+                                  <span className="text-xs text-amber-600 ml-2">×{charge.quantity}</span>
+                                )}
+                              </div>
                             </div>
+                            <span className="text-sm font-bold text-amber-800 font-mono">{fmt(charge.amount)}</span>
                           </div>
-                          <span className="text-sm font-bold text-amber-800 font-mono">${charge.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </>
@@ -629,23 +644,34 @@ export const ShipmentsPage: React.FC = () => {
                 <>
                   <hr className="border-gray-200" />
                   <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Order Total</h3>
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      Order Total
+                      {soDetail.currency && (
+                        <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{soDetail.currency}</span>
+                      )}
+                    </h3>
                     <div className="space-y-1">
                       {soDetail.subtotal > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500">Subtotal</span>
-                          <span className="text-slate-700 font-mono">${soDetail.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-slate-700 font-mono">{
+                            soDetail.subtotal.toLocaleString('en-CA', { style: 'currency', currency: soDetail.currency || 'CAD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }</span>
                         </div>
                       )}
                       {soDetail.tax > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500">Tax</span>
-                          <span className="text-slate-700 font-mono">${soDetail.tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-slate-700 font-mono">{
+                            soDetail.tax.toLocaleString('en-CA', { style: 'currency', currency: soDetail.currency || 'CAD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm font-bold pt-1 border-t border-slate-200">
                         <span className="text-slate-700">Total</span>
-                        <span className="text-slate-800 font-mono">${soDetail.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-slate-800 font-mono">{
+                          soDetail.total_amount.toLocaleString('en-CA', { style: 'currency', currency: soDetail.currency || 'CAD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }</span>
                       </div>
                     </div>
                   </div>
@@ -677,7 +703,7 @@ export const ShipmentsPage: React.FC = () => {
                   <DateRow label="Invoice Date" value={selected.invoice_date} />
                 </div>
                 {selected.days_left !== null && (
-                  <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200">
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
                     <Clock className="w-4 h-4 text-slate-400" />
                     <span className="text-sm text-slate-600">Days Left</span>
                     <span className={`text-sm font-bold font-mono ml-auto ${(selected.days_left ?? 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>{selected.days_left}</span>
@@ -691,7 +717,7 @@ export const ShipmentsPage: React.FC = () => {
                   <hr className="border-gray-200" />
                   <div>
                     <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notes</h3>
-                    <p className="text-sm text-slate-700 bg-gray-50 rounded-lg p-3 border border-gray-200 leading-relaxed">{selected.notes}</p>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 border border-slate-200/80 leading-relaxed">{selected.notes}</p>
                   </div>
                 </>
               )}
@@ -709,7 +735,7 @@ export const ShipmentsPage: React.FC = () => {
 
 function StatCard({ label, value, icon, color, highlight }: { label: string; value: number; icon: React.ReactNode; color: string; highlight?: boolean }) {
   return (
-    <div className={`rounded-xl border px-3 py-2.5 ${highlight ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+    <div className={`rounded-xl border px-3 py-2.5 transition-colors ${highlight ? 'bg-amber-50 border-amber-200/80' : 'bg-slate-50 border-slate-200/80'}`}>
       <div className="flex items-center gap-1.5 mb-0.5">
         <span className={color}>{icon}</span>
         <span className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">{label}</span>
@@ -722,7 +748,7 @@ function StatCard({ label, value, icon, color, highlight }: { label: string; val
 function TH({ field, label, cur, dir, onSort }: { field: SortField; label: string; cur: SortField; dir: SortDir; onSort: (f: SortField) => void }) {
   const active = cur === field;
   return (
-    <th onClick={() => onSort(field)} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+    <th onClick={() => onSort(field)} className={`px-4 py-3 text-xs font-medium uppercase tracking-wider cursor-pointer select-none whitespace-nowrap ${active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
       <div className="flex items-center gap-1">{label}{active && (dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}</div>
     </th>
   );
