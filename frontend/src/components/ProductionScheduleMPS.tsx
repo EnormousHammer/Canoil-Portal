@@ -314,10 +314,12 @@ export function ProductionScheduleMPS() {
 
   if (loading && orders.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
         <div className="text-center">
-          <Factory className="w-16 h-16 text-blue-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-700 text-xl">Loading Production Schedule...</p>
+          <div className="inline-flex p-4 rounded-2xl bg-white/80 shadow-lg border border-slate-200/60 backdrop-blur-sm mb-4">
+            <Factory className="w-16 h-16 text-blue-500 animate-pulse" />
+          </div>
+          <p className="text-slate-700 text-xl font-semibold">Loading Production Schedule...</p>
           <p className="text-slate-400 text-sm mt-2">Fetching live MPS data</p>
         </div>
       </div>
@@ -327,15 +329,17 @@ export function ProductionScheduleMPS() {
   const todayOffset = differenceInDays(new Date(), weekStart);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-blue-50/20">
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0 shadow-sm">
+      <div className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex-shrink-0 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Factory className="w-8 h-8 text-blue-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-md shadow-blue-500/25">
+              <Factory className="w-5 h-5 text-white" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Production Schedule</h1>
+              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Production Schedule</h1>
               <div className="flex items-center gap-3 text-sm">
                 <span className="text-slate-500">
                   {filteredOrders.length === orders.length
@@ -344,10 +348,10 @@ export function ProductionScheduleMPS() {
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
                   </span>
-                  <span className="text-green-600 text-xs font-medium">LIVE</span>
+                  <span className="text-emerald-600 text-xs font-semibold">LIVE</span>
                   <span className="text-slate-400 text-xs">
                     {loading ? 'Syncing...' :
                       secondsSinceUpdate < 3 ? 'Just updated' :
@@ -360,11 +364,11 @@ export function ProductionScheduleMPS() {
 
           <div className="flex items-center gap-3">
             {/* View mode toggle */}
-            <div className="flex bg-gray-100 rounded-lg border border-gray-200 p-0.5">
+            <div className="flex bg-slate-100/80 rounded-xl p-1 shadow-inner">
               <button
                 onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <LayoutList className="w-4 h-4" />
@@ -372,8 +376,8 @@ export function ProductionScheduleMPS() {
               </button>
               <button
                 onClick={() => setViewMode('timeline')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'timeline' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'timeline' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
@@ -386,21 +390,21 @@ export function ProductionScheduleMPS() {
                 <select
                   value={viewDays}
                   onChange={(e) => setViewDays(parseInt(e.target.value))}
-                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-slate-700 text-sm"
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-shadow"
                 >
                   <option value={7}>1 Week</option>
                   <option value={14}>2 Weeks</option>
                   <option value={21}>3 Weeks</option>
                   <option value={28}>4 Weeks</option>
                 </select>
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 border border-gray-200">
-                  <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-gray-200 rounded">
+                <div className="flex items-center gap-1 bg-slate-100/80 rounded-xl p-1 shadow-inner">
+                  <button onClick={() => navigateWeek(-1)} className="p-2 hover:bg-white/80 rounded-lg transition-colors">
                     <ChevronLeft className="w-4 h-4 text-slate-600" />
                   </button>
-                  <button onClick={goToToday} className="px-3 py-1 hover:bg-gray-200 rounded text-slate-700 text-sm font-medium">
+                  <button onClick={goToToday} className="px-3 py-1.5 hover:bg-white/80 rounded-lg text-slate-700 text-sm font-medium transition-colors">
                     Today
                   </button>
-                  <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-gray-200 rounded">
+                  <button onClick={() => navigateWeek(1)} className="p-2 hover:bg-white/80 rounded-lg transition-colors">
                     <ChevronRight className="w-4 h-4 text-slate-600" />
                   </button>
                 </div>
@@ -409,7 +413,7 @@ export function ProductionScheduleMPS() {
 
             <button
               onClick={() => setShowLegend(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+              className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
               title="Production Capacity & Legend"
             >
               <HelpCircle className="w-4 h-4" />
@@ -419,7 +423,7 @@ export function ProductionScheduleMPS() {
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-500/25 transition-all duration-200"
                 title="Export Data"
               >
                 <Download className="w-4 h-4" />
@@ -429,7 +433,7 @@ export function ProductionScheduleMPS() {
               {showExportMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200/80 z-50 overflow-hidden">
                     <div className="py-1">
                       {[
                         { label: 'Export to CSV', fn: () => exportToCSV(orders) },
@@ -440,7 +444,7 @@ export function ProductionScheduleMPS() {
                         <button
                           key={item.label}
                           onClick={() => { item.fn(); setShowExportMenu(false); }}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 flex items-center gap-2"
+                          className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                         >
                           <Download className="w-4 h-4" />
                           {item.label}
@@ -455,7 +459,7 @@ export function ProductionScheduleMPS() {
             <button
               onClick={() => loadData(true)}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-500/25 disabled:opacity-60 transition-all duration-200"
               title="Force refresh from server"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -465,21 +469,21 @@ export function ProductionScheduleMPS() {
       </div>
 
       {/* ── KPI + Filters ──────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-slate-200/80 px-6 py-3 flex-shrink-0">
         <div className="flex flex-wrap items-center gap-3">
           {/* KPI stat chips */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 rounded-xl border border-slate-200/80 shadow-sm">
               <span className="text-slate-800 font-bold text-sm tabular-nums">{kpi.total}</span>
               <span className="text-slate-500 text-xs">orders</span>
             </div>
             <button
               onClick={() => { setFilterShortageOnly(v => !v); setFilterAtRiskOnly(false); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-200 ${
                 filterShortageOnly
-                  ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                  ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-500/20'
                   : kpi.shortageCount > 0
-                  ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                  ? 'bg-red-50 text-red-700 border-red-200/80 hover:bg-red-100 hover:border-red-300'
                   : 'bg-slate-50 text-slate-400 border-slate-200 cursor-default'
               }`}
               disabled={kpi.shortageCount === 0}
@@ -492,11 +496,11 @@ export function ProductionScheduleMPS() {
             </button>
             <button
               onClick={() => { setFilterAtRiskOnly(v => !v); setFilterShortageOnly(false); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-200 ${
                 filterAtRiskOnly
-                  ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20'
                   : kpi.atRiskCount > 0
-                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200/80 hover:bg-amber-100 hover:border-amber-300'
                   : 'bg-slate-50 text-slate-400 border-slate-200 cursor-default'
               }`}
               disabled={kpi.atRiskCount === 0}
@@ -506,15 +510,15 @@ export function ProductionScheduleMPS() {
               <span className={`text-xs ${filterAtRiskOnly ? 'text-amber-100' : 'text-amber-600'}`}>at risk</span>
             </button>
           </div>
-          <div className="h-5 w-px bg-gray-200" />
+          <div className="h-5 w-px bg-slate-200" />
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search SO, MO, product, customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-slate-800 text-sm w-64 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-slate-800 text-sm w-64 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-shadow"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -522,7 +526,7 @@ export function ProductionScheduleMPS() {
             <select
               value={filterWorkCenter}
               onChange={(e) => setFilterWorkCenter(e.target.value)}
-              className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm"
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-shadow"
             >
               <option value="">All work centers</option>
               {filterOptions.workCenters.map(wc => (
@@ -532,7 +536,7 @@ export function ProductionScheduleMPS() {
             <select
               value={filterCustomer}
               onChange={(e) => setFilterCustomer(e.target.value)}
-              className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-slate-700 text-sm max-w-[180px]"
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 text-sm max-w-[180px] focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-shadow"
             >
               <option value="">All customers</option>
               {filterOptions.customers.map(c => (
@@ -549,7 +553,7 @@ export function ProductionScheduleMPS() {
       </div>
 
       {/* ── Customer legend — scrollable filter chips ──────────── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-2 flex-shrink-0">
+      <div className="bg-white/60 backdrop-blur-sm border-b border-slate-100 px-6 py-2.5 flex-shrink-0">
         <div className="flex items-center gap-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0">
             Customers
@@ -559,10 +563,10 @@ export function ProductionScheduleMPS() {
               key={name}
               onClick={() => setFilterCustomer(filterCustomer === name ? '' : name)}
               title={`${name} — ${count} order${count !== 1 ? 's' : ''}`}
-              className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs rounded-full px-3 py-1 border transition-all flex-shrink-0 ${
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs rounded-full px-3 py-1.5 border transition-all duration-200 flex-shrink-0 ${
                 filterCustomer === name
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-600 border-gray-200 hover:border-slate-300 hover:bg-slate-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
               }`}
             >
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${bg}`} />
@@ -584,7 +588,7 @@ export function ProductionScheduleMPS() {
       </div>
 
       {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200/80 rounded-xl text-red-700 flex items-center gap-2 shadow-sm">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           {error}
         </div>
@@ -593,11 +597,13 @@ export function ProductionScheduleMPS() {
       {/* ── Main content ───────────────────────────────────────── */}
       <div className="flex-1 overflow-auto p-6">
         {filteredOrders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Filter className="w-12 h-12 mb-3 opacity-50" />
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="p-4 rounded-2xl bg-white/80 shadow-lg border border-slate-200/60 mb-4">
+              <Filter className="w-12 h-12 opacity-50" />
+            </div>
             <p className="text-lg font-medium text-slate-700">No orders match the current filters</p>
             <p className="text-sm mt-1">Try clearing filters or search to see all orders.</p>
-            <button onClick={clearFilters} className="mt-4 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg text-sm">
+            <button onClick={clearFilters} className="mt-4 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-colors">
               Clear filters
             </button>
           </div>
@@ -611,14 +617,14 @@ export function ProductionScheduleMPS() {
               const wcAtRisk = wcOrders.filter(o => isOrderAtRisk(o)).length;
               const wcComplete = wcOrders.filter(o => o.status.toLowerCase().includes('complete') || (parseFloat(o.actual_pct) || 0) >= 100).length;
               return (
-                <div key={wc} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div key={wc} className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-md shadow-slate-200/50">
                   {/* Work center header */}
                   <button
                     onClick={() => toggleWC(wc)}
-                    className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-50 hover:bg-slate-100/80 transition-colors border-b border-gray-200"
+                    className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors border-b border-slate-200/80"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-bold tracking-widest min-w-[52px] text-center shadow-sm">
+                      <span className="bg-gradient-to-br from-blue-500 to-blue-600 text-white px-3 py-1.5 rounded-xl text-sm font-bold tracking-widest min-w-[52px] text-center shadow-md shadow-blue-500/25">
                         {wc}
                       </span>
                       <span className="text-slate-700 font-semibold text-sm">
@@ -649,7 +655,7 @@ export function ProductionScheduleMPS() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-gray-200 text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                          <tr className="bg-slate-50/80 border-b border-slate-200/80 text-xs text-slate-500 uppercase tracking-wider font-semibold">
                             <th className="pl-4 pr-2 py-3 text-left w-14"></th>
                             <th className="px-3 py-3 text-left w-24">SO</th>
                             <th className="px-3 py-3 text-left w-20">MO</th>
@@ -665,7 +671,7 @@ export function ProductionScheduleMPS() {
                             <th className="px-3 py-3 text-center w-16">DTC</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100/80">
+                        <tbody className="divide-y divide-slate-100">
                           {wcOrders.map((order, idx) => {
                             const actualPct = parseFloat(order.actual_pct) || 0;
                             const atRisk = isOrderAtRisk(order);
@@ -677,12 +683,12 @@ export function ProductionScheduleMPS() {
                               <tr
                                 key={`${order.so_number}-${idx}`}
                                 onClick={() => setSelectedOrder(order)}
-                                className={`cursor-pointer transition-all border-l-4 group ${
+                                className={`cursor-pointer transition-all duration-200 border-l-4 group ${
                                   isShortage
-                                    ? 'border-l-red-500 bg-red-50/20 hover:bg-red-50/50'
+                                    ? 'border-l-red-500 bg-red-50/30 hover:bg-red-50/60'
                                     : atRisk
-                                    ? 'border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/50'
-                                    : 'border-l-transparent hover:bg-blue-50/40 hover:border-l-blue-300'
+                                    ? 'border-l-amber-400 bg-amber-50/30 hover:bg-amber-50/60'
+                                    : 'border-l-transparent hover:bg-blue-50/50 hover:border-l-blue-300'
                                 }`}
                               >
                                 {/* Line # + indicator */}
@@ -699,7 +705,7 @@ export function ProductionScheduleMPS() {
                                 </td>
                                 {/* Status */}
                                 <td className="px-3 py-3">
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.classes}`}>
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${badge.classes}`}>
                                     {badge.icon && <AlertTriangle className="w-3 h-3 flex-shrink-0" />}
                                     {order.status}
                                   </span>
@@ -732,9 +738,9 @@ export function ProductionScheduleMPS() {
                                 {/* Progress */}
                                 <td className="px-3 py-3">
                                   <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-gray-100 rounded-full h-2 min-w-[72px] overflow-hidden">
+                                    <div className="flex-1 bg-slate-100 rounded-full h-2.5 min-w-[72px] overflow-hidden">
                                       <div
-                                        className={`h-2 rounded-full transition-all ${getProgressColor(actualPct)}`}
+                                        className={`h-2.5 rounded-full transition-all duration-300 ${getProgressColor(actualPct)}`}
                                         style={{ width: `${Math.min(actualPct, 100)}%` }}
                                       />
                                     </div>
@@ -774,10 +780,10 @@ export function ProductionScheduleMPS() {
           </div>
         ) : (
           /* ────── TIMELINE VIEW ────── */
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden min-w-max shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden min-w-max shadow-md shadow-slate-200/50">
             {/* Timeline header */}
-            <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
-              <div className="w-28 flex-shrink-0 px-3 py-2 border-r border-gray-200 bg-white">
+            <div className="flex border-b border-slate-200/80 sticky top-0 bg-white z-10">
+              <div className="w-28 flex-shrink-0 px-3 py-2 border-r border-slate-200/80 bg-white">
                 <span className="text-slate-500 text-xs font-semibold uppercase">Work Center</span>
               </div>
               <div className="flex">
@@ -788,8 +794,8 @@ export function ProductionScheduleMPS() {
                     <div
                       key={i}
                       style={{ width: `${columnWidth}px` }}
-                      className={`flex-shrink-0 px-1 py-2 text-center border-r border-gray-200 ${
-                        isToday ? 'bg-blue-50' : isWeekend ? 'bg-gray-50' : ''
+                      className={`flex-shrink-0 px-1 py-2 text-center border-r border-slate-200/80 ${
+                        isToday ? 'bg-blue-50' : isWeekend ? 'bg-slate-50/80' : ''
                       }`}
                     >
                       <div className={`text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
@@ -809,9 +815,9 @@ export function ProductionScheduleMPS() {
               const { orders: wcOrders, laneCount } = getTimelineOrders(wc);
               const rowHeight = laneCount * LANE_HEIGHT + 8;
               return (
-                <div key={wc} className="flex border-b border-gray-100 hover:bg-gray-50/50">
-                  <div className="w-28 flex-shrink-0 px-3 py-3 border-r border-gray-200 flex items-start pt-3">
-                    <span className="bg-blue-600 px-2.5 py-1 rounded-lg text-white text-xs font-bold">
+                <div key={wc} className="flex border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                  <div className="w-28 flex-shrink-0 px-3 py-3 border-r border-slate-200/80 flex items-start pt-3">
+                    <span className="bg-gradient-to-br from-blue-500 to-blue-600 px-2.5 py-1 rounded-xl text-white text-xs font-bold shadow-sm">
                       {wc}
                     </span>
                   </div>
@@ -846,7 +852,7 @@ export function ProductionScheduleMPS() {
                       return (
                         <div
                           key={`${order.so_number}-${idx}`}
-                          className={`absolute rounded-lg border-2 cursor-pointer transition-all hover:scale-[1.02] hover:z-20 overflow-hidden shadow-sm ${colors.bg} ${colors.border} ${
+                          className={`absolute rounded-xl border-2 cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:z-20 overflow-hidden shadow-md ${colors.bg} ${colors.border} ${
                             order.isShortage ? 'opacity-80 border-dashed' : ''
                           } ${order.isAtRisk && !order.isShortage ? 'ring-2 ring-amber-400' : ''}`}
                           style={{ left: `${left}px`, width: `${width}px`, top: `${top}px`, height: `${LANE_HEIGHT - 8}px` }}
@@ -896,8 +902,8 @@ export function ProductionScheduleMPS() {
         });
 
         return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4" onClick={() => setSelectedOrder(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/60 max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
               {/* ── Colored header band ── */}
               <div className={`${colors.bg} px-6 py-5 flex-shrink-0`}>
@@ -981,7 +987,7 @@ export function ProductionScheduleMPS() {
                 <div className="p-6 space-y-5">
 
                   {/* ── Progress + Quantities ── */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2">
                         <Activity className="w-4 h-4 text-blue-500" /> Production Progress
@@ -1067,7 +1073,7 @@ export function ProductionScheduleMPS() {
                   </div>
 
                   {/* ── Manufacturing Order ── */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                       <Wrench className="w-4 h-4 text-purple-500" /> Manufacturing Order
                     </h3>
@@ -1134,7 +1140,7 @@ export function ProductionScheduleMPS() {
                   </div>
 
                   {/* ── Bill of Materials ── */}
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2">
                         <Package className="w-4 h-4 text-blue-500" /> Bill of Materials
@@ -1255,7 +1261,7 @@ export function ProductionScheduleMPS() {
 
                   {/* ── Finished Good Stock ── */}
                   {selectedOrder.item_data && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-green-500" /> Finished Good Inventory
                       </h3>
@@ -1289,7 +1295,7 @@ export function ProductionScheduleMPS() {
 
                   {/* ── Sales Order Info ── */}
                   {selectedOrder.so_data && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
                       <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                         <FileText className="w-4 h-4 text-slate-500" /> Sales Order Details
                       </h3>
@@ -1318,7 +1324,7 @@ export function ProductionScheduleMPS() {
 
       {/* ── PDF viewer modal ───────────────────────────────────── */}
       {showPdfViewer && pdfUrl && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4" onClick={() => setShowPdfViewer(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={() => setShowPdfViewer(false)}>
           <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-800 px-4 py-3 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -1345,8 +1351,8 @@ export function ProductionScheduleMPS() {
 
       {/* ── Legend / Capacity modal ────────────────────────────── */}
       {showLegend && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowLegend(false)}>
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLegend(false)}>
+          <div className="bg-slate-900 rounded-2xl border border-slate-700/80 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-800 px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <Info className="w-5 h-5 text-blue-400" />
