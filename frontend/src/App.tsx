@@ -542,9 +542,9 @@ function App() {
     }
   };
 
-  // Stable particle positions - computed once so background doesn't jump on progress updates
+  // Background particles - stable positions, animate independently (not tied to progress bar)
   const loadingParticles = useMemo(() =>
-    Array.from({ length: 20 }, (_, i) => ({
+    Array.from({ length: 20 }, () => ({
       left: Math.random() * 100,
       top: Math.random() * 100,
       delay: Math.random() * 2,
@@ -555,17 +555,16 @@ function App() {
   if (showLoadingScreen) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-teal-900 relative overflow-hidden">
-        {/* Animated background particles - stable positions, independent of progress */}
+        {/* Animated background particles - own animation, independent of progress */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {loadingParticles.map((p, i) => (
             <div
               key={i}
-              className="absolute w-2 h-2 bg-white/20 rounded-full animate-pulse"
+              className="absolute w-2 h-2 bg-white/20 rounded-full"
               style={{
                 left: `${p.left}%`,
                 top: `${p.top}%`,
-                animationDelay: `${p.delay}s`,
-                animationDuration: `${p.duration}s`
+                animation: `pulse ${p.duration}s cubic-bezier(0.4, 0, 0.6, 1) ${p.delay}s infinite`
               }}
             />
           ))}
@@ -633,6 +632,10 @@ function App() {
           }
           .animate-fade-in {
             animation: fade-in 0.8s ease-out;
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
           }
         `}</style>
       </div>
