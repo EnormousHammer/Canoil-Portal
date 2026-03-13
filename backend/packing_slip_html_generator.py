@@ -143,7 +143,10 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     company = billing_addr.get('company_name') or billing_addr.get('company') or customer_name or ''
     
     # Use full_address if available, otherwise build from individual fields
+    # CRITICAL: Always show company name FIRST, then address
     full_addr = billing_addr.get('full_address', '').strip()
+    if not full_addr and so_data.get('sold_to'):
+        full_addr = (so_data['sold_to'].get('full_address') or so_data['sold_to'].get('address') or '').strip()
     street = (billing_addr.get('street_address') or billing_addr.get('address') or billing_addr.get('street') or '').strip()
     city = billing_addr.get('city', '').strip()
     province = billing_addr.get('province') or billing_addr.get('state', '').strip()
@@ -151,7 +154,12 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     country = billing_addr.get('country', 'Canada').strip()
     
     if full_addr:
-        # If full_address exists, use it directly - it should contain everything including company
+        # Ensure company name FIRST, then address (full_address may lack company or have address only)
+        if company:
+            company_clean = company.strip()
+            # Add company first only if full_address doesn't already start with company name
+            if company_clean and not full_addr.strip().lower().startswith(company_clean.lower()):
+                sold_to_lines.append(company_clean)
         sold_to_lines.append(full_addr)
     else:
         # Build from individual fields - add company first, then address parts
@@ -179,7 +187,9 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     ship_company = shipping_addr.get('company_name') or shipping_addr.get('company') or customer_name or ''
     
     # Use full_address if available, otherwise build from individual fields
-    ship_full_addr = shipping_addr.get('full_address', '').strip()
+    ship_full_addr = (shipping_addr.get('full_address') or shipping_addr.get('address') or '').strip()
+    if not ship_full_addr and so_data.get('ship_to'):
+        ship_full_addr = (so_data['ship_to'].get('full_address') or so_data['ship_to'].get('address') or '').strip()
     ship_street = (shipping_addr.get('street_address') or shipping_addr.get('address') or shipping_addr.get('street') or '').strip()
     ship_city = shipping_addr.get('city', '').strip()
     ship_province = shipping_addr.get('province') or shipping_addr.get('state', '').strip()
@@ -187,7 +197,11 @@ def generate_packing_slip_html(so_data: Dict[str, Any], email_shipping: Dict[str
     ship_country = shipping_addr.get('country', 'Canada').strip()
     
     if ship_full_addr:
-        # If full_address exists, use it directly - it should contain everything including company
+        # Ensure company name FIRST, then address (full_address may lack company or have address only)
+        if ship_company:
+            ship_company_clean = ship_company.strip()
+            if ship_company_clean and not ship_full_addr.strip().lower().startswith(ship_company_clean.lower()):
+                ship_to_lines.append(ship_company_clean)
         if is_pickup_order:
             ship_to_lines.append("- PICK UP")
         ship_to_lines.append(ship_full_addr)
