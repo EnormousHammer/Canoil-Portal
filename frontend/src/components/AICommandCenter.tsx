@@ -196,6 +196,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showSmartSuggestions, setShowSmartSuggestions] = useState(false);
+  const [visibleMessageCount, setVisibleMessageCount] = useState(50); // Virtualization: show last N messages
+
+  // Debounce input for smart suggestions (perf: avoid running on every keystroke)
+  const [debouncedInput, setDebouncedInput] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedInput(inputMessage), 250);
+    return () => clearTimeout(t);
+  }, [inputMessage]);
 
   // Smart suggestions: items + customers (same pattern as inventory, PR modal, etc.)
   const smartSuggestions = useMemo(() => {
@@ -207,7 +215,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         .filter(Boolean)
     )).sort() as string[];
 
-    const q = inputMessage.trim();
+    const q = debouncedInput.trim();
     if (!q || q.length < 2) return [];
 
     const terms = q.toLowerCase().split(/[\s,]+/).filter((t: string) => t.length >= 2);
@@ -248,7 +256,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     }
 
     return out.slice(0, 12);
-  }, [data, inputMessage]);
+  }, [data, debouncedInput]);
 
   // Fetch year-by-year Sage analytics from backend
   const loadSageAnalytics = async (year: number) => {
@@ -292,10 +300,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
   };
 
   // Generate enterprise analytics from existing data (no API call needed!)
+  // Perf: Run heavy computation off main thread via requestIdleCallback
   const generateEnterpriseAnalytics = () => {
     setIsLoadingAnalytics(true);
-    
-    try {
+    const doWork = () => {
+      try {
       // Combine all sales order sources — prefer GDrive folder-scanned SOs as most complete
       let realSalesOrders = [
         ...(data['SalesOrders.json'] || []),
@@ -414,28 +423,30 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       };
       
       setEnterpriseAnalytics(analytics);
-    } catch (error) {
-      console.error('Error generating analytics:', error);
-    } finally {
-      setIsLoadingAnalytics(false);
+      } catch (error) {
+        console.error('Error generating analytics:', error);
+      } finally {
+        setIsLoadingAnalytics(false);
+      }
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(doWork, { timeout: 3000 });
+    } else {
+      setTimeout(doWork, 0);
     }
   };
 
-  // Auto-load analytics on mount and when switching to analytics tab
+  // Lazy-load analytics: only when user first opens the Analytics tab (not on mount)
+  const analyticsLoadedRef = useRef(false);
   useEffect(() => {
-    if (!enterpriseAnalytics && data && Object.keys(data).length > 0) {
-      generateEnterpriseAnalytics();
-    }
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (activeTab === 'analytics' && !enterpriseAnalytics) {
+    if (activeTab === 'analytics' && !analyticsLoadedRef.current && data && Object.keys(data).length > 0) {
+      analyticsLoadedRef.current = true;
       generateEnterpriseAnalytics();
     }
     if (activeTab === 'analytics') {
       loadSageAnalytics(analyticsYear);
     }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, analyticsYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch Sage analytics when year changes
   useEffect(() => {
@@ -541,12 +552,17 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
       });
     }
     
-    // Remove duplicates based on SO number (handle all naming conventions)
+    // Remove duplicates based on SO number (O(n) with Set instead of O(n²) filter+findIndex)
     const getSoNum = (so: any) =>
       so.so_number || so.soNumber || so['SO Number'] || so.SO_Number || so.so_no || so['SO#'] || '';
-    const uniqueSalesOrders = allSalesOrders.filter((so, index, self) =>
-      getSoNum(so) === '' || index === self.findIndex(s => getSoNum(s) === getSoNum(so))
-    );
+    const seenSo = new Set<string>();
+    const uniqueSalesOrders = allSalesOrders.filter((so) => {
+      const num = getSoNum(so);
+      if (num === '') return true;
+      if (seenSo.has(num)) return false;
+      seenSo.add(num);
+      return true;
+    });
     
     // Use the unique sales orders for calculations
     allSalesOrders = uniqueSalesOrders;
@@ -723,7 +739,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
     return insights;
   };
 
-  // Build chat request body (shared by main send + Quick Actions) — ensures full context: ALL data, dateContext, dataSources
+  // Build chat request body (shared by main send + Quick Actions).
+  // Perf: Send only { query, dateContext, dataSources } — backend loads what it needs for focused intents
+  // and uses _data_cache / GDrive for fallback. Avoids sending up to 5MB of data on every request.
   const buildChatRequestBody = (query: string) => {
     const currentDate = new Date();
     const dateContext = {
@@ -798,42 +816,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
         data[key] && 
         (Array.isArray(data[key]) ? data[key].length > 0 : typeof data[key] === 'object' && Object.keys(data[key]).length > 0)
       ),
-      // Explicit note: backend loads Sage + G Drive data server-side when available
       sageData: 'Available server-side (customers, open SOs, AR aging)',
       googleDriveData: 'Available server-side (MiSys, Sales Orders PDFs)'
     };
-    // Send data so AI answers match what the user sees. Backend expects key "data".
-    // Without it, AI returns "0 MOs", "no inventory" etc. (backend fallback has no data on Render).
-    const _metadata_keys = new Set(['folderInfo', 'LoadTimestamp', 'source', 'message', 'folder', 'size', 'fileCount', 'created', 'syncDate', 'lastModified', 'fullCompanyDataReady', 'loaded']);
-    const dataToSend: Record<string, unknown> = {};
-    const maxPayloadBytes = 5 * 1024 * 1024; // 5MB limit to avoid OOM
-    if (data && typeof data === 'object') {
-      for (const [k, v] of Object.entries(data)) {
-        if (_metadata_keys.has(k)) continue;
-        if (Array.isArray(v) && v.length > 0) {
-          dataToSend[k] = v;
-        } else if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0) {
-          dataToSend[k] = v;
-        }
-      }
-      const payloadStr = JSON.stringify(dataToSend);
-      if (payloadStr.length > maxPayloadBytes) {
-        // Send only essential keys for chat (MO, PO, Items, SO) when full payload too large
-        const essential = ['ManufacturingOrderHeaders.json', 'MIMOH.json', 'ManufacturingOrderDetails.json', 'MIMOMD.json', 'Items.json', 'MIITEM.json', 'MIILOC.json', 'PurchaseOrders.json', 'MIPOH.json', 'PurchaseOrderDetails.json', 'MIPOD.json', 'SalesOrderHeaders.json', 'SalesOrderDetails.json', 'SalesOrders.json', 'RealSalesOrders', 'ParsedSalesOrders.json', 'SalesOrdersByStatus', 'SalesOrders_InProduction', 'SalesOrders_Completed', 'SalesOrders_New', 'SalesOrders_Scheduled'];
-        const trimmed: Record<string, unknown> = {};
-        for (const k of essential) {
-          const v = data[k];
-          if (Array.isArray(v) && v.length > 0) trimmed[k] = v;
-          else if (v && typeof v === 'object' && Object.keys(v).length > 0) trimmed[k] = v;
-        }
-        // Always send trimmed when available (better than no data)
-        if (Object.keys(trimmed).length > 0) {
-          return { query, dateContext, dataSources: dataSourcesSummary, data: trimmed };
-        }
-      } else {
-        return { query, dateContext, dataSources: dataSourcesSummary, data: dataToSend };
-      }
-    }
+    // Perf: Don't send full data — backend loads from _data_cache / GDrive for focused intents and fallback
     return { query, dateContext, dataSources: dataSourcesSummary };
   };
 
@@ -1060,7 +1046,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
           sources: res.sources,
           action_file: res.action_file,
           action_filename: res.action_filename,
-          action_result: res.action_result
+          action_result: res.action_result,
+          download_url: res.download_url,
+          download_filename: res.download_filename
         }]);
       }).catch((err) => {
         setMessages(prev => [...prev, {
@@ -1298,10 +1286,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                 });
                               }
                               
-                              // Remove duplicates
-                              const uniqueSalesOrders = allSalesOrders.filter((so, index, self) =>
-                                _getSoNum(so) === '' || index === self.findIndex(s => _getSoNum(s) === _getSoNum(so))
-                              );
+                              // Remove duplicates (O(n) with Set)
+                              const _seenSo = new Set<string>();
+                              const uniqueSalesOrders = allSalesOrders.filter((so) => {
+                                const num = _getSoNum(so);
+                                if (num === '') return true;
+                                if (_seenSo.has(num)) return false;
+                                _seenSo.add(num);
+                                return true;
+                              });
                               
                               const salesOrdersCount = uniqueSalesOrders.length;
                               
@@ -1337,16 +1330,28 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                         </div>
                       </div>
                     ) : (
-                      messages.map((message) => (
-                        <InteractiveChatMessage
-                          key={message.id}
-                          message={message}
-                          onItemClick={handleItemClick}
-                          onSOClick={handleSOClick}
-                          onCustomerClick={handleCustomerClick}
-                          data={data}
-                        />
-                      ))
+                      <>
+                        {messages.length > visibleMessageCount && (
+                          <div className="flex justify-center py-2">
+                            <button
+                              onClick={() => setVisibleMessageCount((n) => Math.min(n + 50, messages.length))}
+                              className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                            >
+                              Load older messages ({messages.length - visibleMessageCount} more)
+                            </button>
+                          </div>
+                        )}
+                        {messages.slice(-visibleMessageCount).map((message) => (
+                          <InteractiveChatMessage
+                            key={message.id}
+                            message={message}
+                            onItemClick={handleItemClick}
+                            onSOClick={handleSOClick}
+                            onCustomerClick={handleCustomerClick}
+                            data={data}
+                          />
+                        ))}
+                      </>
                     )}
                     {isProcessing && (
                       <div className="flex items-start gap-3 mb-4">
@@ -1454,7 +1459,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({ data, onBack, 
                                 sources: res.sources,
                                 action_file: res.action_file,
                                 action_filename: res.action_filename,
-                                action_result: res.action_result
+                                action_result: res.action_result,
+                                download_url: res.download_url,
+                                download_filename: res.download_filename
                               }]);
                             }).catch((err) => {
                               setMessages(prev => [...prev, {

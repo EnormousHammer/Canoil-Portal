@@ -994,7 +994,10 @@ _FOCUSED_PROMPTS: Dict[str, str] = {
         "At the end, provide a summary: total orders, total quantity sold, total revenue, total cost (if available), overall margin % (if available).\n"
         "Format all money as $X,XXX.XX. State currency (CAD/USD) if known.\n"
         "If the data shows no records or an error, say so clearly — do NOT fabricate numbers.\n"
-        "If customer or item was not found, explain what was searched for."
+        "If customer or item was not found, explain what was searched for.\n\n"
+        "EXCEL EXPORT: When a Download Excel button appears below your response, ALWAYS tell the user: "
+        "\"Click the **Download Excel** button below to get the full report with all orders, pricing, cost, and profit.\" "
+        "The button is provided automatically — your job is to make sure the user knows to use it."
     ),
     "bom": (
         "You are a business intelligence AI for Canoil Canada Ltd.\n"

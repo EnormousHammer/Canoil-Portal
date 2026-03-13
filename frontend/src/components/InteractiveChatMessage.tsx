@@ -1,5 +1,6 @@
 import React from "react";
 import { Brain, User, FileText, Download } from "lucide-react";
+import { getApiUrl } from "../utils/apiConfig";
 
 // â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtNum(s: string): string {
@@ -26,6 +27,8 @@ interface InteractiveChatMessageProps {
     action_file?: string;
     action_filename?: string;
     action_result?: { type: string; item_no?: string; description?: string; quantity?: number; filename?: string };
+    download_url?: string;
+    download_filename?: string;
   };
   onItemClick?: (item: any) => void;
   onSOClick?: (soNumber: string) => void;
@@ -322,23 +325,50 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         )}
 
-        {message.action_file && message.action_filename && (
+        {(message.action_file && message.action_filename) || message.download_url ? (
           <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                try {
-                  const bin = atob(message.action_file!);
-                  const bytes = new Uint8Array(bin.length);
-                  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = message.action_filename || "PR.xlsx";
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  URL.revokeObjectURL(url);
+            {message.download_url ? (
+              <button
+                onClick={async () => {
+                  try {
+                    const url = getApiUrl(message.download_url!);
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+                    const blob = await res.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = objectUrl;
+                    a.download = message.download_filename || "export.xlsx";
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(objectUrl);
+                  } catch (e) {
+                    console.error("Download failed:", e);
+                    window.open(getApiUrl(message.download_url!), "_blank");
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download Excel
+              </button>
+            ) : message.action_file && message.action_filename ? (
+              <button
+                onClick={() => {
+                  try {
+                    const bin = atob(message.action_file!);
+                    const bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = message.action_filename || "PR.xlsx";
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
                 } catch (e) {
                   console.error("Download failed:", e);
                 }
@@ -348,6 +378,7 @@ export const InteractiveChatMessage: React.FC<InteractiveChatMessageProps> = ({
               <Download className="w-4 h-4" />
               Download {message.action_result?.type === "pr" ? "PR" : "File"}
             </button>
+            ) : null}
             {message.action_result?.item_no && onItemClick && (
               <button
                 onClick={() => onItemClick({ itemCode: message.action_result!.item_no! })}

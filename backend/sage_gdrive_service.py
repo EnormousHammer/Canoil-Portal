@@ -852,7 +852,7 @@ def get_sales_orders(search: str = None, customer_id: int = None,
     return {"sales_orders": result, "total": total, "source": "gdrive"}
 
 
-def get_customer_item_sales(customer_search: str, item_code_search: str, limit: int = 500) -> dict:
+def get_customer_item_sales(customer_search: str, item_code_search: str, limit: int = 500, misys_items: list = None) -> dict:
     """
     Return all sales order lines where customer matches customer_search AND item matches item_code_search.
     Used for analytics: "How many times did we sell REOL46bdrm to Duke Energy?" / "All orders for REOLUBE46B to Duke Energy with pricing cost margins"
@@ -930,6 +930,22 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
                 "unit_cost": cost,
             }
 
+    # MiSys cost fallback (Recent Cost / Standard Cost from Items.json) when Sage tinvent has no cost
+    misys_cost_map = {}
+    if misys_items and isinstance(misys_items, list):
+        for item in misys_items:
+            if not isinstance(item, dict):
+                continue
+            item_no = _safe_str(item.get("Item No.") or item.get("itemId") or item.get("sPartCode"))
+            if not item_no:
+                continue
+            rc = _safe_float(item.get("Recent Cost") or item.get("cLast"))
+            sc = _safe_float(item.get("Standard Cost") or item.get("cStd"))
+            uc = _safe_float(item.get("Unit Cost") or item.get("unitCost"))
+            cost = rc if rc > 0 else (sc if sc > 0 else uc)
+            if cost > 0:
+                misys_cost_map[item_no.upper()] = cost
+
     cust_ids = [
         cid for cid, cname in cust_name_map.items()
         if cust_lower in cname.lower()
@@ -942,14 +958,17 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         for _, r in so_df.iterrows():
             if int(r.get("lCusId", 0) or 0) in cust_ids:
                 so_ids.add(int(r.get("lId", 0) or 0))
+    CURRENCY_MAP = {1: "CAD", 2: "USD"}
     so_id_to_header = {}
     for _, r in so_df.iterrows():
         sid = int(r.get("lId", 0) or 0)
         if sid in so_ids:
+            cur_id = int(r.get("lCurrncyId", 1) or 1)
             so_id_to_header[sid] = {
                 "sSONum": _safe_str(r.get("sSONum")),
                 "dtSODate": _safe_date(r.get("dtSODate")),
                 "lCusId": int(r.get("lCusId", 0) or 0),
+                "currency": CURRENCY_MAP.get(cur_id, "CAD"),
             }
 
     line_df = line_df[line_df["lSOId"].fillna(0).astype(int).isin(so_ids)].copy()
@@ -1007,10 +1026,13 @@ def get_customer_item_sales(customer_search: str, item_code_search: str, limit: 
         if unit_price == 0 and qty > 0 and amt > 0:
             unit_price = amt / qty
         cost = info.get("unit_cost", 0) or 0
+        if cost <= 0 and misys_cost_map:
+            cost = misys_cost_map.get(info["sPartCode"].upper(), 0) or 0
         total_cost = round(cost * qty, 2) if cost > 0 else 0
         margin_pct = round((amt - total_cost) / amt * 100, 1) if amt > 0 and total_cost > 0 else (None if amt > 0 else 0)
         records.append({
             "so_number": hdr.get("sSONum", ""),
+            "currency": hdr.get("currency", "CAD"),
             "customer_name": cust_name_map.get(hdr.get("lCusId", 0), ""),
             "item_code": info["sPartCode"],
             "item_name": info["sName"],
@@ -1230,6 +1252,32 @@ def _customer_revenue_from_titrec(fiscal_year: int) -> dict:
     return {int(cid): float(v) for cid, v in grouped.items() if int(cid) != 0}
 
 
+def _customer_last_sale_from_titrec(fiscal_year: int) -> dict:
+    """Per-customer last sale date within the given fiscal year, from titrec (transaction data).
+    Returns {cid: "YYYY-MM-DD"}. Use this instead of tcustomr.dtLastSal for FY-filtered Top Customers."""
+    df = _tables().get("titrec")
+    if df is None or df.empty:
+        return {}
+    date_col = _find_col(df, ["dtASDate", "dtDate"])
+    cid_col = _find_col(df, ["lVenCusId", "lCusId", "lCustomerId", "lCustId"])
+    amt_col = _find_col(df, ["dInvAmt", "dAmt", "dTotalAmt"])
+    if not date_col or not cid_col or not amt_col:
+        return {}
+    start_dt, end_dt = _fiscal_year_date_range(fiscal_year)
+    rows = df.copy()
+    rows["_dt"] = rows[date_col].apply(lambda x: _normalize_date_to_iso(str(x)[:20]) if pd.notna(x) and str(x).strip() else None)
+    rows = rows[rows["_dt"].notna()]
+    rows = rows[(rows["_dt"] >= start_dt) & (rows["_dt"] <= end_dt)]
+    rows["_amt"] = pd.to_numeric(rows[amt_col], errors="coerce").fillna(0.0)
+    rows = rows[rows["_amt"] > 0]
+    if rows.empty:
+        return {}
+    rows["_cid"] = pd.to_numeric(rows[cid_col], errors="coerce").fillna(0).astype(int)
+    rows = rows[rows["_cid"] != 0]
+    last_sale = rows.groupby("_cid")["_dt"].max()
+    return {int(cid): str(d)[:10] for cid, d in last_sale.items()}
+
+
 def _item_stats_from_titrline(fiscal_year: int) -> dict:
     """Aggregate per-item revenue/qty/cogs from titrline for a given Sage fiscal year (Apr-Mar)."""
     tables = _tables()
@@ -1305,6 +1353,8 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
 
     txn_rev = _customer_revenue_from_titrec(resolved_year)
     prev_txn = _customer_revenue_from_titrec(resolved_year - 1)
+    last_sale_in_fy = _customer_last_sale_from_titrec(resolved_year)
+    last_sale_prev_fy = _customer_last_sale_from_titrec(resolved_year - 1)
 
     result = []
     for _, r in rows.iterrows():
@@ -1314,6 +1364,8 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
         ly = prev_txn.get(cid, 0.0)
         if ytd <= 0 and ly <= 0:
             continue
+        # Use last sale from titrec (transaction data) — not tcustomr.dtLastSal which can be stale
+        last_sale = last_sale_in_fy.get(cid) or last_sale_prev_fy.get(cid) or _safe_date(r.get("dtLastSal"))
         result.append({
             "lId": cid,
             "sName": _safe_str(r.get("sName")),
@@ -1326,7 +1378,7 @@ def get_top_customers(limit: int = 25, year: int = None) -> dict:
             "credit_utilization_pct": round(ytd / credit * 100, 1) if credit > 0 else None,
             "currency": CURRENCY_NAMES.get(int(r.get("lCurrncyId", 1) or 1), "CAD"),
             "price_list": PRICE_LIST_NAMES.get(int(r.get("lPrcListId", 1) or 1), "Regular"),
-            "dtLastSal": _safe_date(r.get("dtLastSal")),
+            "dtLastSal": last_sale,
             "nNetDay": int(r.get("nNetDay", 0) or 0),
         })
 
