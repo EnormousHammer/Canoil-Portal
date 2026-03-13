@@ -9188,7 +9188,8 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                   </>
                 )}
               </>
-              ))}
+            ))}
+              </div>
             </div>
           )}
 
