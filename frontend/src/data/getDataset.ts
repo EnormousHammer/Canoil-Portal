@@ -12,6 +12,11 @@ export function getDataset<T = any>(
   if (!data) return [];
   for (const k of keys) {
     const v = data[k];
+    if (Array.isArray(v) && v.length > 0) return v as T[];
+  }
+  // Fallback: return first array even if empty (for consistent empty-state handling)
+  for (const k of keys) {
+    const v = data[k];
     if (Array.isArray(v)) return v as T[];
   }
   return [];

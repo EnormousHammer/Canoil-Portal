@@ -1513,8 +1513,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   };
 
   // Enterprise-level metrics calculation - CANOIL STOCK ONLY (excludes customer stock)
+  // Data source: Items.json (Full Company Data) or MIITEM.json (MiSys export) - backend may provide either
   const inventoryMetrics = useMemo(() => {
-    const items = data['Items.json'] || [];
+    const items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
     const totalItems = items.length;
     
     // Calculate total value using CANOIL stock only
@@ -1593,8 +1594,9 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
   }, [indexes]);
 
   // Filtered inventory with sorting and filtering - Uses CANOIL STOCK ONLY
+  // Data source: Items.json (Full Company Data) or MIITEM.json (MiSys export) - backend may provide either
   const filteredInventory = useMemo(() => {
-    let items = data['Items.json'] || [];
+    let items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
     
     // Apply inventory filter (low-stock, out-of-stock, raw/assembled/formula) - CANOIL STOCK ONLY
     if (inventoryFilter === 'low-stock') {
@@ -7198,7 +7200,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                         inventoryFilter === 'all' ? 'bg-white/20 text-white shadow-sm' : 'text-emerald-200/90 hover:bg-white/10 hover:text-white'
                       }`}
                     >
-                      All: {(data['Items.json'] || []).length.toLocaleString()}
+                      All: {((data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[]).length.toLocaleString()}
                     </button>
                     <button 
                       onClick={() => setInventoryFilter('low-stock')}
@@ -7223,7 +7225,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                       title="Raw / purchased (Item Type 0)"
                     >
-                      Raw: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
+                      Raw: {((data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[]).filter((i: any) => String(i['Item Type'] ?? '') === '0' || i['Item Type'] === 0).length}
                     </button>
                     <button 
                       onClick={() => setInventoryFilter('assembled')}
@@ -7232,7 +7234,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                       title="Assembled (Item Type 1)"
                     >
-                      Assembled: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
+                      Assembled: {((data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[]).filter((i: any) => String(i['Item Type'] ?? '') === '1' || i['Item Type'] === 1).length}
                     </button>
                     <button 
                       onClick={() => setInventoryFilter('formula')}
@@ -7241,7 +7243,7 @@ export const RevolutionaryCanoilHub: React.FC<RevolutionaryCanoilHubProps> = ({ 
                       }`}
                       title="Formula / blend (Item Type 2)"
                     >
-                      Formula: {(data['Items.json'] || []).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
+                      Formula: {((data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[]).filter((i: any) => String(i['Item Type'] ?? '') === '2' || i['Item Type'] === 2).length}
                     </button>
                   </div>
                 </div>

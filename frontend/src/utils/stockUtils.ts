@@ -62,7 +62,7 @@ export interface ItemWithLocation {
  * Combines Items.json (primary) with MIILOC (enhanced locations)
  */
 export function getItemWithLocations(itemNo: string, data: any): ItemWithLocation | null {
-  const customAlert5Items = data['Items.json'] || [];
+  const customAlert5Items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
   const milocData = data['MIILOC.json'] || [];
   
   // Find the primary item data from Items.json
@@ -112,7 +112,7 @@ export function getItemWithLocations(itemNo: string, data: any): ItemWithLocatio
  * Returns array of items with location information
  */
 export function getAllItemsWithLocations(data: any): ItemWithLocation[] {
-  const customAlert5Items = data['Items.json'] || [];
+  const customAlert5Items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
   
   return customAlert5Items.map((item: any) => 
     getItemWithLocations(item["Item No."], data)
@@ -141,7 +141,7 @@ export function getItemCost(itemNo: string, data: any): number {
  */
 export function getItemStockByLocation(itemNo: string, data: any): Array<{location: string, stock: number, pickSequence?: string}> {
   const milocData = data['MIILOC.json'] || [];
-  const customAlert5Items = data['Items.json'] || [];
+  const customAlert5Items = (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
   
   // Get the main item from Items.json
   const mainItem = customAlert5Items.find((item: any) => item["Item No."] === itemNo);
@@ -212,6 +212,11 @@ export function getItemStock(itemNo: string, milocData: any[]): {total: number} 
  * - 62TODD, HOME = Canoil stock
  * - BRO, LANXESS, etc. = Customer stock (stored at Canoil but owned by customer)
  */
+/** Get items array - Items.json (Full Company Data) or MIITEM.json (MiSys export) - backend may provide either */
+function getItemsData(data: any): any[] {
+  return (data?.['Items.json'] ?? data?.['MIITEM.json'] ?? []) as any[];
+}
+
 export function getStockByOwnership(itemNo: string, data: any): {
   canoilStock: number;
   customerStock: number;
@@ -220,7 +225,7 @@ export function getStockByOwnership(itemNo: string, data: any): {
   customerBreakdown: Array<{location: string, stock: number}>;
 } {
   const milocData = data['MIILOC.json'] || [];
-  const customAlert5Items = data['Items.json'] || [];
+  const customAlert5Items = getItemsData(data);
   
   let canoilStock = 0;
   let customerStock = 0;

@@ -11,7 +11,7 @@ import { SMART_PRIMARY_SOURCES, getSmartFieldValue, isDuplicateSource, isEmptyFi
  * SMART ITEM DATA ACCESS - Uses Items.json (Full Company Data)
  */
 export function getRealItemData(data: any, itemNo: string) {
-  const itemsData = data[SMART_PRIMARY_SOURCES.ITEMS] || [];
+  const itemsData = (data?.[SMART_PRIMARY_SOURCES.ITEMS] ?? data?.['MIITEM.json'] ?? []) as any[];
   const item = itemsData.find((item: any) => item[ITEM_FIELDS.NUMBER] === itemNo);
   
   if (!item) {
