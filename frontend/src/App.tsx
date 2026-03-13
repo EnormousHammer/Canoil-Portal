@@ -159,34 +159,20 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array = run immediately on mount
 
-  // Loading screen progress - fills slowly over 5 min (never hides from time; only dataLoaded hides it)
-  useEffect(() => {
-    if (showLoadingScreen) {
-      const startTime = Date.now();
-      const duration = 300000; // 5 minutes max - progress bar fills slowly
-      
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / duration) * 95, 95); // Cap at 95% until data loads
-        setLoadingProgress(progress);
-      }, 100);
-      
-      return () => clearInterval(interval);
-    }
-  }, [showLoadingScreen]);
-
-  // Live cycling status - show what we're loading during long backend fetch (cycle every 1.5s)
+  // Progress bar tied to status messages - advances with each loading phase (accurate, not time-based)
+  // Live cycling status - show what we're loading, advance bar in sync (cap at 90% until data loads)
   useEffect(() => {
     if (!showLoadingScreen || dataLoaded) return;
     const interval = setInterval(() => {
       setLoadingStatus(prev => {
-        const isWaitingPhase = prev === 'Connecting to backend...' || prev === 'Loading data from backend...' || LOADING_CYCLE_MESSAGES.includes(prev);
+        const isWaitingPhase = prev === 'Connecting to backend...' || prev === 'Loading Items & Master Data...' || LOADING_CYCLE_MESSAGES.includes(prev);
         if (isWaitingPhase) {
           const msg = LOADING_CYCLE_MESSAGES[loadingCycleIndexRef.current % LOADING_CYCLE_MESSAGES.length];
           loadingCycleIndexRef.current += 1;
+          setLoadingProgress(p => Math.min(p + 8, 90)); // Advance bar with each phase, cap at 90%
           return msg;
         }
-        return prev; // Don't override "Finalizing...", "✅ All data loaded", etc.
+        return prev;
       });
     }, 1500);
     return () => clearInterval(interval);
@@ -351,6 +337,7 @@ function App() {
     
     try {
       setLoadingStatus('Connecting to backend...');
+      setLoadingProgress(5);
       
       // OPTIMIZATION: Start backend connection and MPS load immediately in parallel
       // Don't wait for G: Drive check - start backend requests right away
@@ -405,6 +392,7 @@ function App() {
       const gdriveCheckPromise = gdriveLoader.checkGDriveAccessAsync();
       
       setLoadingStatus('Loading Items & Master Data...');
+      setLoadingProgress(10); // Start bar at 10%, advances with each status cycle
       loadingCycleIndexRef.current = 1; // Cycle will show next message in 1.5s
       // Load actual data from G: Drive (this now loads Sales Orders in parallel internally)
       let result;
@@ -417,8 +405,9 @@ function App() {
           setSyncInfo(result.folderInfo || null);
           setDataSource(result.source || 'Full Company Data (not ready)');
           setDataLoaded(true);
-          setShowLoadingScreen(false);
+          setLoadingProgress(100);
           setLoadingStatus('✅ Loaded');
+          setShowLoadingScreen(false);
           gdriveLoader.getDataSourceStatus().then(st => setDataSourceStatus(st));
           return;
         }
@@ -437,6 +426,7 @@ function App() {
         const dataSource = result.source || (result.cached ? 'Cache' : 'Google Drive');
         console.log(`✅ Data loaded successfully from ${dataSource}`);
         setLoadingStatus('Data loaded! Finalizing...');
+        setLoadingProgress(95);
       } catch (error) {
         console.error('❌ Error loading data:', error);
         // Check if it's an empty data error
@@ -510,6 +500,7 @@ function App() {
       console.log('📊 MPS Orders Count:', mpsData.mps_orders?.length || 0);
 
       setLoadingStatus('Finalizing data...');
+      setLoadingProgress(95);
       // Use G: Drive data AS-IS - no conversion needed!
       setData({
         ...gdriveResult,
